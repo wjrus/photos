@@ -4,7 +4,7 @@ Rails.application.config.middleware.use OmniAuth::Builder do
     ENV["GOOGLE_CLIENT_SECRET"],
     {
       access_type: "offline",
-      prompt: "select_account",
+      prompt: "consent select_account",
       scope: "openid,email,profile,https://www.googleapis.com/auth/drive"
     }
 end

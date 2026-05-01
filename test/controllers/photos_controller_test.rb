@@ -150,6 +150,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "Archive"
+    assert_includes response.body, "Back to stream"
     assert_includes response.body, "Fuji X100"
     assert_includes response.body, photo.original_filename
   end
