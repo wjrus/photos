@@ -47,15 +47,27 @@
           <button class="rounded-md px-4 py-2 text-sm font-medium text-zinc-600">Public</button>
           <button class="rounded-md px-4 py-2 text-sm font-medium text-zinc-600">Invited</button>
         </div>
-        <% if current_user&.owner? %>
-          <%= form_with model: @photo, url: photos_path, class: "flex flex-wrap items-center gap-2", data: { turbo: false } do |form| %>
-            <%= form.file_field :original, accept: ".heic,.heif,.jpg,.jpeg,.png,.mov,.mp4,image/heic,image/heif,image/jpeg,image/png,video/quicktime,video/mp4", required: true, class: "w-56 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm file:mr-3 file:border-0 file:bg-zinc-100 file:px-3 file:py-1 file:text-sm file:font-medium file:text-zinc-800" %>
-            <%= form.file_field :sidecars, accept: ".aae", multiple: true, class: "w-36 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm file:mr-3 file:border-0 file:bg-zinc-100 file:px-3 file:py-1 file:text-sm file:font-medium file:text-zinc-800" %>
-            <%= form.text_field :title, placeholder: "Optional title", class: "w-44 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400" %>
-            <%= form.submit "Upload", class: "rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800" %>
-          <% end %>
-        <% end %>
       </div>
+
+      <% if current_user&.owner? %>
+        <%= form_with scope: :photos, url: photos_path, class: "mb-5", data: { controller: "drop-upload", turbo: false } do |form| %>
+          <div class="rounded-lg border border-dashed border-zinc-300 bg-white p-5 shadow-sm transition"
+               data-action="click->drop-upload#browse dragover->drop-upload#dragover dragleave->drop-upload#dragleave drop->drop-upload#drop">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p class="text-sm font-semibold text-zinc-950">Import from folder</p>
+                <p class="mt-1 text-sm text-zinc-600" data-drop-upload-target="summary">Drop iPhone imports here or choose files.</p>
+                <p class="mt-2 text-xs uppercase tracking-[0.16em] text-zinc-400">HEIC JPG PNG MOV MP4 AAE</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <button type="button" class="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" data-action="drop-upload#browse">Choose</button>
+                <%= form.submit "Upload", disabled: true, class: "rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-zinc-300", data: { drop_upload_target: "submit" } %>
+              </div>
+            </div>
+            <%= form.file_field :files, multiple: true, accept: ".heic,.heif,.jpg,.jpeg,.png,.mov,.mp4,.aae,image/heic,image/heif,image/jpeg,image/png,video/quicktime,video/mp4", class: "hidden", data: { drop_upload_target: "input", action: "change->drop-upload#choose" } %>
+          </div>
+        <% end %>
+      <% end %>
 
       <% if @photos.any? %>
         <div class="grid auto-rows-[220px] grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">

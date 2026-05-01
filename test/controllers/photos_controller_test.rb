@@ -77,6 +77,45 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, photo.sidecar_count
   end
 
+  test "owner batch uploads media files and pairs aae sidecars by basename" do
+    assert_difference "Photo.count", 2 do
+      post photos_path, params: {
+        photos: {
+          files: [
+            Rack::Test::UploadedFile.new(StringIO.new("fake heic bytes"), "image/heic", original_filename: "IMG_0001.HEIC"),
+            Rack::Test::UploadedFile.new(StringIO.new("<?xml version=\"1.0\"?>"), "application/xml", original_filename: "IMG_0001.AAE"),
+            Rack::Test::UploadedFile.new(StringIO.new("fake mp4 bytes"), "video/mp4", original_filename: "IMG_0002.MP4")
+          ]
+        }
+      }
+    end
+
+    heic = Photo.find_by!(original_filename: "IMG_0001.HEIC")
+    mp4 = Photo.find_by!(original_filename: "IMG_0002.MP4")
+    assert_redirected_to root_path
+    assert_equal 1, heic.sidecar_count
+    assert_equal 0, mp4.sidecar_count
+    assert_equal "private", heic.visibility
+    assert_equal "private", mp4.visibility
+  end
+
+  test "owner batch upload pairs apple edited aae sidecar with edited heic original" do
+    assert_difference "Photo.count", 1 do
+      post photos_path, params: {
+        photos: {
+          files: [
+            Rack::Test::UploadedFile.new(StringIO.new("fake heic bytes"), "image/heic", original_filename: "IMG_E0073.HEIC"),
+            Rack::Test::UploadedFile.new(StringIO.new("<?xml version=\"1.0\"?>"), "application/xml", original_filename: "IMG_O0073.AAE")
+          ]
+        }
+      }
+    end
+
+    photo = Photo.find_by!(original_filename: "IMG_E0073.HEIC")
+    assert_redirected_to root_path
+    assert_equal 1, photo.sidecar_count
+  end
+
   test "owner can publish and unpublish a photo" do
     photo = attached_photo
 
