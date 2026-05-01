@@ -4,6 +4,7 @@ class PhotosController < ApplicationController
   before_action :set_photo, only: %i[publish unpublish retry_archive]
 
   def show
+    set_stream_neighbors
   end
 
   def display
@@ -104,6 +105,16 @@ class PhotosController < ApplicationController
 
   def set_visible_photo
     @photo = Photo.with_attached_original.visible_to(current_user).find(params[:id])
+  end
+
+  def set_stream_neighbors
+    stream = Photo.visible_to(current_user).stream_order
+    stream_ids = stream.pluck(:id)
+    current_index = stream_ids.index(@photo.id)
+    return unless current_index
+
+    @previous_photo = stream.find_by(id: stream_ids[current_index - 1]) if current_index.positive?
+    @next_photo = stream.find_by(id: stream_ids[current_index + 1]) if stream_ids[current_index + 1]
   end
 
   def require_owner!

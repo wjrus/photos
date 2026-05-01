@@ -155,6 +155,24 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, photo.original_filename
   end
 
+  test "detail view exposes stream neighbors for keyboard and swipe navigation" do
+    newer = attached_photo(title: "Newer")
+    photo = attached_photo(title: "Current")
+    older = attached_photo(title: "Older")
+    newer.update_columns(created_at: Time.zone.local(2026, 1, 3), updated_at: Time.zone.local(2026, 1, 3))
+    photo.update_columns(created_at: Time.zone.local(2026, 1, 2), updated_at: Time.zone.local(2026, 1, 2))
+    older.update_columns(created_at: Time.zone.local(2026, 1, 1), updated_at: Time.zone.local(2026, 1, 1))
+
+    get photo_path(photo)
+
+    assert_response :success
+    assert_select "main[data-controller='stream-navigation']"
+    assert_select "a[href='#{photo_path(newer)}']", text: "Up"
+    assert_select "a[href='#{photo_path(older)}']", text: "Down"
+    assert_includes response.body, %(data-stream-navigation-previous-url-value="#{photo_path(newer)}")
+    assert_includes response.body, %(data-stream-navigation-next-url-value="#{photo_path(older)}")
+  end
+
   test "public viewer sees public display without privileged metadata" do
     photo = attached_photo
     photo.create_metadata!(extraction_status: "complete", camera_make: "Fuji", camera_model: "X100", raw: {})
@@ -204,8 +222,9 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     Rack::Test::UploadedFile.new(Rails.root.join(path), content_type)
   end
 
-  def attached_photo
+  def attached_photo(title: nil)
     photo = @owner.photos.new
+    photo.title = title if title
     photo.original.attach(
       io: File.open(Rails.root.join("public/icon.png")),
       filename: "fixture.png",
