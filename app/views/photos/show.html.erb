@@ -10,8 +10,7 @@
           data-stream-navigation-next-url-value="<%= photo_path(@next_photo) if @next_photo %>">
       <%= link_to root_path,
             class: "absolute left-4 top-4 z-20 rounded-lg border border-white/25 bg-black/55 px-3 py-2 text-sm font-semibold text-white backdrop-blur transition hover:bg-white hover:text-zinc-950",
-            aria: { label: "Back to stream" },
-            data: { controller: "history-back", action: "history-back#go" } do %>
+            aria: { label: "Back to stream" } do %>
         Back
       <% end %>
       <% if @previous_photo || @next_photo %>
@@ -20,13 +19,15 @@
             <%= link_to "Up",
                   photo_path(@previous_photo),
                   class: "flex h-11 w-14 items-center justify-center rounded-lg border border-white/25 bg-black/55 text-xs font-semibold uppercase text-white backdrop-blur transition hover:bg-white hover:text-zinc-950",
-                  aria: { label: "Previous item in stream" } %>
+                  aria: { label: "Previous item in stream" },
+                  data: { turbo_action: "replace" } %>
           <% end %>
           <% if @next_photo %>
             <%= link_to "Down",
                   photo_path(@next_photo),
                   class: "flex h-11 w-14 items-center justify-center rounded-lg border border-white/25 bg-black/55 text-xs font-semibold uppercase text-white backdrop-blur transition hover:bg-white hover:text-zinc-950",
-                  aria: { label: "Next item in stream" } %>
+                  aria: { label: "Next item in stream" },
+                  data: { turbo_action: "replace" } %>
           <% end %>
         </nav>
       <% end %>

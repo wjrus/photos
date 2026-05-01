@@ -16,17 +16,17 @@ export default class extends Controller {
 
     if (event.key === "Escape") {
       event.preventDefault()
-      this.goBack()
+      this.leaveStream()
     }
 
     if (event.key === "ArrowDown") {
       event.preventDefault()
-      this.visit(this.nextUrlValue)
+      this.visit(this.nextUrlValue, { action: "replace" })
     }
 
     if (event.key === "ArrowUp") {
       event.preventDefault()
-      this.visit(this.previousUrlValue)
+      this.visit(this.previousUrlValue, { action: "replace" })
     }
   }
 
@@ -46,26 +46,21 @@ export default class extends Controller {
     if (Math.abs(deltaY) < 50) return
 
     if (deltaY < 0) {
-      this.visit(this.nextUrlValue)
+      this.visit(this.nextUrlValue, { action: "replace" })
     } else {
-      this.visit(this.previousUrlValue)
+      this.visit(this.previousUrlValue, { action: "replace" })
     }
   }
 
-  goBack() {
-    if (window.history.length > 1) {
-      window.history.back()
-      return
-    }
-
+  leaveStream() {
     this.visit(this.backUrlValue)
   }
 
-  visit(url) {
+  visit(url, options = {}) {
     if (!url) return
 
     if (window.Turbo) {
-      window.Turbo.visit(url)
+      window.Turbo.visit(url, options)
     } else {
       window.location.href = url
     }

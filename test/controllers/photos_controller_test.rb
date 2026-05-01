@@ -167,8 +167,8 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "main[data-controller='stream-navigation']"
-    assert_select "a[href='#{photo_path(newer)}']", text: "Up"
-    assert_select "a[href='#{photo_path(older)}']", text: "Down"
+    assert_select "a[href='#{photo_path(newer)}'][data-turbo-action='replace']", text: "Up"
+    assert_select "a[href='#{photo_path(older)}'][data-turbo-action='replace']", text: "Down"
     assert_includes response.body, %(data-stream-navigation-previous-url-value="#{photo_path(newer)}")
     assert_includes response.body, %(data-stream-navigation-next-url-value="#{photo_path(older)}")
   end
