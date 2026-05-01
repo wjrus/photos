@@ -1,0 +1,19 @@
+# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  provider: google_oauth2
+  uid: google-123
+  email: william@example.com
+  name: William Rockwood
+  avatar_url: https://example.com/william.jpg
+  role: owner
+  last_signed_in_at: 2026-04-30 21:34:27
+
+two:
+  provider: google_oauth2
+  uid: google-456
+  email: friend@example.com
+  name: Friend
+  avatar_url: https://example.com/friend.jpg
+  role: viewer
+  last_signed_in_at: 2026-04-30 21:34:27
