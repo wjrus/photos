@@ -49,7 +49,8 @@
         </div>
         <% if current_user&.owner? %>
           <%= form_with model: @photo, url: photos_path, class: "flex flex-wrap items-center gap-2", data: { turbo: false } do |form| %>
-            <%= form.file_field :original, accept: "image/*,video/*,.mov", required: true, class: "w-56 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm file:mr-3 file:border-0 file:bg-zinc-100 file:px-3 file:py-1 file:text-sm file:font-medium file:text-zinc-800" %>
+            <%= form.file_field :original, accept: ".heic,.heif,.jpg,.jpeg,.png,.mov,.mp4,image/heic,image/heif,image/jpeg,image/png,video/quicktime,video/mp4", required: true, class: "w-56 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm file:mr-3 file:border-0 file:bg-zinc-100 file:px-3 file:py-1 file:text-sm file:font-medium file:text-zinc-800" %>
+            <%= form.file_field :sidecars, accept: ".aae", multiple: true, class: "w-36 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm file:mr-3 file:border-0 file:bg-zinc-100 file:px-3 file:py-1 file:text-sm file:font-medium file:text-zinc-800" %>
             <%= form.text_field :title, placeholder: "Optional title", class: "w-44 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400" %>
             <%= form.submit "Upload", class: "rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800" %>
           <% end %>

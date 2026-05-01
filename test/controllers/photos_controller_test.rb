@@ -45,6 +45,38 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_predicate photo, :video?
   end
 
+  test "owner uploads a private mp4 original" do
+    assert_difference "Photo.count", 1 do
+      post photos_path, params: {
+        photo: {
+          original: Rack::Test::UploadedFile.new(StringIO.new("fake mp4 bytes"), "video/mp4", original_filename: "clip.mp4")
+        }
+      }
+    end
+
+    photo = Photo.order(:created_at).last
+    assert_redirected_to root_path
+    assert_equal "video/mp4", photo.content_type
+    assert_predicate photo, :video?
+  end
+
+  test "owner uploads aae sidecar with original" do
+    assert_difference "Photo.count", 1 do
+      post photos_path, params: {
+        photo: {
+          original: fixture_upload("public/icon.png", "image/png"),
+          sidecars: [
+            Rack::Test::UploadedFile.new(StringIO.new("<?xml version=\"1.0\"?>"), "application/xml", original_filename: "IMG_0001.AAE")
+          ]
+        }
+      }
+    end
+
+    photo = Photo.order(:created_at).last
+    assert_redirected_to root_path
+    assert_equal 1, photo.sidecar_count
+  end
+
   test "owner can publish and unpublish a photo" do
     photo = attached_photo
 

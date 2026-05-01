@@ -6,13 +6,15 @@ class Photo < ApplicationRecord
   has_one :metadata, class_name: "PhotoMetadata", dependent: :destroy, inverse_of: :photo
   has_one :drive_archive_object, dependent: :destroy
   has_one_attached :original do |attachable|
-    attachable.variant :display, resize_to_limit: [ 1800, 1800 ]
+    attachable.variant :display, resize_to_limit: [ 1800, 1800 ], format: :jpg, saver: { strip: true, quality: 82 }
   end
+  has_many_attached :sidecars
 
   validates :visibility, inclusion: { in: VISIBILITIES }
   validates :checksum_status, inclusion: { in: CHECKSUM_STATUSES }
   validates :original, presence: true
   validate :original_must_be_supported_media
+  validate :sidecars_must_be_aae
 
   before_validation :copy_original_blob_attributes, if: -> { original.attached? }
   before_validation :set_title_from_original, if: -> { title.blank? && original_filename.present? }
@@ -60,6 +62,10 @@ class Photo < ApplicationRecord
     content_type.to_s.start_with?("video/")
   end
 
+  def sidecar_count
+    sidecars.attachments.size
+  end
+
   private
 
   def copy_original_blob_attributes
@@ -77,6 +83,14 @@ class Photo < ApplicationRecord
     return if original.content_type.to_s.start_with?("image/", "video/")
 
     errors.add(:original, "must be an image or video")
+  end
+
+  def sidecars_must_be_aae
+    sidecars.each do |sidecar|
+      next if File.extname(sidecar.filename.to_s).casecmp?(".aae")
+
+      errors.add(:sidecars, "must be Apple .AAE sidecar files")
+    end
   end
 
   def enqueue_checksum

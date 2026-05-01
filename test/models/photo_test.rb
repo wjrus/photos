@@ -34,6 +34,53 @@ class PhotoTest < ActiveSupport::TestCase
     assert_equal "Clip", photo.title
   end
 
+  test "accepts heic originals" do
+    photo = users(:one).photos.new
+    photo.original.attach(
+      io: StringIO.new("fake heic bytes"),
+      filename: "portrait.HEIC",
+      content_type: "image/heic"
+    )
+
+    assert_predicate photo, :valid?
+    assert_predicate photo, :image?
+    assert_equal "Portrait", photo.title
+  end
+
+  test "preserves aae sidecars with originals" do
+    photo = users(:one).photos.new
+    photo.original.attach(
+      io: File.open(Rails.root.join("public/icon.png")),
+      filename: "portrait.png",
+      content_type: "image/png"
+    )
+    photo.sidecars.attach(
+      io: StringIO.new("<?xml version=\"1.0\"?>"),
+      filename: "portrait.AAE",
+      content_type: "application/xml"
+    )
+
+    assert_predicate photo, :valid?
+    assert_equal 1, photo.sidecar_count
+  end
+
+  test "rejects non aae sidecars" do
+    photo = users(:one).photos.new
+    photo.original.attach(
+      io: File.open(Rails.root.join("public/icon.png")),
+      filename: "portrait.png",
+      content_type: "image/png"
+    )
+    photo.sidecars.attach(
+      io: StringIO.new("not a sidecar"),
+      filename: "notes.txt",
+      content_type: "text/plain"
+    )
+
+    assert_not photo.valid?
+    assert_includes photo.errors[:sidecars], "must be Apple .AAE sidecar files"
+  end
+
   test "enqueues checksum job after create" do
     assert_enqueued_with(job: ChecksumOriginalJob) do
       attached_photo

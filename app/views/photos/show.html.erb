@@ -36,7 +36,15 @@
               <div class="flex justify-between gap-4"><dt class="text-zinc-500">Drive</dt><dd class="text-zinc-800"><%= @photo.archive_status %></dd></div>
               <div class="flex justify-between gap-4"><dt class="text-zinc-500">Original</dt><dd class="text-right text-zinc-800"><%= @photo.original_filename %></dd></div>
               <div class="flex justify-between gap-4"><dt class="text-zinc-500">Bytes</dt><dd class="text-zinc-800"><%= number_to_human_size(@photo.byte_size) %></dd></div>
+              <div class="flex justify-between gap-4"><dt class="text-zinc-500">AAE sidecars</dt><dd class="text-zinc-800"><%= @photo.sidecar_count %></dd></div>
             </dl>
+            <% if @photo.sidecars.attached? %>
+              <ul class="mt-3 space-y-1 text-xs text-zinc-600">
+                <% @photo.sidecars.each do |sidecar| %>
+                  <li><%= sidecar.filename %></li>
+                <% end %>
+              </ul>
+            <% end %>
           </section>
 
           <section>

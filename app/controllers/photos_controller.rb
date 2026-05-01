@@ -11,7 +11,7 @@ class PhotosController < ApplicationController
 
     variant = @photo.original.variant(:display).processed
     send_data variant.download,
-      type: @photo.content_type,
+      type: "image/jpeg",
       disposition: "inline",
       filename: public_filename(@photo, ".jpg")
   end
@@ -46,7 +46,7 @@ class PhotosController < ApplicationController
   private
 
   def photo_params
-    params.require(:photo).permit(:title, :description, :original)
+    params.require(:photo).permit(:title, :description, :original, sidecars: [])
   end
 
   def set_photo
