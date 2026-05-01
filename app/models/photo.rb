@@ -3,6 +3,7 @@ class Photo < ApplicationRecord
   CHECKSUM_STATUSES = %w[pending complete failed].freeze
 
   belongs_to :owner, class_name: "User", inverse_of: :photos
+  has_one :metadata, class_name: "PhotoMetadata", dependent: :destroy, inverse_of: :photo
   has_one_attached :original do |attachable|
     attachable.variant :display, resize_to_limit: [ 1800, 1800 ]
   end
@@ -15,6 +16,7 @@ class Photo < ApplicationRecord
   before_validation :copy_original_blob_attributes, if: -> { original.attached? }
   before_validation :set_title_from_original, if: -> { title.blank? && original_filename.present? }
   after_create_commit :enqueue_checksum
+  after_create_commit :enqueue_metadata_extraction
 
   scope :visible_to, ->(user) {
     if user&.owner?
@@ -66,5 +68,9 @@ class Photo < ApplicationRecord
 
   def enqueue_checksum
     ChecksumOriginalJob.perform_later(self)
+  end
+
+  def enqueue_metadata_extraction
+    ExtractPhotoMetadataJob.perform_later(self)
   end
 end

@@ -27,6 +27,12 @@ class PhotoTest < ActiveSupport::TestCase
     end
   end
 
+  test "enqueues metadata extraction job after create" do
+    assert_enqueued_with(job: ExtractPhotoMetadataJob) do
+      attached_photo
+    end
+  end
+
   test "publishes and unpublishes" do
     photo = attached_photo
 

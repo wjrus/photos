@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_01_114713) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_01_114847) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -40,6 +40,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_01_114713) do
     t.bigint "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
+
+  create_table "photo_metadata", force: :cascade do |t|
+    t.string "aperture"
+    t.string "camera_make"
+    t.string "camera_model"
+    t.datetime "captured_at"
+    t.datetime "created_at", null: false
+    t.string "exposure_time"
+    t.datetime "extracted_at"
+    t.text "extraction_error"
+    t.string "extraction_status", default: "pending", null: false
+    t.string "focal_length"
+    t.integer "iso"
+    t.decimal "latitude", precision: 10, scale: 6
+    t.string "lens_model"
+    t.decimal "longitude", precision: 10, scale: 6
+    t.bigint "photo_id", null: false
+    t.jsonb "raw", default: {}, null: false
+    t.datetime "updated_at", null: false
+    t.index ["extraction_status"], name: "index_photo_metadata_on_extraction_status"
+    t.index ["photo_id"], name: "index_photo_metadata_on_photo_id", unique: true
   end
 
   create_table "photos", force: :cascade do |t|
@@ -82,5 +104,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_01_114713) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "photo_metadata", "photos"
   add_foreign_key "photos", "users", column: "owner_id"
 end

@@ -1,0 +1,2 @@
+# Metadata fixtures intentionally stay empty because valid metadata belongs to
+# attached photos created inside tests.
