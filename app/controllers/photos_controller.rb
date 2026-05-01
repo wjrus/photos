@@ -1,7 +1,7 @@
 class PhotosController < ApplicationController
   before_action :require_owner!, except: %i[show display media]
   before_action :set_visible_photo, only: %i[show display media]
-  before_action :set_photo, only: %i[publish unpublish]
+  before_action :set_photo, only: %i[publish unpublish retry_archive]
 
   def show
   end
@@ -49,6 +49,12 @@ class PhotosController < ApplicationController
   def unpublish
     @photo.unpublish!
     redirect_to root_path, notice: "Photo returned to private."
+  end
+
+  def retry_archive
+    @photo.drive_archive_object&.update!(status: "pending", error: nil)
+    MirrorOriginalToDriveJob.perform_later(@photo)
+    redirect_to photo_path(@photo), notice: "Drive archive retry queued."
   end
 
   private

@@ -17,6 +17,7 @@ Rails.application.routes.draw do
     get :media, on: :member
     patch :publish, on: :member
     patch :unpublish, on: :member
+    post :retry_archive, on: :member
   end
 
   root "home#show"

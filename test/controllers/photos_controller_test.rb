@@ -128,6 +128,20 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_predicate photo.reload, :private?
   end
 
+  test "owner can retry failed drive archive" do
+    photo = attached_photo
+    photo.create_drive_archive_object!(status: "failed", error: "Drive API disabled")
+
+    assert_enqueued_with(job: MirrorOriginalToDriveJob) do
+      post retry_archive_photo_path(photo)
+    end
+
+    assert_redirected_to photo_path(photo)
+    archive_object = photo.reload.drive_archive_object
+    assert_equal "pending", archive_object.status
+    assert_nil archive_object.error
+  end
+
   test "owner sees archive and metadata details" do
     photo = attached_photo
     photo.create_metadata!(extraction_status: "complete", camera_make: "Fuji", camera_model: "X100", raw: {})
