@@ -41,6 +41,33 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_predicate photo.reload, :private?
   end
 
+  test "owner sees archive and metadata details" do
+    photo = attached_photo
+    photo.create_metadata!(extraction_status: "complete", camera_make: "Fuji", camera_model: "X100", raw: {})
+
+    get photo_path(photo)
+
+    assert_response :success
+    assert_includes response.body, "Archive"
+    assert_includes response.body, "Fuji X100"
+    assert_includes response.body, photo.original_filename
+  end
+
+  test "public viewer sees public display without privileged metadata" do
+    photo = attached_photo
+    photo.create_metadata!(extraction_status: "complete", camera_make: "Fuji", camera_model: "X100", raw: {})
+    photo.publish!
+    delete sign_out_path
+
+    get photo_path(photo)
+
+    assert_response :success
+    assert_includes response.body, photo.title
+    refute_includes response.body, "Archive"
+    refute_includes response.body, "Fuji X100"
+    refute_includes response.body, photo.original_filename
+  end
+
   private
 
   def sign_in_as(user)

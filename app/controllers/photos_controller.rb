@@ -1,6 +1,10 @@
 class PhotosController < ApplicationController
-  before_action :require_owner!
+  before_action :require_owner!, except: :show
+  before_action :set_visible_photo, only: :show
   before_action :set_photo, only: %i[publish unpublish]
+
+  def show
+  end
 
   def create
     @photo = current_user.photos.new(photo_params)
@@ -30,6 +34,10 @@ class PhotosController < ApplicationController
 
   def set_photo
     @photo = current_user.photos.find(params[:id])
+  end
+
+  def set_visible_photo
+    @photo = Photo.with_attached_original.visible_to(current_user).find(params[:id])
   end
 
   def require_owner!

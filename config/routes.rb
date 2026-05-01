@@ -12,7 +12,7 @@ Rails.application.routes.draw do
   get "/auth/failure", to: "sessions#failure"
   match "/auth/:provider/callback", to: "sessions#create", via: [ :get, :post ]
   delete "/sign_out", to: "sessions#destroy", as: :sign_out
-  resources :photos, only: :create do
+  resources :photos, only: %i[show create] do
     patch :publish, on: :member
     patch :unpublish, on: :member
   end

@@ -60,7 +60,10 @@
         <div class="grid auto-rows-[220px] grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
           <% @photos.each_with_index do |photo, index| %>
             <article class="<%= index.zero? ? "col-span-2 row-span-2" : "" %> group relative overflow-hidden rounded-lg bg-zinc-900 shadow-sm">
-              <%= image_tag photo.original.variant(:display), alt: photo.title, class: "size-full object-cover" %>
+              <%= link_to photo_path(photo), class: "absolute inset-0 z-10", aria: { label: "View #{photo.title}" } do %>
+                <span class="sr-only">View <%= photo.title %></span>
+              <% end %>
+              <%= image_tag photo_display_image_path(photo), alt: photo.title, class: "size-full object-cover" %>
               <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-90"></div>
               <div class="absolute inset-x-0 bottom-0 p-4 text-white">
                 <div class="flex items-center justify-between gap-3">
@@ -75,9 +78,9 @@
                   </div>
                   <% if current_user&.owner? %>
                     <% if photo.public? %>
-                      <%= button_to "Make private", unpublish_photo_path(photo), method: :patch, class: "rounded-lg border border-white/50 bg-white/10 px-3 py-2 text-xs font-semibold text-white backdrop-blur transition hover:bg-white hover:text-zinc-950" %>
+                      <%= button_to "Make private", unpublish_photo_path(photo), method: :patch, class: "relative z-20 rounded-lg border border-white/50 bg-white/10 px-3 py-2 text-xs font-semibold text-white backdrop-blur transition hover:bg-white hover:text-zinc-950" %>
                     <% else %>
-                      <%= button_to "Publish", publish_photo_path(photo), method: :patch, class: "rounded-lg border border-white/50 bg-white/10 px-3 py-2 text-xs font-semibold text-white backdrop-blur transition hover:bg-white hover:text-zinc-950" %>
+                      <%= button_to "Publish", publish_photo_path(photo), method: :patch, class: "relative z-20 rounded-lg border border-white/50 bg-white/10 px-3 py-2 text-xs font-semibold text-white backdrop-blur transition hover:bg-white hover:text-zinc-950" %>
                     <% end %>
                   <% end %>
                 </div>
