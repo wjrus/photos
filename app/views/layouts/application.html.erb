@@ -25,16 +25,21 @@
 
   <body class="bg-stone-50 antialiased">
     <% if notice.present? || alert.present? %>
-      <div class="fixed left-1/2 top-4 z-50 flex w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 items-start gap-3 rounded-lg border bg-white px-4 py-3 text-sm shadow-lg <%= alert.present? ? "border-rose-200 text-rose-800" : "border-teal-200 text-teal-900" %>"
+      <div class="fixed left-1/2 top-4 z-50 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 overflow-hidden rounded-lg border bg-white text-sm shadow-lg <%= alert.present? ? "border-rose-200 text-rose-800" : "border-teal-200 text-teal-900" %>"
            role="<%= alert.present? ? "alert" : "status" %>"
            data-controller="dismissible">
-        <p class="min-w-0 flex-1"><%= notice || alert %></p>
-        <button type="button"
-                class="rounded-md border border-current/20 px-2 py-1 text-xs font-semibold uppercase tracking-[0.12em] opacity-75 transition hover:opacity-100"
-                aria-label="Dismiss message"
-                data-action="dismissible#dismiss">
-          Close
-        </button>
+        <div class="flex items-start gap-3 px-4 py-3">
+          <p class="min-w-0 flex-1"><%= notice || alert %></p>
+          <button type="button"
+                  class="rounded-md border border-current/20 px-2 py-1 text-xs font-semibold uppercase tracking-[0.12em] opacity-75 transition hover:opacity-100"
+                  aria-label="Dismiss message"
+                  data-action="dismissible#dismiss">
+            Close
+          </button>
+        </div>
+        <div class="h-1 bg-current/10">
+          <div class="h-full bg-current" data-dismissible-target="progress"></div>
+        </div>
       </div>
     <% end %>
 
