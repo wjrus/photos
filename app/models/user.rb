@@ -14,10 +14,19 @@ class User < ApplicationRecord
     user.email = auth.info.email
     user.name = auth.info.name.presence || auth.info.email
     user.avatar_url = auth.info.image
+    if auth.credentials.present?
+      user.google_access_token = auth.credentials.token
+      user.google_refresh_token = auth.credentials.refresh_token.presence || user.google_refresh_token
+      user.google_token_expires_at = Time.zone.at(auth.credentials.expires_at) if auth.credentials.expires_at.present?
+    end
     user.role = role_for(auth.info.email) if user.new_record?
     user.last_signed_in_at = Time.current
     user.save!
     user
+  end
+
+  def google_drive_authorized?
+    google_refresh_token.present? || google_access_token.present?
   end
 
   def owner?

@@ -22,6 +22,7 @@ class ChecksumOriginalJob < ApplicationJob
       checksum_error: nil,
       checksum_checked_at: Time.current
     )
+    MirrorOriginalToDriveJob.perform_later(photo)
   rescue StandardError => e
     photo.update!(
       checksum_status: "failed",

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_01_114847) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_01_115125) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -40,6 +40,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_01_114847) do
     t.bigint "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
+
+  create_table "drive_archive_objects", force: :cascade do |t|
+    t.datetime "archived_at"
+    t.datetime "created_at", null: false
+    t.text "error"
+    t.string "google_file_id"
+    t.string "google_md5_checksum"
+    t.bigint "google_size"
+    t.bigint "photo_id", null: false
+    t.string "status", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.datetime "verified_at"
+    t.index ["google_file_id"], name: "index_drive_archive_objects_on_google_file_id"
+    t.index ["photo_id"], name: "index_drive_archive_objects_on_photo_id", unique: true
+    t.index ["status"], name: "index_drive_archive_objects_on_status"
   end
 
   create_table "photo_metadata", force: :cascade do |t|
@@ -92,6 +108,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_01_114847) do
     t.string "avatar_url"
     t.datetime "created_at", null: false
     t.string "email", null: false
+    t.text "google_access_token"
+    t.text "google_refresh_token"
+    t.datetime "google_token_expires_at"
     t.datetime "last_signed_in_at"
     t.string "name"
     t.string "provider", null: false
@@ -104,6 +123,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_01_114847) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "drive_archive_objects", "photos"
   add_foreign_key "photo_metadata", "photos"
   add_foreign_key "photos", "users", column: "owner_id"
 end

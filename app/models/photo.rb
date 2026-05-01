@@ -4,6 +4,7 @@ class Photo < ApplicationRecord
 
   belongs_to :owner, class_name: "User", inverse_of: :photos
   has_one :metadata, class_name: "PhotoMetadata", dependent: :destroy, inverse_of: :photo
+  has_one :drive_archive_object, dependent: :destroy
   has_one_attached :original do |attachable|
     attachable.variant :display, resize_to_limit: [ 1800, 1800 ]
   end
@@ -45,6 +46,10 @@ class Photo < ApplicationRecord
 
   def checksum_complete?
     checksum_status == "complete"
+  end
+
+  def archive_status
+    drive_archive_object&.status || "pending"
   end
 
   private

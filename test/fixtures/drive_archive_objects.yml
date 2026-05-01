@@ -1,0 +1,2 @@
+# Drive archive fixtures intentionally stay empty because valid archive rows
+# belong to attached photos created inside tests.

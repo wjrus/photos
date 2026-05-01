@@ -4,7 +4,9 @@ class ChecksumOriginalJobTest < ActiveJob::TestCase
   test "computes sha256 checksum for original" do
     photo = attached_photo
 
-    ChecksumOriginalJob.perform_now(photo)
+    assert_enqueued_with(job: MirrorOriginalToDriveJob) do
+      ChecksumOriginalJob.perform_now(photo)
+    end
 
     assert_equal "complete", photo.reload.checksum_status
     assert_equal Digest::SHA256.file(Rails.root.join("public/icon.png")).hexdigest, photo.checksum_sha256

@@ -69,7 +69,7 @@
                     <h2 class="mt-1 text-lg font-semibold"><%= photo.title %></h2>
                     <% if current_user&.owner? %>
                       <p class="mt-1 text-xs font-medium uppercase tracking-[0.14em] text-white/75">
-                        SHA-256 <%= photo.checksum_status %>
+                        SHA-256 <%= photo.checksum_status %> · Drive <%= photo.archive_status %>
                       </p>
                     <% end %>
                   </div>

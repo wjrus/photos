@@ -5,6 +5,11 @@ class UserTest < ActiveSupport::TestCase
     auth = OmniAuth::AuthHash.new(
       provider: "google_oauth2",
       uid: "google-789",
+      credentials: {
+        token: "access-token",
+        refresh_token: "refresh-token",
+        expires_at: 1.hour.from_now.to_i
+      },
       info: {
         email: "Traveler@Example.com",
         name: "Summer Traveler",
@@ -19,6 +24,9 @@ class UserTest < ActiveSupport::TestCase
     assert_equal "traveler@example.com", user.email
     assert_equal "Summer Traveler", user.name
     assert_equal "viewer", user.role
+    assert_equal "access-token", user.google_access_token
+    assert_equal "refresh-token", user.google_refresh_token
+    assert_predicate user, :google_drive_authorized?
     assert_predicate user.last_signed_in_at, :present?
   end
 
