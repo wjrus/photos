@@ -47,30 +47,50 @@
           <button class="rounded-md px-4 py-2 text-sm font-medium text-zinc-600">Public</button>
           <button class="rounded-md px-4 py-2 text-sm font-medium text-zinc-600">Invited</button>
         </div>
-        <button class="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800">
-          Upload
-        </button>
-      </div>
-
-      <div class="grid auto-rows-[220px] grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-        <% [
-          ["Summer road", "from future imports", "bg-teal-900", "col-span-2 row-span-2"],
-          ["Lakeside", "private", "bg-sky-900", ""],
-          ["Late light", "private", "bg-amber-700", ""],
-          ["Trail notes", "invited", "bg-emerald-900", ""],
-          ["City walk", "private", "bg-rose-900", "col-span-2"],
-          ["Archive", "mirrored", "bg-zinc-800", ""],
-          ["Map ready", "owner only", "bg-indigo-900", ""]
-        ].each do |title, status, color, size| %>
-          <article class="<%= [size, color].reject(&:blank?).join(" ") %> group relative overflow-hidden rounded-lg shadow-sm">
-            <div class="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.32),transparent_28%),linear-gradient(135deg,rgba(255,255,255,0.08),rgba(0,0,0,0.38))]"></div>
-            <div class="absolute inset-x-0 bottom-0 p-4 text-white">
-              <p class="text-xs font-semibold uppercase tracking-[0.18em] opacity-75"><%= status %></p>
-              <h2 class="mt-1 text-lg font-semibold"><%= title %></h2>
-            </div>
-          </article>
+        <% if current_user&.owner? %>
+          <%= form_with model: @photo, url: photos_path, class: "flex flex-wrap items-center gap-2", data: { turbo: false } do |form| %>
+            <%= form.file_field :original, accept: "image/*", required: true, class: "w-56 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm file:mr-3 file:border-0 file:bg-zinc-100 file:px-3 file:py-1 file:text-sm file:font-medium file:text-zinc-800" %>
+            <%= form.text_field :title, placeholder: "Optional title", class: "w-44 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400" %>
+            <%= form.submit "Upload", class: "rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800" %>
+          <% end %>
         <% end %>
       </div>
+
+      <% if @photos.any? %>
+        <div class="grid auto-rows-[220px] grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+          <% @photos.each_with_index do |photo, index| %>
+            <article class="<%= index.zero? ? "col-span-2 row-span-2" : "" %> group relative overflow-hidden rounded-lg bg-zinc-900 shadow-sm">
+              <%= image_tag photo.original.variant(:display), alt: photo.title, class: "size-full object-cover" %>
+              <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-90"></div>
+              <div class="absolute inset-x-0 bottom-0 p-4 text-white">
+                <div class="flex items-center justify-between gap-3">
+                  <div>
+                    <p class="text-xs font-semibold uppercase tracking-[0.18em] opacity-75"><%= photo.visibility %></p>
+                    <h2 class="mt-1 text-lg font-semibold"><%= photo.title %></h2>
+                  </div>
+                  <% if current_user&.owner? %>
+                    <% if photo.public? %>
+                      <%= button_to "Make private", unpublish_photo_path(photo), method: :patch, class: "rounded-lg border border-white/50 bg-white/10 px-3 py-2 text-xs font-semibold text-white backdrop-blur transition hover:bg-white hover:text-zinc-950" %>
+                    <% else %>
+                      <%= button_to "Publish", publish_photo_path(photo), method: :patch, class: "rounded-lg border border-white/50 bg-white/10 px-3 py-2 text-xs font-semibold text-white backdrop-blur transition hover:bg-white hover:text-zinc-950" %>
+                    <% end %>
+                  <% end %>
+                </div>
+              </div>
+            </article>
+          <% end %>
+        </div>
+      <% else %>
+        <div class="flex min-h-[440px] items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-white p-8 text-center shadow-sm">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">No public photos yet</p>
+            <h2 class="mt-3 text-2xl font-semibold text-zinc-950">The stream is waiting for its first original.</h2>
+            <p class="mx-auto mt-3 max-w-md text-sm leading-6 text-zinc-600">
+              Signed-in owner uploads begin private, then can be published when they are ready for friends and visitors.
+            </p>
+          </div>
+        </div>
+      <% end %>
     </main>
   </div>
 </section>

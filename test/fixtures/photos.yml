@@ -1,0 +1,2 @@
+# Photo fixtures intentionally stay empty because valid photos require an
+# attached original. Tests create attached records explicitly.
