@@ -1,4 +1,4 @@
-require "exifr/jpeg"
+require "vips"
 
 class ExtractPhotoMetadataJob < ApplicationJob
   queue_as :default
@@ -11,31 +11,38 @@ class ExtractPhotoMetadataJob < ApplicationJob
       return
     end
 
-    unless photo.image? && jpeg?(photo)
+    unless photo.image?
       metadata.update!(extraction_status: "unsupported", extraction_error: nil, raw: {}, extracted_at: Time.current)
       return
     end
 
     photo.original.blob.open do |file|
-      exif = EXIFR::JPEG.new(file.path)
-      gps = exif.gps
+      exif = extract_exif(file.path)
+
+      unless exif.any?
+        metadata.update!(extraction_status: "unsupported", extraction_error: nil, raw: {}, extracted_at: Time.current)
+        return
+      end
+
+      captured_at = parse_captured_at(exif["DateTimeOriginal"] || exif["DateTime"])
 
       metadata.update!(
         extraction_status: "complete",
         extraction_error: nil,
-        captured_at: exif.date_time_original || exif.date_time,
-        camera_make: exif.make,
-        camera_model: exif.model,
-        lens_model: exif.lens_model,
-        iso: Array(exif.iso_speed_ratings).first,
-        aperture: exif.f_number&.to_s,
-        exposure_time: exif.exposure_time&.to_s,
-        focal_length: exif.focal_length&.to_s,
-        latitude: gps&.latitude,
-        longitude: gps&.longitude,
-        raw: exif.exif? ? exif.to_hash.compact.transform_values(&:to_s) : {},
+        captured_at: captured_at,
+        camera_make: exif["Make"],
+        camera_model: exif["Model"],
+        lens_model: exif["LensModel"],
+        iso: exif["ISOSpeedRatings"]&.to_i,
+        aperture: exif["FNumber"],
+        exposure_time: exif["ExposureTime"],
+        focal_length: exif["FocalLength"],
+        latitude: gps_coordinate(exif["GPSLatitude"], exif["GPSLatitudeRef"]),
+        longitude: gps_coordinate(exif["GPSLongitude"], exif["GPSLongitudeRef"]),
+        raw: exif,
         extracted_at: Time.current
       )
+      photo.update_columns(captured_at: captured_at, updated_at: Time.current) if captured_at
     end
   rescue StandardError => e
     (photo.metadata || photo.build_metadata).update!(
@@ -48,7 +55,59 @@ class ExtractPhotoMetadataJob < ApplicationJob
 
   private
 
-  def jpeg?(photo)
-    photo.content_type.to_s.in?(%w[image/jpeg image/jpg])
+  def extract_exif(path)
+    image = vips_image(path)
+    image.get_fields.filter_map do |field|
+      next unless field.start_with?("exif-ifd")
+
+      [ exif_key(field), clean_exif_value(field, image.get(field).to_s) ]
+    end.to_h.compact_blank
+  end
+
+  def vips_image(path)
+    Vips::Image.new_from_file(path, access: :sequential)
+  end
+
+  def exif_key(field)
+    field.split("-", 3).last
+  end
+
+  def clean_exif_value(field, value)
+    if field.match?(/-(FNumber|ExposureTime|FocalLength)\z/)
+      display_exif_value(value) || raw_exif_value(value)
+    else
+      raw_exif_value(value)
+    end
+  end
+
+  def raw_exif_value(value)
+    value.split(" (", 2).first.presence
+  end
+
+  def display_exif_value(value)
+    value[/\(([^,]+),/, 1].presence
+  end
+
+  def parse_captured_at(value)
+    return if value.blank?
+
+    Time.zone.strptime(value, "%Y:%m:%d %H:%M:%S")
+  rescue ArgumentError
+    nil
+  end
+
+  def gps_coordinate(value, reference)
+    return if value.blank? || reference.blank?
+
+    degrees, minutes, seconds = value.split.first(3).map { |component| rational_value(component) }
+    coordinate = degrees + (minutes / 60) + (seconds / 3600)
+    reference.in?(%w[S W]) ? -coordinate : coordinate
+  end
+
+  def rational_value(value)
+    numerator, denominator = value.split("/", 2)
+    return numerator.to_d unless denominator
+
+    numerator.to_d / denominator.to_d
   end
 end
