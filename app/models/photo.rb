@@ -1,5 +1,6 @@
 class Photo < ApplicationRecord
   VISIBILITIES = %w[private public].freeze
+  CHECKSUM_STATUSES = %w[pending complete failed].freeze
 
   belongs_to :owner, class_name: "User", inverse_of: :photos
   has_one_attached :original do |attachable|
@@ -7,11 +8,13 @@ class Photo < ApplicationRecord
   end
 
   validates :visibility, inclusion: { in: VISIBILITIES }
+  validates :checksum_status, inclusion: { in: CHECKSUM_STATUSES }
   validates :original, presence: true
   validate :original_must_be_image
 
   before_validation :copy_original_blob_attributes, if: -> { original.attached? }
   before_validation :set_title_from_original, if: -> { title.blank? && original_filename.present? }
+  after_create_commit :enqueue_checksum
 
   scope :visible_to, ->(user) {
     if user&.owner?
@@ -38,6 +41,10 @@ class Photo < ApplicationRecord
     update!(visibility: "private", published_at: nil)
   end
 
+  def checksum_complete?
+    checksum_status == "complete"
+  end
+
   private
 
   def copy_original_blob_attributes
@@ -55,5 +62,9 @@ class Photo < ApplicationRecord
     return if original.content_type.to_s.start_with?("image/")
 
     errors.add(:original, "must be an image")
+  end
+
+  def enqueue_checksum
+    ChecksumOriginalJob.perform_later(self)
   end
 end

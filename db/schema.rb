@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_01_015217) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_01_114713) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -46,7 +46,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_01_015217) do
     t.datetime "archived_at"
     t.bigint "byte_size"
     t.datetime "captured_at"
+    t.datetime "checksum_checked_at"
+    t.text "checksum_error"
     t.string "checksum_sha256"
+    t.string "checksum_status", default: "pending", null: false
     t.string "content_type"
     t.datetime "created_at", null: false
     t.text "description"
@@ -57,6 +60,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_01_015217) do
     t.datetime "updated_at", null: false
     t.string "visibility", default: "private", null: false
     t.index ["captured_at"], name: "index_photos_on_captured_at"
+    t.index ["checksum_status"], name: "index_photos_on_checksum_status"
     t.index ["owner_id"], name: "index_photos_on_owner_id"
     t.index ["published_at"], name: "index_photos_on_published_at"
     t.index ["visibility"], name: "index_photos_on_visibility"

@@ -21,6 +21,12 @@ class PhotoTest < ActiveSupport::TestCase
     assert_equal "Summer road", photo.title
   end
 
+  test "enqueues checksum job after create" do
+    assert_enqueued_with(job: ChecksumOriginalJob) do
+      attached_photo
+    end
+  end
+
   test "publishes and unpublishes" do
     photo = attached_photo
 

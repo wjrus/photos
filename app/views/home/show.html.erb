@@ -67,6 +67,11 @@
                   <div>
                     <p class="text-xs font-semibold uppercase tracking-[0.18em] opacity-75"><%= photo.visibility %></p>
                     <h2 class="mt-1 text-lg font-semibold"><%= photo.title %></h2>
+                    <% if current_user&.owner? %>
+                      <p class="mt-1 text-xs font-medium uppercase tracking-[0.14em] text-white/75">
+                        SHA-256 <%= photo.checksum_status %>
+                      </p>
+                    <% end %>
                   </div>
                   <% if current_user&.owner? %>
                     <% if photo.public? %>
