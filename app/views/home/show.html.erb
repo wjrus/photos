@@ -49,7 +49,7 @@
         </div>
         <% if current_user&.owner? %>
           <%= form_with model: @photo, url: photos_path, class: "flex flex-wrap items-center gap-2", data: { turbo: false } do |form| %>
-            <%= form.file_field :original, accept: "image/*", required: true, class: "w-56 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm file:mr-3 file:border-0 file:bg-zinc-100 file:px-3 file:py-1 file:text-sm file:font-medium file:text-zinc-800" %>
+            <%= form.file_field :original, accept: "image/*,video/*,.mov", required: true, class: "w-56 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm file:mr-3 file:border-0 file:bg-zinc-100 file:px-3 file:py-1 file:text-sm file:font-medium file:text-zinc-800" %>
             <%= form.text_field :title, placeholder: "Optional title", class: "w-44 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400" %>
             <%= form.submit "Upload", class: "rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800" %>
           <% end %>
@@ -63,7 +63,10 @@
               <%= link_to photo_path(photo), class: "absolute inset-0 z-10", aria: { label: "View #{photo.title}" } do %>
                 <span class="sr-only">View <%= photo.title %></span>
               <% end %>
-              <%= image_tag photo_display_image_path(photo), alt: photo.title, class: "size-full object-cover" %>
+              <%= photo_stream_media(photo) %>
+              <% if photo.video? %>
+                <div class="absolute right-3 top-3 rounded-lg bg-black/55 px-2 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white backdrop-blur">Video</div>
+              <% end %>
               <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-90"></div>
               <div class="absolute inset-x-0 bottom-0 p-4 text-white">
                 <div class="flex items-center justify-between gap-3">

@@ -1,9 +1,26 @@
 class PhotosController < ApplicationController
-  before_action :require_owner!, except: :show
-  before_action :set_visible_photo, only: :show
+  before_action :require_owner!, except: %i[show display media]
+  before_action :set_visible_photo, only: %i[show display media]
   before_action :set_photo, only: %i[publish unpublish]
 
   def show
+  end
+
+  def display
+    return media if @photo.video?
+
+    variant = @photo.original.variant(:display).processed
+    send_data variant.download,
+      type: @photo.content_type,
+      disposition: "inline",
+      filename: public_filename(@photo, ".jpg")
+  end
+
+  def media
+    send_data @photo.original.download,
+      type: @photo.content_type,
+      disposition: "inline",
+      filename: public_filename(@photo, File.extname(@photo.original_filename.to_s))
   end
 
   def create
@@ -44,5 +61,11 @@ class PhotosController < ApplicationController
     return if current_user&.owner?
 
     redirect_to root_path, alert: "Only the owner can manage photos."
+  end
+
+  def public_filename(photo, extension)
+    return photo.original_filename if current_user&.owner?
+
+    "photo-#{photo.id}#{extension}"
   end
 end

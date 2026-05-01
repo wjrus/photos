@@ -21,6 +21,19 @@ class PhotoTest < ActiveSupport::TestCase
     assert_equal "Summer road", photo.title
   end
 
+  test "accepts video originals" do
+    photo = users(:one).photos.new
+    photo.original.attach(
+      io: StringIO.new("fake mov bytes"),
+      filename: "clip.mov",
+      content_type: "video/quicktime"
+    )
+
+    assert_predicate photo, :valid?
+    assert_predicate photo, :video?
+    assert_equal "Clip", photo.title
+  end
+
   test "enqueues checksum job after create" do
     assert_enqueued_with(job: ChecksumOriginalJob) do
       attached_photo

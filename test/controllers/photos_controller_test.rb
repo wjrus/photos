@@ -29,6 +29,22 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_predicate photo.original, :attached?
   end
 
+  test "owner uploads a private mov original" do
+    assert_difference "Photo.count", 1 do
+      post photos_path, params: {
+        photo: {
+          original: Rack::Test::UploadedFile.new(StringIO.new("fake mov bytes"), "video/quicktime", original_filename: "live-photo.mov")
+        }
+      }
+    end
+
+    photo = Photo.order(:created_at).last
+    assert_redirected_to root_path
+    assert_equal "video/quicktime", photo.content_type
+    assert_equal "Live photo", photo.title
+    assert_predicate photo, :video?
+  end
+
   test "owner can publish and unpublish a photo" do
     photo = attached_photo
 
@@ -68,6 +84,19 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, photo.original_filename
   end
 
+  test "video detail renders a video player" do
+    photo = attached_video
+    photo.publish!
+    delete sign_out_path
+
+    get photo_path(photo)
+
+    assert_response :success
+    assert_includes response.body, "<video"
+    assert_includes response.body, "controls"
+    refute_includes response.body, photo.original_filename
+  end
+
   private
 
   def sign_in_as(user)
@@ -95,6 +124,17 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
       io: File.open(Rails.root.join("public/icon.png")),
       filename: "fixture.png",
       content_type: "image/png"
+    )
+    photo.save!
+    photo
+  end
+
+  def attached_video
+    photo = @owner.photos.new
+    photo.original.attach(
+      io: StringIO.new("fake mov bytes"),
+      filename: "clip.mov",
+      content_type: "video/quicktime"
     )
     photo.save!
     photo

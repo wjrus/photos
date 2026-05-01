@@ -1,8 +1,31 @@
 module ApplicationHelper
   def photo_display_image_path(photo)
-    variant = photo.original.variant(:display)
-    filename = current_user&.owner? ? photo.original.filename : "photo-#{photo.id}.jpg"
+    display_photo_path(photo)
+  end
 
-    rails_blob_representation_path(photo.original.blob.signed_id, variant.variation.key, filename)
+  def photo_original_media_path(photo)
+    media_photo_path(photo)
+  end
+
+  def photo_stream_media(photo, **options)
+    if photo.video?
+      video_tag photo_original_media_path(photo),
+        { class: "size-full object-cover", muted: true, playsinline: true, preload: "metadata" }.merge(options)
+    else
+      image_tag photo_display_image_path(photo), { alt: photo.title, class: "size-full object-cover" }.merge(options)
+    end
+  end
+
+  def photo_detail_media(photo)
+    if photo.video?
+      video_tag photo_original_media_path(photo),
+        controls: true,
+        preload: "metadata",
+        class: "max-h-[calc(100vh-3rem)] w-auto max-w-full rounded-lg object-contain shadow-2xl"
+    else
+      image_tag photo_display_image_path(photo),
+        alt: photo.title,
+        class: "max-h-[calc(100vh-3rem)] w-auto rounded-lg object-contain shadow-2xl"
+    end
   end
 end

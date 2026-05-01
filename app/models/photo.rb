@@ -12,7 +12,7 @@ class Photo < ApplicationRecord
   validates :visibility, inclusion: { in: VISIBILITIES }
   validates :checksum_status, inclusion: { in: CHECKSUM_STATUSES }
   validates :original, presence: true
-  validate :original_must_be_image
+  validate :original_must_be_supported_media
 
   before_validation :copy_original_blob_attributes, if: -> { original.attached? }
   before_validation :set_title_from_original, if: -> { title.blank? && original_filename.present? }
@@ -52,6 +52,14 @@ class Photo < ApplicationRecord
     drive_archive_object&.status || "pending"
   end
 
+  def image?
+    content_type.to_s.start_with?("image/")
+  end
+
+  def video?
+    content_type.to_s.start_with?("video/")
+  end
+
   private
 
   def copy_original_blob_attributes
@@ -64,11 +72,11 @@ class Photo < ApplicationRecord
     self.title = File.basename(original_filename, ".*").tr("-_", " ").humanize
   end
 
-  def original_must_be_image
+  def original_must_be_supported_media
     return unless original.attached?
-    return if original.content_type.to_s.start_with?("image/")
+    return if original.content_type.to_s.start_with?("image/", "video/")
 
-    errors.add(:original, "must be an image")
+    errors.add(:original, "must be an image or video")
   end
 
   def enqueue_checksum

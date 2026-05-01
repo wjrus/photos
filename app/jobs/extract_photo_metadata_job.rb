@@ -11,7 +11,7 @@ class ExtractPhotoMetadataJob < ApplicationJob
       return
     end
 
-    unless jpeg?(photo)
+    unless photo.image? && jpeg?(photo)
       metadata.update!(extraction_status: "unsupported", extraction_error: nil, raw: {}, extracted_at: Time.current)
       return
     end

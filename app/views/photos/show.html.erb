@@ -3,7 +3,7 @@
 <section class="min-h-screen bg-stone-50 text-zinc-950">
   <div class="mx-auto grid min-h-screen w-full max-w-7xl grid-cols-1 lg:grid-cols-[1fr_360px]">
     <main class="flex min-h-[70vh] items-center justify-center bg-zinc-950 p-3 lg:min-h-screen lg:p-6">
-      <%= image_tag photo_display_image_path(@photo), alt: @photo.title, class: "max-h-[calc(100vh-3rem)] w-auto rounded-lg object-contain shadow-2xl" %>
+      <%= photo_detail_media(@photo) %>
     </main>
 
     <aside class="border-t border-zinc-200 bg-white p-6 lg:border-l lg:border-t-0">
