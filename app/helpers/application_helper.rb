@@ -23,6 +23,8 @@ module ApplicationHelper
   end
 
   def album_cover_photo(album)
+    return album.cover_photo if album.cover_photo && album.photos.visible_to(current_user).exists?(album.cover_photo.id)
+
     album.photos.with_attached_original.visible_to(current_user).stream_order.first
   end
 

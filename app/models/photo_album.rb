@@ -3,6 +3,7 @@ class PhotoAlbum < ApplicationRecord
   VISIBILITIES = %w[private public].freeze
 
   belongs_to :owner, class_name: "User", inverse_of: :photo_albums
+  belongs_to :cover_photo, class_name: "Photo", optional: true
   has_many :photo_album_memberships, dependent: :destroy
   has_many :photos, through: :photo_album_memberships
 

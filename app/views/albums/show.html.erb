@@ -13,6 +13,25 @@
 
       <% if current_user&.owner? %>
         <div class="flex flex-wrap items-center gap-2">
+          <details class="relative">
+            <summary class="cursor-pointer list-none rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white">
+              Edit
+            </summary>
+            <div class="absolute right-0 z-30 mt-3 w-[min(90vw,320px)] rounded-lg border border-zinc-200 bg-white p-4 shadow-2xl">
+              <%= form_with model: @album, url: album_path(@album), method: :patch, class: "space-y-3" do |form| %>
+                <div>
+                  <%= form.label :title, "Name", class: "text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500" %>
+                  <%= form.text_field :title, class: "mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15", required: true %>
+                </div>
+                <div>
+                  <%= form.label :visibility, "Visibility", class: "text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500" %>
+                  <%= form.select :visibility, [["Private", "private"], ["Public", "public"]], {}, class: "mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15" %>
+                </div>
+                <%= form.submit "Save", class: "w-full rounded-lg bg-zinc-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-teal-800" %>
+              <% end %>
+            </div>
+          </details>
+
           <% if @album.public? %>
             <%= button_to "Make private",
                   unpublish_album_path(@album),
@@ -33,7 +52,14 @@
         <% if current_user&.owner? %>
           <%= render "photos/bulk_toolbar", albums: @albums, return_to: album_path(@album), form_id: "album-photo-bulk-form" %>
         <% end %>
-        <%= render "photos/grid", photos: @photos, return_to: album_path(@album), feature_first: false, bulk_form_id: "album-photo-bulk-form" %>
+        <%= render "photos/grid",
+              photos: @photos,
+              return_to: album_path(@album),
+              feature_first: false,
+              bulk_form_id: "album-photo-bulk-form",
+              album: @album,
+              next_cursor: @next_cursor,
+              next_page_path: album_path(@album) %>
       <% else %>
         <div class="flex min-h-[340px] items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-white p-8 text-center shadow-sm">
           <div>

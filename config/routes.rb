@@ -13,15 +13,18 @@ Rails.application.routes.draw do
   match "/auth/:provider/callback", to: "sessions#create", via: [ :get, :post ]
   delete "/sign_out", to: "sessions#destroy", as: :sign_out
   get "/map", to: "maps#show", as: :map
+  get "/imports", to: "imports#index", as: :imports
   get "/private", to: "restricted_photos#index", as: :restricted_photos
   post "/private/access", to: "restricted_photos#unlock", as: :unlock_restricted_photos
   delete "/private/access", to: "restricted_photos#lock", as: :lock_restricted_photos
   get "/uploads", to: "uploads#show", as: :uploads
   resource :album_bulk_actions, only: :create
   resource :photo_bulk_actions, only: :create
-  resources :albums, only: %i[index show create destroy] do
+  resources :albums, only: %i[index show create update destroy] do
     patch :publish, on: :member
     patch :unpublish, on: :member
+    resources :photo_album_memberships, only: :destroy, shallow: true
+    patch "cover/:photo_id", to: "album_covers#update", as: :cover
   end
   resources :upload_chunks, only: :create do
     post :status, on: :collection

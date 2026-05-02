@@ -304,6 +304,19 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, %(data-stream-navigation-next-url-value="#{photo_path(older, return_to: map_path)}")
   end
 
+  test "photo stream renders an infinite scroll sentinel when more photos exist" do
+    (Photo::STREAM_PAGE_SIZE + 1).times do |index|
+      photo = attached_photo(title: "Stream #{index}")
+      photo.update_columns(created_at: index.minutes.ago, updated_at: index.minutes.ago)
+    end
+
+    get root_path
+
+    assert_response :success
+    assert_select "[data-controller='infinite-scroll']"
+    assert_select "[data-infinite-scroll-target='sentinel']"
+  end
+
   test "public viewer sees public display without privileged metadata" do
     photo = attached_photo
     photo.update!(description: "Private travel note.")

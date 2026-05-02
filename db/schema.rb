@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_02_203000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_02_210000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -86,6 +86,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_02_203000) do
   end
 
   create_table "photo_albums", force: :cascade do |t|
+    t.bigint "cover_photo_id"
     t.datetime "created_at", null: false
     t.bigint "owner_id", null: false
     t.datetime "published_at"
@@ -95,6 +96,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_02_203000) do
     t.string "title", null: false
     t.datetime "updated_at", null: false
     t.string "visibility", default: "private", null: false
+    t.index ["cover_photo_id"], name: "index_photo_albums_on_cover_photo_id"
     t.index ["owner_id", "source", "source_path"], name: "index_photo_albums_on_owner_id_and_source_and_source_path", unique: true
     t.index ["owner_id"], name: "index_photo_albums_on_owner_id"
     t.index ["published_at"], name: "index_photo_albums_on_published_at"
@@ -174,6 +176,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_02_203000) do
   add_foreign_key "google_takeout_imports", "photos"
   add_foreign_key "photo_album_memberships", "photo_albums"
   add_foreign_key "photo_album_memberships", "photos"
+  add_foreign_key "photo_albums", "photos", column: "cover_photo_id"
   add_foreign_key "photo_albums", "users", column: "owner_id"
   add_foreign_key "photo_metadata", "photos"
   add_foreign_key "photos", "users", column: "owner_id"

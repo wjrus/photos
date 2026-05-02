@@ -67,6 +67,41 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     assert_predicate album.reload, :private?
   end
 
+  test "owner can rename an album" do
+    album = @owner.photo_albums.create!(title: "Old name", source: "manual")
+
+    patch album_path(album), params: { photo_album: { title: "New name", visibility: "public" } }
+
+    assert_redirected_to album_path(album)
+    assert_equal "New name", album.reload.title
+    assert_predicate album, :public?
+  end
+
+  test "owner can remove a photo from an album without deleting it" do
+    album = @owner.photo_albums.create!(title: "Trip", source: "manual")
+    photo = attached_photo(title: "Album item")
+    membership = album.photo_album_memberships.create!(photo: photo)
+
+    assert_no_difference "Photo.count" do
+      assert_difference "PhotoAlbumMembership.count", -1 do
+        delete photo_album_membership_path(membership)
+      end
+    end
+
+    assert_redirected_to album_path(album)
+  end
+
+  test "owner can set an album cover" do
+    album = @owner.photo_albums.create!(title: "Trip", source: "manual")
+    photo = attached_photo(title: "Cover")
+    album.photos << photo
+
+    patch album_cover_path(album, photo)
+
+    assert_redirected_to album_path(album)
+    assert_equal photo, album.reload.cover_photo
+  end
+
   private
 
   def sign_in_as(user)

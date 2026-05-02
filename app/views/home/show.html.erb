@@ -8,7 +8,13 @@
       <% if current_user&.owner? %>
         <%= render "photos/bulk_toolbar", albums: @albums, return_to: root_path, form_id: "photo-bulk-form" %>
       <% end %>
-      <%= render "photos/grid", photos: @photos, return_to: root_path, feature_first: true, bulk_form_id: "photo-bulk-form" %>
+      <%= render "photos/grid",
+            photos: @photos,
+            return_to: root_path,
+            feature_first: true,
+            bulk_form_id: "photo-bulk-form",
+            next_cursor: @next_cursor,
+            next_page_path: root_path %>
     <% else %>
       <div class="flex min-h-[440px] items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-white p-8 text-center shadow-sm">
         <div>

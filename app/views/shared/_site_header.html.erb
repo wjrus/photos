@@ -17,6 +17,10 @@
       <% end %>
 
       <% if current_user&.owner? %>
+        <%= link_to "Imports",
+              imports_path,
+              class: "rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+
         <%= link_to "Upload",
               uploads_path,
               class: "rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>

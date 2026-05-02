@@ -1,6 +1,7 @@
 class Photo < ApplicationRecord
   VISIBILITIES = %w[private public].freeze
   CHECKSUM_STATUSES = %w[pending complete failed].freeze
+  STREAM_PAGE_SIZE = 60
 
   belongs_to :owner, class_name: "User", inverse_of: :photos
   has_one :metadata, class_name: "PhotoMetadata", dependent: :destroy, inverse_of: :photo
@@ -31,7 +32,29 @@ class Photo < ApplicationRecord
     end
   }
   scope :restricted, -> { where(restricted: true) }
-  scope :stream_order, -> { order(Arel.sql("COALESCE(photos.captured_at, photos.created_at) DESC")) }
+  scope :stream_order, -> { order(Arel.sql("COALESCE(photos.captured_at, photos.created_at) DESC, photos.id DESC")) }
+
+  def self.before_stream_cursor(cursor)
+    timestamp, id = decode_stream_cursor(cursor)
+    return all unless timestamp && id
+
+    where(
+      "COALESCE(photos.captured_at, photos.created_at) < :timestamp OR (COALESCE(photos.captured_at, photos.created_at) = :timestamp AND photos.id < :id)",
+      timestamp: timestamp,
+      id: id
+    )
+  end
+
+  def self.decode_stream_cursor(cursor)
+    timestamp, id = cursor.to_s.split("_", 2)
+    [ Time.zone.iso8601(timestamp), Integer(id) ]
+  rescue ArgumentError, TypeError
+    [ nil, nil ]
+  end
+
+  def stream_cursor
+    "#{(captured_at || created_at).utc.iso8601(6)}_#{id}"
+  end
 
   def public?
     visibility == "public"

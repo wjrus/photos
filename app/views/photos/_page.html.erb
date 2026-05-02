@@ -1,0 +1,20 @@
+<% owner_controls = local_assigns.fetch(:owner_controls, current_user&.owner?) %>
+<% album = local_assigns[:album] %>
+
+<% photos.each_with_index do |photo, index| %>
+  <%= render "photos/card",
+        photo: photo,
+        return_to: return_to,
+        feature: feature_first && index.zero?,
+        bulk_form_id: local_assigns[:bulk_form_id],
+        owner_controls: owner_controls,
+        album: album %>
+<% end %>
+
+<% if next_cursor.present? %>
+  <div class="col-span-full py-6 text-center text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500"
+       data-infinite-scroll-target="sentinel"
+       data-next-url="<%= "#{next_page_path}?#{URI.encode_www_form(cursor: next_cursor)}" %>">
+    Loading more...
+  </div>
+<% end %>
