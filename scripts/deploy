@@ -67,6 +67,35 @@ wait_for_state() {
   fail "$service did not become $expected within ${timeout_seconds}s"
 }
 
+env_value() {
+  local key="$1"
+  local file="$2"
+
+  awk -F= -v key="$key" '$1 == key { print substr($0, length(key) + 2); exit }' "$file"
+}
+
+wait_for_http() {
+  local timeout_seconds="$1"
+  local elapsed=0
+  local app_host
+
+  app_host="$(env_value PHOTOS_HOST .env.production)"
+  app_host="${app_host:-photos.wjr.us}"
+
+  while (( elapsed < timeout_seconds )); do
+    if curl -fsSI -H "Host: ${app_host}" "http://127.0.0.1:3000/up" >/dev/null; then
+      printf "web responded on /up\n"
+      return 0
+    fi
+
+    sleep 3
+    elapsed=$((elapsed + 3))
+  done
+
+  compose logs --tail=120 web >&2 || true
+  fail "web did not respond on /up within ${timeout_seconds}s"
+}
+
 require_file ".env.production"
 require_file ".env.postgres"
 require_clean_tracked_worktree
@@ -83,12 +112,16 @@ compose pull db
 log "Building application image"
 compose build --pull
 
-log "Starting services"
-compose up -d --remove-orphans
-
-log "Waiting for services"
+log "Starting database"
+compose up -d db --remove-orphans
 wait_for_state db healthy 120
-wait_for_state web healthy 240
+
+log "Starting web"
+compose up -d web --remove-orphans
+wait_for_http 240
+
+log "Starting worker"
+compose up -d worker --remove-orphans
 wait_for_state worker running 120
 
 log "Current status"
