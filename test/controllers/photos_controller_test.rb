@@ -31,6 +31,20 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_predicate photo.original, :attached?
   end
 
+  test "owner upload can return to upload page" do
+    assert_difference "Photo.count", 1 do
+      post photos_path, params: {
+        return_to: uploads_path,
+        photo: {
+          title: "Upload page import",
+          original: fixture_upload("public/icon.png", "image/png")
+        }
+      }
+    end
+
+    assert_redirected_to uploads_path
+  end
+
   test "owner uploads a private mov original" do
     assert_difference "Photo.count", 1 do
       post photos_path, params: {

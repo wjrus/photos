@@ -34,16 +34,16 @@ class PhotosController < ApplicationController
       result = create_batch_photos
       return if performed?
 
-      redirect_to root_path, notice: "Uploaded #{result[:created]} private item#{'s' unless result[:created] == 1}."
+      redirect_to safe_return_path, notice: "Uploaded #{result[:created]} private item#{'s' unless result[:created] == 1}."
       return
     end
 
     @photo = current_user.photos.new(photo_params)
 
     if @photo.save
-      redirect_to root_path, notice: "Photo uploaded privately."
+      redirect_to safe_return_path, notice: "Photo uploaded privately."
     else
-      redirect_to root_path, alert: @photo.errors.full_messages.to_sentence
+      redirect_to safe_return_path, alert: @photo.errors.full_messages.to_sentence
     end
   end
 
@@ -89,6 +89,10 @@ class PhotosController < ApplicationController
   end
 
   def visibility_return_path
+    safe_return_path
+  end
+
+  def safe_return_path
     return root_path if params[:return_to].blank?
 
     uri = URI.parse(params[:return_to])
