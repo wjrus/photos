@@ -156,6 +156,16 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_select "aside#photo-info-panel.translate-x-full"
     assert_includes response.body, "Fuji X100"
     assert_includes response.body, photo.original_filename
+    assert_includes response.body, "Download original"
+  end
+
+  test "owner can access original media" do
+    photo = attached_photo
+
+    get media_photo_path(photo)
+
+    assert_response :success
+    assert_equal "image/png", response.media_type
   end
 
   test "detail view exposes stream neighbors for keyboard and swipe navigation" do
@@ -189,9 +199,31 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, "Archive"
     refute_includes response.body, "Fuji X100"
     refute_includes response.body, photo.original_filename
+    refute_includes response.body, "Download original"
   end
 
-  test "video detail renders a video player" do
+  test "public viewer cannot access original media for public photos" do
+    photo = attached_photo
+    photo.publish!
+    delete sign_out_path
+
+    get media_photo_path(photo)
+
+    assert_redirected_to root_path
+  end
+
+  test "owner video detail renders the original video player" do
+    photo = attached_video
+
+    get photo_path(photo)
+
+    assert_response :success
+    assert_includes response.body, "<video"
+    assert_includes response.body, "controls"
+    assert_includes response.body, photo.original_filename
+  end
+
+  test "public video detail withholds original playback" do
     photo = attached_video
     photo.publish!
     delete sign_out_path
@@ -199,8 +231,8 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     get photo_path(photo)
 
     assert_response :success
-    assert_includes response.body, "<video"
-    assert_includes response.body, "controls"
+    refute_includes response.body, "<video"
+    assert_includes response.body, "public-safe derivative"
     refute_includes response.body, photo.original_filename
   end
 

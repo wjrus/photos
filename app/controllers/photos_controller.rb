@@ -1,14 +1,14 @@
 class PhotosController < ApplicationController
-  before_action :require_owner!, except: %i[show display media]
-  before_action :set_visible_photo, only: %i[show display media]
-  before_action :set_photo, only: %i[publish unpublish retry_archive]
+  before_action :require_owner!, except: %i[show display]
+  before_action :set_visible_photo, only: %i[show display]
+  before_action :set_photo, only: %i[media publish unpublish retry_archive]
 
   def show
     set_stream_neighbors
   end
 
   def display
-    return media if @photo.video?
+    return head :not_found if @photo.video?
 
     variant = @photo.original.variant(:display).processed
     send_data variant.download,
