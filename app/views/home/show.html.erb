@@ -105,21 +105,15 @@
                 </div>
                 <% if current_user&.owner? %>
                   <% if photo.public? %>
-                    <%= button_to unpublish_photo_path(photo),
+                    <%= button_to "Make private",
+                          unpublish_photo_path(photo),
                           method: :patch,
-                          class: "relative z-20 flex size-10 items-center justify-center rounded-lg border border-white/50 bg-white/10 text-white backdrop-blur transition hover:bg-white hover:text-zinc-950",
-                          title: "Make private",
-                          aria: { label: "Make private" } do %>
-                      <%= photo_icon("key", classes: "size-5") %>
-                    <% end %>
+                          class: "relative z-20 rounded-lg border border-white/50 bg-white/10 px-3 py-2 text-xs font-semibold text-white backdrop-blur transition hover:bg-white hover:text-zinc-950" %>
                   <% else %>
-                    <%= button_to publish_photo_path(photo),
+                    <%= button_to "Publish",
+                          publish_photo_path(photo),
                           method: :patch,
-                          class: "relative z-20 flex size-10 items-center justify-center rounded-lg border border-white/50 bg-white/10 text-white backdrop-blur transition hover:bg-white hover:text-zinc-950",
-                          title: "Publish",
-                          aria: { label: "Publish" } do %>
-                      <%= photo_icon("globe", classes: "size-5") %>
-                    <% end %>
+                          class: "relative z-20 rounded-lg border border-white/50 bg-white/10 px-3 py-2 text-xs font-semibold text-white backdrop-blur transition hover:bg-white hover:text-zinc-950" %>
                   <% end %>
                 <% end %>
               </div>
