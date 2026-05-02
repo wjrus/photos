@@ -26,6 +26,10 @@ export default class extends Controller {
     this.inputTarget.click()
   }
 
+  stop(event) {
+    event.stopPropagation()
+  }
+
   async submit(event) {
     event.stopPropagation()
     event.preventDefault()
