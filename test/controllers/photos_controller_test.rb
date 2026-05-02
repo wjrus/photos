@@ -251,6 +251,10 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Photo location map"
     assert_includes response.body, photo.original_filename
     assert_includes response.body, "Download original"
+    assert_includes response.body, "Remove photo"
+    assert_includes response.body, "Remove photo?"
+    assert_select "[data-controller='confirm-modal']"
+    assert_select "[data-turbo-confirm]", false
   end
 
   test "owner sees location unavailable when metadata has no gps" do
