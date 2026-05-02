@@ -1,5 +1,8 @@
 class UploadChunksController < ApplicationController
+  UPLOAD_TTL = 30.minutes
+
   before_action :require_owner!
+  before_action :cleanup_stale_uploads, only: %i[create status complete]
 
   def create
     chunk = params.require(:chunk)
@@ -8,6 +11,10 @@ class UploadChunksController < ApplicationController
     FileUtils.cp(chunk.tempfile.path, file_dir.join(chunk_index.to_s))
 
     render json: { received: chunk_index }
+  end
+
+  def status
+    render json: { files: chunk_statuses }
   end
 
   def complete
@@ -69,6 +76,32 @@ class UploadChunksController < ApplicationController
       file.permit(:file_id, :filename, :content_type, :byte_size, :total_chunks).to_h.symbolize_keys.tap do |manifest|
         manifest[:total_chunks] = Integer(manifest.fetch(:total_chunks))
       end
+    end
+  end
+
+  def chunk_statuses
+    file_manifests.to_h do |manifest|
+      file_dir = upload_file_dir(upload_id, manifest.fetch(:file_id))
+      chunks = existing_chunks(file_dir, manifest.fetch(:total_chunks))
+      [ manifest.fetch(:file_id), chunks ]
+    end
+  end
+
+  def existing_chunks(file_dir, total_chunks)
+    return [] unless file_dir.directory?
+
+    total_chunks.times.select do |index|
+      file_dir.join(index.to_s).file?
+    end
+  end
+
+  def cleanup_stale_uploads
+    root = Rails.root.join("tmp/resumable_uploads", current_user.id.to_s)
+    return unless root.directory?
+
+    cutoff = UPLOAD_TTL.ago
+    root.children.each do |upload|
+      FileUtils.rm_rf(upload) if upload.directory? && upload.mtime < cutoff
     end
   end
 

@@ -14,6 +14,7 @@ Rails.application.routes.draw do
   delete "/sign_out", to: "sessions#destroy", as: :sign_out
   get "/uploads", to: "uploads#show", as: :uploads
   resources :upload_chunks, only: :create do
+    get :status, on: :collection
     post :complete, on: :collection
   end
   resources :photos, only: %i[show create] do

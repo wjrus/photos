@@ -4,6 +4,8 @@ const MEDIA_EXTENSIONS = [".heic", ".heif", ".jpg", ".jpeg", ".png", ".mov", ".m
 const SIDECAR_EXTENSIONS = [".aae"]
 const CHUNK_SIZE = 16 * 1024 * 1024
 const CHUNK_RETRIES = 3
+const SESSION_KEY = "photos.resumableUpload"
+const SESSION_TTL = 5 * 60 * 1000
 
 export default class extends Controller {
   static targets = ["input", "summary", "submit"]
@@ -33,23 +35,18 @@ export default class extends Controller {
     }
 
     const files = Array.from(this.inputTarget.files)
-    const uploadId = crypto.randomUUID()
-    const manifest = files.map((file, index) => ({
-      file_id: `file-${index}`,
-      filename: file.name,
-      content_type: file.type,
-      byte_size: file.size,
-      total_chunks: Math.max(1, Math.ceil(file.size / CHUNK_SIZE))
-    }))
+    const session = this.uploadSession(files)
+    const existingChunks = await this.uploadStatus(session.upload_id, session.files)
 
     this.setUploading("Preparing upload...")
 
     try {
       for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
-        await this.uploadFile(uploadId, manifest[fileIndex], files[fileIndex], fileIndex, files.length)
+        await this.uploadFile(session.upload_id, session.files[fileIndex], files[fileIndex], fileIndex, files.length, existingChunks)
       }
 
-      const response = await this.completeUpload(uploadId, manifest)
+      const response = await this.completeUpload(session.upload_id, session.files)
+      this.clearUploadSession()
       window.location.assign(response.redirect_url)
     } catch (error) {
       this.summaryTarget.textContent = error.message
@@ -98,8 +95,15 @@ export default class extends Controller {
     this.submitTarget.disabled = mediaCount === 0
   }
 
-  async uploadFile(uploadId, manifest, file, fileIndex, totalFiles) {
+  async uploadFile(uploadId, manifest, file, fileIndex, totalFiles, existingChunks) {
+    const uploadedChunks = new Set(existingChunks[manifest.file_id] || [])
+
     for (let chunkIndex = 0; chunkIndex < manifest.total_chunks; chunkIndex += 1) {
+      if (uploadedChunks.has(chunkIndex)) {
+        this.summaryTarget.textContent = `Resuming ${fileIndex + 1}/${totalFiles}: ${file.name} (${chunkIndex + 1}/${manifest.total_chunks})`
+        continue
+      }
+
       const start = chunkIndex * CHUNK_SIZE
       const chunk = file.slice(start, start + CHUNK_SIZE)
       const formData = new FormData()
@@ -111,6 +115,25 @@ export default class extends Controller {
       this.summaryTarget.textContent = `Uploading ${fileIndex + 1}/${totalFiles}: ${file.name} (${chunkIndex + 1}/${manifest.total_chunks})`
       await this.withRetries(() => this.postForm("/upload_chunks", formData))
     }
+  }
+
+  async uploadStatus(uploadId, files) {
+    const url = new URL("/upload_chunks/status", window.location.origin)
+    url.searchParams.set("upload_id", uploadId)
+    files.forEach((file, index) => {
+      Object.entries(file).forEach(([key, value]) => {
+        url.searchParams.set(`files[${index}][${key}]`, value)
+      })
+    })
+
+    const response = await fetch(url, {
+      headers: {
+        "Accept": "application/json"
+      }
+    })
+    const body = await this.parseResponse(response)
+
+    return body.files || {}
   }
 
   async completeUpload(uploadId, files) {
@@ -154,6 +177,58 @@ export default class extends Controller {
     this.submitTarget.value = "Uploading..."
     this.submitTarget.disabled = true
     this.summaryTarget.textContent = message
+  }
+
+  uploadSession(files) {
+    const fingerprint = this.fingerprint(files)
+    const existing = this.storedUploadSession()
+
+    if (existing?.fingerprint === fingerprint) {
+      return existing
+    }
+
+    const session = {
+      upload_id: crypto.randomUUID(),
+      fingerprint,
+      created_at: Date.now(),
+      files: files.map((file, index) => ({
+        file_id: `file-${index}`,
+        filename: file.name,
+        content_type: file.type,
+        byte_size: file.size,
+        last_modified: file.lastModified,
+        total_chunks: Math.max(1, Math.ceil(file.size / CHUNK_SIZE))
+      }))
+    }
+
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session))
+    return session
+  }
+
+  storedUploadSession() {
+    const raw = localStorage.getItem(SESSION_KEY)
+    if (!raw) return null
+
+    try {
+      const session = JSON.parse(raw)
+      if (Date.now() - session.created_at > SESSION_TTL) {
+        this.clearUploadSession()
+        return null
+      }
+
+      return session
+    } catch {
+      this.clearUploadSession()
+      return null
+    }
+  }
+
+  clearUploadSession() {
+    localStorage.removeItem(SESSION_KEY)
+  }
+
+  fingerprint(files) {
+    return files.map((file) => [file.name, file.size, file.lastModified].join(":")).join("|")
   }
 
   async withRetries(callback) {

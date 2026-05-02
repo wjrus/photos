@@ -54,6 +54,40 @@ class UploadChunksControllerTest < ActionDispatch::IntegrationTest
     assert_not Dir.exist?(Rails.root.join("tmp/resumable_uploads", @owner.id.to_s, upload_id))
   end
 
+  test "owner can check uploaded chunk status" do
+    upload_id = SecureRandom.uuid
+    post upload_chunks_path, params: chunk_params(upload_id, "file-0", 0, "clip.mov", "video/quicktime", "first")
+    assert_response :success
+
+    get status_upload_chunks_path,
+      params: {
+        upload_id: upload_id,
+        files: [
+          {
+            file_id: "file-0",
+            filename: "clip.mov",
+            content_type: "video/quicktime",
+            byte_size: 10,
+            total_chunks: 2
+          }
+        ]
+      }
+
+    assert_response :success
+    assert_equal [ 0 ], response.parsed_body.dig("files", "file-0")
+  end
+
+  test "stale upload directories are cleaned up" do
+    stale_upload = Rails.root.join("tmp/resumable_uploads", @owner.id.to_s, "stale")
+    FileUtils.mkdir_p(stale_upload)
+    FileUtils.touch(stale_upload, mtime: 2.hours.ago.to_time)
+
+    post upload_chunks_path, params: chunk_params(SecureRandom.uuid, "file-0", 0, "photo.jpg", "image/jpeg", "jpg")
+
+    assert_response :success
+    assert_not Dir.exist?(stale_upload)
+  end
+
   test "trusted non owner cannot upload chunks" do
     delete sign_out_path
     sign_in_as(users(:two))
