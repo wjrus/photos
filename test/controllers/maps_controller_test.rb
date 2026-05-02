@@ -27,6 +27,7 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Map"
     assert_includes response.body, "1 geotagged photo"
     assert_includes response.body, "Northport"
+    assert_includes response.body, photo_path(photo, return_to: map_path)
     assert_includes response.body, "test-google-maps-key"
     assert_select "[data-controller='google-map']"
   end

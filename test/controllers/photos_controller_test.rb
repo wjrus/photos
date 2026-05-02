@@ -168,9 +168,9 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
   test "owner can save an optional caption" do
     photo = attached_photo
 
-    patch caption_photo_path(photo), params: { photo: { description: "A quiet lake before dinner." } }
+    patch caption_photo_path(photo), params: { return_to: map_path, photo: { description: "A quiet lake before dinner." } }
 
-    assert_redirected_to photo_path(photo)
+    assert_redirected_to photo_path(photo, return_to: map_path)
     assert_equal "A quiet lake before dinner.", photo.reload.description
   end
 
@@ -202,10 +202,10 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     photo.create_drive_archive_object!(status: "failed", error: "Drive API disabled")
 
     assert_enqueued_with(job: MirrorOriginalToDriveJob) do
-      post retry_archive_photo_path(photo)
+      post retry_archive_photo_path(photo), params: { return_to: map_path }
     end
 
-    assert_redirected_to photo_path(photo)
+    assert_redirected_to photo_path(photo, return_to: map_path)
     archive_object = photo.reload.drive_archive_object
     assert_equal "pending", archive_object.status
     assert_nil archive_object.error
@@ -293,14 +293,15 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     photo.update_columns(created_at: Time.zone.local(2026, 1, 2), updated_at: Time.zone.local(2026, 1, 2))
     older.update_columns(created_at: Time.zone.local(2026, 1, 1), updated_at: Time.zone.local(2026, 1, 1))
 
-    get photo_path(photo)
+    get photo_path(photo, return_to: map_path)
 
     assert_response :success
     assert_select "main[data-controller='stream-navigation']"
-    assert_select "a[href='#{photo_path(newer)}'][data-turbo-action='replace']", text: "Up"
-    assert_select "a[href='#{photo_path(older)}'][data-turbo-action='replace']", text: "Down"
-    assert_includes response.body, %(data-stream-navigation-previous-url-value="#{photo_path(newer)}")
-    assert_includes response.body, %(data-stream-navigation-next-url-value="#{photo_path(older)}")
+    assert_select "a[href='#{photo_path(newer, return_to: map_path)}'][data-turbo-action='replace']", text: "Up"
+    assert_select "a[href='#{photo_path(older, return_to: map_path)}'][data-turbo-action='replace']", text: "Down"
+    assert_includes response.body, %(data-stream-navigation-back-url-value="#{map_path}")
+    assert_includes response.body, %(data-stream-navigation-previous-url-value="#{photo_path(newer, return_to: map_path)}")
+    assert_includes response.body, %(data-stream-navigation-next-url-value="#{photo_path(older, return_to: map_path)}")
   end
 
   test "public viewer sees public display without privileged metadata" do

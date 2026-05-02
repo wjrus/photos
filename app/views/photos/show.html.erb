@@ -5,12 +5,12 @@
     <main class="relative flex min-h-screen items-center justify-center bg-zinc-950 p-3 lg:p-6"
           data-controller="stream-navigation"
           data-action="keydown@window->stream-navigation#keydown touchstart->stream-navigation#touchstart touchend->stream-navigation#touchend"
-          data-stream-navigation-back-url-value="<%= root_path %>"
-          data-stream-navigation-previous-url-value="<%= photo_path(@previous_photo) if @previous_photo %>"
-          data-stream-navigation-next-url-value="<%= photo_path(@next_photo) if @next_photo %>">
-      <%= link_to root_path,
+          data-stream-navigation-back-url-value="<%= @return_to %>"
+          data-stream-navigation-previous-url-value="<%= photo_path(@previous_photo, return_to: @return_to) if @previous_photo %>"
+          data-stream-navigation-next-url-value="<%= photo_path(@next_photo, return_to: @return_to) if @next_photo %>">
+      <%= link_to @return_to,
             class: "absolute left-4 top-4 z-20 rounded-lg border border-white/25 bg-black/55 px-3 py-2 text-sm font-semibold text-white backdrop-blur transition hover:bg-white hover:text-zinc-950",
-            aria: { label: "Back to stream" } do %>
+            aria: { label: "Back" } do %>
         Back
       <% end %>
       <button type="button"
@@ -26,14 +26,14 @@
         <nav class="absolute right-4 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-2" aria-label="Stream navigation">
           <% if @previous_photo %>
             <%= link_to "Up",
-                  photo_path(@previous_photo),
+                  photo_path(@previous_photo, return_to: @return_to),
                   class: "flex h-11 w-14 items-center justify-center rounded-lg border border-white/25 bg-black/55 text-xs font-semibold uppercase text-white backdrop-blur transition hover:bg-white hover:text-zinc-950",
                   aria: { label: "Previous item in stream" },
                   data: { turbo_action: "replace" } %>
           <% end %>
           <% if @next_photo %>
             <%= link_to "Down",
-                  photo_path(@next_photo),
+                  photo_path(@next_photo, return_to: @return_to),
                   class: "flex h-11 w-14 items-center justify-center rounded-lg border border-white/25 bg-black/55 text-xs font-semibold uppercase text-white backdrop-blur transition hover:bg-white hover:text-zinc-950",
                   aria: { label: "Next item in stream" },
                   data: { turbo_action: "replace" } %>
@@ -67,12 +67,12 @@
               <% if @photo.public? %>
                 <%= button_to "Make private", unpublish_photo_path(@photo),
                       method: :patch,
-                      params: { return_to: photo_path(@photo) },
+                      params: { return_to: photo_path(@photo, return_to: @return_to) },
                       class: "rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
               <% else %>
                 <%= button_to "Publish", publish_photo_path(@photo),
                       method: :patch,
-                      params: { return_to: photo_path(@photo) },
+                      params: { return_to: photo_path(@photo, return_to: @return_to) },
                       class: "rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
               <% end %>
 
@@ -127,6 +127,7 @@
                 <%= @photo.description.present? ? "Edit caption" : "Add caption" %>
               </summary>
               <%= form_with model: @photo, url: caption_photo_path(@photo), method: :patch, class: "mt-4 space-y-3" do |form| %>
+                <%= hidden_field_tag :return_to, @return_to %>
                 <%= form.label :description, "Caption", class: "sr-only" %>
                 <%= form.text_area :description,
                       rows: 5,
@@ -175,7 +176,7 @@
                   class: "inline-block rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white",
                   download: @photo.original_filename %>
             <% unless @photo.drive_archive_object&.archived? %>
-              <%= button_to "Retry Drive", retry_archive_photo_path(@photo), method: :post, class: "rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+              <%= button_to "Retry Drive", retry_archive_photo_path(@photo), method: :post, params: { return_to: @return_to }, class: "rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
             <% end %>
           </div>
 

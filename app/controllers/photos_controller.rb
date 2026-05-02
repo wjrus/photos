@@ -4,6 +4,7 @@ class PhotosController < ApplicationController
   before_action :set_photo, only: %i[media caption publish unpublish retry_archive destroy]
 
   def show
+    @return_to = safe_return_path
     set_stream_neighbors
   end
 
@@ -26,7 +27,7 @@ class PhotosController < ApplicationController
 
   def caption
     @photo.update!(caption_params)
-    redirect_to photo_path(@photo), notice: "Caption saved."
+    redirect_to photo_path(@photo, return_to: safe_return_path), notice: "Caption saved."
   end
 
   def create
@@ -60,7 +61,7 @@ class PhotosController < ApplicationController
   def retry_archive
     @photo.drive_archive_object&.update!(status: "pending", error: nil)
     MirrorOriginalToDriveJob.perform_later(@photo)
-    redirect_to photo_path(@photo), notice: "Drive archive retry queued."
+    redirect_to photo_path(@photo, return_to: safe_return_path), notice: "Drive archive retry queued."
   end
 
   def destroy

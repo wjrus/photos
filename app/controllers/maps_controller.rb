@@ -10,7 +10,7 @@ class MapsController < ApplicationController
         title: photo.title,
         latitude: metadata.latitude.to_f,
         longitude: metadata.longitude.to_f,
-        photo_url: photo_path(photo),
+        photo_url: photo_path(photo, return_to: map_path),
         media_url: photo.image? ? display_photo_path(photo) : nil
       }
     end
