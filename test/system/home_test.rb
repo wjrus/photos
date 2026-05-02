@@ -6,6 +6,9 @@ class HomeTest < ApplicationSystemTestCase
 
     assert_text "wjr photos"
     assert_button "Sign in"
+    assert_no_text "ARCHIVE RULE"
+
+    find("summary", text: "wjr photos").click
     assert_text "ARCHIVE RULE"
   end
 end
