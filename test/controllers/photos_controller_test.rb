@@ -130,6 +130,15 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_predicate photo.reload, :private?
   end
 
+  test "owner can save an optional caption" do
+    photo = attached_photo
+
+    patch caption_photo_path(photo), params: { photo: { description: "A quiet lake before dinner." } }
+
+    assert_redirected_to photo_path(photo)
+    assert_equal "A quiet lake before dinner.", photo.reload.description
+  end
+
   test "owner can retry failed drive archive" do
     photo = attached_photo
     photo.create_drive_archive_object!(status: "failed", error: "Drive API disabled")
@@ -230,6 +239,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
 
   test "public viewer sees public display without privileged metadata" do
     photo = attached_photo
+    photo.update!(description: "Private travel note.")
     photo.create_metadata!(extraction_status: "complete", camera_make: "Fuji", camera_model: "X100", raw: {})
     photo.publish!
     delete sign_out_path
@@ -238,6 +248,8 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, photo.title
+    refute_includes response.body, "Private travel note."
+    refute_includes response.body, "Caption"
     refute_includes response.body, "Archive"
     refute_includes response.body, "Fuji X100"
     refute_includes response.body, "Photo location map"
@@ -248,6 +260,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
   test "trusted signed-in viewer sees public photo location without archive access" do
     ENV["PHOTOS_TRUSTED_VIEWER_EMAILS"] = users(:two).email
     photo = attached_photo
+    photo.update!(description: "Met everyone by the river.")
     photo.create_metadata!(
       extraction_status: "complete",
       camera_make: "Fuji",
@@ -263,6 +276,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     get photo_path(photo)
 
     assert_response :success
+    assert_includes response.body, "Met everyone by the river."
     assert_includes response.body, "Fuji X100"
     assert_includes response.body, "Photo location map"
     assert_includes response.body, "Open map"

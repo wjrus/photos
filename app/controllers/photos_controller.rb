@@ -1,7 +1,7 @@
 class PhotosController < ApplicationController
   before_action :require_owner!, except: %i[show display]
   before_action :set_visible_photo, only: %i[show display]
-  before_action :set_photo, only: %i[media publish unpublish retry_archive]
+  before_action :set_photo, only: %i[media caption publish unpublish retry_archive]
 
   def show
     set_stream_neighbors
@@ -22,6 +22,11 @@ class PhotosController < ApplicationController
       type: @photo.content_type,
       disposition: "inline",
       filename: public_filename(@photo, File.extname(@photo.original_filename.to_s))
+  end
+
+  def caption
+    @photo.update!(caption_params)
+    redirect_to photo_path(@photo), notice: "Caption saved."
   end
 
   def create
@@ -77,6 +82,10 @@ class PhotosController < ApplicationController
 
   def photo_params
     params.require(:photo).permit(:title, :description, :original, sidecars: [])
+  end
+
+  def caption_params
+    params.require(:photo).permit(:description)
   end
 
   def batch_upload?
