@@ -139,6 +139,20 @@
             </details>
           <% end %>
         </section>
+
+        <% albums = @photo.photo_albums.visible_to(current_user).display_order %>
+        <% if albums.any? %>
+          <section class="border-b border-zinc-200 p-5">
+            <h2 class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Albums</h2>
+            <div class="mt-3 flex flex-wrap gap-2">
+              <% albums.each do |album| %>
+                <%= link_to album.title,
+                      album_path(album),
+                      class: "rounded-lg border border-zinc-200 bg-stone-50 px-3 py-2 text-xs font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+              <% end %>
+            </div>
+          </section>
+        <% end %>
       <% end %>
 
       <% if current_user&.owner? %>

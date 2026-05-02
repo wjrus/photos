@@ -22,6 +22,10 @@ module ApplicationHelper
     end
   end
 
+  def album_cover_photo(album)
+    album.photos.with_attached_original.visible_to(current_user).stream_order.first
+  end
+
   def photo_detail_media(photo)
     if photo.video?
       if current_user&.owner?

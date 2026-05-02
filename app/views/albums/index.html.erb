@@ -1,0 +1,80 @@
+<% content_for :title, "Albums" %>
+
+<section class="min-h-screen bg-stone-50 text-zinc-950">
+  <%= render "shared/site_header" %>
+
+  <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <div class="flex flex-col gap-4 border-b border-zinc-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Albums</p>
+        <h1 class="mt-2 text-3xl font-semibold text-zinc-950">Albums</h1>
+      </div>
+
+      <% if current_user&.owner? %>
+        <details class="group relative">
+          <summary class="cursor-pointer list-none rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white">
+            New album
+          </summary>
+          <div class="absolute right-0 z-30 mt-3 w-[min(90vw,320px)] rounded-lg border border-zinc-200 bg-white p-4 shadow-2xl">
+            <%= form_with model: PhotoAlbum.new, url: albums_path, class: "space-y-3" do |form| %>
+              <div>
+                <%= form.label :title, "Name", class: "text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500" %>
+                <%= form.text_field :title, class: "mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15", required: true %>
+              </div>
+              <div>
+                <%= form.label :visibility, "Visibility", class: "text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500" %>
+                <%= form.select :visibility, [["Private", "private"], ["Public", "public"]], {}, class: "mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15" %>
+              </div>
+              <%= form.submit "Create", class: "w-full rounded-lg bg-zinc-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-teal-800" %>
+            <% end %>
+          </div>
+        </details>
+      <% end %>
+    </div>
+
+    <% if @albums.any? %>
+      <% if current_user&.owner? %>
+        <%= render "albums/bulk_toolbar", form_id: "album-bulk-form" %>
+      <% end %>
+      <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <% @albums.each do |album| %>
+          <% cover = album_cover_photo(album) %>
+          <% visible_count = album.photos.visible_to(current_user).count %>
+          <article class="group relative overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition hover:border-zinc-950">
+            <% if current_user&.owner? %>
+              <label class="absolute left-3 top-3 z-20 flex size-9 items-center justify-center rounded-lg border border-white/50 bg-black/45 backdrop-blur transition hover:bg-white">
+                <%= check_box_tag "album_ids[]", album.id, false, class: "size-4 accent-teal-700", form: "album-bulk-form", aria: { label: "Select #{album.title}" } %>
+              </label>
+            <% end %>
+
+            <%= link_to album_path(album), class: "block" do %>
+              <div class="aspect-[4/3] bg-zinc-900">
+                <% if cover %>
+                  <%= photo_stream_media(cover) %>
+                <% else %>
+                  <div class="flex size-full items-center justify-center text-xs font-semibold uppercase tracking-[0.18em] text-white/70">Empty</div>
+                <% end %>
+              </div>
+              <div class="flex items-start justify-between gap-4 p-4">
+                <div class="min-w-0">
+                  <h2 class="truncate text-lg font-semibold text-zinc-950"><%= album.title %></h2>
+                  <p class="mt-1 text-sm text-zinc-600"><%= pluralize(visible_count, "photo") %></p>
+                </div>
+                <% if current_user&.owner? %>
+                  <span class="shrink-0 rounded-lg border border-zinc-200 bg-stone-50 px-2 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-zinc-600"><%= album.visibility %></span>
+                <% end %>
+              </div>
+            <% end %>
+          </article>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="mt-6 flex min-h-[340px] items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-white p-8 text-center shadow-sm">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">No albums</p>
+          <h2 class="mt-3 text-2xl font-semibold text-zinc-950">No albums yet.</h2>
+        </div>
+      </div>
+    <% end %>
+  </main>
+</section>

@@ -14,6 +14,12 @@ Rails.application.routes.draw do
   delete "/sign_out", to: "sessions#destroy", as: :sign_out
   get "/map", to: "maps#show", as: :map
   get "/uploads", to: "uploads#show", as: :uploads
+  resource :album_bulk_actions, only: :create
+  resource :photo_bulk_actions, only: :create
+  resources :albums, only: %i[index show create destroy] do
+    patch :publish, on: :member
+    patch :unpublish, on: :member
+  end
   resources :upload_chunks, only: :create do
     post :status, on: :collection
     post :complete, on: :collection

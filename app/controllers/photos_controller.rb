@@ -130,13 +130,27 @@ class PhotosController < ApplicationController
   end
 
   def set_stream_neighbors
-    stream = Photo.visible_to(current_user).stream_order
+    stream = navigation_stream
     stream_ids = stream.pluck(:id)
     current_index = stream_ids.index(@photo.id)
     return unless current_index
 
     @previous_photo = stream.find_by(id: stream_ids[current_index - 1]) if current_index.positive?
     @next_photo = stream.find_by(id: stream_ids[current_index + 1]) if stream_ids[current_index + 1]
+  end
+
+  def navigation_stream
+    album = return_to_album
+    return album.photos.visible_to(current_user).stream_order if album
+
+    Photo.visible_to(current_user).stream_order
+  end
+
+  def return_to_album
+    match = safe_return_path.match(%r{\A/albums/(\d+)\z})
+    return unless match
+
+    PhotoAlbum.visible_to(current_user).find_by(id: match[1])
   end
 
   def require_owner!

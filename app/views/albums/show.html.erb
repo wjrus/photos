@@ -1,0 +1,47 @@
+<% content_for :title, @album.title %>
+
+<section class="min-h-screen bg-stone-50 text-zinc-950">
+  <%= render "shared/site_header" %>
+
+  <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <div class="flex flex-col gap-4 border-b border-zinc-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+      <div class="min-w-0">
+        <%= link_to "Back to albums", albums_path, class: "text-xs font-semibold uppercase tracking-[0.18em] text-teal-700 transition hover:text-teal-900" %>
+        <h1 class="mt-3 truncate text-3xl font-semibold text-zinc-950"><%= @album.title %></h1>
+        <p class="mt-1 text-sm text-zinc-600"><%= pluralize(@photos.size, "photo") %><% if current_user&.owner? %> · <%= @album.visibility %><% end %></p>
+      </div>
+
+      <% if current_user&.owner? %>
+        <div class="flex flex-wrap items-center gap-2">
+          <% if @album.public? %>
+            <%= button_to "Make private",
+                  unpublish_album_path(@album),
+                  method: :patch,
+                  class: "rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+          <% else %>
+            <%= button_to "Publish",
+                  publish_album_path(@album),
+                  method: :patch,
+                  class: "rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+
+    <div class="mt-6">
+      <% if @photos.any? %>
+        <% if current_user&.owner? %>
+          <%= render "photos/bulk_toolbar", albums: @albums, return_to: album_path(@album), form_id: "album-photo-bulk-form" %>
+        <% end %>
+        <%= render "photos/grid", photos: @photos, return_to: album_path(@album), feature_first: false, bulk_form_id: "album-photo-bulk-form" %>
+      <% else %>
+        <div class="flex min-h-[340px] items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-white p-8 text-center shadow-sm">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Empty</p>
+            <h2 class="mt-3 text-2xl font-semibold text-zinc-950">No visible photos in this album.</h2>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </main>
+</section>
