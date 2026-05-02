@@ -2,6 +2,8 @@ import { Controller } from "@hotwired/stimulus"
 
 const MEDIA_EXTENSIONS = [".heic", ".heif", ".jpg", ".jpeg", ".png", ".mov", ".mp4"]
 const SIDECAR_EXTENSIONS = [".aae"]
+const CHUNK_SIZE = 16 * 1024 * 1024
+const CHUNK_RETRIES = 3
 
 export default class extends Controller {
   static targets = ["input", "summary", "submit"]
@@ -22,17 +24,38 @@ export default class extends Controller {
     this.inputTarget.click()
   }
 
-  submit(event) {
+  async submit(event) {
     event.stopPropagation()
+    event.preventDefault()
 
     if (this.submitTarget.disabled) {
-      event.preventDefault()
       return
     }
 
-    this.submitTarget.value = "Uploading..."
-    this.submitTarget.disabled = true
-    this.summaryTarget.textContent = "Uploading selected files..."
+    const files = Array.from(this.inputTarget.files)
+    const uploadId = crypto.randomUUID()
+    const manifest = files.map((file, index) => ({
+      file_id: `file-${index}`,
+      filename: file.name,
+      content_type: file.type,
+      byte_size: file.size,
+      total_chunks: Math.max(1, Math.ceil(file.size / CHUNK_SIZE))
+    }))
+
+    this.setUploading("Preparing upload...")
+
+    try {
+      for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
+        await this.uploadFile(uploadId, manifest[fileIndex], files[fileIndex], fileIndex, files.length)
+      }
+
+      const response = await this.completeUpload(uploadId, manifest)
+      window.location.assign(response.redirect_url)
+    } catch (error) {
+      this.summaryTarget.textContent = error.message
+      this.submitTarget.value = "Upload"
+      this.submitTarget.disabled = false
+    }
   }
 
   choose() {
@@ -73,6 +96,87 @@ export default class extends Controller {
 
     this.summaryTarget.textContent = `${mediaCount} media file${mediaCount === 1 ? "" : "s"} · ${sidecarCount} AAE sidecar${sidecarCount === 1 ? "" : "s"}`
     this.submitTarget.disabled = mediaCount === 0
+  }
+
+  async uploadFile(uploadId, manifest, file, fileIndex, totalFiles) {
+    for (let chunkIndex = 0; chunkIndex < manifest.total_chunks; chunkIndex += 1) {
+      const start = chunkIndex * CHUNK_SIZE
+      const chunk = file.slice(start, start + CHUNK_SIZE)
+      const formData = new FormData()
+      formData.append("upload_id", uploadId)
+      formData.append("file_id", manifest.file_id)
+      formData.append("chunk_index", chunkIndex)
+      formData.append("chunk", chunk, file.name)
+
+      this.summaryTarget.textContent = `Uploading ${fileIndex + 1}/${totalFiles}: ${file.name} (${chunkIndex + 1}/${manifest.total_chunks})`
+      await this.withRetries(() => this.postForm("/upload_chunks", formData))
+    }
+  }
+
+  async completeUpload(uploadId, files) {
+    const response = await fetch("/upload_chunks/complete", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "X-CSRF-Token": this.csrfToken()
+      },
+      body: JSON.stringify({ upload_id: uploadId, files })
+    })
+
+    return this.parseResponse(response)
+  }
+
+  async postForm(url, formData) {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Accept": "application/json",
+        "X-CSRF-Token": this.csrfToken()
+      },
+      body: formData
+    })
+
+    return this.parseResponse(response)
+  }
+
+  async parseResponse(response) {
+    const body = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      throw new Error(body.error || "Upload failed.")
+    }
+
+    return body
+  }
+
+  setUploading(message) {
+    this.submitTarget.value = "Uploading..."
+    this.submitTarget.disabled = true
+    this.summaryTarget.textContent = message
+  }
+
+  async withRetries(callback) {
+    let lastError
+
+    for (let attempt = 1; attempt <= CHUNK_RETRIES; attempt += 1) {
+      try {
+        return await callback()
+      } catch (error) {
+        lastError = error
+        if (attempt < CHUNK_RETRIES) await this.sleep(500 * attempt)
+      }
+    }
+
+    throw lastError
+  }
+
+  sleep(milliseconds) {
+    return new Promise((resolve) => setTimeout(resolve, milliseconds))
+  }
+
+  csrfToken() {
+    return document.querySelector("meta[name='csrf-token']")?.content
   }
 
   supported(file) {

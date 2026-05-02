@@ -109,33 +109,10 @@ class PhotosController < ApplicationController
 
   def create_batch_photos
     files = Array(params.require(:photos).permit(files: [])[:files]).compact_blank
-    sidecars, originals = files.partition { |file| sidecar_file?(file) }
-    sidecars_by_basename = sidecars.group_by { |file| import_basename(file) }
-    created = 0
-
-    Photo.transaction do
-      originals.each do |original|
-        photo = current_user.photos.new
-        photo.original.attach(original)
-        Array(sidecars_by_basename[import_basename(original)]).each { |sidecar| photo.sidecars.attach(sidecar) }
-        photo.save!
-        created += 1
-      end
-    end
-
-    { created: created }
+    PhotoImporter.new(owner: current_user).import(files)
   rescue ActiveRecord::RecordInvalid => e
     redirect_to root_path, alert: e.record.errors.full_messages.to_sentence
     {}
-  end
-
-  def sidecar_file?(file)
-    File.extname(file.original_filename.to_s).casecmp?(".aae")
-  end
-
-  def import_basename(file)
-    basename = File.basename(file.original_filename.to_s, ".*").downcase
-    basename.sub(/\A(img)_o(\d+)\z/, "\\1_e\\2")
   end
 
   def set_photo
