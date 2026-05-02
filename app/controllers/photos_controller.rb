@@ -58,6 +58,21 @@ class PhotosController < ApplicationController
     redirect_to photo_path(@photo), notice: "Drive archive retry queued."
   end
 
+  def retry_failed_archives
+    archive_objects = DriveArchiveObject
+      .joins(:photo)
+      .includes(:photo)
+      .where(status: "failed", photos: { owner_id: current_user.id })
+    retry_count = archive_objects.count
+
+    archive_objects.find_each do |archive_object|
+      archive_object.update!(status: "pending", error: nil)
+      MirrorOriginalToDriveJob.perform_later(archive_object.photo)
+    end
+
+    redirect_to root_path, notice: "Queued #{retry_count} failed Drive archive #{'retry'.pluralize(retry_count)}."
+  end
+
   private
 
   def photo_params

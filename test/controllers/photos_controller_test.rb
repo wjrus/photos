@@ -144,6 +144,26 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_nil archive_object.error
   end
 
+  test "owner can retry all failed drive archives" do
+    failed_photo = attached_photo(title: "Failed one")
+    failed_photo.create_drive_archive_object!(status: "failed", error: "Drive API disabled")
+    another_failed_photo = attached_photo(title: "Failed two")
+    another_failed_photo.create_drive_archive_object!(status: "failed", error: "Token expired")
+    archived_photo = attached_photo(title: "Archived")
+    archived_photo.create_drive_archive_object!(status: "archived")
+
+    assert_enqueued_jobs 2, only: MirrorOriginalToDriveJob do
+      post retry_failed_archives_photos_path
+    end
+
+    assert_redirected_to root_path
+    assert_equal "pending", failed_photo.reload.drive_archive_object.status
+    assert_nil failed_photo.drive_archive_object.error
+    assert_equal "pending", another_failed_photo.reload.drive_archive_object.status
+    assert_nil another_failed_photo.drive_archive_object.error
+    assert_equal "archived", archived_photo.reload.drive_archive_object.status
+  end
+
   test "owner sees archive and metadata details" do
     photo = attached_photo
     photo.create_metadata!(
