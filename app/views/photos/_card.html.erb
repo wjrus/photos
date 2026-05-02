@@ -1,7 +1,10 @@
 <article class="<%= feature ? "col-span-2 row-span-2" : "" %> group relative overflow-hidden rounded-lg bg-zinc-900 shadow-sm">
   <% if owner_controls %>
-    <label class="absolute left-3 top-3 z-20 flex size-9 items-center justify-center rounded-lg border border-white/50 bg-black/45 backdrop-blur transition hover:bg-white">
-      <%= check_box_tag "photo_ids[]", photo.id, false, class: "size-4 accent-teal-700", form: bulk_form_id, aria: { label: "Select #{photo.title}" } %>
+    <label class="selection-control absolute left-3 top-3 z-20 cursor-pointer"
+           title="Select"
+           data-action="change->bulk-selection#update">
+      <%= check_box_tag "photo_ids[]", photo.id, false, form: bulk_form_id, aria: { label: "Select #{photo.title}" } %>
+      <span class="selection-circle">✓</span>
     </label>
   <% end %>
 

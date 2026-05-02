@@ -3,7 +3,8 @@
 <section class="min-h-screen bg-stone-50 text-zinc-950">
   <%= render "shared/site_header" %>
 
-  <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+  <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8"
+        <%= %(data-controller="bulk-selection" data-bulk-selection-form-id-value="album-bulk-form").html_safe if current_user&.owner? %>>
     <div class="flex flex-col gap-4 border-b border-zinc-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
       <div>
         <p class="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Albums</p>
@@ -42,8 +43,11 @@
           <% visible_count = album.photos.visible_to(current_user).count %>
           <article class="group relative overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition hover:border-zinc-950">
             <% if current_user&.owner? %>
-              <label class="absolute left-3 top-3 z-20 flex size-9 items-center justify-center rounded-lg border border-white/50 bg-black/45 backdrop-blur transition hover:bg-white">
-                <%= check_box_tag "album_ids[]", album.id, false, class: "size-4 accent-teal-700", form: "album-bulk-form", aria: { label: "Select #{album.title}" } %>
+              <label class="selection-control absolute left-3 top-3 z-20 cursor-pointer"
+                     title="Select"
+                     data-action="change->bulk-selection#update">
+                <%= check_box_tag "album_ids[]", album.id, false, form: "album-bulk-form", aria: { label: "Select #{album.title}" } %>
+                <span class="selection-circle">✓</span>
               </label>
             <% end %>
 

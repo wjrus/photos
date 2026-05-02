@@ -3,7 +3,8 @@
 <section class="min-h-screen bg-stone-50 text-zinc-950">
   <%= render "shared/site_header" %>
 
-  <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+  <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8"
+        <%= %(data-controller="bulk-selection" data-bulk-selection-form-id-value="photo-bulk-form").html_safe if current_user&.owner? %>>
     <% if @photos.any? %>
       <% if current_user&.owner? %>
         <%= render "photos/bulk_toolbar", albums: @albums, return_to: root_path, form_id: "photo-bulk-form" %>
