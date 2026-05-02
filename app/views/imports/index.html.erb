@@ -4,9 +4,23 @@
   <%= render "shared/site_header" %>
 
   <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-    <div class="border-b border-zinc-200 pb-5">
-      <p class="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Imports</p>
-      <h1 class="mt-2 text-3xl font-semibold text-zinc-950">Import status</h1>
+    <div class="flex flex-col gap-4 border-b border-zinc-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Imports</p>
+        <h1 class="mt-2 text-3xl font-semibold text-zinc-950">Import status</h1>
+      </div>
+
+      <div class="w-full max-w-xl rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+        <%= form_with url: imports_path, method: :post, class: "flex flex-col gap-3 sm:flex-row sm:items-end" do |form| %>
+          <div class="min-w-0 flex-1">
+            <%= form.label :path, "Path", class: "text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500" %>
+            <%= form.text_field :path,
+                  value: @default_import_path,
+                  class: "mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15" %>
+          </div>
+          <%= form.submit "Queue import", class: "rounded-lg bg-zinc-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800" %>
+        <% end %>
+      </div>
     </div>
 
     <div class="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-6">
@@ -56,6 +70,40 @@
       </section>
 
       <aside class="space-y-6">
+        <section>
+          <h2 class="text-sm font-semibold uppercase tracking-[0.16em] text-zinc-500">Runs</h2>
+          <div class="mt-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+            <% if @import_runs.any? %>
+              <ul class="space-y-4">
+                <% @import_runs.each do |run| %>
+                  <li class="text-sm">
+                    <div class="flex items-start justify-between gap-3">
+                      <p class="min-w-0 truncate font-medium text-zinc-950" title="<%= run.path %>"><%= run.path %></p>
+                      <span class="shrink-0 rounded-lg border border-zinc-200 bg-stone-50 px-2 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-zinc-600"><%= run.status %></span>
+                    </div>
+                    <% if run.summary.present? %>
+                      <p class="mt-2 text-xs leading-5 text-zinc-600">
+                        <%= run.summary.sort.map { |key, value| "#{key}: #{value}" }.join(" · ") %>
+                      </p>
+                    <% end %>
+                    <% if run.error.present? %>
+                      <p class="mt-2 break-words text-xs leading-5 text-rose-800"><%= run.error %></p>
+                    <% end %>
+                    <p class="mt-2 text-xs text-zinc-500">
+                      <%= run.started_at&.to_fs(:short) || run.created_at.to_fs(:short) %>
+                      <% if run.finished_at.present? && run.started_at.present? %>
+                        · <%= distance_of_time_in_words(run.started_at, run.finished_at) %>
+                      <% end %>
+                    </p>
+                  </li>
+                <% end %>
+              </ul>
+            <% else %>
+              <p class="text-sm text-zinc-600">No runs yet.</p>
+            <% end %>
+          </div>
+        </section>
+
         <section>
           <h2 class="text-sm font-semibold uppercase tracking-[0.16em] text-zinc-500">Recent failures</h2>
           <div class="mt-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">

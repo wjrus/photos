@@ -35,11 +35,36 @@ class ImportsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "not today"
   end
 
+  test "owner can queue an import run" do
+    assert_difference "GoogleTakeoutImportRun.count", 1 do
+      assert_enqueued_with(job: GoogleTakeoutImportJob) do
+        post imports_path, params: { path: "/rails/imports/google-takeout" }
+      end
+    end
+
+    import_run = GoogleTakeoutImportRun.last
+    assert_redirected_to imports_path
+    assert_equal @owner, import_run.owner
+    assert_equal "queued", import_run.status
+    assert_equal "/rails/imports/google-takeout", import_run.path
+  end
+
   test "non owner cannot see import status" do
     delete sign_out_path
     sign_in_as(users(:two))
 
     get imports_path
+
+    assert_redirected_to root_path
+  end
+
+  test "non owner cannot queue an import run" do
+    delete sign_out_path
+    sign_in_as(users(:two))
+
+    assert_no_difference "GoogleTakeoutImportRun.count" do
+      post imports_path, params: { path: "/rails/imports/google-takeout" }
+    end
 
     assert_redirected_to root_path
   end

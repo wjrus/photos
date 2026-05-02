@@ -13,7 +13,7 @@ Rails.application.routes.draw do
   match "/auth/:provider/callback", to: "sessions#create", via: [ :get, :post ]
   delete "/sign_out", to: "sessions#destroy", as: :sign_out
   get "/map", to: "maps#show", as: :map
-  get "/imports", to: "imports#index", as: :imports
+  resources :imports, only: %i[index create]
   get "/private", to: "restricted_photos#index", as: :restricted_photos
   post "/private/access", to: "restricted_photos#unlock", as: :unlock_restricted_photos
   delete "/private/access", to: "restricted_photos#lock", as: :lock_restricted_photos
