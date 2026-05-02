@@ -1,0 +1,63 @@
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    env_file:
+      - .env.postgres
+    environment:
+      POSTGRES_DB: photos_production
+      POSTGRES_USER: photos
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U photos -d photos_production"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  web:
+    build: .
+    image: photos:production
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      RAILS_ENV: production
+      PGHOST: db
+      PGUSER: photos
+      SOLID_QUEUE_IN_PUMA: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3000:80"
+    volumes:
+      - app_storage:/rails/storage
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost/up || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    image: photos:production
+    restart: unless-stopped
+    command: ["./bin/jobs"]
+    env_file:
+      - .env.production
+    environment:
+      RAILS_ENV: production
+      PGHOST: db
+      PGUSER: photos
+      SOLID_QUEUE_IN_PUMA: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    volumes:
+      - app_storage:/rails/storage
+
+volumes:
+  postgres_data:
+  app_storage:

@@ -1,24 +1,22 @@
-# README
+# Photos
 
-This README would normally document whatever steps are necessary to get the
-application up and running.
+Personal photo stream and archive.
 
-Things you may want to cover:
+## Development
 
-* Ruby version
+```sh
+bin/setup
+bin/dev
+```
 
-* System dependencies
+## Test
 
-* Configuration
+```sh
+bin/rails test
+bin/rails test:system
+bin/rubocop
+```
 
-* Database creation
+## Deploy
 
-* Database initialization
-
-* How to run the test suite
-
-* Services (job queues, cache servers, search engines, etc.)
-
-* Deployment instructions
-
-* ...
+See [docs/deploy.md](docs/deploy.md).
