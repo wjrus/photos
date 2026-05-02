@@ -33,6 +33,7 @@ services:
       - "3000:80"
     volumes:
       - ${PHOTOS_STORAGE_PATH:-app_storage}:/rails/storage
+      - ${PHOTOS_IMPORT_PATH:-/mnt/photos/imports}:/rails/imports:ro
 
   worker:
     image: photos:production
@@ -50,6 +51,7 @@ services:
         condition: service_healthy
     volumes:
       - ${PHOTOS_STORAGE_PATH:-app_storage}:/rails/storage
+      - ${PHOTOS_IMPORT_PATH:-/mnt/photos/imports}:/rails/imports:ro
 
 volumes:
   postgres_data:

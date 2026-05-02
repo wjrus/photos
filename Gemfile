@@ -51,6 +51,10 @@ gem "google-apis-drive_v3"
 # never expose embedded metadata.
 gem "exifr"
 
+# Google Takeout archives are delivered as large zip files. The importer streams
+# entries out one at a time so originals are never loaded fully into memory.
+gem "rubyzip"
+
 group :development, :test do
   # Load local credentials from .env during development and tests.
   gem "dotenv-rails"

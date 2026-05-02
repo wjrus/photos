@@ -2,6 +2,7 @@ class User < ApplicationRecord
   ROLES = %w[owner viewer].freeze
 
   has_many :photos, foreign_key: :owner_id, dependent: :restrict_with_exception, inverse_of: :owner
+  has_many :photo_albums, foreign_key: :owner_id, dependent: :restrict_with_exception, inverse_of: :owner
 
   normalizes :email, with: ->(email) { email.to_s.strip.downcase }
 

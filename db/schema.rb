@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_02_153000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_02_191100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -56,6 +56,45 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_02_153000) do
     t.index ["google_file_id"], name: "index_drive_archive_objects_on_google_file_id"
     t.index ["photo_id"], name: "index_drive_archive_objects_on_photo_id", unique: true
     t.index ["status"], name: "index_drive_archive_objects_on_status"
+  end
+
+  create_table "google_takeout_imports", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "entry_name", null: false
+    t.text "error"
+    t.datetime "imported_at"
+    t.string "original_filename"
+    t.bigint "photo_id"
+    t.string "sha256"
+    t.string "status", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.string "zip_path", null: false
+    t.index ["photo_id"], name: "index_google_takeout_imports_on_photo_id"
+    t.index ["sha256"], name: "index_google_takeout_imports_on_sha256"
+    t.index ["status"], name: "index_google_takeout_imports_on_status"
+    t.index ["zip_path", "entry_name"], name: "index_google_takeout_imports_on_zip_path_and_entry_name", unique: true
+  end
+
+  create_table "photo_album_memberships", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "photo_album_id", null: false
+    t.bigint "photo_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["photo_album_id"], name: "index_photo_album_memberships_on_photo_album_id"
+    t.index ["photo_id", "photo_album_id"], name: "index_photo_album_memberships_on_photo_id_and_photo_album_id", unique: true
+    t.index ["photo_id"], name: "index_photo_album_memberships_on_photo_id"
+  end
+
+  create_table "photo_albums", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "owner_id", null: false
+    t.jsonb "raw", default: {}, null: false
+    t.string "source", default: "manual", null: false
+    t.string "source_path"
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["owner_id", "source", "source_path"], name: "index_photo_albums_on_owner_id_and_source_and_source_path", unique: true
+    t.index ["owner_id"], name: "index_photo_albums_on_owner_id"
   end
 
   create_table "photo_metadata", force: :cascade do |t|
@@ -126,6 +165,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_02_153000) do
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "drive_archive_objects", "photos"
+  add_foreign_key "google_takeout_imports", "photos"
+  add_foreign_key "photo_album_memberships", "photo_albums"
+  add_foreign_key "photo_album_memberships", "photos"
+  add_foreign_key "photo_albums", "users", column: "owner_id"
   add_foreign_key "photo_metadata", "photos"
   add_foreign_key "photos", "users", column: "owner_id"
 end
