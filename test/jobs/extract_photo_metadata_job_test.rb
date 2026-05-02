@@ -9,6 +9,8 @@ class ExtractPhotoMetadataJobTest < ActiveJob::TestCase
     metadata = photo.reload.metadata
     assert_equal "unsupported", metadata.extraction_status
     assert_equal({}, metadata.raw)
+    assert_equal 512, metadata.width
+    assert_equal 512, metadata.height
     assert_predicate metadata.extracted_at, :present?
   end
 
@@ -20,11 +22,13 @@ class ExtractPhotoMetadataJobTest < ActiveJob::TestCase
     metadata = photo.reload.metadata
     assert_equal "unsupported", metadata.extraction_status
     assert_equal({}, metadata.raw)
+    assert_nil metadata.width
+    assert_nil metadata.height
   end
 
   test "extracts heic-style exif from vips metadata" do
     photo = attached_png
-    image = FakeVipsImage.new(
+    image = FakeVipsImage.new({
       "exif-ifd0-Make" => "Apple (Apple, ASCII, 6 components, 6 bytes)",
       "exif-ifd0-Model" => "iPhone 17 Pro Max (iPhone 17 Pro Max, ASCII, 18 components, 18 bytes)",
       "exif-ifd2-DateTimeOriginal" => "2026:03:22 10:58:00 (2026:03:22 10:58:00, ASCII, 20 components, 20 bytes)",
@@ -37,7 +41,7 @@ class ExtractPhotoMetadataJobTest < ActiveJob::TestCase
       "exif-ifd3-GPSLatitudeRef" => "N (N, ASCII, 2 components, 2 bytes)",
       "exif-ifd3-GPSLongitude" => "85/1 35/1 5274/100 (85, 35, 52.74, Rational, 3 components, 24 bytes)",
       "exif-ifd3-GPSLongitudeRef" => "W (W, ASCII, 2 components, 2 bytes)"
-    )
+    })
 
     job = ExtractPhotoMetadataJob.new
     job.define_singleton_method(:vips_image) { |_path| image }
@@ -54,6 +58,8 @@ class ExtractPhotoMetadataJobTest < ActiveJob::TestCase
     assert_equal "f/1.8", metadata.aperture
     assert_equal "1/906 sec.", metadata.exposure_time
     assert_equal "6.8 mm", metadata.focal_length
+    assert_equal 3024, metadata.width
+    assert_equal 4032, metadata.height
     assert_in_delta 44.762222, metadata.latitude.to_f, 0.000001
     assert_in_delta(-85.597983, metadata.longitude.to_f, 0.000001)
   end
@@ -61,8 +67,12 @@ class ExtractPhotoMetadataJobTest < ActiveJob::TestCase
   private
 
   class FakeVipsImage
-    def initialize(fields)
+    attr_reader :width, :height
+
+    def initialize(fields, width: 3024, height: 4032)
       @fields = fields
+      @width = width
+      @height = height
     end
 
     def get_fields

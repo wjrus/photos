@@ -234,6 +234,8 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
       extraction_status: "complete",
       camera_make: "Fuji",
       camera_model: "X100",
+      width: 3024,
+      height: 4032,
       latitude: 44.762222,
       longitude: -85.597983,
       raw: {}
@@ -243,15 +245,16 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "Archive"
-    assert_includes response.body, "Back to stream"
     assert_select "section[data-controller='info-panel']"
+    assert_select "aside#photo-info-panel a", { text: "Back to stream", count: 0 }
     assert_select "button[aria-label='Show photo information'][data-action='info-panel#toggle']"
+    assert_select "button[aria-label='Close photo information'][data-action='info-panel#close']"
     assert_select "aside#photo-info-panel.translate-x-full"
     assert_includes response.body, "Fuji X100"
+    assert_includes response.body, "3,024 x 4,032"
     assert_includes response.body, "Photo location map"
     assert_includes response.body, photo.original_filename
     assert_includes response.body, "Download original"
-    assert_includes response.body, "Remove photo"
     assert_includes response.body, "Remove photo?"
     assert_select "[data-controller='confirm-modal']"
     assert_select "[data-turbo-confirm]", false

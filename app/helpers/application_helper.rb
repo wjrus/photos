@@ -41,6 +41,12 @@ module ApplicationHelper
     end
   end
 
+  def photo_dimensions(metadata)
+    return "unknown" unless metadata&.width.present? && metadata&.height.present?
+
+    "#{number_with_delimiter(metadata.width)} x #{number_with_delimiter(metadata.height)}"
+  end
+
   def photo_map_embed_url(metadata)
     latitude = metadata.latitude.to_f
     longitude = metadata.longitude.to_f

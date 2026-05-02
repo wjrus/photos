@@ -17,10 +17,19 @@ class ExtractPhotoMetadataJob < ApplicationJob
     end
 
     photo.original.blob.open do |file|
-      exif = extract_exif(file.path)
+      image = vips_image(file.path)
+      exif = extract_exif(image)
+      dimensions = image_dimensions(image)
 
       unless exif.any?
-        metadata.update!(extraction_status: "unsupported", extraction_error: nil, raw: {}, extracted_at: Time.current)
+        metadata.update!(
+          extraction_status: "unsupported",
+          extraction_error: nil,
+          raw: {},
+          width: dimensions[:width],
+          height: dimensions[:height],
+          extracted_at: Time.current
+        )
         return
       end
 
@@ -39,6 +48,8 @@ class ExtractPhotoMetadataJob < ApplicationJob
         focal_length: exif["FocalLength"],
         latitude: gps_coordinate(exif["GPSLatitude"], exif["GPSLatitudeRef"]),
         longitude: gps_coordinate(exif["GPSLongitude"], exif["GPSLongitudeRef"]),
+        width: dimensions[:width],
+        height: dimensions[:height],
         raw: exif,
         extracted_at: Time.current
       )
@@ -55,8 +66,7 @@ class ExtractPhotoMetadataJob < ApplicationJob
 
   private
 
-  def extract_exif(path)
-    image = vips_image(path)
+  def extract_exif(image)
     image.get_fields.filter_map do |field|
       next unless field.start_with?("exif-ifd")
 
@@ -66,6 +76,10 @@ class ExtractPhotoMetadataJob < ApplicationJob
 
   def vips_image(path)
     Vips::Image.new_from_file(path, access: :sequential)
+  end
+
+  def image_dimensions(image)
+    { width: image.width, height: image.height }
   end
 
   def exif_key(field)
