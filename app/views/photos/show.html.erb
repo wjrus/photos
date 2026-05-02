@@ -1,8 +1,8 @@
 <% content_for :title, @photo.title %>
 
-<section class="min-h-screen bg-stone-50 text-zinc-950">
-  <div class="mx-auto grid min-h-screen w-full max-w-7xl grid-cols-1 lg:grid-cols-[1fr_360px]">
-    <main class="relative flex min-h-[70vh] items-center justify-center bg-zinc-950 p-3 lg:min-h-screen lg:p-6"
+<section class="relative min-h-screen overflow-hidden bg-zinc-950 text-zinc-950" data-controller="info-panel">
+  <div class="min-h-screen w-full">
+    <main class="relative flex min-h-screen items-center justify-center bg-zinc-950 p-3 lg:p-6"
           data-controller="stream-navigation"
           data-action="keydown@window->stream-navigation#keydown touchstart->stream-navigation#touchstart touchend->stream-navigation#touchend"
           data-stream-navigation-back-url-value="<%= root_path %>"
@@ -13,6 +13,15 @@
             aria: { label: "Back to stream" } do %>
         Back
       <% end %>
+      <button type="button"
+              class="absolute right-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-black/55 font-serif text-lg font-semibold italic text-white backdrop-blur transition hover:bg-white hover:text-zinc-950"
+              aria-label="Show photo information"
+              aria-controls="photo-info-panel"
+              aria-expanded="false"
+              data-info-panel-target="button"
+              data-action="info-panel#toggle">
+        i
+      </button>
       <% if @previous_photo || @next_photo %>
         <nav class="absolute right-4 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-2" aria-label="Stream navigation">
           <% if @previous_photo %>
@@ -34,7 +43,11 @@
       <%= photo_detail_media(@photo) %>
     </main>
 
-    <aside class="border-t border-zinc-200 bg-white p-6 lg:border-l lg:border-t-0">
+    <div class="fixed inset-0 z-30 hidden bg-black/35 backdrop-blur-[2px]" data-info-panel-target="backdrop" data-action="click->info-panel#close"></div>
+
+    <aside id="photo-info-panel"
+           class="fixed inset-y-0 right-0 z-40 w-full max-w-[390px] translate-x-full overflow-y-auto border-l border-zinc-200 bg-white p-6 shadow-2xl transition duration-200 ease-out"
+           data-info-panel-target="panel">
       <div class="flex items-start justify-between gap-4">
         <div>
           <%= link_to "Back to stream", root_path, class: "text-xs font-semibold uppercase tracking-[0.18em] text-teal-700 transition hover:text-teal-900" %>
@@ -109,6 +122,11 @@
           </section>
         </div>
       <% end %>
+      <button type="button"
+              class="mt-8 w-full rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold uppercase text-zinc-700 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white"
+              data-action="info-panel#close">
+        Close
+      </button>
     </aside>
   </div>
 </section>

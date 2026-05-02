@@ -151,6 +151,9 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "Archive"
     assert_includes response.body, "Back to stream"
+    assert_select "section[data-controller='info-panel']"
+    assert_select "button[aria-label='Show photo information'][data-action='info-panel#toggle']"
+    assert_select "aside#photo-info-panel.translate-x-full"
     assert_includes response.body, "Fuji X100"
     assert_includes response.body, photo.original_filename
   end
