@@ -12,6 +12,7 @@ Rails.application.routes.draw do
   get "/auth/failure", to: "sessions#failure"
   match "/auth/:provider/callback", to: "sessions#create", via: [ :get, :post ]
   delete "/sign_out", to: "sessions#destroy", as: :sign_out
+  get "/map", to: "maps#show", as: :map
   get "/uploads", to: "uploads#show", as: :uploads
   resources :upload_chunks, only: :create do
     post :status, on: :collection

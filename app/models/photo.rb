@@ -28,7 +28,7 @@ class Photo < ApplicationRecord
       where(visibility: "public")
     end
   }
-  scope :stream_order, -> { order(Arel.sql("COALESCE(captured_at, created_at) DESC")) }
+  scope :stream_order, -> { order(Arel.sql("COALESCE(photos.captured_at, photos.created_at) DESC")) }
 
   def public?
     visibility == "public"

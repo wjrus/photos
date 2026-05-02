@@ -10,5 +10,6 @@ class HomeTest < ApplicationSystemTestCase
     assert_no_selector "summary", text: "wjr photos"
     assert_no_text "Drop iPhone imports here"
     assert_no_text "Preserved privately."
+    assert_no_link "Map"
   end
 end

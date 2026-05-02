@@ -48,20 +48,17 @@ module ApplicationHelper
   end
 
   def photo_map_embed_url(metadata)
-    latitude = metadata.latitude.to_f
-    longitude = metadata.longitude.to_f
-    padding = 0.012
-    bbox = [
-      longitude - padding,
-      latitude - padding,
-      longitude + padding,
-      latitude + padding
-    ].join(",")
+    return if google_maps_api_key.blank?
 
-    "https://www.openstreetmap.org/export/embed.html?bbox=#{bbox}&layer=mapnik&marker=#{latitude},#{longitude}"
+    query = "#{metadata.latitude},#{metadata.longitude}"
+    "https://www.google.com/maps/embed/v1/place?#{URI.encode_www_form(key: google_maps_api_key, q: query, zoom: 13)}"
   end
 
   def photo_map_link(metadata)
-    "https://www.openstreetmap.org/?mlat=#{metadata.latitude}&mlon=#{metadata.longitude}#map=13/#{metadata.latitude}/#{metadata.longitude}"
+    "https://www.google.com/maps/search/?api=1&#{URI.encode_www_form(query: "#{metadata.latitude},#{metadata.longitude}")}"
+  end
+
+  def google_maps_api_key
+    ENV["GOOGLE_MAPS_EMBED_API_KEY"]
   end
 end

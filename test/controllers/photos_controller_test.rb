@@ -5,11 +5,14 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     OmniAuth.config.test_mode = true
     @owner = users(:one)
     @trusted_viewer_emails = ENV["PHOTOS_TRUSTED_VIEWER_EMAILS"]
+    @google_maps_api_key = ENV["GOOGLE_MAPS_EMBED_API_KEY"]
+    ENV["GOOGLE_MAPS_EMBED_API_KEY"] = "test-google-maps-key"
     sign_in_as(@owner)
   end
 
   teardown do
     ENV["PHOTOS_TRUSTED_VIEWER_EMAILS"] = @trusted_viewer_emails
+    ENV["GOOGLE_MAPS_EMBED_API_KEY"] = @google_maps_api_key
     OmniAuth.config.mock_auth[:google_oauth2] = nil
     OmniAuth.config.test_mode = false
   end
@@ -253,6 +256,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Fuji X100"
     assert_includes response.body, "3,024 x 4,032"
     assert_includes response.body, "Photo location map"
+    assert_includes response.body, "google.com/maps/embed/v1/place"
     assert_includes response.body, photo.original_filename
     assert_includes response.body, "Download original"
     assert_includes response.body, "Remove photo?"
@@ -341,6 +345,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Met everyone by the river."
     assert_includes response.body, "Fuji X100"
     assert_includes response.body, "Photo location map"
+    assert_includes response.body, "google.com/maps/embed/v1/place"
     assert_includes response.body, "Open map"
     refute_includes response.body, "Archive"
     refute_includes response.body, photo.original_filename

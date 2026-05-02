@@ -204,11 +204,17 @@
 
               <% if metadata.location? %>
                 <div class="mt-4 overflow-hidden rounded-lg border border-zinc-200 bg-stone-50">
-                  <iframe class="h-44 w-full border-0"
-                          title="Photo location map"
-                          loading="lazy"
-                          referrerpolicy="no-referrer-when-downgrade"
-                          src="<%= photo_map_embed_url(metadata) %>"></iframe>
+                  <% if photo_map_embed_url(metadata).present? %>
+                    <iframe class="h-44 w-full border-0"
+                            title="Photo location map"
+                            loading="lazy"
+                            referrerpolicy="no-referrer-when-downgrade"
+                            src="<%= photo_map_embed_url(metadata) %>"></iframe>
+                  <% else %>
+                    <div class="flex h-44 items-center justify-center bg-stone-50 p-4 text-center text-sm text-zinc-600">
+                      Google Maps key missing.
+                    </div>
+                  <% end %>
                   <div class="p-4">
                     <p class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Location</p>
                     <p class="mt-2 font-mono text-sm text-zinc-800"><%= metadata.latitude %>, <%= metadata.longitude %></p>
