@@ -71,7 +71,7 @@ class GoogleTakeoutImporter
   def import_media_entry(zip_path, entry, sidecars, album_metadata, summary)
     import_record = GoogleTakeoutImport.find_or_initialize_by(zip_path: zip_path.to_s, entry_name: entry.name)
     if import_record.persisted? && import_record.status.in?(%w[imported duplicate skipped])
-      attach_album(import_record.photo, entry, album_metadata, summary) if import_record.photo
+      attach_album(import_record.photo, entry, album_metadata, summary) if import_record.photo && !restricted_entry?(entry)
       return count_existing(import_record, summary)
     end
 
@@ -82,7 +82,11 @@ class GoogleTakeoutImporter
       import_record.assign_attributes(original_filename: File.basename(entry.name), sha256: sha256)
 
       if duplicate_photo
-        attach_album(duplicate_photo, entry, album_metadata, summary)
+        if restricted_entry?(entry) && !duplicate_photo.restricted?
+          duplicate_photo.update!(restricted: true)
+          summary[:restricted] += 1
+        end
+        attach_album(duplicate_photo, entry, album_metadata, summary) unless restricted_entry?(entry)
         import_record.update!(status: "duplicate", photo: duplicate_photo, error: nil, imported_at: Time.current)
         summary[:duplicates] += 1
         return
@@ -91,10 +95,11 @@ class GoogleTakeoutImporter
       photo = build_photo(entry, tempfile, sha256, sidecars)
       photo.save!
       apply_google_metadata(photo, google_metadata_for(entry, sidecars))
-      attach_album(photo, entry, album_metadata, summary)
+      attach_album(photo, entry, album_metadata, summary) unless photo.restricted?
 
       import_record.update!(status: "imported", photo: photo, error: nil, imported_at: Time.current)
       summary[:imported] += 1
+      summary[:restricted] += 1 if photo.restricted?
       logger.info("Imported #{entry.name} -> photo ##{photo.id}")
     end
   rescue StandardError => e
@@ -119,6 +124,10 @@ class GoogleTakeoutImporter
     summary[:album_memberships] += 1 if membership.previously_new_record?
   end
 
+  def restricted_entry?(entry)
+    entry.name.split("/").any? { |part| part.casecmp?("Locked Folder") }
+  end
+
   def album_path_for(entry)
     parts = entry.name.split("/")
     google_photos_index = parts.index("Google Photos")
@@ -140,7 +149,8 @@ class GoogleTakeoutImporter
       checksum_sha256: sha256,
       checksum_status: "complete",
       checksum_error: nil,
-      checksum_checked_at: Time.current
+      checksum_checked_at: Time.current,
+      restricted: restricted_entry?(entry)
     )
     attach_original(photo, entry, tempfile)
     attach_aae_sidecars(photo, entry, sidecars)
@@ -275,6 +285,7 @@ class GoogleTakeoutImporter
       sidecars: 0,
       albums: 0,
       album_memberships: 0,
+      restricted: 0,
       failed: 0
     }
   end

@@ -1,7 +1,8 @@
 <div class="grid auto-rows-[220px] grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+  <% owner_controls = local_assigns.fetch(:owner_controls, current_user&.owner?) %>
   <% photos.each_with_index do |photo, index| %>
     <article class="<%= feature_first && index.zero? ? "col-span-2 row-span-2" : "" %> group relative overflow-hidden rounded-lg bg-zinc-900 shadow-sm">
-      <% if current_user&.owner? %>
+      <% if owner_controls %>
         <label class="absolute left-3 top-3 z-20 flex size-9 items-center justify-center rounded-lg border border-white/50 bg-black/45 backdrop-blur transition hover:bg-white">
           <%= check_box_tag "photo_ids[]", photo.id, false, class: "size-4 accent-teal-700", form: local_assigns[:bulk_form_id], aria: { label: "Select #{photo.title}" } %>
         </label>
@@ -17,7 +18,7 @@
       <div class="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent opacity-80"></div>
       <div class="absolute inset-x-0 bottom-0 p-4 text-white">
         <div class="flex items-end justify-end gap-3">
-          <% if current_user&.owner? %>
+          <% if owner_controls %>
             <% if photo.public? %>
               <%= button_to "Make private",
                     unpublish_photo_path(photo),

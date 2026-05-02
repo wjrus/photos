@@ -20,4 +20,22 @@ class ApplicationController < ActionController::Base
   def privileged_metadata_viewer?
     current_user&.trusted_viewer?
   end
+
+  def restricted_photos_unlocked?
+    current_user&.owner? && session[:restricted_photos_unlocked] == true
+  end
+
+  def restricted_photos_password_configured?
+    ENV["PHOTOS_LOCKED_FOLDER_PASSWORD"].present?
+  end
+
+  def restricted_photos_password_matches?(candidate)
+    password = ENV["PHOTOS_LOCKED_FOLDER_PASSWORD"].to_s
+    return false if password.blank? || candidate.blank?
+
+    ActiveSupport::SecurityUtils.secure_compare(
+      Digest::SHA256.hexdigest(candidate.to_s),
+      Digest::SHA256.hexdigest(password)
+    )
+  end
 end

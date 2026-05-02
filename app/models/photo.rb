@@ -25,11 +25,12 @@ class Photo < ApplicationRecord
 
   scope :visible_to, ->(user) {
     if user&.owner?
-      all
+      where(restricted: false)
     else
-      where(visibility: "public")
+      where(visibility: "public", restricted: false)
     end
   }
+  scope :restricted, -> { where(restricted: true) }
   scope :stream_order, -> { order(Arel.sql("COALESCE(photos.captured_at, photos.created_at) DESC")) }
 
   def public?

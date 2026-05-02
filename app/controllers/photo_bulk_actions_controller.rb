@@ -2,7 +2,7 @@ class PhotoBulkActionsController < ApplicationController
   before_action :require_owner!
 
   def create
-    photos = current_user.photos.where(id: selected_photo_ids)
+    photos = current_user.photos.visible_to(current_user).where(id: selected_photo_ids)
     return redirect_to safe_return_path, alert: "Select at least one photo." if photos.empty?
 
     case params[:bulk_action]

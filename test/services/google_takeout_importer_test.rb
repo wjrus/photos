@@ -120,6 +120,30 @@ class GoogleTakeoutImporterTest < ActiveSupport::TestCase
     assert_equal [ "Trip to Cleveland" ], existing.photo_albums.pluck(:title)
   end
 
+  test "imports locked folder media as restricted without album membership" do
+    write_zip(
+      "Takeout/Google Photos/Locked Folder/IMG_9999.JPG" => "private bytes",
+      "Takeout/Google Photos/Locked Folder/IMG_9999.JPG.supplemental-metadata.json" => google_json(
+        title: "IMG_9999.JPG",
+        description: "Private note.",
+        timestamp: "1751241600",
+        latitude: 44.0,
+        longitude: -85.0
+      ),
+      "Takeout/Google Photos/Locked Folder/metadata.json" => { title: "Locked Folder" }.to_json
+    )
+
+    summary = GoogleTakeoutImporter.new(owner: @owner).import_path(@zip_path)
+
+    photo = Photo.find_by!(original_filename: "IMG_9999.JPG")
+    assert_equal 1, summary.fetch(:imported)
+    assert_equal 1, summary.fetch(:restricted)
+    assert_predicate photo, :restricted?
+    assert_empty photo.photo_albums
+    refute_includes Photo.visible_to(@owner), photo
+    assert_empty PhotoAlbum.where(title: "Locked Folder")
+  end
+
   private
 
   def write_zip(entries)
