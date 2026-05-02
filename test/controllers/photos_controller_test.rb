@@ -189,6 +189,18 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Download original"
   end
 
+  test "owner sees location unavailable when metadata has no gps" do
+    photo = attached_photo
+    photo.create_metadata!(extraction_status: "complete", camera_make: "Fuji", camera_model: "X100", raw: {})
+
+    get photo_path(photo)
+
+    assert_response :success
+    assert_includes response.body, "Location"
+    assert_includes response.body, "Unavailable"
+    refute_includes response.body, "Photo location map"
+  end
+
   test "owner can access original media" do
     photo = attached_photo
 
