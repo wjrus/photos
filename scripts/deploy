@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+log() {
+  printf "\n==> %s\n" "$*"
+}
+
+fail() {
+  printf "\nDeploy failed: %s\n" "$*" >&2
+  exit 1
+}
+
+compose() {
+  docker compose "$@"
+}
+
+require_file() {
+  [[ -f "$1" ]] || fail "missing $1. Copy the matching .example file and fill it in."
+}
+
+require_clean_tracked_worktree() {
+  git diff --quiet || fail "tracked files have unstaged changes. Commit, stash, or inspect them before deploying."
+  git diff --cached --quiet || fail "tracked files have staged changes. Commit, stash, or inspect them before deploying."
+}
+
+container_state() {
+  local service="$1"
+  local container_id
+
+  container_id="$(compose ps -q "$service")"
+  [[ -n "$container_id" ]] || {
+    printf "missing"
+    return
+  }
+
+  docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id"
+}
+
+wait_for_state() {
+  local service="$1"
+  local expected="$2"
+  local timeout_seconds="$3"
+  local elapsed=0
+  local state
+
+  while (( elapsed < timeout_seconds )); do
+    state="$(container_state "$service")"
+
+    if [[ "$state" == "$expected" ]]; then
+      printf "%s is %s\n" "$service" "$state"
+      return 0
+    fi
+
+    if [[ "$state" == "exited" || "$state" == "dead" || "$state" == "unhealthy" ]]; then
+      compose logs --tail=120 "$service" >&2 || true
+      fail "$service is $state"
+    fi
+
+    sleep 3
+    elapsed=$((elapsed + 3))
+  done
+
+  compose logs --tail=120 "$service" >&2 || true
+  fail "$service did not become $expected within ${timeout_seconds}s"
+}
+
+require_file ".env.production"
+require_file ".env.postgres"
+require_clean_tracked_worktree
+
+log "Pulling latest code"
+git pull --ff-only
+
+log "Validating compose configuration"
+compose config >/dev/null
+
+log "Pulling database image"
+compose pull db
+
+log "Building application image"
+compose build --pull
+
+log "Starting services"
+compose up -d --remove-orphans
+
+log "Waiting for services"
+wait_for_state db healthy 120
+wait_for_state web healthy 240
+wait_for_state worker running 120
+
+log "Current status"
+compose ps
+
+cat <<'MSG'
+
+Deploy complete.
+
+Useful follow-ups:
+  docker compose logs -f web
+  docker compose logs -f worker
+  docker compose exec web bin/rails console
+MSG

@@ -35,8 +35,7 @@ https://photos.wjr.us/auth/google_oauth2/callback
 Build and start:
 
 ```sh
-docker compose build
-docker compose up -d
+./scripts/deploy
 ```
 
 The `web` container runs `bin/rails db:prepare` on boot. That creates and migrates the primary, cache, queue, and cable databases.
@@ -61,6 +60,12 @@ docker compose exec web bin/rails console
 git pull
 docker compose build
 docker compose up -d
+```
+
+Or use the deploy script:
+
+```sh
+./scripts/deploy
 ```
 
 ## Backups
