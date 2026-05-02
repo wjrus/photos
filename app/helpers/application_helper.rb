@@ -80,7 +80,7 @@ module ApplicationHelper
       viewBox: "0 0 24 24",
       fill: "none",
       stroke: "currentColor",
-      stroke_width: "1.8",
+      stroke_width: "2.2",
       stroke_linecap: "round",
       stroke_linejoin: "round",
       class: classes,
@@ -94,11 +94,17 @@ module ApplicationHelper
 
   def photo_status_badge(label, icon)
     tag.span(
-      class: "inline-flex size-7 items-center justify-center text-white/85 drop-shadow",
+      class: "group relative z-20 inline-flex size-9 items-center justify-center rounded-md border border-white/35 bg-black/45 text-white shadow-lg backdrop-blur transition hover:border-white hover:bg-white hover:text-zinc-950",
       title: label,
       aria: { label: label }
     ) do
-      photo_icon(icon, classes: "size-4")
+      safe_join([
+        photo_icon(icon, classes: "size-5"),
+        tag.span(
+          label,
+          class: "pointer-events-none absolute bottom-full left-1/2 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-white/15 bg-zinc-950 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white shadow-lg group-hover:inline-flex"
+        )
+      ])
     end
   end
 
