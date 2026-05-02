@@ -9,6 +9,7 @@ class HomeTest < ApplicationSystemTestCase
     assert_no_text "ARCHIVE RULE"
 
     find("summary", text: "wjr photos").click
-    assert_text "ARCHIVE RULE"
+    assert_text "ORIGINALS"
+    assert_text "Preserved privately."
   end
 end

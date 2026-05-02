@@ -269,7 +269,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     refute_includes response.body, "<video"
-    assert_includes response.body, "public-safe derivative"
+    assert_includes response.body, "Video derivative unavailable."
     refute_includes response.body, photo.original_filename
   end
 
