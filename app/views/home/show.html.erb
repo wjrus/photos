@@ -3,7 +3,7 @@
 <section class="min-h-screen bg-stone-50 text-zinc-950">
   <header class="sticky top-0 z-40 border-b border-zinc-200 bg-stone-50/90 px-4 py-3 backdrop-blur sm:px-6 lg:px-8">
     <div class="mx-auto flex max-w-7xl items-center justify-between gap-4">
-      <details class="group relative">
+      <details class="group relative" data-controller="menu">
         <summary class="flex cursor-pointer list-none items-center gap-3 rounded-lg px-2 py-1 transition hover:bg-white">
           <span>
             <span class="block text-xs font-semibold uppercase tracking-[0.24em] text-teal-700">William Rockwood</span>
@@ -27,7 +27,7 @@
       </details>
 
       <% if signed_in? %>
-        <details class="group relative">
+        <details class="group relative" data-controller="menu">
           <summary class="flex cursor-pointer list-none items-center gap-3 rounded-lg border border-zinc-200 bg-white px-3 py-2 shadow-sm transition hover:border-zinc-950">
             <% if current_user.avatar_url.present? %>
               <%= image_tag current_user.avatar_url, alt: "", class: "size-9 rounded-lg border border-zinc-200" %>

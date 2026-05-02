@@ -11,5 +11,8 @@ class HomeTest < ApplicationSystemTestCase
     find("summary", text: "wjr photos").click
     assert_text "ORIGINALS"
     assert_text "Preserved privately."
+
+    find("main").click
+    assert_no_text "Preserved privately."
   end
 end
