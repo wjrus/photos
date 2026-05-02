@@ -96,20 +96,30 @@ class UploadChunksController < ApplicationController
   end
 
   def cleanup_stale_uploads
-    root = Rails.root.join("tmp/resumable_uploads", current_user.id.to_s)
+    root = resumable_upload_root
     return unless root.directory?
 
     cutoff = UPLOAD_TTL.ago
     root.children.each do |upload|
       FileUtils.rm_rf(upload) if upload.directory? && upload.mtime < cutoff
     end
+  rescue Errno::ENOENT
+    nil
   end
 
   def upload_dir(id)
     safe_id = id.gsub(/[^a-zA-Z0-9_-]/, "")
     raise ActionController::BadRequest, "Invalid upload id" if safe_id.blank?
 
-    Rails.root.join("tmp/resumable_uploads", current_user.id.to_s, safe_id)
+    resumable_upload_root.join(safe_id)
+  end
+
+  def resumable_upload_root
+    path_parts = [ "tmp/resumable_uploads" ]
+    path_parts << "test-#{Process.pid}" if Rails.env.test?
+    path_parts << current_user.id.to_s
+
+    Rails.root.join(*path_parts)
   end
 
   def upload_file_dir(id, file)

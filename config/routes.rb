@@ -17,7 +17,7 @@ Rails.application.routes.draw do
     post :status, on: :collection
     post :complete, on: :collection
   end
-  resources :photos, only: %i[show create] do
+  resources :photos, only: %i[show create destroy] do
     post :retry_failed_archives, on: :collection
     get :display, on: :member
     get :media, on: :member

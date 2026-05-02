@@ -171,6 +171,29 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_equal "A quiet lake before dinner.", photo.reload.description
   end
 
+  test "owner can destroy a photo" do
+    photo = attached_photo
+
+    assert_difference "Photo.count", -1 do
+      delete photo_path(photo)
+    end
+
+    assert_redirected_to root_path
+    assert_raises(ActiveRecord::RecordNotFound) { photo.reload }
+  end
+
+  test "non owner cannot destroy a photo" do
+    photo = attached_photo
+    delete sign_out_path
+    sign_in_as(users(:two))
+
+    assert_no_difference "Photo.count" do
+      delete photo_path(photo)
+    end
+
+    assert_redirected_to root_path
+  end
+
   test "owner can retry failed drive archive" do
     photo = attached_photo
     photo.create_drive_archive_object!(status: "failed", error: "Drive API disabled")

@@ -1,7 +1,7 @@
 class PhotosController < ApplicationController
   before_action :require_owner!, except: %i[show display]
   before_action :set_visible_photo, only: %i[show display]
-  before_action :set_photo, only: %i[media caption publish unpublish retry_archive]
+  before_action :set_photo, only: %i[media caption publish unpublish retry_archive destroy]
 
   def show
     set_stream_neighbors
@@ -61,6 +61,11 @@ class PhotosController < ApplicationController
     @photo.drive_archive_object&.update!(status: "pending", error: nil)
     MirrorOriginalToDriveJob.perform_later(@photo)
     redirect_to photo_path(@photo), notice: "Drive archive retry queued."
+  end
+
+  def destroy
+    @photo.destroy!
+    redirect_to root_path, notice: "Photo removed."
   end
 
   def retry_failed_archives

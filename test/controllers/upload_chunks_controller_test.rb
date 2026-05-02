@@ -8,7 +8,7 @@ class UploadChunksControllerTest < ActionDispatch::IntegrationTest
   end
 
   teardown do
-    FileUtils.rm_rf(Rails.root.join("tmp/resumable_uploads"))
+    FileUtils.rm_rf(resumable_upload_root)
     OmniAuth.config.mock_auth[:google_oauth2] = nil
     OmniAuth.config.test_mode = false
   end
@@ -51,7 +51,7 @@ class UploadChunksControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, photo.sidecar_count
     assert_equal "private", photo.visibility
     assert_equal uploads_path, response.parsed_body.fetch("redirect_url")
-    assert_not Dir.exist?(Rails.root.join("tmp/resumable_uploads", @owner.id.to_s, upload_id))
+    assert_not Dir.exist?(resumable_upload_root.join(@owner.id.to_s, upload_id))
   end
 
   test "owner can check uploaded chunk status" do
@@ -79,7 +79,7 @@ class UploadChunksControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "stale upload directories are cleaned up" do
-    stale_upload = Rails.root.join("tmp/resumable_uploads", @owner.id.to_s, "stale")
+    stale_upload = resumable_upload_root.join(@owner.id.to_s, "stale")
     FileUtils.mkdir_p(stale_upload)
     FileUtils.touch(stale_upload, mtime: 2.hours.ago.to_time)
 
@@ -107,6 +107,10 @@ class UploadChunksControllerTest < ActionDispatch::IntegrationTest
       chunk_index: chunk_index,
       chunk: Rack::Test::UploadedFile.new(StringIO.new(body), content_type, original_filename: filename)
     }
+  end
+
+  def resumable_upload_root
+    Rails.root.join("tmp/resumable_uploads", "test-#{Process.pid}")
   end
 
   def sign_in_as(user)
