@@ -33,8 +33,19 @@ class User < ApplicationRecord
     role == "owner"
   end
 
+  def trusted_viewer?
+    owner? || email.in?(self.class.trusted_viewer_emails)
+  end
+
   def display_name
     name.presence || email
+  end
+
+  def self.trusted_viewer_emails
+    ENV.fetch("PHOTOS_TRUSTED_VIEWER_EMAILS", "")
+      .split(",")
+      .map { |email| email.strip.downcase }
+      .compact_blank
   end
 
   def self.role_for(email)

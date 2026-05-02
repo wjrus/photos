@@ -40,4 +40,22 @@ module ApplicationHelper
         class: "max-h-[calc(100vh-3rem)] w-auto rounded-lg object-contain shadow-2xl"
     end
   end
+
+  def photo_map_embed_url(metadata)
+    latitude = metadata.latitude.to_f
+    longitude = metadata.longitude.to_f
+    padding = 0.012
+    bbox = [
+      longitude - padding,
+      latitude - padding,
+      longitude + padding,
+      latitude + padding
+    ].join(",")
+
+    "https://www.openstreetmap.org/export/embed.html?bbox=#{bbox}&layer=mapnik&marker=#{latitude},#{longitude}"
+  end
+
+  def photo_map_link(metadata)
+    "https://www.openstreetmap.org/?mlat=#{metadata.latitude}&mlon=#{metadata.longitude}#map=13/#{metadata.latitude}/#{metadata.longitude}"
+  end
 end

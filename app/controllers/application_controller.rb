@@ -5,7 +5,7 @@ class ApplicationController < ActionController::Base
   # Changes to the importmap will invalidate the etag for HTML responses
   stale_when_importmap_changes
 
-  helper_method :current_user, :signed_in?
+  helper_method :current_user, :signed_in?, :privileged_metadata_viewer?
 
   private
 
@@ -15,5 +15,9 @@ class ApplicationController < ActionController::Base
 
   def signed_in?
     current_user.present?
+  end
+
+  def privileged_metadata_viewer?
+    current_user&.trusted_viewer?
   end
 end

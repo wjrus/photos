@@ -4,10 +4,12 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
   setup do
     OmniAuth.config.test_mode = true
     @owner = users(:one)
+    @trusted_viewer_emails = ENV["PHOTOS_TRUSTED_VIEWER_EMAILS"]
     sign_in_as(@owner)
   end
 
   teardown do
+    ENV["PHOTOS_TRUSTED_VIEWER_EMAILS"] = @trusted_viewer_emails
     OmniAuth.config.mock_auth[:google_oauth2] = nil
     OmniAuth.config.test_mode = false
   end
@@ -144,7 +146,14 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
 
   test "owner sees archive and metadata details" do
     photo = attached_photo
-    photo.create_metadata!(extraction_status: "complete", camera_make: "Fuji", camera_model: "X100", raw: {})
+    photo.create_metadata!(
+      extraction_status: "complete",
+      camera_make: "Fuji",
+      camera_model: "X100",
+      latitude: 44.762222,
+      longitude: -85.597983,
+      raw: {}
+    )
 
     get photo_path(photo)
 
@@ -155,6 +164,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_select "button[aria-label='Show photo information'][data-action='info-panel#toggle']"
     assert_select "aside#photo-info-panel.translate-x-full"
     assert_includes response.body, "Fuji X100"
+    assert_includes response.body, "Photo location map"
     assert_includes response.body, photo.original_filename
     assert_includes response.body, "Download original"
   end
@@ -198,6 +208,33 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, photo.title
     refute_includes response.body, "Archive"
     refute_includes response.body, "Fuji X100"
+    refute_includes response.body, "Photo location map"
+    refute_includes response.body, photo.original_filename
+    refute_includes response.body, "Download original"
+  end
+
+  test "trusted signed-in viewer sees public photo location without archive access" do
+    ENV["PHOTOS_TRUSTED_VIEWER_EMAILS"] = users(:two).email
+    photo = attached_photo
+    photo.create_metadata!(
+      extraction_status: "complete",
+      camera_make: "Fuji",
+      camera_model: "X100",
+      latitude: 44.762222,
+      longitude: -85.597983,
+      raw: {}
+    )
+    photo.publish!
+    delete sign_out_path
+    sign_in_as(users(:two))
+
+    get photo_path(photo)
+
+    assert_response :success
+    assert_includes response.body, "Fuji X100"
+    assert_includes response.body, "Photo location map"
+    assert_includes response.body, "Open map"
+    refute_includes response.body, "Archive"
     refute_includes response.body, photo.original_filename
     refute_includes response.body, "Download original"
   end
