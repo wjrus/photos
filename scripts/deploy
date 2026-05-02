@@ -100,6 +100,11 @@ require_file ".env.production"
 require_file ".env.postgres"
 require_clean_tracked_worktree
 
+storage_path="$(env_value PHOTOS_STORAGE_PATH .env.production)"
+if [[ -n "$storage_path" ]]; then
+  export PHOTOS_STORAGE_PATH="$storage_path"
+fi
+
 log "Pulling latest code"
 git pull --ff-only
 

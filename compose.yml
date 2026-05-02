@@ -32,7 +32,7 @@ services:
     ports:
       - "3000:80"
     volumes:
-      - app_storage:/rails/storage
+      - ${PHOTOS_STORAGE_PATH:-app_storage}:/rails/storage
 
   worker:
     image: photos:production
@@ -49,7 +49,7 @@ services:
       db:
         condition: service_healthy
     volumes:
-      - app_storage:/rails/storage
+      - ${PHOTOS_STORAGE_PATH:-app_storage}:/rails/storage
 
 volumes:
   postgres_data:

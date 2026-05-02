@@ -26,6 +26,12 @@ cp .env.postgres.example .env.postgres
 
 Fill in every blank value. `.env.postgres` `POSTGRES_PASSWORD` and `.env.production` `PHOTOS_DATABASE_PASSWORD` should be the same value for this Compose stack.
 
+For production storage on the Unraid mount, set this in `.env.production`:
+
+```sh
+PHOTOS_STORAGE_PATH=/mnt/photos/app_storage
+```
+
 Required Google OAuth redirect URI:
 
 ```text
@@ -69,10 +75,10 @@ Or use the deploy script:
 
 ## Backups
 
-Back up both named volumes:
+Back up the database volume and the app storage path:
 
 - `photos_postgres_data`
-- `photos_app_storage`
+- `${PHOTOS_STORAGE_PATH}` when set, otherwise `photos_app_storage`
 
 The database contains users, photo records, metadata, jobs, and Drive archive state. `app_storage` contains originals and generated local files. Google Drive is an archive mirror, not the only source of truth.
 
