@@ -4,7 +4,11 @@ export default class extends Controller {
   static targets = ["backdrop", "button", "panel"]
 
   connect() {
-    this.close()
+    if (this.storedOpen()) {
+      this.show()
+    } else {
+      this.close()
+    }
   }
 
   toggle() {
@@ -17,6 +21,7 @@ export default class extends Controller {
 
   show() {
     this.open = true
+    this.storeOpen(true)
     this.panelTarget.classList.remove("translate-x-full")
     this.panelTarget.classList.add("translate-x-0")
     this.backdropTarget.classList.remove("hidden")
@@ -25,9 +30,18 @@ export default class extends Controller {
 
   close() {
     this.open = false
+    this.storeOpen(false)
     this.panelTarget.classList.add("translate-x-full")
     this.panelTarget.classList.remove("translate-x-0")
     this.backdropTarget.classList.add("hidden")
     this.buttonTarget.setAttribute("aria-expanded", "false")
+  }
+
+  storedOpen() {
+    return window.sessionStorage?.getItem("photos.infoPanelOpen") === "true"
+  }
+
+  storeOpen(open) {
+    window.sessionStorage?.setItem("photos.infoPanelOpen", open ? "true" : "false")
   }
 }
