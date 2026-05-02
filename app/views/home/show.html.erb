@@ -17,16 +17,7 @@
             <% end %>
             <div class="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent opacity-80"></div>
             <div class="absolute inset-x-0 bottom-0 p-4 text-white">
-              <div class="flex items-end justify-between gap-3">
-                <div class="min-w-0">
-                  <div class="flex items-center gap-2">
-                    <%= photo_visibility_badge(photo) %>
-                    <% if current_user&.owner? %>
-                      <%= photo_checksum_badge(photo) %>
-                      <%= photo_drive_badge(photo) %>
-                    <% end %>
-                  </div>
-                </div>
+              <div class="flex items-end justify-end gap-3">
                 <% if current_user&.owner? %>
                   <% if photo.public? %>
                     <%= button_to "Make private",
