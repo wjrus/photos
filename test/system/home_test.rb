@@ -7,12 +7,7 @@ class HomeTest < ApplicationSystemTestCase
     assert_text "wjr photos"
     assert_button "Sign in"
     assert_no_text "ARCHIVE RULE"
-
-    find("summary", text: "wjr photos").click
-    assert_text "ORIGINALS"
-    assert_text "Preserved privately."
-
-    find("main").click
+    assert_no_selector "summary", text: "wjr photos"
     assert_no_text "Preserved privately."
   end
 end
