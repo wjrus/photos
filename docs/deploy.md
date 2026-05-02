@@ -7,6 +7,8 @@ Production is a small Docker Compose stack:
 - `db`: PostgreSQL with persistent data
 - `app_storage`: persistent Active Storage originals and variants
 
+The Postgres volume is mounted at `/var/lib/postgresql`, which is the expected layout for the official PostgreSQL 18+ Docker image.
+
 Nginx Proxy Manager should terminate TLS for `photos.wjr.us` and proxy to:
 
 ```text
