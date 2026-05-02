@@ -15,12 +15,12 @@
       <%= hidden_field_tag :return_to, uploads_path %>
       <div class="flex min-h-[440px] cursor-pointer items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-white p-8 text-center shadow-sm transition hover:border-teal-700 hover:bg-teal-50"
            data-action="click->drop-upload#browse dragover->drop-upload#dragover dragleave->drop-upload#dragleave drop->drop-upload#drop">
-        <div class="max-w-lg">
+        <div class="w-full max-w-3xl">
           <p class="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Import</p>
           <h2 class="mt-3 text-2xl font-semibold text-zinc-950">Drop files here</h2>
           <p class="mt-3 text-sm leading-6 text-zinc-600" data-drop-upload-target="summary">Choose files or drag an iPhone import batch into this window.</p>
           <p class="mt-4 text-xs uppercase tracking-[0.16em] text-zinc-400">HEIC JPG PNG MOV MP4 AAE</p>
-          <ul class="mx-auto mt-5 max-h-56 max-w-xl space-y-2 overflow-y-auto" data-drop-upload-target="fileList"></ul>
+          <ul class="mx-auto mt-5 max-h-64 w-full space-y-2 overflow-y-auto" data-drop-upload-target="fileList"></ul>
           <div class="mt-6 flex items-center justify-center gap-2" data-drop-upload-ignore-browse data-action="click->drop-upload#stop">
             <button type="button" class="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" data-action="drop-upload#browse">Choose</button>
             <%= form.submit "Upload",
