@@ -94,19 +94,32 @@
             <div class="absolute inset-x-0 bottom-0 p-4 text-white">
               <div class="flex items-center justify-between gap-3">
                 <div>
-                  <p class="text-xs font-semibold uppercase tracking-[0.18em] opacity-75"><%= photo.visibility %></p>
+                  <div class="mb-2 flex items-center gap-2">
+                    <%= photo_visibility_badge(photo) %>
+                    <% if current_user&.owner? %>
+                      <%= photo_checksum_badge(photo) %>
+                      <%= photo_drive_badge(photo) %>
+                    <% end %>
+                  </div>
                   <h2 class="mt-1 text-lg font-semibold"><%= photo.title %></h2>
-                  <% if current_user&.owner? %>
-                    <p class="mt-1 text-xs font-medium uppercase tracking-[0.14em] text-white/75">
-                      SHA-256 <%= photo.checksum_status %> · Drive <%= photo.archive_status %>
-                    </p>
-                  <% end %>
                 </div>
                 <% if current_user&.owner? %>
                   <% if photo.public? %>
-                    <%= button_to "Make private", unpublish_photo_path(photo), method: :patch, class: "relative z-20 rounded-lg border border-white/50 bg-white/10 px-3 py-2 text-xs font-semibold text-white backdrop-blur transition hover:bg-white hover:text-zinc-950" %>
+                    <%= button_to unpublish_photo_path(photo),
+                          method: :patch,
+                          class: "relative z-20 flex size-10 items-center justify-center rounded-lg border border-white/50 bg-white/10 text-white backdrop-blur transition hover:bg-white hover:text-zinc-950",
+                          title: "Make private",
+                          aria: { label: "Make private" } do %>
+                      <%= photo_icon("key", classes: "size-5") %>
+                    <% end %>
                   <% else %>
-                    <%= button_to "Publish", publish_photo_path(photo), method: :patch, class: "relative z-20 rounded-lg border border-white/50 bg-white/10 px-3 py-2 text-xs font-semibold text-white backdrop-blur transition hover:bg-white hover:text-zinc-950" %>
+                    <%= button_to publish_photo_path(photo),
+                          method: :patch,
+                          class: "relative z-20 flex size-10 items-center justify-center rounded-lg border border-white/50 bg-white/10 text-white backdrop-blur transition hover:bg-white hover:text-zinc-950",
+                          title: "Publish",
+                          aria: { label: "Publish" } do %>
+                      <%= photo_icon("globe", classes: "size-5") %>
+                    <% end %>
                   <% end %>
                 <% end %>
               </div>
