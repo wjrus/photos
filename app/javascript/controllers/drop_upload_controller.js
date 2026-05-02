@@ -10,8 +10,29 @@ export default class extends Controller {
     this.updateSummary()
   }
 
-  browse() {
+  browse(event) {
+    if (event?.currentTarget !== this.element) {
+      event?.stopPropagation()
+      this.inputTarget.click()
+      return
+    }
+
+    if (event.target.closest("[data-drop-upload-ignore-browse]")) return
+
     this.inputTarget.click()
+  }
+
+  submit(event) {
+    event.stopPropagation()
+
+    if (this.submitTarget.disabled) {
+      event.preventDefault()
+      return
+    }
+
+    this.submitTarget.value = "Uploading..."
+    this.submitTarget.disabled = true
+    this.summaryTarget.textContent = "Uploading selected files..."
   }
 
   choose() {
