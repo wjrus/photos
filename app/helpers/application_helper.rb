@@ -94,11 +94,11 @@ module ApplicationHelper
 
   def photo_status_badge(label, icon)
     tag.span(
-      class: "inline-flex size-8 items-center justify-center rounded-lg border border-white/35 bg-black/35 text-white shadow-sm backdrop-blur",
+      class: "inline-flex size-7 items-center justify-center text-white/85 drop-shadow",
       title: label,
       aria: { label: label }
     ) do
-      photo_icon(icon)
+      photo_icon(icon, classes: "size-4")
     end
   end
 

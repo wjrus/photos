@@ -90,18 +90,17 @@
             <% if photo.video? %>
               <div class="absolute right-3 top-3 rounded-lg bg-black/55 px-2 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white backdrop-blur">Video</div>
             <% end %>
-            <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-90"></div>
+            <div class="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent opacity-80"></div>
             <div class="absolute inset-x-0 bottom-0 p-4 text-white">
-              <div class="flex items-center justify-between gap-3">
-                <div>
-                  <div class="mb-2 flex items-center gap-2">
+              <div class="flex items-end justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2">
                     <%= photo_visibility_badge(photo) %>
                     <% if current_user&.owner? %>
                       <%= photo_checksum_badge(photo) %>
                       <%= photo_drive_badge(photo) %>
                     <% end %>
                   </div>
-                  <h2 class="mt-1 text-lg font-semibold"><%= photo.title %></h2>
                 </div>
                 <% if current_user&.owner? %>
                   <% if photo.public? %>
