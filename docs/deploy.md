@@ -44,8 +44,7 @@ Check status:
 
 ```sh
 docker compose ps
-docker compose logs -f web
-docker compose logs -f worker
+./scripts/logs
 ```
 
 Open a Rails console:

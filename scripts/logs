@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  cat <<'USAGE'
+Usage:
+  ./scripts/logs [service ...]
+
+Examples:
+  ./scripts/logs
+  ./scripts/logs web
+  ./scripts/logs web worker
+
+When no service is given, this follows web and worker logs.
+USAGE
+  exit 0
+fi
+
+if (( $# == 0 )); then
+  set -- web worker
+fi
+
+docker compose logs -f --tail=200 "$@"

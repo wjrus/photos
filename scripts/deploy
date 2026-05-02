@@ -99,7 +99,7 @@ cat <<'MSG'
 Deploy complete.
 
 Useful follow-ups:
-  docker compose logs -f web
-  docker compose logs -f worker
+  ./scripts/logs
+  ./scripts/logs web
   docker compose exec web bin/rails console
 MSG
