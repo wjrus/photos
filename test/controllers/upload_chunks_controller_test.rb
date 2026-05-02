@@ -59,7 +59,7 @@ class UploadChunksControllerTest < ActionDispatch::IntegrationTest
     post upload_chunks_path, params: chunk_params(upload_id, "file-0", 0, "clip.mov", "video/quicktime", "first")
     assert_response :success
 
-    get status_upload_chunks_path,
+    post status_upload_chunks_path,
       params: {
         upload_id: upload_id,
         files: [
@@ -71,7 +71,8 @@ class UploadChunksControllerTest < ActionDispatch::IntegrationTest
             total_chunks: 2
           }
         ]
-      }
+      },
+      as: :json
 
     assert_response :success
     assert_equal [ 0 ], response.parsed_body.dig("files", "file-0")
