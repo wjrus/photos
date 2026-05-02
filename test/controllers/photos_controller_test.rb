@@ -130,6 +130,24 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_predicate photo.reload, :private?
   end
 
+  test "owner can publish and stay on the photo detail" do
+    photo = attached_photo
+
+    patch publish_photo_path(photo), params: { return_to: photo_path(photo) }
+
+    assert_redirected_to photo_path(photo)
+    assert_predicate photo.reload, :public?
+  end
+
+  test "visibility return path ignores external urls" do
+    photo = attached_photo
+
+    patch publish_photo_path(photo), params: { return_to: "https://example.com/nope" }
+
+    assert_redirected_to root_path
+    assert_predicate photo.reload, :public?
+  end
+
   test "owner can save an optional caption" do
     photo = attached_photo
 

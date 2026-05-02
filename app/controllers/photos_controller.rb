@@ -49,12 +49,12 @@ class PhotosController < ApplicationController
 
   def publish
     @photo.publish!
-    redirect_to root_path, notice: "Photo published."
+    redirect_to visibility_return_path, notice: "Photo published."
   end
 
   def unpublish
     @photo.unpublish!
-    redirect_to root_path, notice: "Photo returned to private."
+    redirect_to visibility_return_path, notice: "Photo returned to private."
   end
 
   def retry_archive
@@ -86,6 +86,17 @@ class PhotosController < ApplicationController
 
   def caption_params
     params.require(:photo).permit(:description)
+  end
+
+  def visibility_return_path
+    return root_path if params[:return_to].blank?
+
+    uri = URI.parse(params[:return_to])
+    return params[:return_to] if uri.relative?
+
+    root_path
+  rescue URI::InvalidURIError
+    root_path
   end
 
   def batch_upload?
