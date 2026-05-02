@@ -9,7 +9,7 @@ services:
       POSTGRES_USER: photos
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U photos -d photos_production"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 5
     volumes:
@@ -35,9 +35,9 @@ services:
       - app_storage:/rails/storage
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost/up || exit 1"]
-      interval: 30s
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 12
 
   worker:
     image: photos:production
