@@ -132,12 +132,8 @@ class PhotosController < ApplicationController
 
   def set_stream_neighbors
     stream = navigation_stream
-    stream_ids = stream.pluck(:id)
-    current_index = stream_ids.index(@photo.id)
-    return unless current_index
-
-    @previous_photo = stream.find_by(id: stream_ids[current_index - 1]) if current_index.positive?
-    @next_photo = stream.find_by(id: stream_ids[current_index + 1]) if stream_ids[current_index + 1]
+    @previous_photo = stream.stream_before(@photo)
+    @next_photo = stream.stream_after(@photo)
   end
 
   def navigation_stream

@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+LIMIT="${1:-500}"
+SERVICE="${2:-web}"
+
+if [[ "$LIMIT" == "-h" || "$LIMIT" == "--help" ]]; then
+  cat <<'USAGE'
+Usage:
+  ./scripts/prewarm-variants [limit] [service]
+
+Examples:
+  ./scripts/prewarm-variants
+  ./scripts/prewarm-variants 2000
+
+Queues background work for missing stream thumbnails. It does not process
+images inside the web request.
+USAGE
+  exit 0
+fi
+
+docker compose exec -T -e PREWARM_LIMIT="$LIMIT" "$SERVICE" bin/rails runner "$(cat <<'RUBY'
+limit = Integer(ENV.fetch("PREWARM_LIMIT", 500))
+queued = 0
+
+scope = Photo
+  .where("photos.content_type LIKE 'image/%'")
+  .with_original_variant_records
+  .stream_order
+
+scope.find_each do |photo|
+  next unless photo.original.attached?
+  next if photo.processed_original_variant_record(:stream)
+
+  variant = photo.original.variant(:stream)
+  ActiveStorage::TransformJob.perform_later(photo.original.blob, variant.variation.transformations)
+  queued += 1
+  break if queued >= limit
+end
+
+puts "Queued #{queued} stream thumbnail #{'job'.pluralize(queued)}."
+RUBY
+)"

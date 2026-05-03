@@ -15,7 +15,7 @@ class AlbumsController < ApplicationController
 
   def show
     @photos, @next_cursor = paginate_photo_stream(@album.photos
-      .with_attached_original
+      .with_original_variant_records
       .visible_to(current_user)
       .stream_order)
     @albums = current_user.photo_albums.display_order if current_user&.owner?

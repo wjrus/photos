@@ -9,17 +9,13 @@ module ApplicationHelper
 
   def photo_stream_media(photo, **options)
     if photo.video?
-      tag.div class: "flex size-full items-center justify-center bg-zinc-900 text-xs font-semibold uppercase tracking-[0.18em] text-white/70" do
-        "Video"
-      end
+      photo_stream_placeholder("Video")
     else
-      image_tag photo_display_image_path(photo),
-        {
-          alt: photo.title,
-          class: "size-full object-cover",
-          loading: "lazy",
-          decoding: "async"
-        }.merge(options)
+      stream_variant = photo.processed_original_variant_record(:stream)
+      return photo_stream_placeholder("Processing") unless stream_variant&.image&.attached?
+
+      image_tag stream_variant.image,
+        { alt: photo.title, class: "size-full object-cover", loading: "lazy", decoding: "async" }.merge(options)
     end
   end
 
@@ -42,9 +38,17 @@ module ApplicationHelper
         end
       end
     else
-      image_tag photo_display_image_path(photo),
-        alt: photo.title,
-        class: "max-h-[calc(100vh-3rem)] w-auto rounded-lg object-contain shadow-2xl"
+      detail_variant = photo.processed_original_variant_record(:display) || photo.processed_original_variant_record(:stream)
+
+      if detail_variant&.image&.attached?
+        image_tag detail_variant.image,
+          alt: photo.title,
+          class: "max-h-[calc(100vh-3rem)] w-auto rounded-lg object-contain shadow-2xl"
+      else
+        tag.div class: "mx-auto flex min-h-80 w-full max-w-xl items-center justify-center rounded-lg border border-white/15 bg-white/5 p-8 text-center text-sm leading-6 text-white/75 shadow-2xl" do
+          "Image derivative processing."
+        end
+      end
     end
   end
 
@@ -67,6 +71,12 @@ module ApplicationHelper
 
   def google_maps_api_key
     ENV["GOOGLE_MAPS_EMBED_API_KEY"]
+  end
+
+  def photo_stream_placeholder(label)
+    tag.div class: "flex size-full items-center justify-center bg-zinc-900 text-xs font-semibold uppercase tracking-[0.18em] text-white/70" do
+      label
+    end
   end
 
   def user_avatar(user, classes: "size-9 rounded-lg border border-zinc-200 object-cover")

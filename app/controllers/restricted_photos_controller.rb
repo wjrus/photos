@@ -7,7 +7,7 @@ class RestrictedPhotosController < ApplicationController
       return
     end
 
-    @photos = current_user.photos.restricted.with_attached_original.stream_order if restricted_photos_unlocked?
+    @photos = current_user.photos.restricted.with_original_variant_records.stream_order if restricted_photos_unlocked?
   end
 
   def unlock

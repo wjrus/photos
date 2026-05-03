@@ -11,6 +11,7 @@ class Photo < ApplicationRecord
   has_many :photo_people_tags, dependent: :destroy
   has_many :tagged_users, through: :photo_people_tags, source: :user
   has_one_attached :original do |attachable|
+    attachable.variant :stream, resize_to_fill: [ 700, 700 ], format: :jpg, preprocessed: true, saver: { strip: true, quality: 72 }
     attachable.variant :display, resize_to_limit: [ 1800, 1800 ], format: :jpg, saver: { strip: true, quality: 82 }
   end
   has_many_attached :sidecars
@@ -41,6 +42,9 @@ class Photo < ApplicationRecord
   scope :stream_order, -> {
     order(Arel.sql("photos.captured_at DESC NULLS LAST, photos.created_at DESC, photos.id DESC"))
   }
+  scope :with_original_variant_records, -> {
+    with_attached_original.includes(original_attachment: { blob: { variant_records: { image_attachment: :blob } } })
+  }
 
   def self.before_stream_cursor(cursor)
     captured_at, created_at, id = decode_stream_cursor(cursor)
@@ -65,6 +69,14 @@ class Photo < ApplicationRecord
         id: id
       )
     end
+  end
+
+  def self.stream_before(photo)
+    stream_tuple_greater_than(photo).order(Arel.sql(stream_tuple_order(direction: "ASC", nulls: "FIRST"))).first
+  end
+
+  def self.stream_after(photo)
+    stream_tuple_less_than(photo).stream_order.first
   end
 
   def self.decode_stream_cursor(cursor)
@@ -118,7 +130,51 @@ class Photo < ApplicationRecord
     sidecars.attachments.size
   end
 
+  def processed_original_variant_record(variant_name)
+    return unless image? && original.attached?
+
+    variation_digest = original.variant(variant_name).variation.digest
+    variant_records = original.blob.variant_records
+
+    if variant_records.loaded?
+      variant_records.find { |record| record.variation_digest == variation_digest }
+    else
+      variant_records.find_by(variation_digest: variation_digest)
+    end
+  end
+
   private
+
+  def self.stream_tuple_greater_than(photo)
+    where(
+      "#{stream_tuple_sql} > (:has_capture, :captured_at, :created_at, :id)",
+      stream_tuple_values(photo)
+    )
+  end
+
+  def self.stream_tuple_less_than(photo)
+    where(
+      "#{stream_tuple_sql} < (:has_capture, :captured_at, :created_at, :id)",
+      stream_tuple_values(photo)
+    )
+  end
+
+  def self.stream_tuple_sql
+    "(CASE WHEN photos.captured_at IS NULL THEN 0 ELSE 1 END, COALESCE(photos.captured_at, TIMESTAMP '0001-01-01'), photos.created_at, photos.id)"
+  end
+
+  def self.stream_tuple_order(direction:, nulls:)
+    "CASE WHEN photos.captured_at IS NULL THEN 0 ELSE 1 END #{direction}, photos.captured_at #{direction} NULLS #{nulls}, photos.created_at #{direction}, photos.id #{direction}"
+  end
+
+  def self.stream_tuple_values(photo)
+    {
+      has_capture: photo.captured_at.present? ? 1 : 0,
+      captured_at: photo.captured_at || Time.zone.local(1, 1, 1),
+      created_at: photo.created_at,
+      id: photo.id
+    }
+  end
 
   def copy_original_blob_attributes
     self.original_filename = original.filename.to_s

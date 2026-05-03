@@ -2,7 +2,7 @@ class HomeController < ApplicationController
   include PhotoStreamPagination
 
   def show
-    @photos, @next_cursor = paginate_photo_stream(Photo.with_attached_original.visible_to(current_user).stream_order)
+    @photos, @next_cursor = paginate_photo_stream(Photo.with_original_variant_records.visible_to(current_user).stream_order)
     @albums = current_user.photo_albums.display_order if current_user&.owner?
 
     render partial: "photos/page", locals: photo_page_locals(feature_first: false) if params[:cursor].present?

@@ -21,7 +21,36 @@ class ApplicationHelperTest < ActionView::TestCase
     assert_includes html, 'preload="none"'
   end
 
+  test "stream image waits for preprocessed thumbnail" do
+    photo = attached_photo
+
+    html = photo_stream_media(photo)
+
+    assert_includes html, "Processing"
+    assert_not_includes html, display_photo_path(photo)
+  end
+
+  test "detail image waits for a preprocessed derivative" do
+    photo = attached_photo
+
+    html = photo_detail_media(photo)
+
+    assert_includes html, "Image derivative processing"
+    assert_not_includes html, display_photo_path(photo)
+  end
+
   private
+
+  def attached_photo
+    photo = users(:one).photos.new
+    photo.original.attach(
+      io: File.open(Rails.root.join("public/icon.png")),
+      filename: "fixture.png",
+      content_type: "image/png"
+    )
+    photo.save!
+    photo
+  end
 
   def attached_video
     photo = users(:one).photos.new
