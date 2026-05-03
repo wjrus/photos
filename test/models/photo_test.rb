@@ -95,6 +95,26 @@ class PhotoTest < ActiveSupport::TestCase
     end
   end
 
+  test "stream order uses captured date before import date" do
+    older_imported_later = attached_photo(captured_at: 2.years.ago, created_at: 1.minute.ago)
+    newer_imported_earlier = attached_photo(captured_at: 1.day.ago, created_at: 1.week.ago)
+    unknown_imported_now = attached_photo(created_at: Time.current)
+
+    ordered = Photo.where(id: [ older_imported_later.id, newer_imported_earlier.id, unknown_imported_now.id ]).stream_order
+
+    assert_equal [ newer_imported_earlier, older_imported_later, unknown_imported_now ], ordered.to_a
+  end
+
+  test "stream cursor paginates captured dates before unknown dates" do
+    newer = attached_photo(captured_at: 1.day.ago, created_at: 1.week.ago)
+    older = attached_photo(captured_at: 2.years.ago, created_at: 1.minute.ago)
+    unknown = attached_photo(created_at: Time.current)
+    scope = Photo.where(id: [ newer.id, older.id, unknown.id ])
+
+    assert_equal [ older, unknown ], scope.before_stream_cursor(newer.stream_cursor).stream_order.to_a
+    assert_equal [ unknown ], scope.before_stream_cursor(older.stream_cursor).stream_order.to_a
+  end
+
   test "enqueues metadata extraction job after create" do
     assert_enqueued_with(job: ExtractPhotoMetadataJob) do
       attached_photo

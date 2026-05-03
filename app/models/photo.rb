@@ -38,28 +38,48 @@ class Photo < ApplicationRecord
     end
   }
   scope :restricted, -> { where(restricted: true) }
-  scope :stream_order, -> { order(Arel.sql("COALESCE(photos.captured_at, photos.created_at) DESC, photos.id DESC")) }
+  scope :stream_order, -> {
+    order(Arel.sql("photos.captured_at DESC NULLS LAST, photos.created_at DESC, photos.id DESC"))
+  }
 
   def self.before_stream_cursor(cursor)
-    timestamp, id = decode_stream_cursor(cursor)
-    return all unless timestamp && id
+    captured_at, created_at, id = decode_stream_cursor(cursor)
+    return all unless created_at && id
 
-    where(
-      "COALESCE(photos.captured_at, photos.created_at) < :timestamp OR (COALESCE(photos.captured_at, photos.created_at) = :timestamp AND photos.id < :id)",
-      timestamp: timestamp,
-      id: id
-    )
+    if captured_at
+      where(
+        "photos.captured_at < :captured_at OR
+          (photos.captured_at = :captured_at AND photos.created_at < :created_at) OR
+          (photos.captured_at = :captured_at AND photos.created_at = :created_at AND photos.id < :id) OR
+          photos.captured_at IS NULL",
+        captured_at: captured_at,
+        created_at: created_at,
+        id: id
+      )
+    else
+      where(
+        "photos.captured_at IS NULL AND
+          (photos.created_at < :created_at OR
+            (photos.created_at = :created_at AND photos.id < :id))",
+        created_at: created_at,
+        id: id
+      )
+    end
   end
 
   def self.decode_stream_cursor(cursor)
-    timestamp, id = cursor.to_s.split("_", 2)
-    [ Time.zone.iso8601(timestamp), Integer(id) ]
+    captured_at, created_at, id = cursor.to_s.split("_", 3)
+    [
+      captured_at == "none" ? nil : Time.zone.iso8601(captured_at),
+      Time.zone.iso8601(created_at),
+      Integer(id)
+    ]
   rescue ArgumentError, TypeError
-    [ nil, nil ]
+    [ nil, nil, nil ]
   end
 
   def stream_cursor
-    "#{(captured_at || created_at).utc.iso8601(6)}_#{id}"
+    "#{captured_at&.utc&.iso8601(6) || 'none'}_#{created_at.utc.iso8601(6)}_#{id}"
   end
 
   def public?
