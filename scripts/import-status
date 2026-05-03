@@ -95,6 +95,24 @@ line "restricted", Photo.where(restricted: true).count
 Photo.group(:checksum_status).count.sort.each { |status, count| line "checksum #{status}", count }
 PhotoMetadata.group(:extraction_status).count.sort.each { |status, count| line "metadata #{status}", count }
 
+sample_image = Photo.where("photos.content_type LIKE 'image/%'").with_attached_original.first
+if sample_image&.original&.attached?
+  image_blobs = ActiveStorage::Attachment
+    .where(record_type: "Photo", name: "original")
+    .joins(:blob)
+    .where("active_storage_blobs.content_type LIKE 'image/%'")
+    .select(:blob_id)
+  image_originals = image_blobs.count
+  stream_digest = sample_image.original.variant(:stream).variation.digest
+  display_digest = sample_image.original.variant(:display).variation.digest
+  stream_ready = ActiveStorage::VariantRecord.where(blob_id: image_blobs, variation_digest: stream_digest).joins(:image_attachment).count
+  display_ready = ActiveStorage::VariantRecord.where(blob_id: image_blobs, variation_digest: display_digest).joins(:image_attachment).count
+
+  line "image originals", image_originals
+  line "stream derivatives", "#{stream_ready} ready / #{image_originals - stream_ready} missing"
+  line "display derivatives", "#{display_ready} ready / #{image_originals - display_ready} missing"
+end
+
 puts
 puts "Drive archive"
 puts "-------------"

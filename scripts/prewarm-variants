@@ -24,19 +24,28 @@ fi
 
 docker compose exec -T -e PREWARM_LIMIT="$LIMIT" "$SERVICE" bin/rails runner "$(cat <<'RUBY'
 limit = Integer(ENV.fetch("PREWARM_LIMIT", 500))
+batch_size = [ limit, 100 ].min
 queued = 0
+cursor = nil
 
 scope = Photo
   .where("photos.content_type LIKE 'image/%'")
   .with_original_variant_records
-  .stream_order
 
-scope.find_each do |photo|
-  next unless photo.original.attached?
-  next if photo.processed_original_variant_record(:stream) && photo.processed_original_variant_record(:display)
+loop do
+  photos = scope.before_stream_cursor(cursor).stream_order.limit(batch_size).to_a
+  break if photos.empty?
 
-  GeneratePhotoDerivativesJob.perform_later(photo)
-  queued += 1
+  photos.each do |photo|
+    cursor = photo.stream_cursor
+    next unless photo.original.attached?
+    next if photo.processed_original_variant_record(:stream) && photo.processed_original_variant_record(:display)
+
+    GeneratePhotoDerivativesJob.perform_later(photo)
+    queued += 1
+    break if queued >= limit
+  end
+
   break if queued >= limit
 end
 
