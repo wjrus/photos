@@ -3,7 +3,8 @@ import { Controller } from "@hotwired/stimulus"
 export default class extends Controller {
   static targets = ["action", "count"]
   static values = {
-    formId: String
+    formId: String,
+    emptyLabel: { type: String, default: "Select items, then choose an action." }
   }
 
   connect() {
@@ -24,8 +25,18 @@ export default class extends Controller {
     })
 
     this.countTargets.forEach((target) => {
-      target.textContent = count === 0 ? "Select items, then choose an action." : `${count} selected`
+      target.textContent = count === 0 ? this.emptyLabelValue : `${count} selected`
     })
+  }
+
+  clear(event) {
+    event.preventDefault()
+
+    this.selectedInputs().forEach((input) => {
+      input.checked = false
+    })
+
+    this.update()
   }
 
   guard(event) {

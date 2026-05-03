@@ -67,4 +67,28 @@ module ApplicationHelper
   def google_maps_api_key
     ENV["GOOGLE_MAPS_EMBED_API_KEY"]
   end
+
+  def app_icon(name, classes: "size-5")
+    paths = {
+      check_circle: '<path d="M9 12.75 11.25 15 15.5 9.5"/><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>',
+      globe: '<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z"/><path d="M2 12h20"/><path d="M12 2c2.5 2.7 3.75 6.03 3.75 10S14.5 19.3 12 22c-2.5-2.7-3.75-6.03-3.75-10S9.5 4.7 12 2Z"/>',
+      image_plus: '<path d="M16 5h6"/><path d="M19 2v6"/><path d="M21 11v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7"/><path d="m3 16 4-4c.9-.9 2.1-.9 3 0l5 5"/><path d="m14 16 1-1c.9-.9 2.1-.9 3 0l3 3"/><path d="M8.5 9.5h.01"/>',
+      lock: '<path d="M7 11V8a5 5 0 0 1 10 0v3"/><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M12 15v2"/>',
+      trash: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 15H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>',
+      x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'
+    }
+
+    tag.svg(
+      paths.fetch(name).html_safe,
+      xmlns: "http://www.w3.org/2000/svg",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": "1.9",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+      class: classes,
+      aria: { hidden: true }
+    )
+  end
 end

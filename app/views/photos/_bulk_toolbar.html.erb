@@ -12,6 +12,16 @@
     </p>
 
     <div class="flex flex-wrap items-center gap-1">
+      <button type="button"
+              disabled
+              title="Deselect all"
+              aria-label="Deselect all"
+              data-bulk-selection-target="action"
+              data-action="bulk-selection#clear"
+              class="flex size-10 items-center justify-center rounded-lg text-white transition hover:bg-white/10 disabled:opacity-40">
+        <%= app_icon(:x) %>
+        <span class="sr-only">Deselect all</span>
+      </button>
       <button type="submit"
               name="bulk_action"
               value="publish"
@@ -19,8 +29,9 @@
               title="Publish selected photos"
               aria-label="Publish selected photos"
               data-bulk-selection-target="action"
-              class="rounded-lg px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-40">
-        Publish
+              class="flex size-10 items-center justify-center rounded-lg text-white transition hover:bg-white/10 disabled:opacity-40">
+        <%= app_icon(:globe) %>
+        <span class="sr-only">Publish selected photos</span>
       </button>
       <button type="submit"
               name="bulk_action"
@@ -29,16 +40,18 @@
               title="Make selected photos private"
               aria-label="Make selected photos private"
               data-bulk-selection-target="action"
-              class="rounded-lg px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-40">
-        Make private
+              class="flex size-10 items-center justify-center rounded-lg text-white transition hover:bg-white/10 disabled:opacity-40">
+        <%= app_icon(:lock) %>
+        <span class="sr-only">Make selected photos private</span>
       </button>
 
       <details class="relative" data-bulk-selection-target="action">
-        <summary class="cursor-pointer list-none rounded-lg px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+        <summary class="flex size-10 cursor-pointer list-none items-center justify-center rounded-lg text-white transition hover:bg-white/10"
                  title="Add selected photos to an album"
                  aria-label="Add selected photos to an album"
                  data-action="click->bulk-selection#guard">
-          Add to album
+          <%= app_icon(:image_plus) %>
+          <span class="sr-only">Add selected photos to an album</span>
         </summary>
         <div class="absolute right-0 z-40 mt-2 w-[min(92vw,340px)] rounded-lg border border-zinc-200 bg-white p-4 text-zinc-950 shadow-2xl">
           <div class="space-y-3">
@@ -82,10 +95,11 @@
                 disabled
                 title="Remove selected photos"
                 aria-label="Remove selected photos"
-                class="rounded-lg px-3 py-2 text-sm font-semibold text-white transition hover:bg-rose-800 disabled:opacity-40"
+                class="flex size-10 items-center justify-center rounded-lg text-white transition hover:bg-rose-800 disabled:opacity-40"
                 data-bulk-selection-target="action"
                 data-action="confirm-modal#open">
-          Remove
+          <%= app_icon(:trash) %>
+          <span class="sr-only">Remove selected photos</span>
         </button>
 
         <div class="fixed inset-0 z-50 hidden items-center justify-center bg-zinc-950/65 p-4 backdrop-blur-sm"

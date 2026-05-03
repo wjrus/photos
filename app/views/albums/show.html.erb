@@ -4,7 +4,7 @@
   <%= render "shared/site_header" %>
 
   <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8"
-        <%= %(data-controller="bulk-selection" data-bulk-selection-form-id-value="album-photo-bulk-form").html_safe if current_user&.owner? %>>
+        <%= %(data-controller="bulk-selection" data-bulk-selection-form-id-value="album-photo-bulk-form" data-bulk-selection-empty-label-value="Select photos, then choose an action.").html_safe if current_user&.owner? %>>
     <div class="flex flex-col gap-4 border-b border-zinc-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
       <div class="min-w-0">
         <%= link_to "Back to albums", albums_path, class: "text-xs font-semibold uppercase tracking-[0.18em] text-teal-700 transition hover:text-teal-900" %>

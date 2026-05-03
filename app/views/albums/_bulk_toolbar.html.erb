@@ -11,6 +11,16 @@
     </p>
 
     <div class="flex flex-wrap items-center gap-1">
+      <button type="button"
+              disabled
+              title="Deselect all"
+              aria-label="Deselect all"
+              data-bulk-selection-target="action"
+              data-action="bulk-selection#clear"
+              class="flex size-10 items-center justify-center rounded-lg text-white transition hover:bg-white/10 disabled:opacity-40">
+        <%= app_icon(:x) %>
+        <span class="sr-only">Deselect all</span>
+      </button>
       <button type="submit"
               name="bulk_action"
               value="publish"
@@ -18,8 +28,9 @@
               title="Publish selected albums"
               aria-label="Publish selected albums"
               data-bulk-selection-target="action"
-              class="rounded-lg px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-40">
-        Publish
+              class="flex size-10 items-center justify-center rounded-lg text-white transition hover:bg-white/10 disabled:opacity-40">
+        <%= app_icon(:globe) %>
+        <span class="sr-only">Publish selected albums</span>
       </button>
       <button type="submit"
               name="bulk_action"
@@ -28,8 +39,9 @@
               title="Make selected albums private"
               aria-label="Make selected albums private"
               data-bulk-selection-target="action"
-              class="rounded-lg px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-40">
-        Make private
+              class="flex size-10 items-center justify-center rounded-lg text-white transition hover:bg-white/10 disabled:opacity-40">
+        <%= app_icon(:lock) %>
+        <span class="sr-only">Make selected albums private</span>
       </button>
 
       <div data-controller="confirm-modal" data-action="keydown@window->confirm-modal#keydown">
@@ -37,10 +49,11 @@
                 disabled
                 title="Remove selected albums"
                 aria-label="Remove selected albums"
-                class="rounded-lg px-3 py-2 text-sm font-semibold text-white transition hover:bg-rose-800 disabled:opacity-40"
+                class="flex size-10 items-center justify-center rounded-lg text-white transition hover:bg-rose-800 disabled:opacity-40"
                 data-bulk-selection-target="action"
                 data-action="confirm-modal#open">
-          Remove
+          <%= app_icon(:trash) %>
+          <span class="sr-only">Remove selected albums</span>
         </button>
 
         <div class="fixed inset-0 z-50 hidden items-center justify-center bg-zinc-950/65 p-4 backdrop-blur-sm"
