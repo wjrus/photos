@@ -1,5 +1,5 @@
 class GoogleTakeoutImportJob < ApplicationJob
-  queue_as :default
+  queue_as :import
 
   def perform(import_run)
     import_run.update!(status: "running", started_at: Time.current, error: nil)

@@ -1,5 +1,5 @@
 class ChecksumOriginalJob < ApplicationJob
-  queue_as :default
+  queue_as :maintenance
 
   def perform(photo)
     unless photo.original.attached?

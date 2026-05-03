@@ -46,6 +46,12 @@ services:
       PGHOST: db
       PGUSER: photos
       SOLID_QUEUE_IN_PUMA: "false"
+      JOB_PROCESSES: ${JOB_PROCESSES:-1}
+      IMPORT_JOB_THREADS: ${IMPORT_JOB_THREADS:-1}
+      ARCHIVE_JOB_THREADS: ${ARCHIVE_JOB_THREADS:-1}
+      MAINTENANCE_JOB_THREADS: ${MAINTENANCE_JOB_THREADS:-1}
+      ANALYSIS_JOB_THREADS: ${ANALYSIS_JOB_THREADS:-1}
+      DEFAULT_JOB_THREADS: ${DEFAULT_JOB_THREADS:-1}
     depends_on:
       db:
         condition: service_healthy

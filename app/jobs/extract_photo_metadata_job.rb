@@ -1,7 +1,7 @@
 require "vips"
 
 class ExtractPhotoMetadataJob < ApplicationJob
-  queue_as :default
+  queue_as :maintenance
 
   def perform(photo)
     metadata = photo.metadata || photo.build_metadata

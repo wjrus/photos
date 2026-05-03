@@ -1,5 +1,5 @@
 class MirrorOriginalToDriveJob < ApplicationJob
-  queue_as :default
+  queue_as :archive
 
   def perform(photo)
     archive_object = photo.drive_archive_object || photo.build_drive_archive_object

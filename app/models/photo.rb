@@ -23,7 +23,8 @@ class Photo < ApplicationRecord
 
   before_validation :copy_original_blob_attributes, if: -> { original.attached? }
   before_validation :set_title_from_original, if: -> { title.blank? && original_filename.present? }
-  after_create_commit :enqueue_checksum
+  after_create_commit :enqueue_checksum, unless: :checksum_complete?
+  after_create_commit :enqueue_drive_archive, if: :checksum_complete?
   after_create_commit :enqueue_metadata_extraction
 
   scope :visible_to, ->(user) {
@@ -126,6 +127,10 @@ class Photo < ApplicationRecord
 
   def enqueue_checksum
     ChecksumOriginalJob.perform_later(self)
+  end
+
+  def enqueue_drive_archive
+    MirrorOriginalToDriveJob.perform_later(self)
   end
 
   def enqueue_metadata_extraction

@@ -87,6 +87,14 @@ class PhotoTest < ActiveSupport::TestCase
     end
   end
 
+  test "complete checksum photos enqueue drive archive without recomputing checksum" do
+    assert_no_enqueued_jobs only: ChecksumOriginalJob do
+      assert_enqueued_with(job: MirrorOriginalToDriveJob) do
+        attached_photo(checksum_sha256: "abc123", checksum_status: "complete")
+      end
+    end
+  end
+
   test "enqueues metadata extraction job after create" do
     assert_enqueued_with(job: ExtractPhotoMetadataJob) do
       attached_photo
@@ -107,8 +115,8 @@ class PhotoTest < ActiveSupport::TestCase
 
   private
 
-  def attached_photo
-    photo = users(:one).photos.new
+  def attached_photo(**attributes)
+    photo = users(:one).photos.new(**attributes)
     photo.original.attach(
       io: File.open(Rails.root.join("public/icon.png")),
       filename: "fixture.png",
