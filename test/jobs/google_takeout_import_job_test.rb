@@ -29,10 +29,10 @@ class GoogleTakeoutImportJobTest < ActiveJob::TestCase
     owner = users(:one)
     import_run = owner.google_takeout_import_runs.create!(path: "/rails/imports/missing")
 
-    assert_raises(Zip::Error) { GoogleTakeoutImportJob.perform_now(import_run) }
+    assert_raises(ArgumentError) { GoogleTakeoutImportJob.perform_now(import_run) }
 
     assert_equal "failed", import_run.reload.status
-    assert_includes import_run.error, "/rails/imports/missing"
+    assert_includes import_run.error, "No Google Takeout zip files found"
     assert_not_nil import_run.finished_at
   end
 end

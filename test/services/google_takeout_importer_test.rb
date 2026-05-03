@@ -73,6 +73,37 @@ class GoogleTakeoutImporterTest < ActiveSupport::TestCase
     end
   end
 
+  test "imports zip files from a directory" do
+    directory = Rails.root.join("tmp/google_takeout_importer_test-#{Process.pid}-#{SecureRandom.hex(8)}")
+    FileUtils.mkdir_p(directory)
+    directory_zip_path = directory.join("takeout.zip")
+
+    Zip::File.open(directory_zip_path.to_s, create: true) do |zip|
+      zip.get_output_stream("Takeout/Google Photos/IMG_0100.JPG") { |stream| stream.write("directory bytes") }
+    end
+
+    summary = GoogleTakeoutImporter.new(owner: @owner).import_path(directory)
+
+    assert_equal 1, summary.fetch(:zip_files)
+    assert_equal 1, summary.fetch(:imported)
+    assert Photo.exists?(original_filename: "IMG_0100.JPG")
+  ensure
+    FileUtils.rm_rf(directory) if directory
+  end
+
+  test "raises when a directory contains no zip files" do
+    directory = Rails.root.join("tmp/google_takeout_importer_test-empty-#{Process.pid}-#{SecureRandom.hex(8)}")
+    FileUtils.mkdir_p(directory)
+
+    error = assert_raises(ArgumentError) do
+      GoogleTakeoutImporter.new(owner: @owner).import_path(directory)
+    end
+
+    assert_includes error.message, "No Google Takeout zip files found"
+  ensure
+    FileUtils.rm_rf(directory) if directory
+  end
+
   test "preserves takeout folders as albums including date named folders" do
     write_zip(
       "Takeout/Google Photos/2010-09-03/DSC_4313.JPG" => "old import",

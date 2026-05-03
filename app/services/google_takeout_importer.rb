@@ -14,9 +14,12 @@ class GoogleTakeoutImporter
 
   def import_path(path)
     path = Pathname(path)
-    zip_paths = path.directory? ? path.children.grep(/\.zip\z/i).sort : [ path ]
+    zip_paths = zip_paths_for(path)
+    raise ArgumentError, "No Google Takeout zip files found at #{path}" if zip_paths.empty?
 
-    zip_paths.each_with_object(summary_hash) do |zip_path, summary|
+    logger.info("Google Takeout import: found #{zip_paths.size} zip file#{'s' unless zip_paths.size == 1} at #{path}")
+
+    zip_paths.each_with_object(summary_hash.merge(zip_files: zip_paths.size)) do |zip_path, summary|
       import_zip(zip_path, summary)
     end
   end
@@ -24,6 +27,13 @@ class GoogleTakeoutImporter
   private
 
   attr_reader :owner, :logger
+
+  def zip_paths_for(path)
+    paths = path.directory? ? path.children : [ path ]
+    paths
+      .select { |candidate| candidate.file? && candidate.extname.casecmp?(".zip") }
+      .sort_by { |candidate| candidate.to_s.downcase }
+  end
 
   def import_zip(zip_path, summary)
     logger.info("Google Takeout import: #{zip_path}")
