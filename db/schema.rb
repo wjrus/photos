@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_02_213000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_03_120100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -142,6 +142,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_02_213000) do
     t.index ["photo_id"], name: "index_photo_metadata_on_photo_id", unique: true
   end
 
+  create_table "photo_people_tags", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "photo_id", null: false
+    t.bigint "tagged_by_id", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["photo_id", "user_id"], name: "index_photo_people_tags_on_photo_id_and_user_id", unique: true
+    t.index ["photo_id"], name: "index_photo_people_tags_on_photo_id"
+    t.index ["tagged_by_id"], name: "index_photo_people_tags_on_tagged_by_id"
+    t.index ["user_id"], name: "index_photo_people_tags_on_user_id"
+  end
+
   create_table "photos", force: :cascade do |t|
     t.datetime "archived_at"
     t.bigint "byte_size"
@@ -175,14 +187,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_02_213000) do
     t.text "google_access_token"
     t.text "google_refresh_token"
     t.datetime "google_token_expires_at"
+    t.datetime "invite_accepted_at"
+    t.datetime "invited_at"
+    t.bigint "invited_by_id"
     t.datetime "last_signed_in_at"
     t.string "name"
+    t.string "password_digest"
     t.string "provider", null: false
+    t.string "remember_token_digest"
     t.string "role", default: "viewer", null: false
     t.string "uid", null: false
     t.datetime "updated_at", null: false
-    t.index ["email"], name: "index_users_on_email"
+    t.index ["email"], name: "index_users_on_email", unique: true
+    t.index ["invited_by_id"], name: "index_users_on_invited_by_id"
     t.index ["provider", "uid"], name: "index_users_on_provider_and_uid", unique: true
+    t.index ["remember_token_digest"], name: "index_users_on_remember_token_digest"
   end
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
@@ -195,5 +214,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_02_213000) do
   add_foreign_key "photo_albums", "photos", column: "cover_photo_id"
   add_foreign_key "photo_albums", "users", column: "owner_id"
   add_foreign_key "photo_metadata", "photos"
+  add_foreign_key "photo_people_tags", "photos"
+  add_foreign_key "photo_people_tags", "users"
+  add_foreign_key "photo_people_tags", "users", column: "tagged_by_id"
   add_foreign_key "photos", "users", column: "owner_id"
+  add_foreign_key "users", "users", column: "invited_by_id"
 end

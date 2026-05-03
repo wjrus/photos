@@ -5,6 +5,7 @@ class PhotosController < ApplicationController
 
   def show
     @return_to = safe_return_path
+    @taggable_users = User.where.not(id: current_user.id).order(Arel.sql("LOWER(email) ASC")) if current_user&.owner?
     set_stream_neighbors
   end
 

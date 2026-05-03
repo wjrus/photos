@@ -68,6 +68,19 @@ module ApplicationHelper
     ENV["GOOGLE_MAPS_EMBED_API_KEY"]
   end
 
+  def user_avatar(user, classes: "size-9 rounded-lg border border-zinc-200 object-cover")
+    if user.avatar.attached?
+      image_tag user.avatar, alt: "", class: classes
+    elsif user.avatar_url.present?
+      image_tag user.avatar_url, alt: "", class: classes
+    else
+      tag.span(
+        user.display_name.first.to_s.upcase,
+        class: "#{classes} flex items-center justify-center bg-zinc-950 text-sm font-semibold text-white"
+      )
+    end
+  end
+
   def app_icon(name, classes: "size-5")
     paths = {
       check_circle: '<path d="M9 12.75 11.25 15 15.5 9.5"/><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>',

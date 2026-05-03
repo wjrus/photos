@@ -14,6 +14,12 @@ class PhotoAlbum < ApplicationRecord
   scope :visible_to, ->(user) {
     if user&.owner?
       all
+    elsif user
+      tagged_album_ids = PhotoAlbumMembership
+        .joins(photo: :photo_people_tags)
+        .where(photo_people_tags: { user_id: user.id })
+        .select(:photo_album_id)
+      where("photo_albums.visibility = :public_visibility OR photo_albums.id IN (#{tagged_album_ids.to_sql})", public_visibility: "public")
     else
       where(visibility: "public")
     end

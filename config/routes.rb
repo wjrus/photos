@@ -11,7 +11,12 @@ Rails.application.routes.draw do
 
   get "/auth/failure", to: "sessions#failure"
   match "/auth/:provider/callback", to: "sessions#create", via: [ :get, :post ]
+  get "/sign_in", to: "sessions#new", as: :sign_in
+  post "/sign_in", to: "sessions#password", as: :password_sign_in
   delete "/sign_out", to: "sessions#destroy", as: :sign_out
+  get "/invitations/:token", to: "invitations#show", as: :invitation
+  patch "/invitations/:token", to: "invitations#update", as: :accept_invitation
+  resources :users, only: %i[index create]
   get "/map", to: "maps#show", as: :map
   resources :imports, only: %i[index create]
   get "/private", to: "restricted_photos#index", as: :restricted_photos
@@ -38,7 +43,9 @@ Rails.application.routes.draw do
     patch :publish, on: :member
     patch :unpublish, on: :member
     post :retry_archive, on: :member
+    resources :photo_people_tags, only: :create
   end
+  resources :photo_people_tags, only: :destroy
 
   root "home#show"
 end

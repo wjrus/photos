@@ -17,3 +17,6 @@ two:
   avatar_url: https://example.com/friend.jpg
   role: viewer
   last_signed_in_at: 2026-04-30 21:34:27
+  invited_at: 2026-04-30 20:34:27
+  invite_accepted_at: 2026-04-30 21:34:27
+  invited_by: one

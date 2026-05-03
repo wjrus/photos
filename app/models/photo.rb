@@ -8,6 +8,8 @@ class Photo < ApplicationRecord
   has_one :drive_archive_object, dependent: :destroy
   has_many :photo_album_memberships, dependent: :destroy
   has_many :photo_albums, through: :photo_album_memberships
+  has_many :photo_people_tags, dependent: :destroy
+  has_many :tagged_users, through: :photo_people_tags, source: :user
   has_one_attached :original do |attachable|
     attachable.variant :display, resize_to_limit: [ 1800, 1800 ], format: :jpg, saver: { strip: true, quality: 82 }
   end
@@ -27,6 +29,9 @@ class Photo < ApplicationRecord
   scope :visible_to, ->(user) {
     if user&.owner?
       where(restricted: false)
+    elsif user
+      tagged_photo_ids = PhotoPeopleTag.where(user_id: user.id).select(:photo_id)
+      where(restricted: false).where("photos.visibility = :public_visibility OR photos.id IN (#{tagged_photo_ids.to_sql})", public_visibility: "public")
     else
       where(visibility: "public", restricted: false)
     end

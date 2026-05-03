@@ -5,7 +5,7 @@ class HomeTest < ApplicationSystemTestCase
     visit root_path
 
     assert_text "wjr photos"
-    assert_button "Sign in"
+    assert_link "Sign in"
     assert_no_text "ARCHIVE RULE"
     assert_no_text "Drop iPhone imports here"
     assert_no_text "Preserved privately."
