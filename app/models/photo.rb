@@ -2,6 +2,9 @@ class Photo < ApplicationRecord
   VISIBILITIES = %w[private public].freeze
   CHECKSUM_STATUSES = %w[pending complete failed].freeze
   STREAM_PAGE_SIZE = 60
+  STREAM_TUPLE_SQL = "(CASE WHEN photos.captured_at IS NULL THEN 0 ELSE 1 END, COALESCE(photos.captured_at, TIMESTAMP '0001-01-01'), photos.created_at, photos.id)".freeze
+  STREAM_TUPLE_GREATER_THAN_SQL = "#{STREAM_TUPLE_SQL} > (:has_capture, :captured_at, :created_at, :id)".freeze
+  STREAM_TUPLE_LESS_THAN_SQL = "#{STREAM_TUPLE_SQL} < (:has_capture, :captured_at, :created_at, :id)".freeze
 
   belongs_to :owner, class_name: "User", inverse_of: :photos
   has_one :metadata, class_name: "PhotoMetadata", dependent: :destroy, inverse_of: :photo
@@ -148,20 +151,16 @@ class Photo < ApplicationRecord
 
   def self.stream_tuple_greater_than(photo)
     where(
-      "#{stream_tuple_sql} > (:has_capture, :captured_at, :created_at, :id)",
+      STREAM_TUPLE_GREATER_THAN_SQL,
       stream_tuple_values(photo)
     )
   end
 
   def self.stream_tuple_less_than(photo)
     where(
-      "#{stream_tuple_sql} < (:has_capture, :captured_at, :created_at, :id)",
+      STREAM_TUPLE_LESS_THAN_SQL,
       stream_tuple_values(photo)
     )
-  end
-
-  def self.stream_tuple_sql
-    "(CASE WHEN photos.captured_at IS NULL THEN 0 ELSE 1 END, COALESCE(photos.captured_at, TIMESTAMP '0001-01-01'), photos.created_at, photos.id)"
   end
 
   def self.stream_tuple_order(direction:, nulls:)
