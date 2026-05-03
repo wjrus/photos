@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+SERVICE="${1:-web}"
+
+if [[ "$SERVICE" == "-h" || "$SERVICE" == "--help" ]]; then
+  cat <<'USAGE'
+Usage:
+  ./scripts/import-status [service]
+
+Examples:
+  ./scripts/import-status
+  ./scripts/import-status worker
+
+Prints import, archive, and queue counts from a running Compose service.
+USAGE
+  exit 0
+fi
+
+docker compose exec -T "$SERVICE" bin/rails runner "$(cat <<'RUBY'
+def grouped_counts(scope)
+  scope.group(:status).count.sort.to_h
+end
+
+def line(label, value)
+  puts format("%-24s %s", label, value)
+end
+
+def duration(started_at, finished_at = nil)
+  return "not started" unless started_at
+
+  seconds = ((finished_at || Time.current) - started_at).to_i
+  hours = seconds / 3600
+  minutes = (seconds % 3600) / 60
+  remainder = seconds % 60
+
+  if hours.positive?
+    "#{hours}h #{minutes}m #{remainder}s"
+  elsif minutes.positive?
+    "#{minutes}m #{remainder}s"
+  else
+    "#{remainder}s"
+  end
+end
+
+puts "Import run"
+puts "----------"
+run = GoogleTakeoutImportRun.recent.first
+
+if run
+  line "status", run.status
+  line "path", run.path
+  line "started", run.started_at&.strftime("%Y-%m-%d %H:%M:%S %Z") || "not started"
+  line "duration", duration(run.started_at, run.finished_at)
+  line "error", run.error if run.error.present?
+
+  if run.summary.present?
+    run.summary.sort.each do |key, value|
+      line "summary.#{key}", value
+    end
+  end
+else
+  puts "No import runs yet."
+end
+
+puts
+puts "Takeout rows"
+puts "------------"
+grouped_counts(GoogleTakeoutImport).each { |status, count| line status, count }
+line "total", GoogleTakeoutImport.count
+line "zip files", GoogleTakeoutImport.distinct.count(:zip_path)
+
+last_import = GoogleTakeoutImport.where(status: "imported").order(imported_at: :desc).first
+line "last imported", last_import ? "#{last_import.original_filename} at #{last_import.imported_at&.strftime('%H:%M:%S')}" : "none"
+
+failed = GoogleTakeoutImport.where(status: "failed").order(updated_at: :desc).limit(5)
+if failed.any?
+  puts
+  puts "Recent import failures"
+  failed.each do |item|
+    puts "- #{item.entry_name}: #{item.error}"
+  end
+end
+
+puts
+puts "Photos"
+puts "------"
+line "total", Photo.count
+line "public", Photo.where(visibility: "public").count
+line "private", Photo.where(visibility: "private", restricted: false).count
+line "restricted", Photo.where(restricted: true).count
+Photo.group(:checksum_status).count.sort.each { |status, count| line "checksum #{status}", count }
+PhotoMetadata.group(:extraction_status).count.sort.each { |status, count| line "metadata #{status}", count }
+
+puts
+puts "Drive archive"
+puts "-------------"
+DriveArchiveObject.group(:status).count.sort.each { |status, count| line status, count }
+line "missing rows", Photo.left_outer_joins(:drive_archive_object).where(drive_archive_objects: { id: nil }).count
+
+puts
+puts "Queue"
+puts "-----"
+queue_connection = SolidQueue::Job.connection
+
+[
+  [ "ready", "solid_queue_ready_executions" ],
+  [ "claimed", "solid_queue_claimed_executions" ],
+  [ "scheduled", "solid_queue_scheduled_executions" ],
+  [ "failed", "solid_queue_failed_executions" ],
+  [ "blocked", "solid_queue_blocked_executions" ]
+].each do |label, table|
+  line label, queue_connection.select_value("SELECT COUNT(*) FROM #{table}")
+end
+
+if queue_connection.select_value("SELECT COUNT(*) FROM solid_queue_ready_executions").to_i.positive?
+  puts
+  puts "Ready by job class"
+  rows = queue_connection.select_all(<<~SQL)
+    SELECT jobs.class_name, COUNT(*) AS count
+    FROM solid_queue_ready_executions ready
+    INNER JOIN solid_queue_jobs jobs ON jobs.id = ready.job_id
+    GROUP BY jobs.class_name
+    ORDER BY count DESC, jobs.class_name ASC
+    LIMIT 10
+  SQL
+
+  rows.each { |row| line row["class_name"], row["count"] }
+end
+RUBY
+)"
