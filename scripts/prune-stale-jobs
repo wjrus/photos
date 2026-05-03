@@ -26,17 +26,17 @@ analyze_deleted = connection.exec_delete(<<~SQL.squish)
   WHERE class_name = 'ActiveStorage::AnalyzeJob'
 SQL
 
-checksum_deleted = connection.exec_delete(<<~SQL.squish)
-  DELETE FROM solid_queue_jobs
-  WHERE class_name = 'ChecksumOriginalJob'
-    AND EXISTS (
-      SELECT 1
-      FROM photos
-      WHERE photos.id = CAST(substring(solid_queue_jobs.arguments::text from 'gid://photos/Photo/([0-9]+)') AS bigint)
-      AND photos.checksum_status = 'complete'
-      AND photos.checksum_sha256 IS NOT NULL
-    )
-SQL
+checksum_deleted = 0
+SolidQueue::Job.where(class_name: "ChecksumOriginalJob").find_each do |job|
+  photo_id = job.arguments.to_s[/gid:\/\/photos\/Photo\/(\d+)/, 1]
+  next unless photo_id
+
+  photo = Photo.find_by(id: photo_id)
+  next unless photo&.checksum_complete? && photo.checksum_sha256.present?
+
+  job.destroy!
+  checksum_deleted += 1
+end
 
 puts "Deleted #{analyze_deleted} stale ActiveStorage analyze #{'job'.pluralize(analyze_deleted)}."
 puts "Deleted #{checksum_deleted} redundant checksum #{'job'.pluralize(checksum_deleted)}."
