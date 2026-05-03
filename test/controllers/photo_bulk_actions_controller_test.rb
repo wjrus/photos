@@ -66,6 +66,33 @@ class PhotoBulkActionsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to root_path
   end
 
+  test "owner can bulk archive and restore photos" do
+    first = attached_photo(title: "Archive first")
+    second = attached_photo(title: "Archive second")
+
+    post photo_bulk_actions_path, params: { bulk_action: "archive", photo_ids: [ first.id, second.id ] }
+
+    assert_redirected_to root_path
+    assert_predicate first.reload, :archived?
+    assert_predicate second.reload, :archived?
+
+    post photo_bulk_actions_path, params: { bulk_action: "restore", photo_ids: [ first.id, second.id ], return_to: archived_photos_path }
+
+    assert_redirected_to archived_photos_path
+    assert_not first.reload.archived?
+    assert_not second.reload.archived?
+  end
+
+  test "bulk archive ignores restricted photos" do
+    photo = attached_photo(title: "Restricted")
+    photo.update!(restricted: true)
+
+    post photo_bulk_actions_path, params: { bulk_action: "archive", photo_ids: [ photo.id ] }
+
+    assert_redirected_to root_path
+    assert_not photo.reload.archived?
+  end
+
   test "non owner cannot bulk manage photos" do
     photo = attached_photo(title: "Owner only")
     delete sign_out_path

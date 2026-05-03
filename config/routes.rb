@@ -17,6 +17,7 @@ Rails.application.routes.draw do
   get "/invitations/:token", to: "invitations#show", as: :invitation
   patch "/invitations/:token", to: "invitations#update", as: :accept_invitation
   resources :users, only: %i[index create]
+  get "/archive", to: "archived_photos#index", as: :archived_photos
   get "/map", to: "maps#show", as: :map
   resources :imports, only: %i[index create]
   get "/private", to: "restricted_photos#index", as: :restricted_photos

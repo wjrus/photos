@@ -34,15 +34,17 @@ class Photo < ApplicationRecord
 
   scope :visible_to, ->(user) {
     if user&.owner?
-      where(restricted: false)
+      where(restricted: false, archived_at: nil)
     elsif user
       tagged_photo_ids = PhotoPeopleTag.where(user_id: user.id).select(:photo_id)
-      where(restricted: false).where("photos.visibility = :public_visibility OR photos.id IN (#{tagged_photo_ids.to_sql})", public_visibility: "public")
+      where(restricted: false, archived_at: nil).where("photos.visibility = :public_visibility OR photos.id IN (#{tagged_photo_ids.to_sql})", public_visibility: "public")
     else
-      where(visibility: "public", restricted: false)
+      where(visibility: "public", restricted: false, archived_at: nil)
     end
   }
   scope :restricted, -> { where(restricted: true) }
+  scope :archived, -> { where(restricted: false).where.not(archived_at: nil) }
+  scope :not_archived, -> { where(archived_at: nil) }
   scope :stream_order, -> {
     order(Arel.sql("photos.captured_at DESC NULLS LAST, photos.created_at DESC, photos.id DESC"))
   }
@@ -112,6 +114,18 @@ class Photo < ApplicationRecord
 
   def unpublish!
     update!(visibility: "private", published_at: nil)
+  end
+
+  def archived?
+    archived_at.present?
+  end
+
+  def archive!
+    update!(archived_at: Time.current)
+  end
+
+  def restore!
+    update!(archived_at: nil)
   end
 
   def checksum_complete?

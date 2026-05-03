@@ -22,76 +22,105 @@
         <%= app_icon(:x) %>
         <span class="sr-only">Deselect all</span>
       </button>
-      <button type="submit"
-              name="bulk_action"
-              value="publish"
-              disabled
-              title="Publish selected photos"
-              aria-label="Publish selected photos"
-              data-tooltip="Publish selected photos"
-              data-bulk-selection-target="action"
-              class="ui-tooltip flex size-10 items-center justify-center rounded-lg text-zinc-800 transition hover:bg-zinc-100 disabled:opacity-40">
-        <%= app_icon(:globe) %>
-        <span class="sr-only">Publish selected photos</span>
-      </button>
-      <button type="submit"
-              name="bulk_action"
-              value="unpublish"
-              disabled
-              title="Make selected photos private"
-              aria-label="Make selected photos private"
-              data-tooltip="Make selected photos private"
-              data-bulk-selection-target="action"
-              class="ui-tooltip flex size-10 items-center justify-center rounded-lg text-zinc-800 transition hover:bg-zinc-100 disabled:opacity-40">
-        <%= app_icon(:lock) %>
-        <span class="sr-only">Make selected photos private</span>
-      </button>
+      <% if local_assigns[:archive_context] %>
+        <button type="submit"
+                name="bulk_action"
+                value="restore"
+                disabled
+                title="Restore selected photos to stream"
+                aria-label="Restore selected photos to stream"
+                data-tooltip="Restore selected photos to stream"
+                data-bulk-selection-target="action"
+                class="ui-tooltip flex size-10 items-center justify-center rounded-lg text-zinc-800 transition hover:bg-zinc-100 disabled:opacity-40">
+          <%= app_icon(:rotate_ccw) %>
+          <span class="sr-only">Restore selected photos to stream</span>
+        </button>
+      <% else %>
+        <button type="submit"
+                name="bulk_action"
+                value="publish"
+                disabled
+                title="Publish selected photos"
+                aria-label="Publish selected photos"
+                data-tooltip="Publish selected photos"
+                data-bulk-selection-target="action"
+                class="ui-tooltip flex size-10 items-center justify-center rounded-lg text-zinc-800 transition hover:bg-zinc-100 disabled:opacity-40">
+          <%= app_icon(:globe) %>
+          <span class="sr-only">Publish selected photos</span>
+        </button>
+        <button type="submit"
+                name="bulk_action"
+                value="unpublish"
+                disabled
+                title="Make selected photos private"
+                aria-label="Make selected photos private"
+                data-tooltip="Make selected photos private"
+                data-bulk-selection-target="action"
+                class="ui-tooltip flex size-10 items-center justify-center rounded-lg text-zinc-800 transition hover:bg-zinc-100 disabled:opacity-40">
+          <%= app_icon(:lock) %>
+          <span class="sr-only">Make selected photos private</span>
+        </button>
+        <button type="submit"
+                name="bulk_action"
+                value="archive"
+                disabled
+                title="Move selected photos to archive"
+                aria-label="Move selected photos to archive"
+                data-tooltip="Move selected photos to archive"
+                data-bulk-selection-target="action"
+                class="ui-tooltip flex size-10 items-center justify-center rounded-lg text-zinc-800 transition hover:bg-zinc-100 disabled:opacity-40">
+          <%= app_icon(:archive) %>
+          <span class="sr-only">Move selected photos to archive</span>
+        </button>
+      <% end %>
 
-      <details class="relative" data-bulk-selection-target="action">
-        <summary class="ui-tooltip flex size-10 cursor-pointer list-none items-center justify-center rounded-lg text-zinc-800 transition hover:bg-zinc-100"
-                 title="Add selected photos to an album"
-                 aria-label="Add selected photos to an album"
-                 data-tooltip="Add to album"
-                 data-action="click->bulk-selection#guard">
-          <%= app_icon(:image_plus) %>
-          <span class="sr-only">Add selected photos to an album</span>
-        </summary>
-        <div class="absolute right-0 z-40 mt-2 w-[min(92vw,340px)] rounded-lg border border-zinc-200 bg-white p-4 text-zinc-950 shadow-2xl">
-          <div class="space-y-3">
-            <% if albums.any? %>
+      <% unless local_assigns[:archive_context] %>
+        <details class="relative" data-bulk-selection-target="action">
+          <summary class="ui-tooltip flex size-10 cursor-pointer list-none items-center justify-center rounded-lg text-zinc-800 transition hover:bg-zinc-100"
+                   title="Add selected photos to an album"
+                   aria-label="Add selected photos to an album"
+                   data-tooltip="Add to album"
+                   data-action="click->bulk-selection#guard">
+            <%= app_icon(:image_plus) %>
+            <span class="sr-only">Add selected photos to an album</span>
+          </summary>
+          <div class="absolute right-0 z-40 mt-2 w-[min(92vw,340px)] rounded-lg border border-zinc-200 bg-white p-4 text-zinc-950 shadow-2xl">
+            <div class="space-y-3">
+              <% if albums.any? %>
+                <div>
+                  <label for="album_id" class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Existing</label>
+                  <select id="album_id" name="album_id" class="mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15">
+                    <option value="">Choose album</option>
+                    <% albums.each do |album| %>
+                      <option value="<%= album.id %>"><%= album.title %></option>
+                    <% end %>
+                  </select>
+                </div>
+              <% end %>
+
               <div>
-                <label for="album_id" class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Existing</label>
-                <select id="album_id" name="album_id" class="mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15">
-                  <option value="">Choose album</option>
-                  <% albums.each do |album| %>
-                    <option value="<%= album.id %>"><%= album.title %></option>
-                  <% end %>
-                </select>
+                <label for="new_album_title" class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">New</label>
+                <input id="new_album_title"
+                       name="new_album_title"
+                       type="text"
+                       class="mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15"
+                       placeholder="Album name">
               </div>
-            <% end %>
 
-            <div>
-              <label for="new_album_title" class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">New</label>
-              <input id="new_album_title"
-                     name="new_album_title"
-                     type="text"
-                     class="mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15"
-                     placeholder="Album name">
+              <button type="submit"
+                      name="bulk_action"
+                      value="add_to_album"
+                      disabled
+                      title="Add selected photos"
+                      aria-label="Add selected photos"
+                      data-bulk-selection-target="action"
+                      class="w-full rounded-lg bg-zinc-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-zinc-300">
+                Add selected
+              </button>
             </div>
-
-            <button type="submit"
-                    name="bulk_action"
-                    value="add_to_album"
-                    disabled
-                    title="Add selected photos"
-                    aria-label="Add selected photos"
-                    data-bulk-selection-target="action"
-                    class="w-full rounded-lg bg-zinc-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-zinc-300">
-              Add selected
-            </button>
           </div>
-        </div>
-      </details>
+        </details>
+      <% end %>
 
       <div data-controller="confirm-modal" data-action="keydown@window->confirm-modal#keydown">
         <button type="button"

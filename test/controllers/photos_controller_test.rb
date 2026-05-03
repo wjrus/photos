@@ -307,6 +307,24 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, %(data-stream-navigation-next-url-value="#{photo_path(older, return_to: map_path)}")
   end
 
+  test "archive detail view uses archived stream neighbors" do
+    newer = attached_photo(title: "Archived newer")
+    photo = attached_photo(title: "Archived current")
+    older = attached_photo(title: "Archived older")
+    active = attached_photo(title: "Active")
+    newer.update_columns(archived_at: Time.current, created_at: Time.zone.local(2026, 1, 4), updated_at: Time.zone.local(2026, 1, 4))
+    active.update_columns(created_at: Time.zone.local(2026, 1, 3), updated_at: Time.zone.local(2026, 1, 3))
+    photo.update_columns(archived_at: Time.current, created_at: Time.zone.local(2026, 1, 2), updated_at: Time.zone.local(2026, 1, 2))
+    older.update_columns(archived_at: Time.current, created_at: Time.zone.local(2026, 1, 1), updated_at: Time.zone.local(2026, 1, 1))
+
+    get photo_path(photo, return_to: archived_photos_path)
+
+    assert_response :success
+    assert_select "a[href='#{photo_path(newer, return_to: archived_photos_path)}'][aria-label='Previous item in stream']"
+    assert_select "a[href='#{photo_path(older, return_to: archived_photos_path)}'][aria-label='Next item in stream']"
+    refute_includes response.body, photo_path(active, return_to: archived_photos_path)
+  end
+
   test "photo stream renders an infinite scroll sentinel when more photos exist" do
     (Photo::STREAM_PAGE_SIZE + 1).times do |index|
       photo = attached_photo(title: "Stream #{index}")
@@ -319,6 +337,18 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-controller~='infinite-scroll']"
     assert_select "[data-controller~='stream-state']"
     assert_select "[data-infinite-scroll-target='sentinel']"
+  end
+
+  test "photo stream excludes archived photos" do
+    active = attached_photo(title: "Stream photo")
+    archived = attached_photo(title: "Archived screenshot")
+    archived.archive!
+
+    get root_path
+
+    assert_response :success
+    assert_includes response.body, active.title
+    refute_includes response.body, archived.title
   end
 
   test "public viewer sees public display without privileged metadata" do

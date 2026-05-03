@@ -2,7 +2,7 @@ class PhotoBulkActionsController < ApplicationController
   before_action :require_owner!
 
   def create
-    photos = current_user.photos.visible_to(current_user).where(id: selected_photo_ids)
+    photos = selected_photos
     return redirect_to safe_return_path, alert: "Select at least one photo." if photos.empty?
 
     case params[:bulk_action]
@@ -12,6 +12,12 @@ class PhotoBulkActionsController < ApplicationController
     when "unpublish"
       photos.find_each(&:unpublish!)
       redirect_to safe_return_path, notice: "Made #{photos.size} #{'photo'.pluralize(photos.size)} private."
+    when "archive"
+      photos.find_each(&:archive!)
+      redirect_to safe_return_path, notice: "Archived #{photos.size} #{'photo'.pluralize(photos.size)}."
+    when "restore"
+      photos.find_each(&:restore!)
+      redirect_to safe_return_path, notice: "Restored #{photos.size} #{'photo'.pluralize(photos.size)} to the stream."
     when "delete"
       count = photos.size
       photos.destroy_all
@@ -31,6 +37,11 @@ class PhotoBulkActionsController < ApplicationController
 
   def selected_photo_ids
     Array(params[:photo_ids]).compact_blank
+  end
+
+  def selected_photos
+    scope = current_user.photos.where(restricted: false, id: selected_photo_ids)
+    params[:bulk_action] == "restore" ? scope.archived : scope.not_archived
   end
 
   def target_album

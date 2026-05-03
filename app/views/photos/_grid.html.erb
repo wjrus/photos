@@ -7,6 +7,7 @@
         feature_first: feature_first,
         bulk_form_id: local_assigns[:bulk_form_id],
         owner_controls: local_assigns.fetch(:owner_controls, current_user&.owner?),
+        archive_context: local_assigns[:archive_context],
         album: local_assigns[:album],
         next_cursor: next_cursor,
         next_page_path: next_page_path %>

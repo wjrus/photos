@@ -138,6 +138,7 @@ class PhotosController < ApplicationController
 
   def navigation_stream
     return current_user.photos.restricted.stream_order if restricted_return_path?
+    return current_user.photos.archived.stream_order if archived_return_path?
 
     album = return_to_album
     return album.photos.visible_to(current_user).stream_order if album
@@ -147,17 +148,25 @@ class PhotosController < ApplicationController
 
   def visible_photo_scope
     return current_user.photos.with_attached_original if current_user&.owner? && restricted_photos_unlocked?
+    return current_user.photos.archived.with_attached_original if archived_return_path?
 
     Photo.with_attached_original.visible_to(current_user)
   end
 
   def manageable_photo_scope
     scope = current_user.photos
-    restricted_photos_unlocked? ? scope : scope.visible_to(current_user)
+    return scope if restricted_photos_unlocked?
+    return scope.archived if archived_return_path?
+
+    scope.visible_to(current_user)
   end
 
   def restricted_return_path?
     current_user&.owner? && restricted_photos_unlocked? && safe_return_path == restricted_photos_path
+  end
+
+  def archived_return_path?
+    current_user&.owner? && safe_return_path == archived_photos_path
   end
 
   def return_to_album
