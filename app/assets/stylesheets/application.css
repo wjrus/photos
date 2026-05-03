@@ -59,3 +59,27 @@
   opacity: 0.42;
   pointer-events: none;
 }
+
+.ui-tooltip {
+  position: relative;
+}
+
+.ui-tooltip:hover::after,
+.ui-tooltip:focus-visible::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  inset-block-start: calc(100% + 0.55rem);
+  inset-inline-end: 0;
+  z-index: 60;
+  width: max-content;
+  max-width: 14rem;
+  padding: 0.42rem 0.58rem;
+  border-radius: 0.35rem;
+  background: #18181b;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22);
+  pointer-events: none;
+}

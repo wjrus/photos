@@ -1,14 +1,17 @@
 <% content_for :title, "wjr photos" %>
 
-<section class="min-h-screen bg-stone-50 text-zinc-950">
+<% if current_user&.owner? %>
+  <% content_for :header_actions do %>
+    <%= render "photos/bulk_toolbar", albums: @albums, return_to: root_path, form_id: "photo-bulk-form" %>
+  <% end %>
+<% end %>
+
+<section class="min-h-screen bg-stone-50 text-zinc-950"
+         <%= %(data-controller="bulk-selection" data-bulk-selection-form-id-value="photo-bulk-form" data-bulk-selection-empty-label-value="Select photos, then choose an action.").html_safe if current_user&.owner? %>>
   <%= render "shared/site_header" %>
 
-  <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8"
-        <%= %(data-controller="bulk-selection" data-bulk-selection-form-id-value="photo-bulk-form" data-bulk-selection-empty-label-value="Select photos, then choose an action.").html_safe if current_user&.owner? %>>
+  <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
     <% if @photos.any? %>
-      <% if current_user&.owner? %>
-        <%= render "photos/bulk_toolbar", albums: @albums, return_to: root_path, form_id: "photo-bulk-form" %>
-      <% end %>
       <%= render "photos/grid",
             photos: @photos,
             return_to: root_path,

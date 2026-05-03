@@ -2,22 +2,22 @@
       method: :post,
       html: {
         id: form_id,
-        class: "sticky top-[73px] z-30 mt-6 rounded-lg border border-zinc-800 bg-zinc-950/95 p-2 text-white shadow-lg backdrop-blur",
-        data: { action: "submit->bulk-selection#guard" }
+        class: "hidden items-center gap-2",
+        data: { bulk_selection_target: "bar", action: "submit->bulk-selection#guard" }
       } do %>
-  <div class="flex min-h-12 flex-wrap items-center justify-between gap-2">
-    <p class="px-3 text-sm font-semibold" aria-live="polite" data-bulk-selection-target="count">
-      Select albums, then choose an action.
-    </p>
+  <p class="hidden rounded-lg bg-zinc-950 px-3 py-2 text-sm font-semibold text-white shadow-sm sm:block" aria-live="polite" data-bulk-selection-target="count">
+    Select albums, then choose an action.
+  </p>
 
-    <div class="flex flex-wrap items-center gap-1">
+  <div class="flex items-center gap-1 rounded-lg border border-zinc-200 bg-white p-1 shadow-sm">
       <button type="button"
               disabled
               title="Deselect all"
               aria-label="Deselect all"
+              data-tooltip="Deselect all"
               data-bulk-selection-target="action"
               data-action="bulk-selection#clear"
-              class="flex size-10 items-center justify-center rounded-lg text-white transition hover:bg-white/10 disabled:opacity-40">
+              class="ui-tooltip flex size-10 items-center justify-center rounded-lg text-zinc-800 transition hover:bg-zinc-100 disabled:opacity-40">
         <%= app_icon(:x) %>
         <span class="sr-only">Deselect all</span>
       </button>
@@ -27,8 +27,9 @@
               disabled
               title="Publish selected albums"
               aria-label="Publish selected albums"
+              data-tooltip="Publish selected albums"
               data-bulk-selection-target="action"
-              class="flex size-10 items-center justify-center rounded-lg text-white transition hover:bg-white/10 disabled:opacity-40">
+              class="ui-tooltip flex size-10 items-center justify-center rounded-lg text-zinc-800 transition hover:bg-zinc-100 disabled:opacity-40">
         <%= app_icon(:globe) %>
         <span class="sr-only">Publish selected albums</span>
       </button>
@@ -38,8 +39,9 @@
               disabled
               title="Make selected albums private"
               aria-label="Make selected albums private"
+              data-tooltip="Make selected albums private"
               data-bulk-selection-target="action"
-              class="flex size-10 items-center justify-center rounded-lg text-white transition hover:bg-white/10 disabled:opacity-40">
+              class="ui-tooltip flex size-10 items-center justify-center rounded-lg text-zinc-800 transition hover:bg-zinc-100 disabled:opacity-40">
         <%= app_icon(:lock) %>
         <span class="sr-only">Make selected albums private</span>
       </button>
@@ -49,7 +51,8 @@
                 disabled
                 title="Remove selected albums"
                 aria-label="Remove selected albums"
-                class="flex size-10 items-center justify-center rounded-lg text-white transition hover:bg-rose-800 disabled:opacity-40"
+                data-tooltip="Remove selected albums"
+                class="ui-tooltip flex size-10 items-center justify-center rounded-lg text-zinc-800 transition hover:bg-rose-50 hover:text-rose-800 disabled:opacity-40"
                 data-bulk-selection-target="action"
                 data-action="confirm-modal#open">
           <%= app_icon(:trash) %>
@@ -84,6 +87,5 @@
           </div>
         </div>
       </div>
-    </div>
   </div>
 <% end %>

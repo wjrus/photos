@@ -2,23 +2,23 @@
       method: :post,
       html: {
         id: form_id,
-        class: "sticky top-[73px] z-30 mb-4 rounded-lg border border-zinc-800 bg-zinc-950/95 p-2 text-white shadow-lg backdrop-blur",
-        data: { action: "submit->bulk-selection#guard" }
+        class: "hidden items-center gap-2",
+        data: { bulk_selection_target: "bar", action: "submit->bulk-selection#guard" }
       } do %>
   <%= hidden_field_tag :return_to, return_to %>
-  <div class="flex min-h-12 flex-wrap items-center justify-between gap-2">
-    <p class="px-3 text-sm font-semibold" aria-live="polite" data-bulk-selection-target="count">
-      Select photos, then choose an action.
-    </p>
+  <p class="hidden rounded-lg bg-zinc-950 px-3 py-2 text-sm font-semibold text-white shadow-sm sm:block" aria-live="polite" data-bulk-selection-target="count">
+    Select photos, then choose an action.
+  </p>
 
-    <div class="flex flex-wrap items-center gap-1">
+  <div class="flex items-center gap-1 rounded-lg border border-zinc-200 bg-white p-1 shadow-sm">
       <button type="button"
               disabled
               title="Deselect all"
               aria-label="Deselect all"
+              data-tooltip="Deselect all"
               data-bulk-selection-target="action"
               data-action="bulk-selection#clear"
-              class="flex size-10 items-center justify-center rounded-lg text-white transition hover:bg-white/10 disabled:opacity-40">
+              class="ui-tooltip flex size-10 items-center justify-center rounded-lg text-zinc-800 transition hover:bg-zinc-100 disabled:opacity-40">
         <%= app_icon(:x) %>
         <span class="sr-only">Deselect all</span>
       </button>
@@ -28,8 +28,9 @@
               disabled
               title="Publish selected photos"
               aria-label="Publish selected photos"
+              data-tooltip="Publish selected photos"
               data-bulk-selection-target="action"
-              class="flex size-10 items-center justify-center rounded-lg text-white transition hover:bg-white/10 disabled:opacity-40">
+              class="ui-tooltip flex size-10 items-center justify-center rounded-lg text-zinc-800 transition hover:bg-zinc-100 disabled:opacity-40">
         <%= app_icon(:globe) %>
         <span class="sr-only">Publish selected photos</span>
       </button>
@@ -39,16 +40,18 @@
               disabled
               title="Make selected photos private"
               aria-label="Make selected photos private"
+              data-tooltip="Make selected photos private"
               data-bulk-selection-target="action"
-              class="flex size-10 items-center justify-center rounded-lg text-white transition hover:bg-white/10 disabled:opacity-40">
+              class="ui-tooltip flex size-10 items-center justify-center rounded-lg text-zinc-800 transition hover:bg-zinc-100 disabled:opacity-40">
         <%= app_icon(:lock) %>
         <span class="sr-only">Make selected photos private</span>
       </button>
 
       <details class="relative" data-bulk-selection-target="action">
-        <summary class="flex size-10 cursor-pointer list-none items-center justify-center rounded-lg text-white transition hover:bg-white/10"
+        <summary class="ui-tooltip flex size-10 cursor-pointer list-none items-center justify-center rounded-lg text-zinc-800 transition hover:bg-zinc-100"
                  title="Add selected photos to an album"
                  aria-label="Add selected photos to an album"
+                 data-tooltip="Add to album"
                  data-action="click->bulk-selection#guard">
           <%= app_icon(:image_plus) %>
           <span class="sr-only">Add selected photos to an album</span>
@@ -95,7 +98,8 @@
                 disabled
                 title="Remove selected photos"
                 aria-label="Remove selected photos"
-                class="flex size-10 items-center justify-center rounded-lg text-white transition hover:bg-rose-800 disabled:opacity-40"
+                data-tooltip="Remove selected photos"
+                class="ui-tooltip flex size-10 items-center justify-center rounded-lg text-zinc-800 transition hover:bg-rose-50 hover:text-rose-800 disabled:opacity-40"
                 data-bulk-selection-target="action"
                 data-action="confirm-modal#open">
           <%= app_icon(:trash) %>
@@ -130,6 +134,5 @@
           </div>
         </div>
       </div>
-    </div>
   </div>
 <% end %>

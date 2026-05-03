@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["action", "count"]
+  static targets = ["action", "bar", "count"]
   static values = {
     formId: String,
     emptyLabel: { type: String, default: "Select items, then choose an action." }
@@ -26,6 +26,11 @@ export default class extends Controller {
 
     this.countTargets.forEach((target) => {
       target.textContent = count === 0 ? this.emptyLabelValue : `${count} selected`
+    })
+
+    this.barTargets.forEach((bar) => {
+      bar.classList.toggle("hidden", disabled)
+      bar.classList.toggle("flex", !disabled)
     })
   }
 
