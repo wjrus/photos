@@ -4,7 +4,7 @@ class ExtractPhotoMetadataJob < ApplicationJob
   queue_as :maintenance
 
   def perform(photo)
-    metadata = photo.metadata || photo.build_metadata
+    metadata = PhotoMetadata.for_photo(photo)
 
     unless photo.original.attached?
       metadata.update!(extraction_status: "failed", extraction_error: "Original is not attached", extracted_at: Time.current)
@@ -56,7 +56,7 @@ class ExtractPhotoMetadataJob < ApplicationJob
       photo.update_columns(captured_at: captured_at, updated_at: Time.current) if captured_at
     end
   rescue StandardError => e
-    (photo.metadata || photo.build_metadata).update!(
+    PhotoMetadata.for_photo(photo).update!(
       extraction_status: "failed",
       extraction_error: e.message,
       extracted_at: Time.current

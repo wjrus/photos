@@ -229,7 +229,7 @@ class GoogleTakeoutImporter
     geo_data = usable_geo_data(metadata["geoDataExif"]) || usable_geo_data(metadata["geoData"])
     photo.update_columns(captured_at: captured_at, updated_at: Time.current) if captured_at
 
-    photo_metadata = photo.metadata || photo.build_metadata
+    photo_metadata = PhotoMetadata.for_photo(photo)
     photo_metadata.update!(
       extraction_status: photo_metadata.extraction_status.presence || "pending",
       captured_at: captured_at || photo_metadata.captured_at,

@@ -7,6 +7,13 @@ class PhotoMetadata < ApplicationRecord
 
   validates :extraction_status, inclusion: { in: EXTRACTION_STATUSES }
 
+  def self.for_photo(photo)
+    photo.metadata || create!(photo: photo)
+  rescue ActiveRecord::RecordNotUnique
+    photo.association(:metadata).reset
+    photo.metadata || find_by!(photo: photo)
+  end
+
   def location?
     latitude.present? && longitude.present?
   end
