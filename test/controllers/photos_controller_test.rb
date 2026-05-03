@@ -249,6 +249,8 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "Archive"
     assert_select "section[data-controller='info-panel']"
+    assert_select "section[data-controller='info-panel'] > a.fixed[aria-label='Return to stream'][title='Return to stream']"
+    assert_select "main a[aria-label='Return to stream']", false
     assert_select "aside#photo-info-panel a", { text: "Back to stream", count: 0 }
     assert_select "button[aria-label='Show photo information'][data-action='info-panel#toggle']"
     assert_select "button[aria-label='Close photo information'][data-action='info-panel#close']"

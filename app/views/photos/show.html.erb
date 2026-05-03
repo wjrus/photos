@@ -1,6 +1,15 @@
 <% content_for :title, @photo.title %>
 
 <section class="relative min-h-screen overflow-hidden bg-zinc-950 text-zinc-950" data-controller="info-panel">
+  <%= link_to @return_to,
+        class: "ui-tooltip fixed left-4 top-4 z-20 flex size-11 items-center justify-center rounded-lg border border-white/25 bg-black/55 text-white backdrop-blur transition hover:bg-white hover:text-zinc-950",
+        aria: { label: "Return to stream" },
+        title: "Return to stream",
+        data: { tooltip: "Return to stream" } do %>
+    <%= app_icon(:chevron_left, classes: "size-7") %>
+    <span class="sr-only">Return to stream</span>
+  <% end %>
+
   <div class="min-h-screen w-full">
     <main class="relative flex min-h-screen items-center justify-center bg-zinc-950 p-3 lg:p-6"
           data-controller="stream-navigation"
@@ -8,14 +17,6 @@
           data-stream-navigation-back-url-value="<%= @return_to %>"
           data-stream-navigation-previous-url-value="<%= photo_path(@previous_photo, return_to: @return_to) if @previous_photo %>"
           data-stream-navigation-next-url-value="<%= photo_path(@next_photo, return_to: @return_to) if @next_photo %>">
-      <%= link_to @return_to,
-            class: "ui-tooltip absolute left-4 top-4 z-20 flex size-11 items-center justify-center rounded-lg border border-white/25 bg-black/55 text-white backdrop-blur transition hover:bg-white hover:text-zinc-950",
-            aria: { label: "Return to stream" },
-            title: "Return to stream",
-            data: { tooltip: "Return to stream" } do %>
-        <%= app_icon(:chevron_left, classes: "size-7") %>
-        <span class="sr-only">Return to stream</span>
-      <% end %>
       <button type="button"
               class="absolute right-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-black/55 font-serif text-lg font-semibold italic text-white backdrop-blur transition hover:bg-white hover:text-zinc-950"
               aria-label="Show photo information"
