@@ -314,7 +314,8 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     get root_path
 
     assert_response :success
-    assert_select "[data-controller='infinite-scroll']"
+    assert_select "[data-controller~='infinite-scroll']"
+    assert_select "[data-controller~='stream-state']"
     assert_select "[data-infinite-scroll-target='sentinel']"
   end
 
