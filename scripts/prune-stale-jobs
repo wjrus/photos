@@ -18,7 +18,7 @@ USAGE
   exit 0
 fi
 
-docker compose exec -T "$SERVICE" bin/rails runner <<'RUBY'
+docker compose exec -T "$SERVICE" bin/rails runner - <<'RUBY'
 connection = SolidQueue::Job.connection
 
 analyze_deleted = connection.exec_delete(<<~SQL.squish)
