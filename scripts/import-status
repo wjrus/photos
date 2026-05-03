@@ -134,19 +134,27 @@ queue_connection = SolidQueue::Job.connection
   line label, queue_connection.select_value("SELECT COUNT(*) FROM #{table}")
 end
 
-if queue_connection.select_value("SELECT COUNT(*) FROM solid_queue_ready_executions").to_i.positive?
-  puts
-  puts "Ready by job class"
-  rows = queue_connection.select_all(<<~SQL)
+def queue_rows_by_class(queue_connection, table, join_alias)
+  queue_connection.select_all(<<~SQL)
     SELECT jobs.class_name, COUNT(*) AS count
-    FROM solid_queue_ready_executions ready
-    INNER JOIN solid_queue_jobs jobs ON jobs.id = ready.job_id
+    FROM #{table} #{join_alias}
+    INNER JOIN solid_queue_jobs jobs ON jobs.id = #{join_alias}.job_id
     GROUP BY jobs.class_name
     ORDER BY count DESC, jobs.class_name ASC
     LIMIT 10
   SQL
+end
 
-  rows.each { |row| line row["class_name"], row["count"] }
+[
+  [ "Ready by job class", "solid_queue_ready_executions", "ready" ],
+  [ "Claimed by job class", "solid_queue_claimed_executions", "claimed" ],
+  [ "Failed by job class", "solid_queue_failed_executions", "failed" ]
+].each do |title, table, join_alias|
+  next unless queue_connection.select_value("SELECT COUNT(*) FROM #{table}").to_i.positive?
+
+  puts
+  puts title
+  queue_rows_by_class(queue_connection, table, join_alias).each { |row| line row["class_name"], row["count"] }
 end
 RUBY
 )"
