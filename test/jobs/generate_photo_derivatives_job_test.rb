@@ -1,6 +1,10 @@
 require "test_helper"
 
 class GeneratePhotoDerivativesJobTest < ActiveJob::TestCase
+  test "runs on the derivative queue" do
+    assert_equal "derivatives", GeneratePhotoDerivativesJob.new.queue_name
+  end
+
   test "generates stream and display variants" do
     photo = attached_photo
 

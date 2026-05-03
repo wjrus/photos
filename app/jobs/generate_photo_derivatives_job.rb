@@ -1,5 +1,5 @@
 class GeneratePhotoDerivativesJob < ApplicationJob
-  queue_as :analysis
+  queue_as :derivatives
 
   DERIVATIVES = %i[stream display].freeze
 
