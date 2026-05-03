@@ -19,25 +19,40 @@ USAGE
 fi
 
 docker compose exec -T "$SERVICE" bin/rails runner - <<'RUBY'
-connection = SolidQueue::Job.connection
-
-analyze_deleted = connection.exec_delete(<<~SQL.squish)
-  DELETE FROM solid_queue_jobs
-  WHERE class_name = 'ActiveStorage::AnalyzeJob'
-SQL
-
-checksum_deleted = 0
-SolidQueue::Job.where(class_name: "ChecksumOriginalJob").find_each do |job|
-  photo_id = job.arguments.to_s[/gid:\/\/photos\/Photo\/(\d+)/, 1]
-  next unless photo_id
-
-  photo = Photo.find_by(id: photo_id)
-  next unless photo&.checksum_complete? && photo.checksum_sha256.present?
-
-  job.destroy!
-  checksum_deleted += 1
+def say(message)
+  puts message
+  STDOUT.flush
 end
 
-puts "Deleted #{analyze_deleted} stale ActiveStorage analyze #{'job'.pluralize(analyze_deleted)}."
-puts "Deleted #{checksum_deleted} redundant checksum #{'job'.pluralize(checksum_deleted)}."
+say "Pruning stale ActiveStorage analysis jobs..."
+
+analyze_deleted = SolidQueue::Job.where(class_name: "ActiveStorage::AnalyzeJob").delete_all
+say "Deleted #{analyze_deleted} stale ActiveStorage analyze #{'job'.pluralize(analyze_deleted)}."
+
+say "Scanning redundant checksum jobs..."
+
+checksum_deleted = 0
+scanned = 0
+SolidQueue::Job.where(class_name: "ChecksumOriginalJob").find_in_batches(batch_size: 100) do |jobs|
+  photo_ids_by_job_id = jobs.each_with_object({}) do |job, ids|
+    photo_id = job.arguments.to_s[/gid:\/\/photos\/Photo\/(\d+)/, 1]
+    ids[job.id] = photo_id.to_i if photo_id
+  end
+  next if photo_ids_by_job_id.empty?
+
+  complete_photo_ids = Photo
+    .where(id: photo_ids_by_job_id.values, checksum_status: "complete")
+    .where.not(checksum_sha256: [ nil, "" ])
+    .pluck(:id)
+
+  deletable_job_ids = photo_ids_by_job_id.filter_map do |job_id, photo_id|
+    job_id if complete_photo_ids.include?(photo_id)
+  end
+
+  checksum_deleted += SolidQueue::Job.where(id: deletable_job_ids).delete_all if deletable_job_ids.any?
+  scanned += jobs.size
+  say "Scanned #{scanned} checksum jobs; deleted #{checksum_deleted}." if (scanned % 500).zero?
+end
+
+say "Deleted #{checksum_deleted} redundant checksum #{'job'.pluralize(checksum_deleted)}."
 RUBY
