@@ -6,6 +6,7 @@ require "zip"
 class GoogleTakeoutImporter
   MEDIA_EXTENSIONS = %w[.heic .jpg .jpeg .png .mov .mp4].freeze
   SIDECAR_EXTENSIONS = %w[.json .aae].freeze
+  TERMINAL_STATUSES = %w[imported duplicate skipped].freeze
 
   def initialize(owner:, logger: Rails.logger)
     @owner = owner
@@ -39,6 +40,14 @@ class GoogleTakeoutImporter
     logger.info("Google Takeout import: #{zip_path}")
 
     Zip::File.open(zip_path.to_s) do |zip_file|
+      media_names = media_entry_names(zip_file)
+      if (terminal_records = terminal_import_records_for(zip_path, media_names))
+        logger.info("Google Takeout import: skipping #{zip_path} (#{media_names.size} media entries already recorded)")
+        summary[:skipped_zips] += 1
+        count_terminal_records(terminal_records, summary)
+        return
+      end
+
       sidecars = sidecars_for(zip_file)
       album_metadata = album_metadata_for(zip_file)
 
@@ -55,6 +64,27 @@ class GoogleTakeoutImporter
         end
       end
     end
+  end
+
+  def media_entry_names(zip_file)
+    zip_file.each_with_object([]) do |entry, names|
+      names << entry.name if !entry.directory? && media_entry?(entry)
+    end
+  end
+
+  def terminal_import_records_for(zip_path, entry_names)
+    return if entry_names.empty?
+
+    records = GoogleTakeoutImport
+      .where(zip_path: zip_path.to_s, entry_name: entry_names, status: TERMINAL_STATUSES)
+      .index_by(&:entry_name)
+    return unless records.size == entry_names.size
+
+    records
+  end
+
+  def count_terminal_records(records, summary)
+    records.each_value { |import_record| count_existing(import_record, summary) }
   end
 
   def sidecars_for(zip_file)
@@ -293,6 +323,7 @@ class GoogleTakeoutImporter
       duplicates: 0,
       skipped: 0,
       sidecars: 0,
+      skipped_zips: 0,
       albums: 0,
       album_memberships: 0,
       restricted: 0,

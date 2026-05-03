@@ -70,7 +70,32 @@ class GoogleTakeoutImporterTest < ActiveSupport::TestCase
     assert_no_difference "Photo.count" do
       summary = importer.import_path(@zip_path)
       assert_equal 1, summary.fetch(:already_imported)
+      assert_equal 1, summary.fetch(:skipped_zips)
     end
+  end
+
+  test "does not skip a partially imported zip" do
+    write_zip(
+      "Takeout/Google Photos/IMG_0003.JPG" => "already here",
+      "Takeout/Google Photos/IMG_0004.JPG" => "new bytes"
+    )
+    GoogleTakeoutImport.create!(
+      zip_path: @zip_path.to_s,
+      entry_name: "Takeout/Google Photos/IMG_0003.JPG",
+      original_filename: "IMG_0003.JPG",
+      status: "imported",
+      photo: attached_photo(checksum_sha256: Digest::SHA256.hexdigest("already here")),
+      imported_at: Time.current
+    )
+
+    assert_difference "Photo.count", 1 do
+      summary = GoogleTakeoutImporter.new(owner: @owner).import_path(@zip_path)
+      assert_equal 1, summary.fetch(:already_imported)
+      assert_equal 1, summary.fetch(:imported)
+      assert_equal 0, summary.fetch(:skipped_zips)
+    end
+
+    assert_equal "imported", GoogleTakeoutImport.find_by!(entry_name: "Takeout/Google Photos/IMG_0004.JPG").status
   end
 
   test "imports zip files from a directory" do
