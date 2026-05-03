@@ -9,6 +9,8 @@ class AlbumsController < ApplicationController
     @albums = PhotoAlbum.visible_to(current_user)
       .includes(:photos)
       .display_order
+    @public_album_count = @albums.count(&:public?)
+    @private_album_count = @albums.count(&:private?)
   end
 
   def show

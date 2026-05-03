@@ -39,6 +39,8 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     get albums_path
     assert_response :success
     assert_includes response.body, "Shared"
+    assert_includes response.body, "&lt; Stream"
+    assert_includes response.body, "1 public, 0 private albums"
 
     get album_path(album)
     assert_response :success
@@ -53,6 +55,17 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     get album_path(album)
 
     assert_response :not_found
+  end
+
+  test "owner sees public and private album counts" do
+    @owner.photo_albums.create!(title: "Private album", source: "manual")
+    @owner.photo_albums.create!(title: "Public album", source: "manual", visibility: "public")
+
+    get albums_path
+
+    assert_response :success
+    assert_includes response.body, "1 public, 1 private albums"
+    assert_includes response.body, "&lt; Stream"
   end
 
   test "owner can publish and unpublish an album" do
