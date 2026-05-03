@@ -9,16 +9,17 @@ module ApplicationHelper
 
   def photo_stream_media(photo, **options)
     if photo.video?
-      if current_user&.owner?
-        video_tag photo_original_media_path(photo),
-          { class: "size-full object-cover", muted: true, playsinline: true, preload: "metadata" }.merge(options)
-      else
-        tag.div class: "flex size-full items-center justify-center bg-zinc-900 text-xs font-semibold uppercase tracking-[0.18em] text-white/70" do
-          "Video"
-        end
+      tag.div class: "flex size-full items-center justify-center bg-zinc-900 text-xs font-semibold uppercase tracking-[0.18em] text-white/70" do
+        "Video"
       end
     else
-      image_tag photo_display_image_path(photo), { alt: photo.title, class: "size-full object-cover" }.merge(options)
+      image_tag photo_display_image_path(photo),
+        {
+          alt: photo.title,
+          class: "size-full object-cover",
+          loading: "lazy",
+          decoding: "async"
+        }.merge(options)
     end
   end
 
@@ -33,7 +34,7 @@ module ApplicationHelper
       if current_user&.owner?
         video_tag photo_original_media_path(photo),
           controls: true,
-          preload: "metadata",
+          preload: "none",
           class: "max-h-[calc(100vh-3rem)] w-auto max-w-full rounded-lg object-contain shadow-2xl"
       else
         tag.div class: "mx-auto flex min-h-80 w-full max-w-xl items-center justify-center rounded-lg border border-white/15 bg-white/5 p-8 text-center text-sm leading-6 text-white/75 shadow-2xl" do
