@@ -16,7 +16,7 @@ Examples:
   ./scripts/prewarm-variants
   ./scripts/prewarm-variants 2000
 
-Queues background work for missing stream thumbnails. It does not process
+Queues background work for missing image derivatives. It does not process
 images inside the web request.
 USAGE
   exit 0
@@ -33,14 +33,13 @@ scope = Photo
 
 scope.find_each do |photo|
   next unless photo.original.attached?
-  next if photo.processed_original_variant_record(:stream)
+  next if photo.processed_original_variant_record(:stream) && photo.processed_original_variant_record(:display)
 
-  variant = photo.original.variant(:stream)
-  ActiveStorage::TransformJob.perform_later(photo.original.blob, variant.variation.transformations)
+  GeneratePhotoDerivativesJob.perform_later(photo)
   queued += 1
   break if queued >= limit
 end
 
-puts "Queued #{queued} stream thumbnail #{'job'.pluralize(queued)}."
+puts "Queued #{queued} image derivative #{'job'.pluralize(queued)}."
 RUBY
 )"

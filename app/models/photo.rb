@@ -11,7 +11,7 @@ class Photo < ApplicationRecord
   has_many :photo_people_tags, dependent: :destroy
   has_many :tagged_users, through: :photo_people_tags, source: :user
   has_one_attached :original do |attachable|
-    attachable.variant :stream, resize_to_fill: [ 700, 700 ], format: :jpg, preprocessed: true, saver: { strip: true, quality: 72 }
+    attachable.variant :stream, resize_to_fill: [ 700, 700 ], format: :jpg, saver: { strip: true, quality: 72 }
     attachable.variant :display, resize_to_limit: [ 1800, 1800 ], format: :jpg, saver: { strip: true, quality: 82 }
   end
   has_many_attached :sidecars
@@ -27,6 +27,7 @@ class Photo < ApplicationRecord
   after_create_commit :enqueue_checksum, unless: :checksum_complete?
   after_create_commit :enqueue_drive_archive, if: :checksum_complete?
   after_create_commit :enqueue_metadata_extraction
+  after_create_commit :enqueue_derivatives, if: :image?
 
   scope :visible_to, ->(user) {
     if user&.owner?
@@ -211,5 +212,9 @@ class Photo < ApplicationRecord
 
   def enqueue_metadata_extraction
     ExtractPhotoMetadataJob.perform_later(self)
+  end
+
+  def enqueue_derivatives
+    GeneratePhotoDerivativesJob.perform_later(self)
   end
 end
