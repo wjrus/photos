@@ -9,6 +9,7 @@ export default class extends Controller {
 
   connect() {
     this.startY = null
+    this.lastWheelAt = 0
   }
 
   keydown(event) {
@@ -46,6 +47,25 @@ export default class extends Controller {
     if (Math.abs(deltaY) < 50) return
 
     if (deltaY < 0) {
+      this.visit(this.nextUrlValue, { action: "replace" })
+    } else {
+      this.visit(this.previousUrlValue, { action: "replace" })
+    }
+  }
+
+  wheel(event) {
+    if (this.editingText(event)) return
+
+    const absX = Math.abs(event.deltaX)
+    const absY = Math.abs(event.deltaY)
+    if (absY < 35 || absY < absX) return
+
+    const now = Date.now()
+    if (now - this.lastWheelAt < 650) return
+
+    this.lastWheelAt = now
+
+    if (event.deltaY > 0) {
       this.visit(this.nextUrlValue, { action: "replace" })
     } else {
       this.visit(this.previousUrlValue, { action: "replace" })

@@ -297,8 +297,9 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "main[data-controller='stream-navigation']"
-    assert_select "a[href='#{photo_path(newer, return_to: map_path)}'][data-turbo-action='replace']", text: "Up"
-    assert_select "a[href='#{photo_path(older, return_to: map_path)}'][data-turbo-action='replace']", text: "Down"
+    assert_select "a[href='#{photo_path(newer, return_to: map_path)}'][data-turbo-action='replace'][aria-label='Previous item in stream'][title='Previous item in stream']"
+    assert_select "a[href='#{photo_path(older, return_to: map_path)}'][data-turbo-action='replace'][aria-label='Next item in stream'][title='Next item in stream']"
+    assert_includes response.body, "wheel->stream-navigation#wheel"
     assert_includes response.body, %(data-stream-navigation-back-url-value="#{map_path}")
     assert_includes response.body, %(data-stream-navigation-previous-url-value="#{photo_path(newer, return_to: map_path)}")
     assert_includes response.body, %(data-stream-navigation-next-url-value="#{photo_path(older, return_to: map_path)}")
