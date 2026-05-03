@@ -160,6 +160,18 @@ class PhotoTest < ActiveSupport::TestCase
     end
   end
 
+  test "does not enqueue active storage analysis for videos" do
+    assert_no_enqueued_jobs only: ActiveStorage::AnalyzeJob do
+      photo = users(:one).photos.new
+      photo.original.attach(
+        io: StringIO.new("fake mov bytes"),
+        filename: "clip.mov",
+        content_type: "video/quicktime"
+      )
+      photo.save!
+    end
+  end
+
   test "publishes and unpublishes" do
     photo = attached_photo
 
