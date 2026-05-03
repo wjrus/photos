@@ -20,6 +20,7 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
   test "owner sees geotagged photos on map" do
     photo = attached_photo(title: "Northport")
     geotag(photo, latitude: 45.1317, longitude: -85.6165)
+    album = @owner.photo_albums.create!(title: "North", source: "manual")
 
     get map_path
 
@@ -29,8 +30,29 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "1 geotagged photo"
     assert_includes response.body, "Northport"
     assert_includes response.body, photo_path(photo, return_to: map_path)
+    assert_includes response.body, "All photos"
+    assert_includes response.body, "North"
     assert_includes response.body, "test-google-maps-key"
     assert_select "[data-controller='google-map']"
+  end
+
+  test "owner can focus map on an album" do
+    trip = @owner.photo_albums.create!(title: "Trip", source: "manual")
+    other = @owner.photo_albums.create!(title: "Other", source: "manual")
+    trip_photo = attached_photo(title: "Trip overlook")
+    geotag(trip_photo, latitude: 44.7622, longitude: -85.5980)
+    other_photo = attached_photo(title: "Other overlook")
+    geotag(other_photo, latitude: 45.0, longitude: -86.0)
+    trip.photos << trip_photo
+    other.photos << other_photo
+
+    get map_path(album_id: trip.id)
+
+    assert_response :success
+    assert_includes response.body, "Trip overlook"
+    refute_includes response.body, "Other overlook"
+    assert_includes response.body, photo_path(trip_photo, return_to: map_path(album_id: trip.id))
+    assert_select "option[selected]", text: "Trip"
   end
 
   test "trusted viewer only sees public geotagged photos" do

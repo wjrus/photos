@@ -4,12 +4,25 @@
   <%= render "shared/site_header" %>
 
   <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-    <div class="mb-6 flex items-end justify-between gap-4">
+    <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div>
         <%= link_to "< Stream", root_path, class: "text-xs font-semibold uppercase tracking-[0.18em] text-teal-700 transition hover:text-teal-900" %>
         <h1 class="mt-3 text-3xl font-semibold text-zinc-950">Map</h1>
         <p class="mt-1 text-sm text-zinc-600"><%= pluralize(@map_markers.size, "geotagged photo") %></p>
       </div>
+
+      <%= form_with url: map_path, method: :get, class: "w-full sm:w-72", data: { turbo: false } do %>
+        <label for="album_id" class="sr-only">Map album filter</label>
+        <select id="album_id"
+                name="album_id"
+                onchange="this.form.requestSubmit()"
+                class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-800 shadow-sm outline-none transition hover:border-zinc-950 focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15">
+          <option value="">All photos</option>
+          <% @albums.each do |album| %>
+            <option value="<%= album.id %>" <%= "selected" if @selected_album == album %>><%= album.title %></option>
+          <% end %>
+        </select>
+      <% end %>
     </div>
 
     <% if @google_maps_api_key.blank? %>
