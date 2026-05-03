@@ -125,6 +125,17 @@ class PhotoTest < ActiveSupport::TestCase
     assert_equal oldest, scope.stream_after(current)
   end
 
+  test "finds stream neighbors from an already ordered stream" do
+    newest = attached_photo(captured_at: 1.hour.ago)
+    middle = attached_photo(captured_at: 12.hours.ago)
+    current = attached_photo(captured_at: 1.day.ago)
+    oldest = attached_photo(captured_at: 1.week.ago)
+    scope = Photo.where(id: [ newest.id, middle.id, current.id, oldest.id ]).stream_order
+
+    assert_equal middle, scope.stream_before(current)
+    assert_equal oldest, scope.stream_after(current)
+  end
+
   test "enqueues metadata extraction job after create" do
     assert_enqueued_with(job: ExtractPhotoMetadataJob) do
       attached_photo

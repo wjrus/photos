@@ -73,11 +73,11 @@ class Photo < ApplicationRecord
   end
 
   def self.stream_before(photo)
-    stream_tuple_greater_than(photo).order(Arel.sql(stream_tuple_order(direction: "ASC", nulls: "FIRST"))).first
+    stream_tuple_greater_than(photo).reorder(Arel.sql(stream_tuple_order(direction: "ASC", nulls: "FIRST"))).first
   end
 
   def self.stream_after(photo)
-    stream_tuple_less_than(photo).stream_order.first
+    stream_tuple_less_than(photo).reorder(Arel.sql(stream_tuple_order(direction: "DESC", nulls: "LAST"))).first
   end
 
   def self.decode_stream_cursor(cursor)
