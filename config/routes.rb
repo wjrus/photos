@@ -16,7 +16,7 @@ Rails.application.routes.draw do
   delete "/sign_out", to: "sessions#destroy", as: :sign_out
   get "/invitations/:token", to: "invitations#show", as: :invitation
   patch "/invitations/:token", to: "invitations#update", as: :accept_invitation
-  resources :users, only: %i[index create]
+  resources :users, only: %i[index create destroy]
   get "/archive", to: "archived_photos#index", as: :archived_photos
   resources :locations, only: %i[index show]
   get "/search", to: "search#show", as: :search

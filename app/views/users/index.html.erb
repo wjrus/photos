@@ -28,6 +28,7 @@
             <th class="px-4 py-3">User</th>
             <th class="px-4 py-3">Status</th>
             <th class="px-4 py-3">Invite link</th>
+            <th class="px-4 py-3 text-right">Actions</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-zinc-100">
@@ -56,6 +57,45 @@
                          class="w-full rounded-lg border border-zinc-300 bg-stone-50 px-3 py-2 text-xs text-zinc-700">
                 <% else %>
                   <span class="text-zinc-400">-</span>
+                <% end %>
+              </td>
+              <td class="px-4 py-3 text-right">
+                <% if user.owner? || user == current_user %>
+                  <span class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-400">Protected</span>
+                <% else %>
+                  <div class="inline-block" data-controller="confirm-modal" data-action="keydown@window->confirm-modal#keydown">
+                    <button type="button"
+                            class="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold uppercase text-rose-800 transition hover:bg-rose-800 hover:text-white"
+                            data-action="confirm-modal#open">
+                      Remove
+                    </button>
+
+                    <div class="fixed inset-0 z-50 hidden items-center justify-center bg-zinc-950/65 p-4 text-left backdrop-blur-sm"
+                         role="dialog"
+                         aria-modal="true"
+                         aria-labelledby="remove-user-<%= user.id %>-title"
+                         data-confirm-modal-target="dialog"
+                         data-action="click->confirm-modal#backdrop">
+                      <div class="w-full max-w-sm rounded-lg border border-rose-200 bg-white p-5 shadow-2xl"
+                           data-confirm-modal-target="panel">
+                        <h3 id="remove-user-<%= user.id %>-title" class="text-lg font-semibold text-zinc-950">Remove user?</h3>
+                        <p class="mt-3 text-sm leading-6 text-zinc-600">
+                          This removes <%= user.display_name %> and their access to private photos. Tags for this user will also be removed.
+                        </p>
+                        <div class="mt-5 grid grid-cols-2 gap-3">
+                          <button type="button"
+                                  class="rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold uppercase text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white"
+                                  data-action="confirm-modal#close">
+                            Cancel
+                          </button>
+                          <%= button_to "Remove",
+                                user_path(user),
+                                method: :delete,
+                                class: "w-full rounded-lg bg-rose-800 px-3 py-2 text-xs font-semibold uppercase text-white transition hover:bg-rose-950" %>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 <% end %>
               </td>
             </tr>
