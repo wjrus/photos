@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_03_180000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_03_210000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -139,6 +139,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_03_180000) do
     t.datetime "updated_at", null: false
     t.integer "width"
     t.index ["extraction_status"], name: "index_photo_metadata_on_extraction_status"
+    t.index ["latitude", "longitude"], name: "index_photo_metadata_on_location", where: "((latitude IS NOT NULL) AND (longitude IS NOT NULL))"
     t.index ["photo_id"], name: "index_photo_metadata_on_photo_id", unique: true
   end
 

@@ -19,6 +19,7 @@ Rails.application.routes.draw do
   resources :users, only: %i[index create]
   get "/archive", to: "archived_photos#index", as: :archived_photos
   get "/map", to: "maps#show", as: :map
+  get "/map/markers", to: "maps#markers", as: :map_markers
   resources :imports, only: %i[index create]
   get "/private", to: "restricted_photos#index", as: :restricted_photos
   post "/private/access", to: "restricted_photos#unlock", as: :unlock_restricted_photos

@@ -28,12 +28,19 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Map"
     assert_includes response.body, "&lt; Stream"
     assert_includes response.body, "1 geotagged photo"
-    assert_includes response.body, "Northport"
-    assert_includes response.body, photo_path(photo, return_to: map_path)
     assert_includes response.body, "All photos"
     assert_includes response.body, "North"
     assert_includes response.body, "test-google-maps-key"
     assert_select "[data-controller='google-map']"
+    assert_select "[data-google-map-markers-url-value='#{map_markers_path}']"
+
+    get map_markers_path(north: 46, south: 44, east: -84, west: -87)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    marker = payload.fetch("markers").find { |candidate| candidate.fetch("title") == "Northport" }
+    assert marker
+    assert_equal photo_path(photo, return_to: map_path), marker.fetch("photo_url")
   end
 
   test "owner can focus map on an album" do
@@ -49,10 +56,19 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     get map_path(album_id: trip.id)
 
     assert_response :success
-    assert_includes response.body, "Trip overlook"
     refute_includes response.body, "Other overlook"
-    assert_includes response.body, photo_path(trip_photo, return_to: map_path(album_id: trip.id))
     assert_select "option[selected]", text: "Trip"
+    assert_select "[data-google-map-markers-url-value='#{map_markers_path(album_id: trip.id)}']"
+
+    get map_markers_path(album_id: trip.id, north: 46, south: 44, east: -84, west: -87)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    marker_titles = payload.fetch("markers").map { |marker| marker.fetch("title") }
+    assert_includes marker_titles, "Trip overlook"
+    refute_includes marker_titles, "Other overlook"
+    marker = payload.fetch("markers").find { |candidate| candidate.fetch("title") == "Trip overlook" }
+    assert_equal photo_path(trip_photo, return_to: map_path(album_id: trip.id)), marker.fetch("photo_url")
   end
 
   test "trusted viewer only sees public geotagged photos" do
@@ -69,8 +85,14 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     get map_path
 
     assert_response :success
-    assert_includes response.body, "Public overlook"
     refute_includes response.body, "Private driveway"
+
+    get map_markers_path(north: 46, south: 44, east: -84, west: -87)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal 1, payload.fetch("total")
+    assert_equal "Public overlook", payload.dig("markers", 0, "title")
   end
 
   test "anonymous viewer cannot see map" do

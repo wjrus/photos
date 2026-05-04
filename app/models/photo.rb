@@ -51,6 +51,26 @@ class Photo < ApplicationRecord
   scope :with_original_variant_records, -> {
     with_attached_original.includes(original_attachment: { blob: { variant_records: { image_attachment: :blob } } })
   }
+  scope :in_map_bounds, ->(bounds) {
+    north = bounds[:north]
+    south = bounds[:south]
+    east = bounds[:east]
+    west = bounds[:west]
+
+    if north && south
+      where(photo_metadata: { latitude: south..north })
+    else
+      all
+    end.then do |scope|
+      if east && west && east < west
+        scope.where("photo_metadata.longitude >= :west OR photo_metadata.longitude <= :east", west: west, east: east)
+      elsif east && west
+        scope.where(photo_metadata: { longitude: west..east })
+      else
+        scope
+      end
+    end
+  }
 
   def self.before_stream_cursor(cursor)
     captured_at, created_at, id = decode_stream_cursor(cursor)

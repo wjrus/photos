@@ -3,11 +3,16 @@ import { Controller } from "@hotwired/stimulus"
 export default class extends Controller {
   static values = {
     apiKey: String,
-    markers: Array
+    markersUrl: String
   }
 
   connect() {
+    this.mapMarkers = []
     this.loadGoogleMaps().then(() => this.renderMap())
+  }
+
+  disconnect() {
+    window.google?.maps?.event?.clearInstanceListeners(this.map)
   }
 
   loadGoogleMaps() {
@@ -29,38 +34,94 @@ export default class extends Controller {
   }
 
   renderMap() {
-    const bounds = new window.google.maps.LatLngBounds()
-    const map = new window.google.maps.Map(this.element, {
+    this.bounds = new window.google.maps.LatLngBounds()
+    this.map = new window.google.maps.Map(this.element, {
       clickableIcons: false,
       fullscreenControl: false,
       mapTypeControl: false,
       streetViewControl: false,
+      center: { lat: 39.5, lng: -98.35 },
       zoom: 4
     })
-    const infoWindow = new window.google.maps.InfoWindow()
+    this.infoWindow = new window.google.maps.InfoWindow()
+    this.statusElement = this.status()
 
-    this.markersValue.forEach((marker) => {
-      const position = { lat: marker.latitude, lng: marker.longitude }
-      bounds.extend(position)
+    this.map.addListener("idle", () => this.loadVisibleMarkers())
+  }
 
-      const mapMarker = new window.google.maps.Marker({
-        map,
-        position,
-        title: marker.title
-      })
+  async loadVisibleMarkers() {
+    const bounds = this.map.getBounds()
+    if (!bounds) return
 
-      mapMarker.addListener("click", () => {
-        infoWindow.setContent(this.infoWindowContent(marker))
-        infoWindow.open({ anchor: mapMarker, map })
-      })
+    const requestKey = bounds.toUrlValue(4)
+    if (requestKey === this.lastRequestKey) return
+    this.lastRequestKey = requestKey
+    this.setStatus("Loading visible locations...")
+
+    try {
+      const payload = await this.fetchMarkers(bounds)
+      this.replaceMarkers(payload.markers)
+      this.setStatus(this.statusText(payload))
+    } catch {
+      this.setStatus("Could not load map locations.")
+    }
+  }
+
+  async fetchMarkers(bounds) {
+    const url = new URL(this.markersUrlValue, window.location.origin)
+    const northEast = bounds.getNorthEast()
+    const southWest = bounds.getSouthWest()
+    url.searchParams.set("north", northEast.lat())
+    url.searchParams.set("east", northEast.lng())
+    url.searchParams.set("south", southWest.lat())
+    url.searchParams.set("west", southWest.lng())
+
+    const response = await fetch(url, { headers: { "Accept": "application/json" } })
+    if (!response.ok) throw new Error("Could not load map markers.")
+    return response.json()
+  }
+
+  replaceMarkers(markers) {
+    this.mapMarkers.forEach((marker) => marker.setMap(null))
+    this.mapMarkers = markers.map((marker) => this.buildMarker(marker))
+  }
+
+  buildMarker(marker) {
+    const position = { lat: marker.latitude, lng: marker.longitude }
+    const mapMarker = new window.google.maps.Marker({
+      map: this.map,
+      position,
+      title: marker.title
     })
 
-    if (this.markersValue.length === 1) {
-      map.setCenter(bounds.getCenter())
-      map.setZoom(13)
-    } else {
-      map.fitBounds(bounds, 48)
-    }
+    mapMarker.addListener("click", () => {
+      this.infoWindow.setContent(this.infoWindowContent(marker))
+      this.infoWindow.open({ anchor: mapMarker, map: this.map })
+    })
+
+    return mapMarker
+  }
+
+  status() {
+    const element = document.createElement("div")
+    element.setAttribute("role", "status")
+    element.setAttribute("aria-live", "polite")
+    element.style.cssText = "background:white;border-radius:8px;box-shadow:0 1px 8px rgba(0,0,0,.18);font:600 12px system-ui,sans-serif;margin:12px;padding:8px 10px;"
+    this.map.controls[window.google.maps.ControlPosition.TOP_LEFT].push(element)
+    return element
+  }
+
+  setStatus(message) {
+    this.statusElement.textContent = message
+  }
+
+  statusText(payload) {
+    if (payload.total === 0) return "No visible geotagged photos."
+
+    const noun = payload.total === 1 ? "photo" : "photos"
+    const visible = payload.markers.length.toLocaleString()
+    const total = payload.total.toLocaleString()
+    return payload.limited ? `Showing ${visible} of ${total} visible ${noun}. Zoom in for more.` : `Showing ${total} visible ${noun}.`
   }
 
   infoWindowContent(marker) {
