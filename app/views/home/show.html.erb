@@ -1,4 +1,5 @@
 <% content_for :title, "wjr photos" %>
+<% content_for :body_class, "stream-timeline-scrollbar" if @timeline_periods.present? %>
 
 <% if current_user&.owner? %>
   <% content_for :header_actions do %>

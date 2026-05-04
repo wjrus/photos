@@ -1,8 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
-import { appendNextStreamPage } from "controllers/stream_page_loader"
-
 export default class extends Controller {
-  static targets = ["item", "label", "rail"]
+  static targets = ["item", "label", "rail", "thumb"]
 
   connect() {
     this.dragging = false
@@ -39,6 +37,7 @@ export default class extends Controller {
 
     this.hideLabel()
     this.clearHoverItems()
+    this.updateThumb()
   }
 
   jump(event) {
@@ -54,6 +53,7 @@ export default class extends Controller {
 
     this.clearHoverItems()
     item.classList.add("text-teal-700")
+    this.moveThumbToItem(item)
     this.showLabel(item)
     return item
   }
@@ -62,16 +62,8 @@ export default class extends Controller {
     const periodKey = item.dataset.streamTimelinePeriodKeyValue
     let group = this.findPeriodGroup(periodKey)
 
-    while (!group) {
-      const sentinel = document.querySelector("[data-infinite-scroll-target='sentinel']")
-      if (!sentinel?.dataset.nextUrl) break
-
-      try {
-        await appendNextStreamPage(sentinel, "Loading more...")
-      } catch {
-        break
-      }
-
+    if (!group) {
+      await this.loadPeriodPage(item)
       group = this.findPeriodGroup(periodKey)
     }
 
@@ -106,6 +98,7 @@ export default class extends Controller {
 
   updateActiveItem() {
     const group = this.currentDateGroup()
+    this.updateThumb()
     if (!group) return
 
     this.setActivePeriod(group.dataset.streamDateGroupKey.slice(0, 7))
@@ -121,16 +114,48 @@ export default class extends Controller {
       .find((group) => group.dataset.streamDateGroupKey.startsWith(periodKey))
   }
 
+  async loadPeriodPage(item) {
+    const url = item.dataset.streamTimelinePageUrlValue
+    const container = document.querySelector("[data-stream-page-container]")
+    if (!url || !container) return
+
+    this.labelTarget.textContent = "Loading..."
+    this.labelTarget.classList.remove("hidden")
+
+    const response = await fetch(url, { headers: { "Accept": "text/html" } })
+    if (!response.ok) return
+
+    container.innerHTML = await response.text()
+  }
+
   setActivePeriod(periodKey) {
     this.itemTargets.forEach((item) => {
       const active = item.dataset.streamTimelinePeriodKeyValue === periodKey
       item.classList.toggle("text-zinc-950", active)
       item.classList.toggle("font-bold", active)
+      item.classList.toggle("stream-timeline__item--active", active)
       item.setAttribute("aria-current", active ? "date" : "false")
     })
   }
 
   clearHoverItems() {
     this.itemTargets.forEach((item) => item.classList.remove("text-teal-700"))
+  }
+
+  updateThumb() {
+    if (!this.hasThumbTarget) return
+
+    const scrollable = document.documentElement.scrollHeight - window.innerHeight
+    const progress = scrollable <= 0 ? 0 : window.scrollY / scrollable
+    this.thumbTarget.style.top = `${Math.min(Math.max(progress, 0), 1) * 100}%`
+  }
+
+  moveThumbToItem(item) {
+    if (!this.hasThumbTarget || !this.hasRailTarget) return
+
+    const itemRect = item.getBoundingClientRect()
+    const railRect = this.railTarget.getBoundingClientRect()
+    const progress = (itemRect.top - railRect.top) / railRect.height
+    this.thumbTarget.style.top = `${Math.min(Math.max(progress, 0), 1) * 100}%`
   }
 }

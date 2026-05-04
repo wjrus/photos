@@ -22,7 +22,7 @@
     <%= javascript_importmap_tags %>
   </head>
 
-  <body class="bg-stone-50 antialiased">
+  <body class="bg-stone-50 antialiased <%= content_for(:body_class) %>">
     <% if notice.present? || alert.present? %>
       <div class="fixed left-1/2 top-4 z-50 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 overflow-hidden rounded-lg border bg-white text-sm shadow-lg <%= alert.present? ? "border-rose-200 text-rose-800" : "border-teal-200 text-teal-900" %>"
            role="<%= alert.present? ? "alert" : "status" %>"

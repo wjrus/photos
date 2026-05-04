@@ -351,7 +351,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_select "nav[aria-label='Photo timeline'][data-controller='stream-timeline']"
     assert_select "button[aria-label*='Jump to May 2024'][data-stream-timeline-period-key-value='2024-05']"
     assert_select "button[aria-label*='Jump to February 2018'][data-stream-timeline-period-key-value='2018-02']"
-    refute_includes response.body, "?cursor="
+    assert_select "button[data-stream-timeline-page-url-value*='cursor=']"
   end
 
   test "photo stream groups photos by day with day-level selection" do

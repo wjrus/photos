@@ -31,7 +31,8 @@ class HomeController < ApplicationController
             label: period.strftime("%B %Y"),
             year: period.year,
             month: period.month,
-            key: period.strftime("%Y-%m")
+            key: period.strftime("%Y-%m"),
+            cursor: Photo.stream_cursor_before(period.next_month)
           }
         end
     end

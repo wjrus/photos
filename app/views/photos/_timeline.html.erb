@@ -1,31 +1,36 @@
 <% total = periods.size %>
 
-<nav class="fixed right-4 top-28 bottom-8 z-30 hidden w-24 lg:block"
+<nav class="stream-timeline fixed right-0 top-0 bottom-0 z-30 hidden w-28 lg:block"
      aria-label="Photo timeline"
      data-controller="stream-timeline"
      data-action="pointerdown->stream-timeline#pointerdown pointermove->stream-timeline#pointermove pointerup->stream-timeline#pointerup pointerleave->stream-timeline#pointerleave">
-  <div class="relative h-full cursor-ns-resize select-none rounded-full border-r border-zinc-300/80"
+  <div class="stream-timeline__rail relative h-full cursor-ns-resize select-none"
        data-stream-timeline-target="rail">
-    <div class="pointer-events-none absolute right-8 hidden -translate-y-1/2 rounded bg-zinc-950 px-2 py-1 text-xs font-semibold text-white shadow-sm"
+    <div class="stream-timeline__track" aria-hidden="true"></div>
+    <div class="stream-timeline__thumb"
+         aria-hidden="true"
+         data-stream-timeline-target="thumb"></div>
+    <div class="stream-timeline__label pointer-events-none absolute hidden -translate-y-1/2 rounded bg-zinc-950 px-2 py-1 text-xs font-semibold text-white shadow-sm"
          data-stream-timeline-target="label"></div>
 
     <% periods.each_with_index do |period, index| %>
       <% position = total == 1 ? 0 : (index.to_f / (total - 1) * 100) %>
       <% show_year = index.zero? || period[:year] != periods[index - 1][:year] %>
       <button type="button"
-              class="absolute right-0 flex -translate-y-1/2 cursor-ns-resize items-center gap-2 text-xs font-semibold text-zinc-500 transition hover:text-zinc-950 focus:text-zinc-950"
+              class="stream-timeline__item absolute flex -translate-y-1/2 cursor-ns-resize items-center gap-2 text-xs font-semibold text-zinc-500 transition hover:text-zinc-950 focus:text-zinc-950"
               style="top: <%= position %>%"
               title="<%= period[:label] %>"
               aria-label="Jump to <%= period[:label] %>, <%= pluralize(period[:count], "photo") %>"
               data-action="click->stream-timeline#jump"
               data-stream-timeline-target="item"
               data-stream-timeline-period-key-value="<%= period[:key] %>"
+              data-stream-timeline-page-url-value="<%= root_path(cursor: period[:cursor]) %>"
               data-stream-timeline-label-value="<%= period[:label] %>"
               data-stream-timeline-count-value="<%= pluralize(period[:count], "photo") %>">
         <% if show_year %>
           <span class="tabular-nums"><%= period[:year] %></span>
         <% end %>
-        <span class="<%= show_year ? "size-1.5 bg-zinc-500" : "size-1 bg-zinc-400" %> rounded-full"></span>
+        <span class="stream-timeline__dot <%= show_year ? "stream-timeline__dot--year bg-zinc-500" : "bg-zinc-400" %> rounded-full"></span>
       </button>
     <% end %>
   </div>
