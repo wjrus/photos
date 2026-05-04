@@ -25,7 +25,12 @@ async function loadStreamPage(sentinel, loadingLabel, position) {
     })
     if (!response.ok) throw new Error("Could not load more photos.")
 
-    const html = streamPageHtml(await response.text())
+    const html = streamPageHtml(await response.text()).trim()
+    if (!html) {
+      sentinel.textContent = "No more photos."
+      return false
+    }
+
     sentinel.insertAdjacentHTML(position, html)
     sentinel.remove()
     return true

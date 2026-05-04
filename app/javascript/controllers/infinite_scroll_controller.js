@@ -3,9 +3,6 @@ import { appendNextStreamPage, prependPreviousStreamPage } from "controllers/str
 
 export default class extends Controller {
   static targets = ["sentinel"]
-  static values = {
-    loading: Boolean
-  }
 
   connect() {
     this.observer = new IntersectionObserver((entries) => this.loadIfVisible(entries), {
@@ -31,24 +28,23 @@ export default class extends Controller {
   }
 
   async loadIfVisible(entries) {
-    if (this.loadingValue || !entries.some((entry) => entry.isIntersecting)) return
     const sentinel = entries.find((entry) => entry.isIntersecting)?.target
-    if (!sentinel) return
-
-    this.loadingValue = true
+    if (!sentinel || sentinel.dataset.loading === "true") return
 
     try {
+      sentinel.dataset.loading = "true"
       this.observer.unobserve(sentinel)
       if (sentinel.dataset.streamPageDirection === "newer") {
         await prependPreviousStreamPage(sentinel)
       } else {
         await appendNextStreamPage(sentinel)
       }
-      this.loadingValue = false
       this.observeSentinel()
     } catch (error) {
-      sentinel.textContent = error.message
-      this.loadingValue = false
+      console.error(error)
+      sentinel.textContent = `${error.message} Scroll to retry.`
+      delete sentinel.dataset.loading
+      this.observer.observe(sentinel)
     }
   }
 }

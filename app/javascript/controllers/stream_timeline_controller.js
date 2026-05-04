@@ -6,6 +6,7 @@ export default class extends Controller {
 
   connect() {
     this.dragging = false
+    this.loadingUrl = null
     this.updateActiveItem = this.updateActiveItem.bind(this)
     window.addEventListener("scroll", this.updateActiveItem, { passive: true })
     this.updateActiveItem()
@@ -13,6 +14,7 @@ export default class extends Controller {
 
   disconnect() {
     window.removeEventListener("scroll", this.updateActiveItem)
+    this.abortController?.abort()
   }
 
   pointerdown(event) {
@@ -39,7 +41,7 @@ export default class extends Controller {
 
     this.hideLabel()
     this.clearHoverItems()
-    this.updateThumb()
+    this.updateActiveItem()
   }
 
   jump(event) {
@@ -71,6 +73,7 @@ export default class extends Controller {
 
     group?.scrollIntoView({ block: "start", behavior: "smooth" })
     this.setActivePeriod(periodKey)
+    this.moveThumbToPeriod(periodKey)
   }
 
   nearestItem(clientY) {
@@ -100,10 +103,11 @@ export default class extends Controller {
 
   updateActiveItem() {
     const group = this.currentDateGroup()
-    this.updateThumb()
     if (!group) return
 
-    this.setActivePeriod(group.dataset.streamDateGroupKey.slice(0, 7))
+    const periodKey = group.dataset.streamDateGroupKey.slice(0, 7)
+    this.setActivePeriod(periodKey)
+    this.moveThumbToPeriod(periodKey)
   }
 
   currentDateGroup() {
@@ -120,14 +124,33 @@ export default class extends Controller {
     const url = item.dataset.streamTimelinePageUrlValue
     const container = document.querySelector("[data-stream-page-container]")
     if (!url || !container) return
+    if (this.loadingUrl === url) return
+
+    this.abortController?.abort()
+    this.abortController = new AbortController()
+    this.loadingUrl = url
+    container.setAttribute("aria-busy", "true")
 
     this.labelTarget.textContent = "Loading..."
     this.labelTarget.classList.remove("hidden")
 
-    const response = await fetch(url, { headers: { "Accept": "text/html" } })
-    if (!response.ok) return
+    try {
+      const response = await fetch(url, {
+        headers: { "Accept": "text/html" },
+        signal: this.abortController.signal
+      })
+      if (!response.ok) throw new Error(`Timeline jump failed with ${response.status}`)
 
-    container.innerHTML = streamPageHtml(await response.text())
+      container.innerHTML = streamPageHtml(await response.text())
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        console.error(error)
+        this.labelTarget.textContent = "Could not load"
+      }
+    } finally {
+      container.removeAttribute("aria-busy")
+      this.loadingUrl = null
+    }
   }
 
   setActivePeriod(periodKey) {
@@ -144,12 +167,9 @@ export default class extends Controller {
     this.itemTargets.forEach((item) => item.classList.remove("text-teal-700"))
   }
 
-  updateThumb() {
-    if (!this.hasThumbTarget) return
-
-    const scrollable = document.documentElement.scrollHeight - window.innerHeight
-    const progress = scrollable <= 0 ? 0 : window.scrollY / scrollable
-    this.thumbTarget.style.top = `${Math.min(Math.max(progress, 0), 1) * 100}%`
+  moveThumbToPeriod(periodKey) {
+    const item = this.itemTargets.find((target) => target.dataset.streamTimelinePeriodKeyValue === periodKey)
+    if (item) this.moveThumbToItem(item)
   }
 
   moveThumbToItem(item) {
