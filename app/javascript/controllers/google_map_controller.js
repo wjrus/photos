@@ -48,6 +48,7 @@ export default class extends Controller {
     this.statusElement = this.status()
 
     this.map.addListener("idle", () => this.loadVisibleMarkers())
+    this.map.addListener("click", () => this.infoWindow.close())
   }
 
   async loadVisibleMarkers() {
