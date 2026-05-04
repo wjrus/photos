@@ -40,7 +40,27 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     payload = JSON.parse(response.body)
     marker = payload.fetch("markers").find { |candidate| candidate.fetch("title") == "Northport" }
     assert marker
+    assert_equal "photo", marker.fetch("type")
     assert_equal photo_path(photo, return_to: map_path), marker.fetch("photo_url")
+  end
+
+  test "markers groups nearby photos into locations at lower zoom levels" do
+    first = attached_photo(title: "First overlook")
+    second = attached_photo(title: "Second overlook")
+    far = attached_photo(title: "Far overlook")
+    geotag(first, latitude: 44.7622, longitude: -85.5980)
+    geotag(second, latitude: 44.7630, longitude: -85.5970)
+    geotag(far, latitude: 45.5, longitude: -86.5)
+
+    get map_markers_path(north: 46, south: 44, east: -84, west: -87, zoom: 10)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    location = payload.fetch("markers").find { |marker| marker.fetch("type") == "location" }
+    assert location
+    assert_equal 2, location.fetch("count")
+    assert_equal "2 photos in this area", location.fetch("title")
+    assert_equal 3, payload.fetch("total")
   end
 
   test "owner can focus map on an album" do

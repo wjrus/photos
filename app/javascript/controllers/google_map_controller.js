@@ -75,6 +75,7 @@ export default class extends Controller {
     url.searchParams.set("east", northEast.lng())
     url.searchParams.set("south", southWest.lat())
     url.searchParams.set("west", southWest.lng())
+    url.searchParams.set("zoom", this.map.getZoom())
 
     const response = await fetch(url, { headers: { "Accept": "application/json" } })
     if (!response.ok) throw new Error("Could not load map markers.")
@@ -91,10 +92,17 @@ export default class extends Controller {
     const mapMarker = new window.google.maps.Marker({
       map: this.map,
       position,
-      title: marker.title
+      title: marker.title,
+      label: marker.type === "location" ? this.locationLabel(marker.count) : undefined
     })
 
     mapMarker.addListener("click", () => {
+      if (marker.type === "location") {
+        this.map.panTo(position)
+        this.map.setZoom(Math.min(this.map.getZoom() + 2, 21))
+        return
+      }
+
       this.infoWindow.setContent(this.infoWindowContent(marker))
       this.infoWindow.open({ anchor: mapMarker, map: this.map })
     })
@@ -119,9 +127,18 @@ export default class extends Controller {
     if (payload.total === 0) return "No visible geotagged photos."
 
     const noun = payload.total === 1 ? "photo" : "photos"
-    const visible = payload.markers.length.toLocaleString()
+    const visible = payload.locations.toLocaleString()
     const total = payload.total.toLocaleString()
-    return payload.limited ? `Showing ${visible} of ${total} visible ${noun}. Zoom in for more.` : `Showing ${total} visible ${noun}.`
+    return payload.limited ? `Showing ${visible} locations for ${total} visible ${noun}. Zoom in for more.` : `Showing ${visible} locations for ${total} visible ${noun}.`
+  }
+
+  locationLabel(count) {
+    return {
+      text: count > 999 ? "999+" : count.toString(),
+      color: "#fff",
+      fontSize: "12px",
+      fontWeight: "700"
+    }
   }
 
   infoWindowContent(marker) {

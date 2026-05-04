@@ -1,5 +1,13 @@
 class MapsController < ApplicationController
   MARKER_LIMIT = 500
+  CLUSTER_SELECT_SQL = <<~SQL.squish
+    FLOOR(photo_metadata.latitude / :cell_size) AS latitude_bucket,
+    FLOOR(photo_metadata.longitude / :cell_size) AS longitude_bucket,
+    COUNT(*) AS photo_count,
+    AVG(photo_metadata.latitude) AS latitude,
+    AVG(photo_metadata.longitude) AS longitude,
+    MIN(photos.id) AS representative_photo_id
+  SQL
 
   before_action :require_privileged_metadata_viewer!
   before_action :set_map_context
@@ -12,16 +20,12 @@ class MapsController < ApplicationController
   def markers
     marker_scope = geotagged_photos.in_map_bounds(map_bounds)
     total = marker_scope.count
-    markers = marker_scope
-      .with_attached_original
-      .includes(:metadata)
-      .stream_order
-      .limit(MARKER_LIMIT)
-      .map { |photo| marker_payload(photo) }
+    markers = location_payloads(marker_scope)
 
     render json: {
       markers: markers,
       total: total,
+      locations: markers.size,
       limited: total > markers.size,
       limit: MARKER_LIMIT
     }
@@ -51,13 +55,72 @@ class MapsController < ApplicationController
   def marker_payload(photo)
     metadata = photo.metadata
     {
+      type: "photo",
       id: photo.id,
       title: photo.title,
+      count: 1,
       latitude: metadata.latitude.to_f,
       longitude: metadata.longitude.to_f,
       photo_url: photo_path(photo, return_to: @map_return_path),
       media_url: photo.image? ? display_photo_path(photo) : nil
     }
+  end
+
+  def location_payloads(scope)
+    rows = location_rows(scope)
+    photos_by_id = representative_photos(rows)
+
+    rows.first(MARKER_LIMIT).filter_map do |row|
+      count = row.photo_count.to_i
+      if count == 1
+        photo = photos_by_id[row.representative_photo_id.to_i]
+        marker_payload(photo) if photo
+      else
+        location_payload(row, count)
+      end
+    end
+  end
+
+  def location_rows(scope)
+    cell_size = map_cell_size(params[:zoom])
+    bucket_sql = Photo.sanitize_sql_array([ CLUSTER_SELECT_SQL, { cell_size: cell_size } ])
+    latitude_bucket_sql = Photo.sanitize_sql_array([ "FLOOR(photo_metadata.latitude / :cell_size)", { cell_size: cell_size } ])
+    longitude_bucket_sql = Photo.sanitize_sql_array([ "FLOOR(photo_metadata.longitude / :cell_size)", { cell_size: cell_size } ])
+
+    scope
+      .select(bucket_sql)
+      .group(Arel.sql(latitude_bucket_sql), Arel.sql(longitude_bucket_sql))
+      .order(Arel.sql("photo_count DESC"))
+      .limit(MARKER_LIMIT + 1)
+  end
+
+  def representative_photos(rows)
+    ids = rows.first(MARKER_LIMIT).map { |row| row.representative_photo_id.to_i }
+    Photo.with_attached_original.includes(:metadata).where(id: ids).index_by(&:id)
+  end
+
+  def location_payload(row, count)
+    {
+      type: "location",
+      id: "location-#{row.latitude_bucket.to_i}-#{row.longitude_bucket.to_i}",
+      title: "#{count} photos in this area",
+      count: count,
+      latitude: row.latitude.to_f,
+      longitude: row.longitude.to_f
+    }
+  end
+
+  def map_cell_size(zoom)
+    zoom = bounded_float(zoom, 1, 21) || 4
+    case zoom
+    when ...5 then 5.0
+    when ...7 then 2.0
+    when ...9 then 0.5
+    when ...11 then 0.1
+    when ...13 then 0.025
+    when ...15 then 0.005
+    else 0.0005
+    end
   end
 
   def map_bounds
