@@ -5,6 +5,7 @@ Production is a small Docker Compose stack:
 - `web`: Rails, Puma, Thruster, HTTP on host port `3000`
 - `worker`: Solid Queue worker for checksums, EXIF, derivatives, and Drive mirrors
 - `db`: PostgreSQL with persistent data
+- `redis`: Redis cache for hot Rails cache entries
 - `app_storage`: persistent Active Storage originals and variants
 
 The Postgres volume is mounted at `/var/lib/postgresql`, which is the expected layout for the official PostgreSQL 18+ Docker image.
@@ -44,7 +45,7 @@ Build and start:
 ./scripts/deploy
 ```
 
-The `web` container runs `bin/rails db:prepare` on boot. That creates and migrates the primary, cache, queue, and cable databases.
+The `web` container runs `bin/rails db:prepare` on boot. That creates and migrates the primary, cache, queue, and cable databases. Redis is used for the runtime Rails cache when `REDIS_URL` is present; Solid Cache remains available as a fallback.
 
 Check status:
 
@@ -78,9 +79,10 @@ Or use the deploy script:
 Back up the database volume and the app storage path:
 
 - `photos_postgres_data`
+- `photos_redis_data`
 - `${PHOTOS_STORAGE_PATH}` when set, otherwise `photos_app_storage`
 
-The database contains users, photo records, metadata, jobs, and Drive archive state. `app_storage` contains originals and generated local files. Google Drive is an archive mirror, not the only source of truth.
+The database contains users, photo records, metadata, jobs, and Drive archive state. Redis contains disposable cache entries. `app_storage` contains originals and generated local files. Google Drive is an archive mirror, not the only source of truth.
 
 ## Nginx Proxy Manager
 

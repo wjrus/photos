@@ -116,6 +116,7 @@ Production runs as a Docker Compose stack with:
 - `web`: Rails/Puma/Thruster exposed on host port `3000`
 - `worker`: Solid Queue worker for checksums, metadata, imports, and Drive archive jobs
 - `db`: PostgreSQL
+- `redis`: Rails cache
 - mounted app storage for originals and generated files
 
 Nginx Proxy Manager terminates TLS for `photos.wjr.us` and proxies HTTP to the VM on port `3000`.
