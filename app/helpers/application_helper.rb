@@ -22,6 +22,13 @@ module ApplicationHelper
     end
   end
 
+  def path_with_query(path, params)
+    uri = URI.parse(path)
+    existing_params = Rack::Utils.parse_nested_query(uri.query)
+    uri.query = existing_params.merge(params.stringify_keys).compact_blank.to_query
+    uri.to_s
+  end
+
   def photo_detail_media(photo)
     if photo.video?
       if current_user&.owner?

@@ -1,0 +1,92 @@
+<% content_for :title, "Search" %>
+
+<% if current_user&.owner? %>
+  <% content_for :header_actions do %>
+    <%= render "photos/bulk_toolbar", albums: @albums, return_to: search_path(@search_params), form_id: "search-photo-bulk-form" %>
+  <% end %>
+<% end %>
+
+<section class="min-h-screen bg-stone-50 text-zinc-950"
+         <%= %(data-controller="bulk-selection" data-bulk-selection-form-id-value="search-photo-bulk-form" data-bulk-selection-empty-label-value="Select photos, then choose an action.").html_safe if current_user&.owner? %>>
+  <%= render "shared/site_header" %>
+
+  <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <div class="border-b border-zinc-200 pb-5">
+      <%= link_to "< Stream", root_path, class: "text-xs font-semibold uppercase tracking-[0.18em] text-teal-700 transition hover:text-teal-900" %>
+      <h1 class="mt-3 text-3xl font-semibold text-zinc-950">Search</h1>
+      <p class="mt-1 text-sm text-zinc-600">Find photos by name, place, person, camera, or lens.</p>
+    </div>
+
+    <%= form_with url: search_path, method: :get, class: "mt-6 grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm lg:grid-cols-6", data: { turbo: false } do %>
+      <div class="lg:col-span-2">
+        <label for="q" class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Text</label>
+        <input id="q" name="q" value="<%= @search_params[:q] %>" placeholder="Names, places, filenames..."
+               class="mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15">
+      </div>
+
+      <div>
+        <label for="person_id" class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Person</label>
+        <select id="person_id" name="person_id" class="mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15">
+          <option value="">Any person</option>
+          <% @filter_options[:people].each do |person| %>
+            <option value="<%= person.id %>" <%= "selected" if @search_params[:person_id].to_s == person.id.to_s %>><%= person.name %></option>
+          <% end %>
+        </select>
+      </div>
+
+      <div>
+        <label for="place_id" class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Place</label>
+        <select id="place_id" name="place_id" class="mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15">
+          <option value="">Any place</option>
+          <% @filter_options[:places].each do |place| %>
+            <option value="<%= place.location_id %>" <%= "selected" if @search_params[:place_id].to_s == place.location_id %>><%= place.name %></option>
+          <% end %>
+        </select>
+      </div>
+
+      <div>
+        <label for="camera_model" class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Camera</label>
+        <select id="camera_model" name="camera_model" class="mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15">
+          <option value="">Any camera</option>
+          <% @filter_options[:camera_models].each do |camera_model| %>
+            <option value="<%= camera_model %>" <%= "selected" if @search_params[:camera_model] == camera_model %>><%= camera_model %></option>
+          <% end %>
+        </select>
+      </div>
+
+      <div>
+        <label for="lens_model" class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Lens</label>
+        <select id="lens_model" name="lens_model" class="mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15">
+          <option value="">Any lens</option>
+          <% @filter_options[:lenses].each do |lens| %>
+            <option value="<%= lens %>" <%= "selected" if @search_params[:lens_model] == lens %>><%= lens %></option>
+          <% end %>
+        </select>
+      </div>
+
+      <div class="flex items-end gap-2 lg:col-span-6">
+        <button type="submit" class="rounded-lg bg-zinc-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800">Search</button>
+        <%= link_to "Clear", search_path, class: "rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+      </div>
+    <% end %>
+
+    <div class="mt-6">
+      <% if @photos.any? %>
+        <%= render "photos/grid",
+              photos: @photos,
+              return_to: search_path(@search_params),
+              feature_first: false,
+              bulk_form_id: "search-photo-bulk-form",
+              next_cursor: @next_cursor,
+              next_page_path: search_path(@search_params) %>
+      <% elsif @search_active %>
+        <div class="flex min-h-[340px] items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-white p-8 text-center shadow-sm">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">No matches</p>
+            <h2 class="mt-3 text-2xl font-semibold text-zinc-950">No photos matched that search.</h2>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </main>
+</section>
