@@ -158,8 +158,8 @@ class PhotoTest < ActiveSupport::TestCase
     end
   end
 
-  test "does not enqueue image derivative job for videos" do
-    assert_no_enqueued_jobs only: GeneratePhotoDerivativesJob do
+  test "enqueues video derivative job after create" do
+    assert_enqueued_with(job: GeneratePhotoDerivativesJob) do
       photo = users(:one).photos.new
       photo.original.attach(
         io: StringIO.new("fake mov bytes"),

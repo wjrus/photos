@@ -16,8 +16,8 @@ Examples:
   ./scripts/prewarm-variants
   ./scripts/prewarm-variants 2000
 
-Queues background work for missing image derivatives. It does not process
-images inside the web request.
+Queues background work for missing image and video derivatives. It does not
+process media inside the web request.
 USAGE
   exit 0
 fi
@@ -29,7 +29,6 @@ queued = 0
 cursor = nil
 
 scope = Photo
-  .where("photos.content_type LIKE 'image/%'")
   .with_original_variant_records
 
 loop do
@@ -39,7 +38,13 @@ loop do
   photos.each do |photo|
     cursor = photo.stream_cursor
     next unless photo.original.attached?
-    next if photo.processed_original_variant_record(:stream) && photo.processed_original_variant_record(:display)
+    if photo.image?
+      next if photo.processed_original_variant_record(:stream) && photo.processed_original_variant_record(:display)
+    elsif photo.video?
+      next if photo.video_derivatives_ready?
+    else
+      next
+    end
 
     GeneratePhotoDerivativesJob.perform_later(photo)
     queued += 1
@@ -49,6 +54,6 @@ loop do
   break if queued >= limit
 end
 
-puts "Queued #{queued} image derivative #{'job'.pluralize(queued)}."
+puts "Queued #{queued} derivative #{'job'.pluralize(queued)}."
 RUBY
 )"

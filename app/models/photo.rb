@@ -17,6 +17,8 @@ class Photo < ApplicationRecord
     attachable.variant :stream, resize_to_fill: [ 700, 700 ], format: :jpg, saver: { strip: true, quality: 72 }
     attachable.variant :display, resize_to_limit: [ 1800, 1800 ], format: :jpg, saver: { strip: true, quality: 82 }
   end
+  has_one_attached :video_preview
+  has_one_attached :video_display
   has_many_attached :sidecars
 
   validates :visibility, inclusion: { in: VISIBILITIES }
@@ -30,7 +32,7 @@ class Photo < ApplicationRecord
   after_create_commit :enqueue_checksum, unless: :checksum_complete?
   after_create_commit :enqueue_drive_archive, if: :checksum_complete?
   after_create_commit :enqueue_metadata_extraction
-  after_create_commit :enqueue_derivatives, if: :image?
+  after_create_commit :enqueue_derivatives, if: :derivative_media?
 
   scope :visible_to, ->(user) {
     if user&.owner?
@@ -52,7 +54,10 @@ class Photo < ApplicationRecord
     reorder(Arel.sql(stream_tuple_order(direction: "ASC", nulls: "FIRST")))
   }
   scope :with_original_variant_records, -> {
-    with_attached_original.includes(original_attachment: { blob: { variant_records: { image_attachment: :blob } } })
+    with_attached_video_preview
+      .with_attached_video_display
+      .with_attached_original
+      .includes(original_attachment: { blob: { variant_records: { image_attachment: :blob } } })
   }
   scope :in_map_bounds, ->(bounds) {
     north = bounds[:north]
@@ -188,6 +193,14 @@ class Photo < ApplicationRecord
 
   def video?
     content_type.to_s.start_with?("video/")
+  end
+
+  def derivative_media?
+    image? || video?
+  end
+
+  def video_derivatives_ready?
+    video? && video_preview.attached? && video_display.attached?
   end
 
   def sidecar_count

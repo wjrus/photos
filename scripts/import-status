@@ -113,6 +113,21 @@ if sample_image&.original&.attached?
   line "display derivatives", "#{display_ready} ready / #{image_originals - display_ready} missing"
 end
 
+video_originals = ActiveStorage::Attachment
+  .where(record_type: "Photo", name: "original")
+  .joins(:blob)
+  .where("active_storage_blobs.content_type LIKE 'video/%'")
+  .count
+
+if video_originals.positive?
+  video_previews = ActiveStorage::Attachment.where(record_type: "Photo", name: "video_preview").count
+  video_displays = ActiveStorage::Attachment.where(record_type: "Photo", name: "video_display").count
+
+  line "video originals", video_originals
+  line "video previews", "#{video_previews} ready / #{video_originals - video_previews} missing"
+  line "video display files", "#{video_displays} ready / #{video_originals - video_displays} missing"
+end
+
 puts
 puts "Drive archive"
 puts "-------------"

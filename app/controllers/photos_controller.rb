@@ -1,8 +1,8 @@
 class PhotosController < ApplicationController
   owner_access_message "Only the owner can manage photos."
 
-  before_action :require_owner!, except: %i[show display]
-  before_action :set_visible_photo, only: %i[show display]
+  before_action :require_owner!, except: %i[show display video]
+  before_action :set_visible_photo, only: %i[show display video]
   before_action :set_photo, only: %i[media caption publish unpublish retry_archive destroy]
 
   def show
@@ -19,6 +19,12 @@ class PhotosController < ApplicationController
       type: "image/jpeg",
       disposition: "inline",
       filename: public_filename(@photo, ".jpg")
+  end
+
+  def video
+    return head :not_found unless @photo.video? && @photo.video_display.attached?
+
+    redirect_to rails_blob_path(@photo.video_display, disposition: "inline")
   end
 
   def media

@@ -470,28 +470,52 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to root_path
   end
 
-  test "owner video detail renders the original video player" do
+  test "owner video detail renders the display video player" do
     photo = attached_video
+    attach_video_derivatives(photo)
 
     get photo_path(photo)
 
     assert_response :success
     assert_includes response.body, "<video"
     assert_includes response.body, "controls"
+    assert_includes response.body, video_photo_path(photo)
     assert_includes response.body, photo.original_filename
   end
 
-  test "public video detail withholds original playback" do
+  test "public video detail uses display derivative and withholds original playback" do
     photo = attached_video
+    attach_video_derivatives(photo)
     photo.publish!
     delete sign_out_path
 
     get photo_path(photo)
 
     assert_response :success
-    refute_includes response.body, "<video"
-    assert_includes response.body, "Video derivative unavailable."
+    assert_includes response.body, "<video"
+    assert_includes response.body, video_photo_path(photo)
+    refute_includes response.body, media_photo_path(photo)
     refute_includes response.body, photo.original_filename
+  end
+
+  test "public viewer can access video display derivative for public photos" do
+    photo = attached_video
+    attach_video_derivatives(photo)
+    photo.publish!
+    delete sign_out_path
+
+    get video_photo_path(photo)
+
+    assert_response :redirect
+    assert_includes response.location, "clip-display.mp4"
+  end
+
+  test "video display route returns not found until derivative exists" do
+    photo = attached_video
+
+    get video_photo_path(photo)
+
+    assert_response :not_found
   end
 
   private
@@ -536,5 +560,18 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     )
     photo.save!
     photo
+  end
+
+  def attach_video_derivatives(photo)
+    photo.video_preview.attach(
+      io: StringIO.new("fake jpg bytes"),
+      filename: "clip-preview.jpg",
+      content_type: "image/jpeg"
+    )
+    photo.video_display.attach(
+      io: StringIO.new("fake mp4 bytes"),
+      filename: "clip-display.mp4",
+      content_type: "video/mp4"
+    )
   end
 end

@@ -65,7 +65,7 @@ class MapsController < ApplicationController
       latitude: metadata.latitude.to_f,
       longitude: metadata.longitude.to_f,
       photo_url: photo_path(photo, return_to: @map_return_path),
-      media_url: photo.image? ? display_photo_path(photo) : nil
+      media_url: map_media_url(photo)
     }
   end
 
@@ -119,9 +119,14 @@ class MapsController < ApplicationController
       location_url: location_path(location_id),
       preview_urls: Array(row.preview_photo_ids)
         .filter_map { |id| photos_by_id[id.to_i] }
-        .select(&:image?)
-        .map { |photo| display_photo_path(photo) }
+        .filter_map { |photo| map_media_url(photo) }
     }
+  end
+
+  def map_media_url(photo)
+    return display_photo_path(photo) if photo.image?
+
+    url_for(photo.video_preview) if photo.video? && photo.video_preview.attached?
   end
 
   def location_places(rows)
