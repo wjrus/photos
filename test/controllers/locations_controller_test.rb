@@ -4,10 +4,12 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
   setup do
     OmniAuth.config.test_mode = true
     @owner = users(:one)
+    @google_maps_api_key = ENV["GOOGLE_MAPS_EMBED_API_KEY"]
     sign_in_as(@owner)
   end
 
   teardown do
+    ENV["GOOGLE_MAPS_EMBED_API_KEY"] = @google_maps_api_key
     OmniAuth.config.mock_auth[:google_oauth2] = nil
     OmniAuth.config.test_mode = false
   end
@@ -30,6 +32,18 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href='#{location_path(location_id_for(photo))}']"
   end
 
+  test "locations index does not bulk enqueue missing geocodes" do
+    ENV["GOOGLE_MAPS_EMBED_API_KEY"] = "test-key"
+    photo = attached_photo(title: "Ungocoded")
+    geotag(photo, latitude: 44.7622, longitude: -85.5980)
+
+    assert_no_enqueued_jobs only: GeocodePhotoLocationJob do
+      get locations_path
+    end
+
+    assert_response :success
+  end
+
   test "location page shows matching photos as a stream" do
     inside = attached_photo(title: "Inside location")
     geotag(inside, latitude: 44.7622, longitude: -85.5980)
@@ -47,6 +61,18 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Inside location"
     refute_includes response.body, "Outside location"
     assert_select "[data-controller~='stream-state']"
+  end
+
+  test "location detail may enqueue only its missing geocode" do
+    ENV["GOOGLE_MAPS_EMBED_API_KEY"] = "test-key"
+    inside = attached_photo(title: "Specific ungeocoded")
+    geotag(inside, latitude: 44.7622, longitude: -85.5980)
+
+    assert_enqueued_with(job: GeocodePhotoLocationJob) do
+      get location_path(location_id_for(inside))
+    end
+
+    assert_response :success
   end
 
   test "anonymous viewer cannot browse locations" do

@@ -8,7 +8,6 @@ class LocationsController < ApplicationController
     @locations = cached_location_rows
     @location_places = location_places(@locations)
     @location_covers = location_covers(@locations)
-    enqueue_missing_location_names(@locations, @location_places)
   end
 
   def show
@@ -27,7 +26,7 @@ class LocationsController < ApplicationController
   private
 
   def cached_location_rows
-    Rails.cache.fetch(location_index_cache_key, expires_in: 10.minutes, race_condition_ttl: 10.seconds) do
+    Rails.cache.fetch(location_index_cache_key, expires_in: 12.hours, race_condition_ttl: 2.minutes) do
       PhotoLocation.rows(geotagged_photos).to_a
     end
   end
