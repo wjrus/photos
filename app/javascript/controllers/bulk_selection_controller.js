@@ -67,6 +67,8 @@ export default class extends Controller {
     if (!group) return
 
     const checked = event.target.checked
+    event.target.indeterminate = false
+
     this.inputsForGroup(group).forEach((input) => {
       input.checked = checked
     })
