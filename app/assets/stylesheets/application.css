@@ -171,12 +171,11 @@
 .stream-timeline__rail {
   pointer-events: auto;
   inline-size: 100%;
-  padding-block: 1.5rem;
 }
 
 .stream-timeline__track {
   position: absolute;
-  inset-block: 1.5rem;
+  inset-block: 0.75rem;
   inset-inline-end: 0.85rem;
   inline-size: 2px;
   border-radius: 999px;
@@ -193,12 +192,14 @@
   background: #0f766e;
   box-shadow: 0 6px 16px rgba(15, 118, 110, 0.28);
   transform: translateY(-50%);
+  z-index: 2;
 }
 
 .stream-timeline__item {
   inset-inline-end: 0.55rem;
   justify-content: flex-end;
   min-inline-size: 4.25rem;
+  line-height: 1;
 }
 
 .stream-timeline__dot {
@@ -213,6 +214,26 @@
 }
 
 .stream-timeline__label {
-  inset-inline-end: 2.25rem;
+  inset-inline-end: 2.35rem;
+  z-index: 3;
+  padding: 0.42rem 0.6rem;
+  border-radius: 0.45rem;
+  background: rgba(24, 24, 27, 0.96);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.24);
   white-space: nowrap;
+}
+
+.stream-timeline__label::after {
+  content: "";
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-end: -0.32rem;
+  inline-size: 0.65rem;
+  block-size: 0.65rem;
+  background: rgba(24, 24, 27, 0.96);
+  transform: translateY(-50%) rotate(45deg);
 }

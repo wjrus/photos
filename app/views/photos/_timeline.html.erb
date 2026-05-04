@@ -1,6 +1,8 @@
 <% total = periods.size %>
+<% edge_percent = 3.5 %>
+<% last_labeled_index = nil %>
 
-<nav class="stream-timeline fixed right-0 top-0 bottom-0 z-30 hidden w-28 lg:block"
+<nav class="stream-timeline fixed bottom-6 right-0 top-20 z-30 hidden w-28 lg:block"
      aria-label="Photo timeline"
      data-controller="stream-timeline"
      data-action="pointerdown->stream-timeline#pointerdown pointermove->stream-timeline#pointermove pointerup->stream-timeline#pointerup pointerleave->stream-timeline#pointerleave">
@@ -10,16 +12,19 @@
     <div class="stream-timeline__thumb"
          aria-hidden="true"
          data-stream-timeline-target="thumb"></div>
-    <div class="stream-timeline__label pointer-events-none absolute hidden -translate-y-1/2 rounded bg-zinc-950 px-2 py-1 text-xs font-semibold text-white shadow-sm"
+    <div class="stream-timeline__label pointer-events-none absolute hidden -translate-y-1/2"
+         role="status"
+         aria-live="polite"
          data-stream-timeline-target="label"></div>
 
     <% periods.each_with_index do |period, index| %>
-      <% position = total == 1 ? 0 : (index.to_f / (total - 1) * 100) %>
-      <% show_year = index.zero? || period[:year] != periods[index - 1][:year] %>
+      <% position = total == 1 ? 50 : edge_percent + (index.to_f / (total - 1) * (100 - (edge_percent * 2))) %>
+      <% year_changed = index.zero? || period[:year] != periods[index - 1][:year] %>
+      <% show_year = year_changed && (last_labeled_index.nil? || index - last_labeled_index >= 3 || index == total - 1) %>
+      <% last_labeled_index = index if show_year %>
       <button type="button"
               class="stream-timeline__item absolute flex -translate-y-1/2 cursor-ns-resize items-center gap-2 text-xs font-semibold text-zinc-500 transition hover:text-zinc-950 focus:text-zinc-950"
               style="top: <%= position %>%"
-              title="<%= period[:label] %>"
               aria-label="Jump to <%= period[:label] %>, <%= pluralize(period[:count], "photo") %>"
               data-action="click->stream-timeline#jump"
               data-stream-timeline-target="item"

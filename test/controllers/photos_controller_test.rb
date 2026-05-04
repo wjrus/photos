@@ -353,8 +353,10 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "nav[aria-label='Photo timeline'][data-controller='stream-timeline']"
+    assert_select "nav[aria-label='Photo timeline'] [data-stream-timeline-target='label'][role='status']"
     assert_select "button[aria-label*='Jump to May 2024'][data-stream-timeline-period-key-value='2024-05']"
     assert_select "button[aria-label*='Jump to February 2018'][data-stream-timeline-period-key-value='2018-02']"
+    assert_select "nav[aria-label='Photo timeline'] button[title]", false
     assert_select "button[data-stream-timeline-page-url-value*='cursor=']"
     assert_select "button[data-stream-timeline-page-url-value*='stream_page=1']"
     assert_select "button[data-stream-timeline-page-url-value*='timeline_page=1']"

@@ -6,6 +6,7 @@ export default class extends Controller {
 
   connect() {
     this.dragging = false
+    this.hovering = false
     this.loadingUrl = null
     this.updateActiveItem = this.updateActiveItem.bind(this)
     window.addEventListener("scroll", this.updateActiveItem, { passive: true })
@@ -18,12 +19,15 @@ export default class extends Controller {
   }
 
   pointerdown(event) {
+    event.preventDefault()
     this.dragging = true
+    this.hovering = true
     this.element.setPointerCapture?.(event.pointerId)
     this.activateNearestItem(event.clientY)
   }
 
   pointermove(event) {
+    this.hovering = true
     this.activateNearestItem(event.clientY)
   }
 
@@ -39,13 +43,14 @@ export default class extends Controller {
   pointerleave() {
     if (this.dragging) return
 
-    this.hideLabel()
+    this.hovering = false
     this.clearHoverItems()
     this.updateActiveItem()
   }
 
   jump(event) {
     event.preventDefault()
+    this.hovering = false
     this.scrollToPeriod(event.currentTarget)
   }
 
@@ -58,7 +63,7 @@ export default class extends Controller {
     this.clearHoverItems()
     item.classList.add("text-teal-700")
     this.moveThumbToItem(item)
-    this.showLabel(item)
+    this.showLabel(item, clientY)
     return item
   }
 
@@ -74,6 +79,7 @@ export default class extends Controller {
     group?.scrollIntoView({ block: "start", behavior: "smooth" })
     this.setActivePeriod(periodKey)
     this.moveThumbToPeriod(periodKey)
+    this.showLabel(item)
   }
 
   nearestItem(clientY) {
@@ -84,12 +90,13 @@ export default class extends Controller {
     }, null)?.item
   }
 
-  showLabel(item) {
+  showLabel(item, clientY = null) {
     if (!this.hasLabelTarget || !this.hasRailTarget) return
 
     const itemRect = item.getBoundingClientRect()
     const railRect = this.railTarget.getBoundingClientRect()
-    const top = itemRect.top - railRect.top
+    const rawTop = clientY == null ? itemRect.top - railRect.top : clientY - railRect.top
+    const top = Math.min(Math.max(rawTop, 16), Math.max(railRect.height - 16, 16))
     const count = item.dataset.streamTimelineCountValue
 
     this.labelTarget.textContent = [item.dataset.streamTimelineLabelValue, count].filter(Boolean).join(" · ")
@@ -106,8 +113,10 @@ export default class extends Controller {
     if (!group) return
 
     const periodKey = group.dataset.streamDateGroupKey.slice(0, 7)
-    this.setActivePeriod(periodKey)
+    const item = this.setActivePeriod(periodKey)
     this.moveThumbToPeriod(periodKey)
+
+    if (!this.hovering && !this.dragging && item) this.showLabel(item)
   }
 
   currentDateGroup() {
@@ -154,13 +163,18 @@ export default class extends Controller {
   }
 
   setActivePeriod(periodKey) {
+    let activeItem = null
+
     this.itemTargets.forEach((item) => {
       const active = item.dataset.streamTimelinePeriodKeyValue === periodKey
       item.classList.toggle("text-zinc-950", active)
       item.classList.toggle("font-bold", active)
       item.classList.toggle("stream-timeline__item--active", active)
       item.setAttribute("aria-current", active ? "date" : "false")
+      if (active) activeItem = item
     })
+
+    return activeItem
   }
 
   clearHoverItems() {
