@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import { appendNextStreamPage } from "controllers/stream_page_loader"
 
 export default class extends Controller {
   connect() {
@@ -31,16 +32,13 @@ export default class extends Controller {
   async loadUntilReachable(targetY) {
     while (document.documentElement.scrollHeight < targetY + window.innerHeight) {
       const sentinel = this.element.querySelector("[data-infinite-scroll-target='sentinel']")
-      const url = sentinel?.dataset.nextUrl
-      if (!sentinel || !url) return
+      if (!sentinel?.dataset.nextUrl) return
 
-      sentinel.textContent = "Restoring..."
-      const response = await fetch(url, { headers: { "Accept": "text/html" } })
-      if (!response.ok) return
-
-      const html = await response.text()
-      sentinel.insertAdjacentHTML("beforebegin", html)
-      sentinel.remove()
+      try {
+        await appendNextStreamPage(sentinel, "Restoring...")
+      } catch {
+        return
+      }
     }
   }
 

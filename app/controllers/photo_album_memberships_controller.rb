@@ -1,4 +1,6 @@
 class PhotoAlbumMembershipsController < ApplicationController
+  owner_access_message "Only the owner can manage albums."
+
   before_action :require_owner!
 
   def destroy
@@ -11,13 +13,5 @@ class PhotoAlbumMembershipsController < ApplicationController
     album.update!(cover_photo: nil) if album.cover_photo_id == membership.photo_id
 
     redirect_to album_path(album), notice: "Photo removed from album."
-  end
-
-  private
-
-  def require_owner!
-    return if current_user&.owner?
-
-    redirect_to root_path, alert: "Only the owner can manage albums."
   end
 end

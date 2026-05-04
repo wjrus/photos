@@ -1,4 +1,6 @@
 class AlbumBulkActionsController < ApplicationController
+  owner_access_message "Only the owner can manage albums."
+
   before_action :require_owner!
 
   def create
@@ -25,11 +27,5 @@ class AlbumBulkActionsController < ApplicationController
 
   def selected_album_ids
     Array(params[:album_ids]).compact_blank
-  end
-
-  def require_owner!
-    return if current_user&.owner?
-
-    redirect_to root_path, alert: "Only the owner can manage albums."
   end
 end

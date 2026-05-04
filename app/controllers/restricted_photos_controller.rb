@@ -1,4 +1,6 @@
 class RestrictedPhotosController < ApplicationController
+  owner_access_message "Only the owner can open that page."
+
   before_action :require_owner!
 
   def index
@@ -31,10 +33,4 @@ class RestrictedPhotosController < ApplicationController
   end
 
   private
-
-  def require_owner!
-    return if current_user&.owner?
-
-    redirect_to root_path, alert: "Only the owner can open that page."
-  end
 end

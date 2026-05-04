@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import { appendNextStreamPage } from "controllers/stream_page_loader"
 
 export default class extends Controller {
   static targets = ["sentinel"]
@@ -27,20 +28,11 @@ export default class extends Controller {
     if (this.loadingValue || !entries.some((entry) => entry.isIntersecting)) return
     if (!this.hasSentinelTarget) return
 
-    const url = this.sentinelTarget.dataset.nextUrl
-    if (!url) return
-
     this.loadingValue = true
-    this.sentinelTarget.textContent = "Loading..."
 
     try {
-      const response = await fetch(url, { headers: { "Accept": "text/html" } })
-      if (!response.ok) throw new Error("Could not load more photos.")
-
-      const html = await response.text()
       this.observer.unobserve(this.sentinelTarget)
-      this.sentinelTarget.insertAdjacentHTML("beforebegin", html)
-      this.sentinelTarget.remove()
+      await appendNextStreamPage(this.sentinelTarget)
       this.loadingValue = false
       this.observeSentinel()
     } catch (error) {

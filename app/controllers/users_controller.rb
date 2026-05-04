@@ -1,4 +1,6 @@
 class UsersController < ApplicationController
+  owner_access_message "Only the owner can manage users."
+
   before_action :require_owner!
 
   def index
@@ -22,11 +24,5 @@ class UsersController < ApplicationController
 
   def invite_params
     params.require(:user).permit(:first_name, :last_name, :email)
-  end
-
-  def require_owner!
-    return if current_user&.owner?
-
-    redirect_to root_path, alert: "Only the owner can manage users."
   end
 end

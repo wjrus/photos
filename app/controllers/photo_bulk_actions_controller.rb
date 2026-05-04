@@ -1,4 +1,6 @@
 class PhotoBulkActionsController < ApplicationController
+  owner_access_message "Only the owner can manage photos."
+
   before_action :require_owner!
 
   def create
@@ -56,22 +58,5 @@ class PhotoBulkActionsController < ApplicationController
     photos.count do |photo|
       PhotoAlbumMembership.find_or_create_by!(photo: photo, photo_album: album).previously_new_record?
     end
-  end
-
-  def safe_return_path
-    return root_path if params[:return_to].blank?
-
-    uri = URI.parse(params[:return_to])
-    return params[:return_to] if uri.relative?
-
-    root_path
-  rescue URI::InvalidURIError
-    root_path
-  end
-
-  def require_owner!
-    return if current_user&.owner?
-
-    redirect_to root_path, alert: "Only the owner can manage photos."
   end
 end

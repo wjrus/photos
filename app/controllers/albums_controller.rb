@@ -1,5 +1,6 @@
 class AlbumsController < ApplicationController
   include PhotoStreamPagination
+  owner_access_message "Only the owner can manage albums."
 
   before_action :require_owner!, except: %i[index show]
   before_action :set_visible_album, only: %i[show]
@@ -20,7 +21,12 @@ class AlbumsController < ApplicationController
       .stream_order)
     @albums = current_user.photo_albums.display_order if current_user&.owner?
 
-    render partial: "photos/page", locals: photo_page_locals(feature_first: false) if params[:cursor].present?
+    render_photo_page_if_requested(
+      return_to: album_path(@album),
+      bulk_form_id: "album-photo-bulk-form",
+      album: @album,
+      next_page_path: album_path(@album)
+    )
   end
 
   def create
@@ -64,30 +70,11 @@ class AlbumsController < ApplicationController
     params.require(:photo_album).permit(:title, :visibility)
   end
 
-  def photo_page_locals(feature_first:)
-    {
-      photos: @photos,
-      return_to: album_path(@album),
-      feature_first: feature_first,
-      bulk_form_id: "album-photo-bulk-form",
-      owner_controls: current_user&.owner?,
-      album: @album,
-      next_cursor: @next_cursor,
-      next_page_path: album_path(@album)
-    }
-  end
-
   def set_visible_album
     @album = PhotoAlbum.visible_to(current_user).find(params[:id])
   end
 
   def set_album
     @album = current_user.photo_albums.find(params[:id])
-  end
-
-  def require_owner!
-    return if current_user&.owner?
-
-    redirect_to root_path, alert: "Only the owner can manage albums."
   end
 end

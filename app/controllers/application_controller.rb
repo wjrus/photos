@@ -1,4 +1,6 @@
 class ApplicationController < ActionController::Base
+  class_attribute :owner_required_message, default: "Only the owner can do that."
+
   # Only allow modern browsers supporting webp images, web push, badges, import maps, CSS nesting, and CSS :has.
   allow_browser versions: :modern
 
@@ -8,6 +10,10 @@ class ApplicationController < ActionController::Base
   helper_method :current_user, :signed_in?, :privileged_metadata_viewer?
 
   private
+
+  def self.owner_access_message(message)
+    self.owner_required_message = message
+  end
 
   def current_user
     @current_user ||= session_user || remembered_user
@@ -19,6 +25,31 @@ class ApplicationController < ActionController::Base
 
   def privileged_metadata_viewer?
     current_user&.trusted_viewer?
+  end
+
+  def require_owner!
+    return if current_user&.owner?
+
+    if owner_access_json_response?
+      render json: { error: owner_required_message }, status: :forbidden
+    else
+      redirect_to root_path, alert: owner_required_message
+    end
+  end
+
+  def safe_return_path(default: root_path)
+    return default if params[:return_to].blank?
+
+    uri = URI.parse(params[:return_to])
+    return params[:return_to] if uri.relative?
+
+    default
+  rescue URI::InvalidURIError
+    default
+  end
+
+  def owner_access_json_response?
+    request.format.json?
   end
 
   def sign_in(user, remember: false)

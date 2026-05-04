@@ -1,5 +1,6 @@
 class UploadChunksController < ApplicationController
   UPLOAD_TTL = 30.minutes
+  owner_access_message "Only the owner can upload photos."
 
   before_action :require_owner!
   before_action :cleanup_stale_uploads, only: %i[create status complete]
@@ -129,9 +130,7 @@ class UploadChunksController < ApplicationController
     upload_dir(id).join(safe_file)
   end
 
-  def require_owner!
-    return if current_user&.owner?
-
-    render json: { error: "Only the owner can upload photos." }, status: :forbidden
+  def owner_access_json_response?
+    true
   end
 end

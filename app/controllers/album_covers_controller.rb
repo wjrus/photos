@@ -1,4 +1,6 @@
 class AlbumCoversController < ApplicationController
+  owner_access_message "Only the owner can manage albums."
+
   before_action :require_owner!
 
   def update
@@ -7,13 +9,5 @@ class AlbumCoversController < ApplicationController
     album.update!(cover_photo: photo)
 
     redirect_to album_path(album), notice: "Album cover updated."
-  end
-
-  private
-
-  def require_owner!
-    return if current_user&.owner?
-
-    redirect_to root_path, alert: "Only the owner can manage albums."
   end
 end

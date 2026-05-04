@@ -1,4 +1,6 @@
 class PhotosController < ApplicationController
+  owner_access_message "Only the owner can manage photos."
+
   before_action :require_owner!, except: %i[show display]
   before_action :set_visible_photo, only: %i[show display]
   before_action :set_photo, only: %i[media caption publish unpublish retry_archive destroy]
@@ -99,17 +101,6 @@ class PhotosController < ApplicationController
     safe_return_path
   end
 
-  def safe_return_path
-    return root_path if params[:return_to].blank?
-
-    uri = URI.parse(params[:return_to])
-    return params[:return_to] if uri.relative?
-
-    root_path
-  rescue URI::InvalidURIError
-    root_path
-  end
-
   def batch_upload?
     params.dig(:photos, :files).present?
   end
@@ -174,12 +165,6 @@ class PhotosController < ApplicationController
     return unless match
 
     PhotoAlbum.visible_to(current_user).find_by(id: match[1])
-  end
-
-  def require_owner!
-    return if current_user&.owner?
-
-    redirect_to root_path, alert: "Only the owner can manage photos."
   end
 
   def public_filename(photo, extension)
