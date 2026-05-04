@@ -63,6 +63,14 @@
   box-shadow: 0 1px 4px rgba(24, 24, 27, 0.22);
 }
 
+.day-selection-control input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .day-selection-control:hover {
   background: rgba(24, 24, 27, 0.08);
 }
