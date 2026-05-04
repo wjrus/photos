@@ -1,6 +1,6 @@
 <div class="space-y-7"
      data-stream-page-container
-     data-controller="<%= [("infinite-scroll" if next_cursor.present?), "stream-state"].compact.join(" ") %>"
+     data-controller="<%= [("infinite-scroll" if next_cursor.present?), "stream-state", "stream-virtualizer"].compact.join(" ") %>"
      data-action="click->stream-state#save">
   <%= render "photos/page",
         photos: photos,

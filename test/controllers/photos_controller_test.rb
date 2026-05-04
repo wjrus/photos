@@ -352,6 +352,28 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_select "button[aria-label*='Jump to May 2024'][data-stream-timeline-period-key-value='2024-05']"
     assert_select "button[aria-label*='Jump to February 2018'][data-stream-timeline-period-key-value='2018-02']"
     assert_select "button[data-stream-timeline-page-url-value*='cursor=']"
+    assert_select "button[data-stream-timeline-page-url-value*='stream_page=1']"
+    assert_select "button[data-stream-timeline-page-url-value*='timeline_page=1']"
+  end
+
+  test "timeline stream page renders only photo groups with newer and older sentinels" do
+    newer = attached_photo(title: "Timeline page newer")
+    newer.update!(captured_at: Time.zone.local(2024, 5, 12, 10))
+    current = attached_photo(title: "Timeline page current")
+    current.update!(captured_at: Time.zone.local(2021, 6, 10, 10))
+    older = attached_photo(title: "Timeline page older")
+    older.update!(captured_at: Time.zone.local(2021, 5, 10, 10))
+
+    get root_path(cursor: Photo.stream_cursor_before(Time.zone.local(2021, 7, 1)), stream_page: 1, timeline_page: 1)
+
+    assert_response :success
+    assert_select "section#day-2021-06-10"
+    assert_select "[data-stream-page-direction='newer'][data-next-url*='newer_cursor=']"
+    assert_select "[data-next-url*='cursor=']"
+    refute_includes response.body, "William Rockwood"
+    assert_includes response.body, current.title
+    refute_includes response.body, newer.title
+    assert_includes response.body, older.title
   end
 
   test "photo stream groups photos by day with day-level selection" do

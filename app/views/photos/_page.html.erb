@@ -2,6 +2,15 @@
 <% album = local_assigns[:album] %>
 <% grouped_photos = photos.group_by { |photo| photo_stream_day(photo) } %>
 
+<% if local_assigns[:newer_cursor].present? %>
+  <div class="py-6 text-center text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500"
+       data-infinite-scroll-target="sentinel"
+       data-stream-page-direction="newer"
+       data-next-url="<%= "#{next_page_path}?#{URI.encode_www_form(newer_cursor: local_assigns[:newer_cursor], stream_page: 1)}" %>">
+    Loading newer...
+  </div>
+<% end %>
+
 <% grouped_photos.each_with_index do |(day, day_photos), group_index| %>
   <%= render "photos/day_group",
         day: day,
@@ -17,7 +26,7 @@
 <% if next_cursor.present? %>
   <div class="py-6 text-center text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500"
        data-infinite-scroll-target="sentinel"
-       data-next-url="<%= "#{next_page_path}?#{URI.encode_www_form(cursor: next_cursor)}" %>">
+       data-next-url="<%= "#{next_page_path}?#{URI.encode_www_form(cursor: next_cursor, stream_page: 1)}" %>">
     Loading more...
   </div>
 <% end %>

@@ -3,7 +3,8 @@ class HomeController < ApplicationController
 
   def show
     visible_stream = Photo.visible_to(current_user)
-    @photos, @next_cursor = paginate_photo_stream(visible_stream.with_original_variant_records.stream_order)
+    @photos, @next_cursor, @newer_cursor = paginate_photo_stream(visible_stream.with_original_variant_records.stream_order)
+    @newer_cursor ||= timeline_newer_cursor(visible_stream) if params[:timeline_page].present?
     @albums = current_user.photo_albums.display_order if current_user&.owner?
     @timeline_periods = stream_timeline_periods(visible_stream) unless params[:cursor].present?
 
@@ -36,6 +37,13 @@ class HomeController < ApplicationController
           }
         end
     end
+  end
+
+  def timeline_newer_cursor(scope)
+    cursor = @photos.first&.stream_cursor
+    return unless cursor
+
+    cursor if scope.after_stream_cursor(cursor).exists?
   end
 
   def stream_timeline_cache_key

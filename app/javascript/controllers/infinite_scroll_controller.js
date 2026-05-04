@@ -1,5 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
-import { appendNextStreamPage } from "controllers/stream_page_loader"
+import { appendNextStreamPage, prependPreviousStreamPage } from "controllers/stream_page_loader"
 
 export default class extends Controller {
   static targets = ["sentinel"]
@@ -19,24 +19,35 @@ export default class extends Controller {
   }
 
   observeSentinel() {
-    if (this.hasSentinelTarget) {
-      this.observer.observe(this.sentinelTarget)
-    }
+    this.sentinelTargets.forEach((sentinel) => this.observer.observe(sentinel))
+  }
+
+  sentinelTargetConnected(sentinel) {
+    this.observer?.observe(sentinel)
+  }
+
+  sentinelTargetDisconnected(sentinel) {
+    this.observer?.unobserve(sentinel)
   }
 
   async loadIfVisible(entries) {
     if (this.loadingValue || !entries.some((entry) => entry.isIntersecting)) return
-    if (!this.hasSentinelTarget) return
+    const sentinel = entries.find((entry) => entry.isIntersecting)?.target
+    if (!sentinel) return
 
     this.loadingValue = true
 
     try {
-      this.observer.unobserve(this.sentinelTarget)
-      await appendNextStreamPage(this.sentinelTarget)
+      this.observer.unobserve(sentinel)
+      if (sentinel.dataset.streamPageDirection === "newer") {
+        await prependPreviousStreamPage(sentinel)
+      } else {
+        await appendNextStreamPage(sentinel)
+      }
       this.loadingValue = false
       this.observeSentinel()
     } catch (error) {
-      this.sentinelTarget.textContent = error.message
+      sentinel.textContent = error.message
       this.loadingValue = false
     }
   }

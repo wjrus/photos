@@ -48,6 +48,9 @@ class Photo < ApplicationRecord
   scope :stream_order, -> {
     order(Arel.sql("photos.captured_at DESC NULLS LAST, photos.created_at DESC, photos.id DESC"))
   }
+  scope :reverse_stream_order, -> {
+    reorder(Arel.sql(stream_tuple_order(direction: "ASC", nulls: "FIRST")))
+  }
   scope :with_original_variant_records, -> {
     with_attached_original.includes(original_attachment: { blob: { variant_records: { image_attachment: :blob } } })
   }
@@ -95,6 +98,21 @@ class Photo < ApplicationRecord
         id: id
       )
     end
+  end
+
+  def self.after_stream_cursor(cursor)
+    captured_at, created_at, id = decode_stream_cursor(cursor)
+    return none unless created_at && id
+
+    where(
+      STREAM_TUPLE_GREATER_THAN_SQL,
+      {
+        has_capture: captured_at.present? ? 1 : 0,
+        captured_at: captured_at || Time.zone.local(1, 1, 1),
+        created_at: created_at,
+        id: id
+      }
+    )
   end
 
   def self.stream_before(photo)

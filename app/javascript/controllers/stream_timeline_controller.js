@@ -1,4 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
+import { streamPageHtml } from "controllers/stream_page_loader"
+
 export default class extends Controller {
   static targets = ["item", "label", "rail", "thumb"]
 
@@ -125,7 +127,7 @@ export default class extends Controller {
     const response = await fetch(url, { headers: { "Accept": "text/html" } })
     if (!response.ok) return
 
-    container.innerHTML = await response.text()
+    container.innerHTML = streamPageHtml(await response.text())
   }
 
   setActivePeriod(periodKey) {

@@ -115,6 +115,16 @@ class PhotoTest < ActiveSupport::TestCase
     assert_equal [ unknown ], scope.before_stream_cursor(older.stream_cursor).stream_order.to_a
   end
 
+  test "stream cursor can page back toward newer captured dates" do
+    newest = attached_photo(captured_at: 1.hour.ago)
+    middle = attached_photo(captured_at: 1.day.ago)
+    oldest = attached_photo(captured_at: 1.week.ago)
+    scope = Photo.where(id: [ newest.id, middle.id, oldest.id ])
+
+    assert_equal [ middle, newest ], scope.after_stream_cursor(oldest.stream_cursor).reverse_stream_order.to_a
+    assert_equal [ newest ], scope.after_stream_cursor(middle.stream_cursor).reverse_stream_order.to_a
+  end
+
   test "finds stream neighbors without loading the whole stream" do
     newest = attached_photo(captured_at: 1.hour.ago)
     current = attached_photo(captured_at: 1.day.ago)

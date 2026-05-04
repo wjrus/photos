@@ -24,7 +24,7 @@
               data-action="click->stream-timeline#jump"
               data-stream-timeline-target="item"
               data-stream-timeline-period-key-value="<%= period[:key] %>"
-              data-stream-timeline-page-url-value="<%= root_path(cursor: period[:cursor]) %>"
+              data-stream-timeline-page-url-value="<%= root_path(cursor: period[:cursor], stream_page: 1, timeline_page: 1) %>"
               data-stream-timeline-label-value="<%= period[:label] %>"
               data-stream-timeline-count-value="<%= pluralize(period[:count], "photo") %>">
         <% if show_year %>
