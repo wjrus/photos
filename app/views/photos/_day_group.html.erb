@@ -4,18 +4,19 @@
          class="scroll-mt-24"
          data-bulk-selection-group
          data-stream-date-group-key="<%= day_key %>">
-  <header class="mb-3 flex items-center gap-3">
-    <h2 class="text-sm font-semibold text-zinc-950"><%= photo_stream_day_label(day) %></h2>
-
+  <header class="mb-3 flex items-center">
     <% if owner_controls %>
-      <label class="selection-control day-selection-control static cursor-pointer opacity-100"
-             title="Select all photos from <%= photo_stream_day_label(day) %>"
-             data-action="change->bulk-selection#toggleGroup">
+      <label class="selection-control day-selection-control static inline-flex cursor-pointer items-center gap-2 rounded-lg px-1.5 py-1 opacity-100"
+             title="Select all photos from <%= photo_stream_day_label(day) %>">
         <input type="checkbox"
                aria-label="Select all photos from <%= photo_stream_day_label(day) %>"
-               data-bulk-selection-group-toggle>
+               data-bulk-selection-group-toggle
+               data-action="change->bulk-selection#toggleGroup">
         <span class="selection-circle">✓</span>
+        <span class="text-sm font-semibold text-zinc-950"><%= photo_stream_day_label(day) %></span>
       </label>
+    <% else %>
+      <h2 class="text-sm font-semibold text-zinc-950"><%= photo_stream_day_label(day) %></h2>
     <% end %>
   </header>
 

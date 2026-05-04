@@ -61,10 +61,26 @@
   box-shadow: 0 1px 3px rgba(24, 24, 27, 0.16);
 }
 
+.day-selection-control:hover {
+  background: rgba(24, 24, 27, 0.06);
+}
+
 .day-selection-control input:checked + .selection-circle {
   border-color: #bfdbfe;
   background: #2563eb;
   color: white;
+}
+
+.day-selection-control input:indeterminate + .selection-circle {
+  border-color: #cbd5e1;
+  background: #64748b;
+  color: transparent;
+}
+
+.day-selection-control input:indeterminate + .selection-circle::before {
+  content: "-";
+  color: white;
+  font-size: 0.9rem;
 }
 
 .bulk-action-disabled {

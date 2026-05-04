@@ -66,8 +66,9 @@ export default class extends Controller {
     const group = event.currentTarget.closest("[data-bulk-selection-group]")
     if (!group) return
 
+    const checked = event.target.checked
     this.inputsForGroup(group).forEach((input) => {
-      input.checked = event.currentTarget.checked
+      input.checked = checked
     })
 
     this.update()
