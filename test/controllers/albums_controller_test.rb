@@ -69,6 +69,18 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "&lt; Stream"
   end
 
+  test "album index is sorted alphabetically" do
+    @owner.photo_albums.create!(title: "zebra trip", source: "manual")
+    @owner.photo_albums.create!(title: "Apple trip", source: "manual")
+    @owner.photo_albums.create!(title: "middle trip", source: "manual")
+
+    get albums_path
+
+    assert_response :success
+    assert_operator response.body.index("Apple trip"), :<, response.body.index("middle trip")
+    assert_operator response.body.index("middle trip"), :<, response.body.index("zebra trip")
+  end
+
   test "owner can publish and unpublish an album" do
     album = @owner.photo_albums.create!(title: "Trip", source: "manual")
 

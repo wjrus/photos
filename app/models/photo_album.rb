@@ -24,7 +24,7 @@ class PhotoAlbum < ApplicationRecord
       where(visibility: "public")
     end
   }
-  scope :display_order, -> { order(Arel.sql("LOWER(photo_albums.title) ASC")) }
+  scope :display_order, -> { order(Arel.sql("LOWER(photo_albums.title) ASC, photo_albums.id ASC")) }
 
   def public?
     visibility == "public"
