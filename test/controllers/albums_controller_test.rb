@@ -41,6 +41,7 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Shared"
     assert_includes response.body, "&lt; Stream"
     assert_includes response.body, "1 public, 0 private albums"
+    assert_includes response.body, "1 photo"
 
     get album_path(album)
     assert_response :success

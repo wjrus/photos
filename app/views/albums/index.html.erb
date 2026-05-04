@@ -43,8 +43,8 @@
     <% if @albums.any? %>
       <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <% @albums.each do |album| %>
-          <% cover = album_cover_photo(album) %>
-          <% visible_count = album.photos.visible_to(current_user).count %>
+          <% cover = @album_covers[album.id] %>
+          <% visible_count = @visible_photo_counts.fetch(album.id, 0) %>
           <article class="group relative overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition hover:border-zinc-950" data-bulk-selection-card>
             <% if current_user&.owner? %>
               <label class="selection-control absolute left-3 top-3 z-20 cursor-pointer"
