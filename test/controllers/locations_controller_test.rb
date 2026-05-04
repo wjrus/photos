@@ -15,11 +15,16 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
   test "owner can browse photo locations" do
     photo = attached_photo(title: "Downtown")
     geotag(photo, latitude: 44.7622, longitude: -85.5980)
+    PhotoLocationPlace.create!(
+      location_id: location_id_for(photo),
+      name: "Traverse City, Michigan"
+    )
 
     get locations_path
 
     assert_response :success
     assert_includes response.body, "Locations"
+    assert_includes response.body, "Traverse City, Michigan"
     assert_includes response.body, "1 photo location"
     assert_includes response.body, "1 photo"
     assert_select "a[href='#{location_path(location_id_for(photo))}']"
@@ -28,12 +33,17 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
   test "location page shows matching photos as a stream" do
     inside = attached_photo(title: "Inside location")
     geotag(inside, latitude: 44.7622, longitude: -85.5980)
+    PhotoLocationPlace.create!(
+      location_id: location_id_for(inside),
+      name: "Traverse City, Michigan"
+    )
     outside = attached_photo(title: "Outside location")
     geotag(outside, latitude: 45.5, longitude: -86.5)
 
     get location_path(location_id_for(inside))
 
     assert_response :success
+    assert_includes response.body, "Traverse City, Michigan"
     assert_includes response.body, "Inside location"
     refute_includes response.body, "Outside location"
     assert_select "[data-controller~='stream-state']"

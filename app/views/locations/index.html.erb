@@ -21,6 +21,7 @@
         <% @locations.each do |location| %>
           <% location_id = PhotoLocation.id_for(location.latitude_bucket, location.longitude_bucket) %>
           <% cover = @location_covers[location.representative_photo_id.to_i] %>
+          <% location_title = PhotoLocation.title_for_row(location, @location_places) %>
           <article class="group overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition hover:border-zinc-950">
             <%= link_to location_path(location_id), class: "block" do %>
               <div class="aspect-[4/3] bg-zinc-900">
@@ -31,7 +32,7 @@
                 <% end %>
               </div>
               <div class="p-4">
-                <h2 class="truncate text-lg font-semibold text-zinc-950"><%= PhotoLocation.title_for(location.latitude, location.longitude) %></h2>
+                <h2 class="truncate text-lg font-semibold text-zinc-950"><%= location_title %></h2>
                 <p class="mt-1 text-sm text-zinc-600"><%= pluralize(location.photo_count.to_i, "photo") %></p>
                 <p class="mt-3 text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
                   <%= photo_stream_day_label(location.oldest_at.to_date) %> - <%= photo_stream_day_label(location.newest_at.to_date) %>

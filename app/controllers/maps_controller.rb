@@ -72,6 +72,7 @@ class MapsController < ApplicationController
   def location_payloads(scope)
     rows = location_rows(scope)
     photos_by_id = preview_photos(rows)
+    places = location_places(rows)
 
     rows.first(MARKER_LIMIT).filter_map do |row|
       count = row.photo_count.to_i
@@ -79,7 +80,7 @@ class MapsController < ApplicationController
         photo = photos_by_id[row.representative_photo_id.to_i]
         marker_payload(photo) if photo
       else
-        location_payload(row, count, photos_by_id)
+        location_payload(row, count, photos_by_id, places)
       end
     end
   end
@@ -102,7 +103,7 @@ class MapsController < ApplicationController
     Photo.with_attached_original.includes(:metadata).where(id: ids).index_by(&:id)
   end
 
-  def location_payload(row, count, photos_by_id)
+  def location_payload(row, count, photos_by_id, places)
     location_id = PhotoLocation.id_for(
       (row.latitude.to_f / PhotoLocation::CELL_SIZE).floor,
       (row.longitude.to_f / PhotoLocation::CELL_SIZE).floor
@@ -111,7 +112,7 @@ class MapsController < ApplicationController
     {
       type: "location",
       id: "location-#{row.latitude_bucket.to_i}-#{row.longitude_bucket.to_i}",
-      title: PhotoLocation.title_for(row.latitude, row.longitude),
+      title: PhotoLocation.title_for_row(row, places),
       count: count,
       latitude: row.latitude.to_f,
       longitude: row.longitude.to_f,
@@ -121,6 +122,11 @@ class MapsController < ApplicationController
         .select(&:image?)
         .map { |photo| display_photo_path(photo) }
     }
+  end
+
+  def location_places(rows)
+    ids = rows.first(MARKER_LIMIT).map { |row| PhotoLocation.id_for_coordinates(row.latitude, row.longitude) }
+    PhotoLocationPlace.where(location_id: ids).index_by(&:location_id)
   end
 
   def map_cell_size(zoom)

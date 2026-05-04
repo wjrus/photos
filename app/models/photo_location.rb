@@ -49,6 +49,15 @@ class PhotoLocation
     "#{format_coordinate(latitude)}, #{format_coordinate(longitude)}"
   end
 
+  def self.title_for_row(row, places = {})
+    location_id = id_for_coordinates(row.latitude, row.longitude)
+    places[location_id]&.name.presence || title_for(row.latitude, row.longitude)
+  end
+
+  def self.id_for_coordinates(latitude, longitude)
+    id_for((latitude.to_f / CELL_SIZE).floor, (longitude.to_f / CELL_SIZE).floor)
+  end
+
   def self.latitude_bucket_sql
     @latitude_bucket_sql ||= Photo.sanitize_sql_array([ "FLOOR(photo_metadata.latitude / :cell_size)", { cell_size: CELL_SIZE } ])
   end

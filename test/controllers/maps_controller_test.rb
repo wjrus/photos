@@ -51,6 +51,10 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     geotag(first, latitude: 44.7622, longitude: -85.5980)
     geotag(second, latitude: 44.7630, longitude: -85.5970)
     geotag(far, latitude: 45.5, longitude: -86.5)
+    PhotoLocationPlace.create!(
+      location_id: location_id_for(first),
+      name: "Traverse City, Michigan"
+    )
 
     get map_markers_path(north: 46, south: 44, east: -84, west: -87, zoom: 10)
 
@@ -59,7 +63,7 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     location = payload.fetch("markers").find { |marker| marker.fetch("type") == "location" }
     assert location
     assert_equal 2, location.fetch("count")
-    assert_match(/\A-?\d+\.\d{4}, -?\d+\.\d{4}\z/, location.fetch("title"))
+    assert_equal "Traverse City, Michigan", location.fetch("title")
     assert_includes location.fetch("location_url"), "/locations/"
     assert_equal 2, location.fetch("preview_urls").size
     assert_equal 3, payload.fetch("total")
@@ -138,6 +142,14 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def location_id_for(photo)
+    metadata = photo.metadata
+    PhotoLocation.id_for(
+      (metadata.latitude.to_f / PhotoLocation::CELL_SIZE).floor,
+      (metadata.longitude.to_f / PhotoLocation::CELL_SIZE).floor
+    )
+  end
 
   def geotag(photo, latitude:, longitude:)
     photo.create_metadata!(

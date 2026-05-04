@@ -6,11 +6,13 @@ class LocationsController < ApplicationController
 
   def index
     @locations = cached_location_rows
+    @location_places = location_places(@locations)
     @location_covers = location_covers(@locations)
+    enqueue_missing_location_names(@locations, @location_places)
   end
 
   def show
-    @photos, @next_cursor = paginate_photo_stream(location_photo_scope
+    @photos, @next_cursor, = paginate_photo_stream(location_photo_scope
       .with_original_variant_records
       .stream_order)
     @albums = current_user.photo_albums.display_order if current_user&.owner?
@@ -64,11 +66,29 @@ class LocationsController < ApplicationController
     @location_row = PhotoLocation.rows(location_photo_scope, limit: 1).first
     raise ActiveRecord::RecordNotFound unless @location_row
 
-    @location_title = PhotoLocation.title_for(@location_row.latitude, @location_row.longitude)
+    @location_places = location_places([ @location_row ])
+    enqueue_missing_location_names([ @location_row ], @location_places)
+    @location_title = PhotoLocation.title_for_row(@location_row, @location_places)
   end
 
   def location_photo_scope
     PhotoLocation.scope_for(geotagged_photos, @location_id)
+  end
+
+  def location_places(locations)
+    ids = locations.map { |location| PhotoLocation.id_for_coordinates(location.latitude, location.longitude) }
+    PhotoLocationPlace.where(location_id: ids).index_by(&:location_id)
+  end
+
+  def enqueue_missing_location_names(locations, places)
+    return unless ENV["GOOGLE_MAPS_EMBED_API_KEY"].present?
+
+    locations.each do |location|
+      location_id = PhotoLocation.id_for_coordinates(location.latitude, location.longitude)
+      next if places[location_id]
+
+      GeocodePhotoLocationJob.perform_later(location_id, location.latitude, location.longitude)
+    end
   end
 
   def require_privileged_metadata_viewer!
