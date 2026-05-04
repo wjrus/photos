@@ -8,10 +8,13 @@
     </label>
   <% end %>
 
-  <%= link_to photo_path(photo, return_to: return_to),
+  <% link_data = { photo_return_to: return_to } %>
+  <% link_data[:action] = "click->bulk-selection#toggleCard" if owner_controls %>
+
+  <%= link_to photo_path(photo),
         class: "absolute inset-0 z-10",
         aria: { label: "View #{photo.title}" },
-        data: owner_controls ? { action: "click->bulk-selection#toggleCard" } : {} do %>
+        data: link_data do %>
     <span class="sr-only">View <%= photo.title %></span>
   <% end %>
   <%= photo_stream_media(photo) %>

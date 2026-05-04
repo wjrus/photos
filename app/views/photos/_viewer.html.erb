@@ -3,8 +3,8 @@
       data-action="keydown@window->stream-navigation#keydown touchstart->stream-navigation#touchstart touchend->stream-navigation#touchend wheel->stream-navigation#wheel"
       data-info-panel-target="viewer"
       data-stream-navigation-back-url-value="<%= return_to %>"
-      data-stream-navigation-previous-url-value="<%= photo_path(previous_photo, return_to: return_to) if previous_photo %>"
-      data-stream-navigation-next-url-value="<%= photo_path(next_photo, return_to: return_to) if next_photo %>">
+      data-stream-navigation-previous-url-value="<%= photo_path(previous_photo) if previous_photo %>"
+      data-stream-navigation-next-url-value="<%= photo_path(next_photo) if next_photo %>">
   <button type="button"
           class="absolute right-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-black/55 font-serif text-lg font-semibold italic text-white backdrop-blur transition hover:bg-white hover:text-zinc-950"
           aria-label="Show photo information"
@@ -18,7 +18,7 @@
   <% if previous_photo || next_photo %>
     <nav class="absolute right-4 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-2" aria-label="Stream navigation">
       <% if previous_photo %>
-        <%= link_to photo_path(previous_photo, return_to: return_to),
+        <%= link_to photo_path(previous_photo),
               class: "ui-tooltip flex size-11 items-center justify-center rounded-lg border border-white/25 bg-black/55 text-white backdrop-blur transition hover:bg-white hover:text-zinc-950",
               aria: { label: "Previous item in stream" },
               title: "Previous item in stream",
@@ -28,7 +28,7 @@
         <% end %>
       <% end %>
       <% if next_photo %>
-        <%= link_to photo_path(next_photo, return_to: return_to),
+        <%= link_to photo_path(next_photo),
               class: "ui-tooltip flex size-11 items-center justify-center rounded-lg border border-white/25 bg-black/55 text-white backdrop-blur transition hover:bg-white hover:text-zinc-950",
               aria: { label: "Next item in stream" },
               title: "Next item in stream",

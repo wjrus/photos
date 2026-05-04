@@ -71,6 +71,8 @@ class RestrictedPhotosControllerTest < ActionDispatch::IntegrationTest
 
     post unlock_restricted_photos_path, params: { password: "open-sesame" }
     get photo_path(photo, return_to: restricted_photos_path)
+    assert_redirected_to photo_path(photo)
+    follow_redirect!
     assert_response :success
   end
 

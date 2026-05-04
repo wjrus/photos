@@ -6,6 +6,12 @@ class PhotosController < ApplicationController
   before_action :set_photo, only: %i[media caption publish unpublish retry_archive destroy]
 
   def show
+    if params[:return_to].present?
+      store_photo_return_path(safe_return_path)
+      redirect_to photo_path(@photo), status: :see_other
+      return
+    end
+
     @return_to = safe_return_path
     @taggable_users = User.where.not(id: current_user.id).order(Arel.sql("LOWER(email) ASC")) if current_user&.owner?
     set_stream_neighbors
@@ -36,7 +42,8 @@ class PhotosController < ApplicationController
 
   def caption
     @photo.update!(caption_params)
-    redirect_to photo_path(@photo, return_to: safe_return_path), notice: "Caption saved."
+    store_photo_return_path(safe_return_path)
+    redirect_to photo_path(@photo), notice: "Caption saved."
   end
 
   def create
@@ -70,7 +77,8 @@ class PhotosController < ApplicationController
   def retry_archive
     @photo.drive_archive_object&.update!(status: "pending", error: nil)
     MirrorOriginalToDriveJob.perform_later(@photo)
-    redirect_to photo_path(@photo, return_to: safe_return_path), notice: "Drive archive retry queued."
+    store_photo_return_path(safe_return_path)
+    redirect_to photo_path(@photo), notice: "Drive archive retry queued."
   end
 
   def destroy

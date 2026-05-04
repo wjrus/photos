@@ -44,7 +44,7 @@ export default class extends Controller {
       zoom: 4
     })
     this.infoWindow = new window.google.maps.InfoWindow()
-    this.infoWindow.addListener("domready", () => this.bindLocationInfoWindow())
+    this.infoWindow.addListener("domready", () => this.bindInfoWindow())
     this.statusElement = this.status()
 
     this.map.addListener("idle", () => this.loadVisibleMarkers())
@@ -153,7 +153,7 @@ export default class extends Controller {
       <div style="max-width:180px;">
         ${image}
         <div style="font-weight:600;margin-bottom:8px;">${this.escapeHtml(marker.title)}</div>
-        <a href="${this.escapeAttribute(marker.photo_url)}" style="font-weight:600;">Open photo</a>
+        <a href="${this.escapeAttribute(marker.photo_url)}" data-photo-return-to="${this.escapeAttribute(marker.return_to || "/map")}" style="font-weight:600;">Open photo</a>
       </div>
     `
   }
@@ -179,7 +179,12 @@ export default class extends Controller {
     `
   }
 
-  bindLocationInfoWindow() {
+  bindInfoWindow() {
+    const photoLink = document.querySelector("[data-photo-return-to]")
+    if (photoLink) {
+      photoLink.addEventListener("click", () => this.storeReturnTo(photoLink.dataset.photoReturnTo), { once: true })
+    }
+
     const button = document.querySelector("[data-map-action='zoom-location']")
     if (!button || !this.activeLocationPosition) return
 
@@ -188,6 +193,17 @@ export default class extends Controller {
       this.map.setZoom(Math.min(this.map.getZoom() + 2, 21))
       this.infoWindow.close()
     }, { once: true })
+  }
+
+  storeReturnTo(path) {
+    if (!path?.startsWith("/")) return
+
+    document.cookie = [
+      `photos_return_to=${encodeURIComponent(path)}`,
+      "path=/",
+      "max-age=86400",
+      "samesite=lax"
+    ].join("; ")
   }
 
   escapeHtml(value) {

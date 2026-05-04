@@ -18,7 +18,7 @@ class PhotoPeopleTagsControllerTest < ActionDispatch::IntegrationTest
 
     post photo_photo_people_tags_path(photo), params: { user_id: @viewer.id }
 
-    assert_redirected_to photo_path(photo, return_to: root_path)
+    assert_redirected_to photo_path(photo)
     assert_includes photo.reload.tagged_users, @viewer
 
     sign_in_as(@viewer)
@@ -36,7 +36,7 @@ class PhotoPeopleTagsControllerTest < ActionDispatch::IntegrationTest
 
     delete photo_people_tag_path(tag)
 
-    assert_redirected_to photo_path(photo, return_to: root_path)
+    assert_redirected_to photo_path(photo)
     assert_empty photo.reload.photo_people_tags
   end
 

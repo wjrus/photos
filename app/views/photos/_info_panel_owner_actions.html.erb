@@ -2,12 +2,12 @@
   <% if photo.public? %>
     <%= button_to "Make private", unpublish_photo_path(photo),
           method: :patch,
-          params: { return_to: photo_path(photo, return_to: return_to) },
+          params: { return_to: photo_path(photo) },
           class: "rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
   <% else %>
     <%= button_to "Publish", publish_photo_path(photo),
           method: :patch,
-          params: { return_to: photo_path(photo, return_to: return_to) },
+          params: { return_to: photo_path(photo) },
           class: "rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
   <% end %>
 

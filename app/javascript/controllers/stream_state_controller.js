@@ -11,11 +11,23 @@ export default class extends Controller {
     if (!link) return
     if (!link.pathname.startsWith("/photos/")) return
 
+    this.storeReturnTo(link.dataset.photoReturnTo || this.currentPath)
     sessionStorage.setItem(this.storageKey, JSON.stringify({
       path: this.currentPath,
       scrollY: window.scrollY,
       savedAt: Date.now()
     }))
+  }
+
+  storeReturnTo(path) {
+    if (!path?.startsWith("/")) return
+
+    document.cookie = [
+      `photos_return_to=${encodeURIComponent(path)}`,
+      "path=/",
+      "max-age=86400",
+      "samesite=lax"
+    ].join("; ")
   }
 
   async restore() {

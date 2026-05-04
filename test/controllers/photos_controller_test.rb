@@ -170,7 +170,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
 
     patch caption_photo_path(photo), params: { return_to: map_path, photo: { description: "A quiet lake before dinner." } }
 
-    assert_redirected_to photo_path(photo, return_to: map_path)
+    assert_redirected_to photo_path(photo)
     assert_equal "A quiet lake before dinner.", photo.reload.description
   end
 
@@ -205,7 +205,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
       post retry_archive_photo_path(photo), params: { return_to: map_path }
     end
 
-    assert_redirected_to photo_path(photo, return_to: map_path)
+    assert_redirected_to photo_path(photo)
     archive_object = photo.reload.drive_archive_object
     assert_equal "pending", archive_object.status
     assert_nil archive_object.error
@@ -296,15 +296,17 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     older.update_columns(created_at: Time.zone.local(2026, 1, 1), updated_at: Time.zone.local(2026, 1, 1))
 
     get photo_path(photo, return_to: map_path)
+    assert_redirected_to photo_path(photo)
+    follow_redirect!
 
     assert_response :success
     assert_select "main[data-controller='stream-navigation']"
-    assert_select "a[href='#{photo_path(newer, return_to: map_path)}'][data-turbo-action='replace'][aria-label='Previous item in stream'][title='Previous item in stream']"
-    assert_select "a[href='#{photo_path(older, return_to: map_path)}'][data-turbo-action='replace'][aria-label='Next item in stream'][title='Next item in stream']"
+    assert_select "a[href='#{photo_path(newer)}'][data-turbo-action='replace'][aria-label='Previous item in stream'][title='Previous item in stream']"
+    assert_select "a[href='#{photo_path(older)}'][data-turbo-action='replace'][aria-label='Next item in stream'][title='Next item in stream']"
     assert_includes response.body, "wheel->stream-navigation#wheel"
     assert_includes response.body, %(data-stream-navigation-back-url-value="#{map_path}")
-    assert_includes response.body, %(data-stream-navigation-previous-url-value="#{photo_path(newer, return_to: map_path)}")
-    assert_includes response.body, %(data-stream-navigation-next-url-value="#{photo_path(older, return_to: map_path)}")
+    assert_includes response.body, %(data-stream-navigation-previous-url-value="#{photo_path(newer)}")
+    assert_includes response.body, %(data-stream-navigation-next-url-value="#{photo_path(older)}")
   end
 
   test "archive detail view uses archived stream neighbors" do
@@ -318,11 +320,13 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     older.update_columns(archived_at: Time.current, created_at: Time.zone.local(2026, 1, 1), updated_at: Time.zone.local(2026, 1, 1))
 
     get photo_path(photo, return_to: archived_photos_path)
+    assert_redirected_to photo_path(photo)
+    follow_redirect!
 
     assert_response :success
-    assert_select "a[href='#{photo_path(newer, return_to: archived_photos_path)}'][aria-label='Previous item in stream']"
-    assert_select "a[href='#{photo_path(older, return_to: archived_photos_path)}'][aria-label='Next item in stream']"
-    refute_includes response.body, photo_path(active, return_to: archived_photos_path)
+    assert_select "a[href='#{photo_path(newer)}'][aria-label='Previous item in stream']"
+    assert_select "a[href='#{photo_path(older)}'][aria-label='Next item in stream']"
+    refute_includes response.body, photo_path(active)
   end
 
   test "photo stream renders an infinite scroll sentinel when more photos exist" do

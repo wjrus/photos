@@ -64,7 +64,8 @@ class MapsController < ApplicationController
       count: 1,
       latitude: metadata.latitude.to_f,
       longitude: metadata.longitude.to_f,
-      photo_url: photo_path(photo, return_to: @map_return_path),
+      photo_url: photo_path(photo),
+      return_to: @map_return_path,
       media_url: map_media_url(photo)
     }
   end

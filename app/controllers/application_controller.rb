@@ -13,6 +13,8 @@ class ApplicationController < ActionController::Base
 
   private
 
+  PHOTO_RETURN_TO_COOKIE = :photos_return_to
+
   def self.owner_access_message(message)
     self.owner_required_message = message
   end
@@ -40,14 +42,29 @@ class ApplicationController < ActionController::Base
   end
 
   def safe_return_path(default: root_path)
-    return default if params[:return_to].blank?
+    return_to = params[:return_to].presence || cookies[PHOTO_RETURN_TO_COOKIE].presence
+    return default if return_to.blank?
 
-    uri = URI.parse(params[:return_to])
-    return params[:return_to] if uri.relative?
+    uri = URI.parse(return_to)
+    return return_to if uri.relative?
 
     default
   rescue URI::InvalidURIError
     default
+  end
+
+  def store_photo_return_path(path)
+    uri = URI.parse(path.to_s)
+    return unless uri.relative?
+
+    cookies[PHOTO_RETURN_TO_COOKIE] = {
+      value: path,
+      expires: 1.day.from_now,
+      same_site: :lax,
+      secure: Rails.env.production?
+    }
+  rescue URI::InvalidURIError
+    nil
   end
 
   def owner_access_json_response?

@@ -41,7 +41,8 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     marker = payload.fetch("markers").find { |candidate| candidate.fetch("title") == "Northport" }
     assert marker
     assert_equal "photo", marker.fetch("type")
-    assert_equal photo_path(photo, return_to: map_path), marker.fetch("photo_url")
+    assert_equal photo_path(photo), marker.fetch("photo_url")
+    assert_equal map_path, marker.fetch("return_to")
   end
 
   test "markers groups nearby photos into locations at lower zoom levels" do
@@ -94,7 +95,8 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert_includes marker_titles, "Trip overlook"
     refute_includes marker_titles, "Other overlook"
     marker = payload.fetch("markers").find { |candidate| candidate.fetch("title") == "Trip overlook" }
-    assert_equal photo_path(trip_photo, return_to: map_path(album_id: trip.id)), marker.fetch("photo_url")
+    assert_equal photo_path(trip_photo), marker.fetch("photo_url")
+    assert_equal map_path(album_id: trip.id), marker.fetch("return_to")
   end
 
   test "trusted viewer only sees public geotagged photos" do

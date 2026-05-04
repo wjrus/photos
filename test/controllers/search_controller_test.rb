@@ -21,7 +21,7 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "Banff overlook"
     refute_includes response.body, "Office note"
-    assert_select "a[href='#{photo_path(match, return_to: search_path(q: "Banff"))}']"
+    assert_select "a[href='#{photo_path(match)}'][data-photo-return-to='#{search_path(q: "Banff")}']"
   end
 
   test "search filters by camera and lens metadata" do
