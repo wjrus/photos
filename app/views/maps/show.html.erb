@@ -11,18 +11,24 @@
         <p class="mt-1 text-sm text-zinc-600"><%= pluralize(@geotagged_photo_count, "geotagged photo") %></p>
       </div>
 
-      <%= form_with url: map_path, method: :get, class: "w-full sm:w-72", data: { turbo: false } do %>
-        <label for="album_id" class="sr-only">Map album filter</label>
-        <select id="album_id"
-                name="album_id"
-                onchange="this.form.requestSubmit()"
-                class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-800 shadow-sm outline-none transition hover:border-zinc-950 focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15">
-          <option value="">All photos</option>
-          <% @albums.each do |album| %>
-            <option value="<%= album.id %>" <%= "selected" if @selected_album == album %>><%= album.title %></option>
-          <% end %>
-        </select>
-      <% end %>
+      <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+        <%= link_to "Locations",
+              locations_path,
+              class: "rounded-lg border border-zinc-300 bg-white px-4 py-2 text-center text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+
+        <%= form_with url: map_path, method: :get, class: "w-full sm:w-72", data: { turbo: false } do %>
+          <label for="album_id" class="sr-only">Map album filter</label>
+          <select id="album_id"
+                  name="album_id"
+                  onchange="this.form.requestSubmit()"
+                  class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-800 shadow-sm outline-none transition hover:border-zinc-950 focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15">
+            <option value="">All photos</option>
+            <% @albums.each do |album| %>
+              <option value="<%= album.id %>" <%= "selected" if @selected_album == album %>><%= album.title %></option>
+            <% end %>
+          </select>
+        <% end %>
+      </div>
     </div>
 
     <% if @google_maps_api_key.blank? %>

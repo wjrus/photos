@@ -20,7 +20,7 @@ default: &default
       processes: <%= ENV.fetch("JOB_PROCESSES", ENV.fetch("JOB_CONCURRENCY", 1)) %>
       polling_interval: 0.5
     - queues: derivatives
-      threads: <%= ENV.fetch("DERIVATIVE_JOB_THREADS", 1) %>
+      threads: <%= ENV.fetch("DERIVATIVE_JOB_THREADS", 3) %>
       processes: <%= ENV.fetch("JOB_PROCESSES", ENV.fetch("JOB_CONCURRENCY", 1)) %>
       polling_interval: 0.5
     - queues: default

@@ -44,6 +44,7 @@ export default class extends Controller {
       zoom: 4
     })
     this.infoWindow = new window.google.maps.InfoWindow()
+    this.infoWindow.addListener("domready", () => this.bindLocationInfoWindow())
     this.statusElement = this.status()
 
     this.map.addListener("idle", () => this.loadVisibleMarkers())
@@ -98,8 +99,9 @@ export default class extends Controller {
 
     mapMarker.addListener("click", () => {
       if (marker.type === "location") {
-        this.map.panTo(position)
-        this.map.setZoom(Math.min(this.map.getZoom() + 2, 21))
+        this.activeLocationPosition = position
+        this.infoWindow.setContent(this.locationInfoWindowContent(marker))
+        this.infoWindow.open({ anchor: mapMarker, map: this.map })
         return
       }
 
@@ -153,6 +155,38 @@ export default class extends Controller {
         <a href="${this.escapeAttribute(marker.photo_url)}" style="font-weight:600;">Open photo</a>
       </div>
     `
+  }
+
+  locationInfoWindowContent(marker) {
+    const previews = (marker.preview_urls || []).slice(0, 6).map((url) => (
+      `<img src="${this.escapeAttribute(url)}" alt="" style="width:54px;height:54px;object-fit:cover;border-radius:6px;">`
+    )).join("")
+    const previewGrid = previews
+      ? `<div style="display:grid;grid-template-columns:repeat(3,54px);gap:4px;margin:8px 0 10px;">${previews}</div>`
+      : ""
+
+    return `
+      <div style="max-width:190px;">
+        <div style="font-weight:700;margin-bottom:2px;">${this.escapeHtml(marker.title)}</div>
+        <div style="color:#52525b;font-size:12px;font-weight:600;">${marker.count.toLocaleString()} photos</div>
+        ${previewGrid}
+        <div style="display:flex;gap:8px;align-items:center;">
+          <a href="${this.escapeAttribute(marker.location_url)}" style="font-weight:700;">View location</a>
+          <button type="button" data-map-action="zoom-location" style="border:0;background:transparent;color:#0f766e;cursor:pointer;font:700 13px system-ui,sans-serif;padding:0;">Zoom in</button>
+        </div>
+      </div>
+    `
+  }
+
+  bindLocationInfoWindow() {
+    const button = document.querySelector("[data-map-action='zoom-location']")
+    if (!button || !this.activeLocationPosition) return
+
+    button.addEventListener("click", () => {
+      this.map.panTo(this.activeLocationPosition)
+      this.map.setZoom(Math.min(this.map.getZoom() + 2, 21))
+      this.infoWindow.close()
+    }, { once: true })
   }
 
   escapeHtml(value) {

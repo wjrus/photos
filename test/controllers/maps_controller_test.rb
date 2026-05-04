@@ -59,7 +59,9 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     location = payload.fetch("markers").find { |marker| marker.fetch("type") == "location" }
     assert location
     assert_equal 2, location.fetch("count")
-    assert_equal "2 photos in this area", location.fetch("title")
+    assert_match(/\A-?\d+\.\d{4}, -?\d+\.\d{4}\z/, location.fetch("title"))
+    assert_includes location.fetch("location_url"), "/locations/"
+    assert_equal 2, location.fetch("preview_urls").size
     assert_equal 3, payload.fetch("total")
   end
 

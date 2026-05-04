@@ -20,6 +20,9 @@
                 class: "block rounded-lg px-3 py-2 text-sm font-semibold text-zinc-800 transition hover:bg-zinc-950 hover:text-white" %>
         <% end %>
         <% if privileged_metadata_viewer? %>
+          <%= link_to "Locations",
+                locations_path,
+                class: "block rounded-lg px-3 py-2 text-sm font-semibold text-zinc-800 transition hover:bg-zinc-950 hover:text-white" %>
           <%= link_to "Map",
                 map_path,
                 class: "block rounded-lg px-3 py-2 text-sm font-semibold text-zinc-800 transition hover:bg-zinc-950 hover:text-white" %>

@@ -6,7 +6,8 @@ class MapsController < ApplicationController
     COUNT(*) AS photo_count,
     AVG(photo_metadata.latitude) AS latitude,
     AVG(photo_metadata.longitude) AS longitude,
-    MIN(photos.id) AS representative_photo_id
+    (ARRAY_AGG(photos.id ORDER BY COALESCE(photos.captured_at, photos.created_at) DESC, photos.id DESC))[1] AS representative_photo_id,
+    (ARRAY_AGG(photos.id ORDER BY COALESCE(photos.captured_at, photos.created_at) DESC, photos.id DESC))[1:6] AS preview_photo_ids
   SQL
 
   before_action :require_privileged_metadata_viewer!
@@ -70,7 +71,7 @@ class MapsController < ApplicationController
 
   def location_payloads(scope)
     rows = location_rows(scope)
-    photos_by_id = representative_photos(rows)
+    photos_by_id = preview_photos(rows)
 
     rows.first(MARKER_LIMIT).filter_map do |row|
       count = row.photo_count.to_i
@@ -78,7 +79,7 @@ class MapsController < ApplicationController
         photo = photos_by_id[row.representative_photo_id.to_i]
         marker_payload(photo) if photo
       else
-        location_payload(row, count)
+        location_payload(row, count, photos_by_id)
       end
     end
   end
@@ -96,19 +97,29 @@ class MapsController < ApplicationController
       .limit(MARKER_LIMIT + 1)
   end
 
-  def representative_photos(rows)
-    ids = rows.first(MARKER_LIMIT).map { |row| row.representative_photo_id.to_i }
+  def preview_photos(rows)
+    ids = rows.first(MARKER_LIMIT).flat_map { |row| Array(row.preview_photo_ids).map(&:to_i) }
     Photo.with_attached_original.includes(:metadata).where(id: ids).index_by(&:id)
   end
 
-  def location_payload(row, count)
+  def location_payload(row, count, photos_by_id)
+    location_id = PhotoLocation.id_for(
+      (row.latitude.to_f / PhotoLocation::CELL_SIZE).floor,
+      (row.longitude.to_f / PhotoLocation::CELL_SIZE).floor
+    )
+
     {
       type: "location",
       id: "location-#{row.latitude_bucket.to_i}-#{row.longitude_bucket.to_i}",
-      title: "#{count} photos in this area",
+      title: PhotoLocation.title_for(row.latitude, row.longitude),
       count: count,
       latitude: row.latitude.to_f,
-      longitude: row.longitude.to_f
+      longitude: row.longitude.to_f,
+      location_url: location_path(location_id),
+      preview_urls: Array(row.preview_photo_ids)
+        .filter_map { |id| photos_by_id[id.to_i] }
+        .select(&:image?)
+        .map { |photo| display_photo_path(photo) }
     }
   end
 
@@ -136,7 +147,7 @@ class MapsController < ApplicationController
 
   def map_markers_cache_key
     [
-      "map-markers/v2",
+      "map-markers/v3",
       cache_audience_key,
       @selected_album&.id || "all",
       map_cell_size(params[:zoom]),
