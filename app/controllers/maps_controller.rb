@@ -18,16 +18,18 @@ class MapsController < ApplicationController
   end
 
   def markers
-    marker_scope = geotagged_photos.in_map_bounds(map_bounds)
-    total = marker_scope.count
-    markers = location_payloads(marker_scope)
+    render json: Rails.cache.fetch(map_markers_cache_key, expires_in: 5.minutes, race_condition_ttl: 10.seconds) {
+      marker_scope = geotagged_photos.in_map_bounds(map_bounds)
+      total = marker_scope.count
+      markers = location_payloads(marker_scope)
 
-    render json: {
-      markers: markers,
-      total: total,
-      locations: markers.size,
-      limited: total > markers.size,
-      limit: MARKER_LIMIT
+      {
+        markers: markers,
+        total: total,
+        locations: markers.size,
+        limited: total > markers.size,
+        limit: MARKER_LIMIT
+      }
     }
   end
 
@@ -130,6 +132,20 @@ class MapsController < ApplicationController
       east: bounded_float(params[:east], -180, 180),
       west: bounded_float(params[:west], -180, 180)
     }.compact
+  end
+
+  def map_markers_cache_key
+    [
+      "map-markers/v2",
+      cache_audience_key,
+      @selected_album&.id || "all",
+      map_cell_size(params[:zoom]),
+      normalized_map_bounds
+    ]
+  end
+
+  def normalized_map_bounds
+    map_bounds.sort.to_h.transform_values { |value| value.round(4) }
   end
 
   def bounded_float(value, min, max)

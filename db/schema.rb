@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_03_210000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_04_121000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -95,6 +95,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_03_210000) do
     t.bigint "photo_album_id", null: false
     t.bigint "photo_id", null: false
     t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_photo_album_memberships_on_created_at"
     t.index ["photo_album_id"], name: "index_photo_album_memberships_on_photo_album_id"
     t.index ["photo_id", "photo_album_id"], name: "index_photo_album_memberships_on_photo_id_and_photo_album_id", unique: true
     t.index ["photo_id"], name: "index_photo_album_memberships_on_photo_id"
@@ -115,6 +116,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_03_210000) do
     t.index ["owner_id", "source", "source_path"], name: "index_photo_albums_on_owner_id_and_source_and_source_path", unique: true
     t.index ["owner_id"], name: "index_photo_albums_on_owner_id"
     t.index ["published_at"], name: "index_photo_albums_on_published_at"
+    t.index ["updated_at"], name: "index_photo_albums_on_updated_at"
     t.index ["visibility"], name: "index_photo_albums_on_visibility"
   end
 
@@ -174,11 +176,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_03_210000) do
     t.datetime "updated_at", null: false
     t.string "visibility", default: "private", null: false
     t.index ["archived_at"], name: "index_photos_on_archived_at"
+    t.index ["captured_at", "created_at", "id"], name: "index_photos_on_public_stream_order", order: :desc, where: "(((visibility)::text = 'public'::text) AND (restricted = false) AND (archived_at IS NULL))"
+    t.index ["captured_at", "created_at", "id"], name: "index_photos_on_visible_stream_order", order: :desc, where: "((restricted = false) AND (archived_at IS NULL))"
     t.index ["captured_at"], name: "index_photos_on_captured_at"
     t.index ["checksum_status"], name: "index_photos_on_checksum_status"
     t.index ["owner_id"], name: "index_photos_on_owner_id"
     t.index ["published_at"], name: "index_photos_on_published_at"
     t.index ["restricted"], name: "index_photos_on_restricted"
+    t.index ["updated_at"], name: "index_photos_on_updated_at"
     t.index ["visibility"], name: "index_photos_on_visibility"
   end
 

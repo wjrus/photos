@@ -11,10 +11,12 @@ class AlbumsController < ApplicationController
       .includes(:cover_photo)
       .display_order
       .to_a
-    @public_album_count = @albums.count(&:public?)
-    @private_album_count = @albums.count(&:private?)
-    @visible_photo_counts = visible_photo_counts_for(@albums)
-    @album_covers = cover_photos_for(@albums)
+
+    album_payload = cached_album_index_payload(@albums)
+    @public_album_count = album_payload.fetch(:public_album_count)
+    @private_album_count = album_payload.fetch(:private_album_count)
+    @visible_photo_counts = album_payload.fetch(:visible_photo_counts)
+    @album_covers = album_covers_from_ids(album_payload.fetch(:cover_photo_ids))
   end
 
   def show
@@ -91,6 +93,44 @@ class AlbumsController < ApplicationController
       .merge(Photo.visible_to(current_user))
       .group(:photo_album_id)
       .count
+  end
+
+  def cached_album_index_payload(albums)
+    Rails.cache.fetch(album_index_cache_key(albums), expires_in: 10.minutes, race_condition_ttl: 10.seconds) do
+      {
+        public_album_count: albums.count(&:public?),
+        private_album_count: albums.count(&:private?),
+        visible_photo_counts: visible_photo_counts_for(albums),
+        cover_photo_ids: cover_photo_ids_for(albums)
+      }
+    end
+  end
+
+  def album_index_cache_key(albums)
+    [
+      "album-index/v2",
+      cache_audience_key,
+      PhotoAlbum.maximum(:updated_at)&.utc&.to_i,
+      PhotoAlbum.count,
+      PhotoAlbumMembership.maximum(:created_at)&.utc&.to_i,
+      PhotoAlbumMembership.count,
+      Photo.maximum(:updated_at)&.utc&.to_i,
+      albums.map(&:id)
+    ]
+  end
+
+  def cover_photo_ids_for(albums)
+    cover_photos_for(albums).transform_values(&:id)
+  end
+
+  def album_covers_from_ids(cover_photo_ids)
+    photos = Photo
+      .with_original_variant_records
+      .visible_to(current_user)
+      .where(id: cover_photo_ids.values)
+      .index_by(&:id)
+
+    cover_photo_ids.transform_values { |photo_id| photos[photo_id] }.compact
   end
 
   def cover_photos_for(albums)
