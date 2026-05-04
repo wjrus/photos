@@ -76,6 +76,22 @@ module ApplicationHelper
     end
   end
 
+  def photo_stream_day(photo)
+    (photo.captured_at || photo.created_at).in_time_zone.to_date
+  end
+
+  def photo_stream_day_key(day)
+    day.strftime("%Y-%m-%d")
+  end
+
+  def photo_stream_day_label(day)
+    if day.year == Time.zone.today.year
+      day.strftime("%a, %b %-d")
+    else
+      day.strftime("%a, %b %-d, %Y")
+    end
+  end
+
   def user_avatar(user, classes: "size-9 rounded-lg border border-zinc-200 object-cover")
     if user.avatar.attached?
       image_tag user.avatar, alt: "", class: classes

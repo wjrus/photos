@@ -1,10 +1,18 @@
 import { Controller } from "@hotwired/stimulus"
+import { appendNextStreamPage } from "controllers/stream_page_loader"
 
 export default class extends Controller {
   static targets = ["item", "label", "rail"]
 
   connect() {
     this.dragging = false
+    this.updateActiveItem = this.updateActiveItem.bind(this)
+    window.addEventListener("scroll", this.updateActiveItem, { passive: true })
+    this.updateActiveItem()
+  }
+
+  disconnect() {
+    window.removeEventListener("scroll", this.updateActiveItem)
   }
 
   pointerdown(event) {
@@ -23,14 +31,19 @@ export default class extends Controller {
     this.dragging = false
     this.element.releasePointerCapture?.(event.pointerId)
     const item = this.activateNearestItem(event.clientY)
-    if (item) window.location.assign(item.href)
+    if (item) this.scrollToPeriod(item)
   }
 
   pointerleave() {
     if (this.dragging) return
 
     this.hideLabel()
-    this.clearActiveItems()
+    this.clearHoverItems()
+  }
+
+  jump(event) {
+    event.preventDefault()
+    this.scrollToPeriod(event.currentTarget)
   }
 
   activateNearestItem(clientY) {
@@ -39,10 +52,31 @@ export default class extends Controller {
     const item = this.nearestItem(clientY)
     if (!item) return null
 
-    this.clearActiveItems()
-    item.classList.add("text-zinc-950")
+    this.clearHoverItems()
+    item.classList.add("text-teal-700")
     this.showLabel(item)
     return item
+  }
+
+  async scrollToPeriod(item) {
+    const periodKey = item.dataset.streamTimelinePeriodKeyValue
+    let group = this.findPeriodGroup(periodKey)
+
+    while (!group) {
+      const sentinel = document.querySelector("[data-infinite-scroll-target='sentinel']")
+      if (!sentinel?.dataset.nextUrl) break
+
+      try {
+        await appendNextStreamPage(sentinel, "Loading more...")
+      } catch {
+        break
+      }
+
+      group = this.findPeriodGroup(periodKey)
+    }
+
+    group?.scrollIntoView({ block: "start", behavior: "smooth" })
+    this.setActivePeriod(periodKey)
   }
 
   nearestItem(clientY) {
@@ -70,7 +104,33 @@ export default class extends Controller {
     if (this.hasLabelTarget) this.labelTarget.classList.add("hidden")
   }
 
-  clearActiveItems() {
-    this.itemTargets.forEach((item) => item.classList.remove("text-zinc-950"))
+  updateActiveItem() {
+    const group = this.currentDateGroup()
+    if (!group) return
+
+    this.setActivePeriod(group.dataset.streamDateGroupKey.slice(0, 7))
+  }
+
+  currentDateGroup() {
+    const groups = Array.from(document.querySelectorAll("[data-stream-date-group-key]"))
+    return groups.find((group) => group.getBoundingClientRect().bottom > 120) || groups.at(-1)
+  }
+
+  findPeriodGroup(periodKey) {
+    return Array.from(document.querySelectorAll("[data-stream-date-group-key]"))
+      .find((group) => group.dataset.streamDateGroupKey.startsWith(periodKey))
+  }
+
+  setActivePeriod(periodKey) {
+    this.itemTargets.forEach((item) => {
+      const active = item.dataset.streamTimelinePeriodKeyValue === periodKey
+      item.classList.toggle("text-zinc-950", active)
+      item.classList.toggle("font-bold", active)
+      item.setAttribute("aria-current", active ? "date" : "false")
+    })
+  }
+
+  clearHoverItems() {
+    this.itemTargets.forEach((item) => item.classList.remove("text-teal-700"))
   }
 }

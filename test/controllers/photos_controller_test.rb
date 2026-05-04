@@ -248,8 +248,8 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "Archive"
-    assert_select "section[data-controller='info-panel']"
-    assert_select "section[data-controller='info-panel'] > a.fixed[aria-label='Return to stream'][title='Return to stream']"
+    assert_select "section[data-controller~='info-panel'][data-controller~='history-back']"
+    assert_select "section[data-controller~='info-panel'] > a.fixed[aria-label='Return to stream'][title='Return to stream'][data-action='history-back#go']"
     assert_select "main a[aria-label='Return to stream']", false
     assert_select "aside#photo-info-panel a", { text: "Back to stream", count: 0 }
     assert_select "button[aria-label='Show photo information'][data-action='info-panel#toggle']"
@@ -349,8 +349,22 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "nav[aria-label='Photo timeline'][data-controller='stream-timeline']"
-    assert_select "a[aria-label*='Jump to May 2024']"
-    assert_select "a[aria-label*='Jump to February 2018']"
+    assert_select "button[aria-label*='Jump to May 2024'][data-stream-timeline-period-key-value='2024-05']"
+    assert_select "button[aria-label*='Jump to February 2018'][data-stream-timeline-period-key-value='2018-02']"
+    refute_includes response.body, "?cursor="
+  end
+
+  test "photo stream groups photos by day with day-level selection" do
+    first = attached_photo(title: "First timeline day")
+    first.update!(captured_at: Time.zone.local(2024, 4, 29, 9))
+    second = attached_photo(title: "Second timeline day")
+    second.update!(captured_at: Time.zone.local(2024, 4, 29, 12))
+
+    get root_path
+
+    assert_response :success
+    assert_select "section#day-2024-04-29[data-bulk-selection-group][data-stream-date-group-key='2024-04-29']"
+    assert_select "input[data-bulk-selection-group-toggle][aria-label='Select all photos from Mon, Apr 29, 2024']"
   end
 
   test "photo stream excludes archived photos" do

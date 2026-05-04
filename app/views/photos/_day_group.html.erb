@@ -1,0 +1,34 @@
+<% day_key = photo_stream_day_key(day) %>
+
+<section id="day-<%= day_key %>"
+         class="scroll-mt-24"
+         data-bulk-selection-group
+         data-stream-date-group-key="<%= day_key %>">
+  <header class="mb-3 flex items-center gap-3">
+    <h2 class="text-sm font-semibold text-zinc-950"><%= photo_stream_day_label(day) %></h2>
+
+    <% if owner_controls %>
+      <label class="selection-control day-selection-control static cursor-pointer opacity-100"
+             title="Select all photos from <%= photo_stream_day_label(day) %>"
+             data-action="change->bulk-selection#toggleGroup">
+        <input type="checkbox"
+               aria-label="Select all photos from <%= photo_stream_day_label(day) %>"
+               data-bulk-selection-group-toggle>
+        <span class="selection-circle">✓</span>
+      </label>
+    <% end %>
+  </header>
+
+  <div class="grid auto-rows-[220px] grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+    <% photos.each_with_index do |photo, index| %>
+      <%= render "photos/card",
+            photo: photo,
+            return_to: return_to,
+            feature: feature_first && index.zero?,
+            bulk_form_id: bulk_form_id,
+            owner_controls: owner_controls,
+            archive_context: local_assigns[:archive_context],
+            album: album %>
+    <% end %>
+  </div>
+</section>

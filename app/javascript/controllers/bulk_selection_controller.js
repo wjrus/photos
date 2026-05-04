@@ -32,6 +32,8 @@ export default class extends Controller {
       bar.classList.toggle("hidden", disabled)
       bar.classList.toggle("flex", !disabled)
     })
+
+    this.syncGroupToggles()
   }
 
   clear(event) {
@@ -60,6 +62,17 @@ export default class extends Controller {
     event.stopPropagation()
   }
 
+  toggleGroup(event) {
+    const group = event.currentTarget.closest("[data-bulk-selection-group]")
+    if (!group) return
+
+    this.inputsForGroup(group).forEach((input) => {
+      input.checked = event.currentTarget.checked
+    })
+
+    this.update()
+  }
+
   selectedInputs() {
     return Array.from(document.querySelectorAll(`input[form="${CSS.escape(this.formIdValue)}"]:checked`))
   }
@@ -67,5 +80,21 @@ export default class extends Controller {
   inputForCard(cardLink) {
     const card = cardLink.closest("[data-bulk-selection-card]")
     return card?.querySelector(`input[form="${CSS.escape(this.formIdValue)}"]`)
+  }
+
+  inputsForGroup(group) {
+    return Array.from(group.querySelectorAll(`input[form="${CSS.escape(this.formIdValue)}"]`))
+  }
+
+  syncGroupToggles() {
+    document.querySelectorAll("[data-bulk-selection-group]").forEach((group) => {
+      const toggle = group.querySelector("[data-bulk-selection-group-toggle]")
+      if (!toggle) return
+
+      const inputs = this.inputsForGroup(group)
+      const selectedCount = inputs.filter((input) => input.checked).length
+      toggle.checked = inputs.length > 0 && selectedCount === inputs.length
+      toggle.indeterminate = selectedCount > 0 && selectedCount < inputs.length
+    })
   }
 }

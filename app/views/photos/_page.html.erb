@@ -1,11 +1,13 @@
 <% owner_controls = local_assigns.fetch(:owner_controls, current_user&.owner?) %>
 <% album = local_assigns[:album] %>
+<% grouped_photos = photos.group_by { |photo| photo_stream_day(photo) } %>
 
-<% photos.each_with_index do |photo, index| %>
-  <%= render "photos/card",
-        photo: photo,
+<% grouped_photos.each_with_index do |(day, day_photos), group_index| %>
+  <%= render "photos/day_group",
+        day: day,
+        photos: day_photos,
         return_to: return_to,
-        feature: feature_first && index.zero?,
+        feature_first: feature_first && group_index.zero?,
         bulk_form_id: local_assigns[:bulk_form_id],
         owner_controls: owner_controls,
         archive_context: local_assigns[:archive_context],
@@ -13,7 +15,7 @@
 <% end %>
 
 <% if next_cursor.present? %>
-  <div class="col-span-full py-6 text-center text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500"
+  <div class="py-6 text-center text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500"
        data-infinite-scroll-target="sentinel"
        data-next-url="<%= "#{next_page_path}?#{URI.encode_www_form(cursor: next_cursor)}" %>">
     Loading more...
