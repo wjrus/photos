@@ -34,22 +34,6 @@
               method: :patch,
               class: "relative z-20 rounded-lg border border-white/50 bg-white/10 px-3 py-2 text-xs font-semibold text-white backdrop-blur transition hover:bg-white hover:text-zinc-950" %>
       <% end %>
-
-      <% if owner_controls && !local_assigns[:archive_context] %>
-        <% if photo.public? %>
-          <%= button_to "Make private",
-                unpublish_photo_path(photo),
-                method: :patch,
-                params: { return_to: return_to },
-                class: "relative z-20 rounded-lg border border-white/50 bg-white/10 px-3 py-2 text-xs font-semibold text-white backdrop-blur transition hover:bg-white hover:text-zinc-950" %>
-        <% else %>
-          <%= button_to "Publish",
-                publish_photo_path(photo),
-                method: :patch,
-                params: { return_to: return_to },
-                class: "relative z-20 rounded-lg border border-white/50 bg-white/10 px-3 py-2 text-xs font-semibold text-white backdrop-blur transition hover:bg-white hover:text-zinc-950" %>
-        <% end %>
-      <% end %>
     </div>
   </div>
 </article>
