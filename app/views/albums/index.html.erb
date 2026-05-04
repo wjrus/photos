@@ -45,7 +45,7 @@
         <% @albums.each do |album| %>
           <% cover = album_cover_photo(album) %>
           <% visible_count = album.photos.visible_to(current_user).count %>
-          <article class="group relative overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition hover:border-zinc-950">
+          <article class="group relative overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition hover:border-zinc-950" data-bulk-selection-card>
             <% if current_user&.owner? %>
               <label class="selection-control absolute left-3 top-3 z-20 cursor-pointer"
                      title="Select"
@@ -55,7 +55,9 @@
               </label>
             <% end %>
 
-            <%= link_to album_path(album), class: "block" do %>
+            <%= link_to album_path(album),
+                  class: "block",
+                  data: current_user&.owner? ? { action: "click->bulk-selection#toggleCard" } : {} do %>
               <div class="aspect-[4/3] bg-zinc-900">
                 <% if cover %>
                   <%= photo_stream_media(cover) %>

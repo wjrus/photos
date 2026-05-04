@@ -44,6 +44,15 @@ export default class extends Controller {
     this.update()
   }
 
+  toggleCard(event) {
+    const input = this.inputForCard(event.currentTarget)
+    if (!input || this.selectedInputs().length === 0) return
+
+    event.preventDefault()
+    input.checked = !input.checked
+    input.dispatchEvent(new Event("change", { bubbles: true }))
+  }
+
   guard(event) {
     if (this.selectedInputs().length > 0) return
 
@@ -53,5 +62,10 @@ export default class extends Controller {
 
   selectedInputs() {
     return Array.from(document.querySelectorAll(`input[form="${CSS.escape(this.formIdValue)}"]:checked`))
+  }
+
+  inputForCard(cardLink) {
+    const card = cardLink.closest("[data-bulk-selection-card]")
+    return card?.querySelector(`input[form="${CSS.escape(this.formIdValue)}"]`)
   }
 }

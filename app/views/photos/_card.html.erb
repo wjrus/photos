@@ -1,4 +1,4 @@
-<article class="<%= feature ? "col-span-2 row-span-2" : "" %> group relative overflow-hidden rounded-lg bg-zinc-900 shadow-sm">
+<article class="<%= feature ? "col-span-2 row-span-2" : "" %> group relative overflow-hidden rounded-lg bg-zinc-900 shadow-sm" data-bulk-selection-card>
   <% if owner_controls %>
     <label class="selection-control absolute left-3 top-3 z-20 cursor-pointer"
            title="Select"
@@ -8,7 +8,10 @@
     </label>
   <% end %>
 
-  <%= link_to photo_path(photo, return_to: return_to), class: "absolute inset-0 z-10", aria: { label: "View #{photo.title}" } do %>
+  <%= link_to photo_path(photo, return_to: return_to),
+        class: "absolute inset-0 z-10",
+        aria: { label: "View #{photo.title}" },
+        data: owner_controls ? { action: "click->bulk-selection#toggleCard" } : {} do %>
     <span class="sr-only">View <%= photo.title %></span>
   <% end %>
   <%= photo_stream_media(photo) %>
