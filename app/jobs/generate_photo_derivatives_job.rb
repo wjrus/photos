@@ -1,5 +1,5 @@
 require "open3"
-require "tempfile"
+require "tmpdir"
 
 class GeneratePhotoDerivativesJob < ApplicationJob
   queue_as :derivatives
@@ -9,13 +9,13 @@ class GeneratePhotoDerivativesJob < ApplicationJob
   VIDEO_DISPLAY_SIZE = 1800
   FFMPEG = "ffmpeg".freeze
 
-  def perform(photo)
+  def perform(photo, preview_only: false)
     return unless photo.original.attached?
 
     if photo.image?
       generate_image_derivatives(photo)
     elsif photo.video?
-      generate_video_derivatives(photo)
+      generate_video_derivatives(photo, preview_only: preview_only)
     end
   end
 
@@ -25,8 +25,8 @@ class GeneratePhotoDerivativesJob < ApplicationJob
     end
   end
 
-  def generate_video_derivatives(photo)
-    return if photo.video_derivatives_ready?
+  def generate_video_derivatives(photo, preview_only: false)
+    return if preview_only ? photo.video_preview.attached? : photo.video_derivatives_ready?
 
     raise "ffmpeg is required to generate video derivatives" unless self.class.ffmpeg_available?
 
@@ -35,12 +35,17 @@ class GeneratePhotoDerivativesJob < ApplicationJob
         preview_path = File.join(dir, "preview.jpg")
         display_path = File.join(dir, "display.mp4")
 
-        run_ffmpeg!(
-          "-i", original_file.path,
-          "-vf", "thumbnail,scale='min(#{VIDEO_PREVIEW_SIZE},iw)':-2",
-          "-frames:v", "1",
-          preview_path
-        )
+        unless photo.video_preview.attached?
+          run_ffmpeg!(
+            "-i", original_file.path,
+            "-vf", "thumbnail,scale='min(#{VIDEO_PREVIEW_SIZE},iw)':-2",
+            "-frames:v", "1",
+            preview_path
+          )
+          attach_video_preview(photo, preview_path)
+        end
+
+        next if preview_only || photo.video_display.attached?
 
         run_ffmpeg!(
           "-i", original_file.path,
@@ -57,7 +62,7 @@ class GeneratePhotoDerivativesJob < ApplicationJob
           display_path
         )
 
-        attach_video_derivatives(photo, preview_path, display_path)
+        attach_video_display(photo, display_path)
       end
     end
   end
@@ -68,20 +73,24 @@ class GeneratePhotoDerivativesJob < ApplicationJob
 
   private
 
-  def attach_video_derivatives(photo, preview_path, display_path)
-    basename = File.basename(photo.original_filename.to_s.presence || "video", ".*").parameterize.presence || "video"
-
+  def attach_video_preview(photo, preview_path)
     photo.video_preview.attach(
       io: File.open(preview_path, "rb"),
-      filename: "#{basename}-preview.jpg",
+      filename: "#{video_derivative_basename(photo)}-preview.jpg",
       content_type: "image/jpeg"
-    ) unless photo.video_preview.attached?
+    )
+  end
 
+  def attach_video_display(photo, display_path)
     photo.video_display.attach(
       io: File.open(display_path, "rb"),
-      filename: "#{basename}-display.mp4",
+      filename: "#{video_derivative_basename(photo)}-display.mp4",
       content_type: "video/mp4"
-    ) unless photo.video_display.attached?
+    )
+  end
+
+  def video_derivative_basename(photo)
+    File.basename(photo.original_filename.to_s.presence || "video", ".*").parameterize.presence || "video"
   end
 
   def run_ffmpeg!(*args)

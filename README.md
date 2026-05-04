@@ -146,6 +146,18 @@ Prewarm missing derivatives:
 ./scripts/prewarm-variants
 ```
 
+Prewarm video thumbnails only:
+
+```sh
+./scripts/prewarm-video-previews
+```
+
+Queue a bounded batch of missing location names:
+
+```sh
+./scripts/geocode-locations 25
+```
+
 Prune stale jobs after code/queue changes:
 
 ```sh

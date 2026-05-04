@@ -24,11 +24,16 @@ class GeneratePhotoDerivativesJobTest < ActiveJob::TestCase
     photo.save!
 
     called_with = nil
+    preview_only_value = nil
     job = GeneratePhotoDerivativesJob.new
-    job.define_singleton_method(:generate_video_derivatives) { |record| called_with = record }
-    job.perform(photo)
+    job.define_singleton_method(:generate_video_derivatives) do |record, preview_only: false|
+      called_with = record
+      preview_only_value = preview_only
+    end
+    job.perform(photo, preview_only: true)
 
     assert_equal photo, called_with
+    assert_equal true, preview_only_value
   end
 
   test "reports missing ffmpeg for video originals" do

@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+LIMIT="${1:-500}"
+SERVICE="${2:-web}"
+
+if [[ "$LIMIT" == "-h" || "$LIMIT" == "--help" ]]; then
+  cat <<'USAGE'
+Usage:
+  ./scripts/prewarm-video-previews [limit] [service]
+
+Examples:
+  ./scripts/prewarm-video-previews
+  ./scripts/prewarm-video-previews 2000
+
+Queues thumbnail-only derivative work for videos missing poster images. Full
+video display transcodes can still be queued with ./scripts/prewarm-variants.
+USAGE
+  exit 0
+fi
+
+docker compose exec -T -e PREWARM_LIMIT="$LIMIT" "$SERVICE" bin/rails runner "$(cat <<'RUBY'
+limit = Integer(ENV.fetch("PREWARM_LIMIT", 500))
+batch_size = [ limit, 100 ].min
+queued = 0
+cursor = nil
+
+scope = Photo
+  .where("photos.content_type LIKE 'video/%'")
+  .with_original_variant_records
+
+loop do
+  photos = scope.before_stream_cursor(cursor).stream_order.limit(batch_size).to_a
+  break if photos.empty?
+
+  photos.each do |photo|
+    cursor = photo.stream_cursor
+    next unless photo.original.attached?
+    next if photo.video_preview.attached?
+
+    GeneratePhotoDerivativesJob.perform_later(photo, preview_only: true)
+    queued += 1
+    break if queued >= limit
+  end
+
+  break if queued >= limit
+end
+
+puts "Queued #{queued} video preview #{'job'.pluralize(queued)}."
+RUBY
+)"

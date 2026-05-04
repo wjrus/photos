@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+LIMIT="${1:-25}"
+SERVICE="${2:-web}"
+SCAN_LIMIT="${GEOCODE_SCAN_LIMIT:-500}"
+
+if [[ "$LIMIT" == "-h" || "$LIMIT" == "--help" ]]; then
+  cat <<'USAGE'
+Usage:
+  ./scripts/geocode-locations [limit] [service]
+
+Examples:
+  ./scripts/geocode-locations
+  ./scripts/geocode-locations 100
+
+Queues a bounded number of missing location-name lookups. Results are stored
+in photo_location_places, so completed names persist.
+USAGE
+  exit 0
+fi
+
+docker compose exec -T \
+  -e GEOCODE_LIMIT="$LIMIT" \
+  -e GEOCODE_SCAN_LIMIT="$SCAN_LIMIT" \
+  "$SERVICE" bin/rails runner "$(cat <<'RUBY'
+limit = Integer(ENV.fetch("GEOCODE_LIMIT", 25))
+scan_limit = Integer(ENV.fetch("GEOCODE_SCAN_LIMIT", 500))
+
+abort "GOOGLE_MAPS_EMBED_API_KEY is not set; cannot geocode locations." if ENV["GOOGLE_MAPS_EMBED_API_KEY"].blank?
+
+scope = Photo
+  .not_archived
+  .where(restricted: false)
+  .joins(:metadata)
+  .where.not(photo_metadata: { latitude: nil, longitude: nil })
+
+rows = PhotoLocation.rows(scope, limit: scan_limit).to_a
+ids = rows.map { |row| PhotoLocation.id_for_coordinates(row.latitude, row.longitude) }
+existing_ids = PhotoLocationPlace.where(location_id: ids).pluck(:location_id)
+queued = 0
+
+rows.each do |row|
+  location_id = PhotoLocation.id_for_coordinates(row.latitude, row.longitude)
+  next if existing_ids.include?(location_id)
+
+  GeocodePhotoLocationJob.perform_later(location_id, row.latitude, row.longitude)
+  queued += 1
+  break if queued >= limit
+end
+
+puts "Queued #{queued} location geocode #{'job'.pluralize(queued)}."
+RUBY
+)"
