@@ -131,6 +131,12 @@
 }
 
 @media (min-width: 1024px) {
+  .photo-viewer-shell.info-panel-open {
+    padding-right: calc(390px + 1.5rem);
+  }
+}
+
+@media (min-width: 1024px) {
   html:has(body.stream-timeline-scrollbar) {
     scrollbar-width: none;
   }

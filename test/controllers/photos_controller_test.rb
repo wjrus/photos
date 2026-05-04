@@ -421,6 +421,16 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, "Download original"
   end
 
+  test "photo viewer can recenter when info panel opens" do
+    photo = attached_photo(title: "Centered detail")
+
+    get photo_path(photo)
+
+    assert_response :success
+    assert_select "main.photo-viewer-shell[data-info-panel-target='viewer']"
+    assert_select "aside#photo-info-panel[data-info-panel-target='panel']"
+  end
+
   test "trusted signed-in viewer sees public photo location without archive access" do
     ENV["PHOTOS_TRUSTED_VIEWER_EMAILS"] = users(:two).email
     photo = attached_photo

@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["backdrop", "button", "panel"]
+  static targets = ["backdrop", "button", "panel", "viewer"]
 
   connect() {
     if (this.storedOpen()) {
@@ -26,6 +26,7 @@ export default class extends Controller {
     this.panelTarget.classList.add("translate-x-0")
     this.backdropTarget.classList.remove("hidden")
     this.buttonTarget.setAttribute("aria-expanded", "true")
+    this.viewerTarget.classList.add("info-panel-open")
   }
 
   close() {
@@ -35,6 +36,7 @@ export default class extends Controller {
     this.panelTarget.classList.remove("translate-x-0")
     this.backdropTarget.classList.add("hidden")
     this.buttonTarget.setAttribute("aria-expanded", "false")
+    this.viewerTarget.classList.remove("info-panel-open")
   }
 
   storedOpen() {
