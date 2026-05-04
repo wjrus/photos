@@ -1,6 +1,6 @@
 module ApplicationHelper
-  BULK_ACTION_BUTTON_CLASSES = "ui-tooltip flex size-10 items-center justify-center rounded-lg text-zinc-800 transition hover:bg-zinc-100 disabled:opacity-40".freeze
-  BULK_DANGER_BUTTON_CLASSES = "ui-tooltip flex size-10 items-center justify-center rounded-lg text-zinc-800 transition hover:bg-rose-50 hover:text-rose-800 disabled:opacity-40".freeze
+  BULK_ACTION_BUTTON_CLASSES = "ui-tooltip flex size-10 cursor-pointer items-center justify-center rounded-lg text-zinc-800 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40".freeze
+  BULK_DANGER_BUTTON_CLASSES = "ui-tooltip flex size-10 cursor-pointer items-center justify-center rounded-lg text-zinc-800 transition hover:bg-rose-50 hover:text-rose-800 disabled:cursor-not-allowed disabled:opacity-40".freeze
 
   def photo_display_image_path(photo)
     display_photo_path(photo)

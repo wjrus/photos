@@ -116,6 +116,14 @@ class Photo < ApplicationRecord
     [ nil, nil, nil ]
   end
 
+  def self.stream_cursor_before(captured_at)
+    [
+      captured_at.utc.iso8601(6),
+      Time.utc(9999, 12, 31, 23, 59, 59).iso8601(6),
+      9_999_999_999
+    ].join("_")
+  end
+
   def stream_cursor
     "#{captured_at&.utc&.iso8601(6) || 'none'}_#{created_at.utc.iso8601(6)}_#{id}"
   end

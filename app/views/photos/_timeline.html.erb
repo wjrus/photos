@@ -1,0 +1,32 @@
+<% total = periods.size %>
+
+<nav class="fixed right-4 top-28 bottom-8 z-30 hidden w-24 lg:block"
+     aria-label="Photo timeline"
+     data-controller="stream-timeline"
+     data-action="pointerdown->stream-timeline#pointerdown pointermove->stream-timeline#pointermove pointerup->stream-timeline#pointerup pointerleave->stream-timeline#pointerleave">
+  <div class="relative h-full cursor-ns-resize select-none rounded-full border-r border-zinc-300/80"
+       data-stream-timeline-target="rail">
+    <div class="pointer-events-none absolute right-8 hidden -translate-y-1/2 rounded bg-zinc-950 px-2 py-1 text-xs font-semibold text-white shadow-sm"
+         data-stream-timeline-target="label"></div>
+
+    <% periods.each_with_index do |period, index| %>
+      <% position = total == 1 ? 0 : (index.to_f / (total - 1) * 100) %>
+      <% show_year = index.zero? || period[:year] != periods[index - 1][:year] %>
+      <%= link_to root_path(cursor: period[:cursor]),
+            class: "absolute right-0 flex -translate-y-1/2 items-center gap-2 text-xs font-semibold text-zinc-500 transition hover:text-zinc-950 focus:text-zinc-950",
+            style: "top: #{position}%",
+            title: period[:label],
+            aria: { label: "Jump to #{period[:label]}, #{pluralize(period[:count], "photo")}" },
+            data: {
+              stream_timeline_target: "item",
+              stream_timeline_label_value: period[:label],
+              stream_timeline_count_value: pluralize(period[:count], "photo")
+            } do %>
+        <% if show_year %>
+          <span class="tabular-nums"><%= period[:year] %></span>
+        <% end %>
+        <span class="<%= show_year ? "size-1.5 bg-zinc-500" : "size-1 bg-zinc-400" %> rounded-full"></span>
+      <% end %>
+    <% end %>
+  </div>
+</nav>

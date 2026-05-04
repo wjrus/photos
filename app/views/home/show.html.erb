@@ -19,6 +19,7 @@
             bulk_form_id: "photo-bulk-form",
             next_cursor: @next_cursor,
             next_page_path: root_path %>
+      <%= render "photos/timeline", periods: @timeline_periods if @timeline_periods.present? %>
     <% else %>
       <div class="flex min-h-[440px] items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-white p-8 text-center shadow-sm">
         <div>

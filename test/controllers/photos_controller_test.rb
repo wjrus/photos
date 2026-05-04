@@ -339,6 +339,20 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-infinite-scroll-target='sentinel']"
   end
 
+  test "photo stream renders a right side timeline for captured dates" do
+    newer = attached_photo(title: "Timeline newer")
+    newer.update!(captured_at: Time.zone.local(2024, 5, 12, 10))
+    older = attached_photo(title: "Timeline older")
+    older.update!(captured_at: Time.zone.local(2018, 2, 4, 10))
+
+    get root_path
+
+    assert_response :success
+    assert_select "nav[aria-label='Photo timeline'][data-controller='stream-timeline']"
+    assert_select "a[aria-label*='Jump to May 2024']"
+    assert_select "a[aria-label*='Jump to February 2018']"
+  end
+
   test "photo stream excludes archived photos" do
     active = attached_photo(title: "Stream photo")
     archived = attached_photo(title: "Archived screenshot")

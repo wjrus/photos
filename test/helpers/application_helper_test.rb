@@ -39,6 +39,13 @@ class ApplicationHelperTest < ActionView::TestCase
     assert_not_includes html, display_photo_path(photo)
   end
 
+  test "bulk action buttons use link-like pointer cursors" do
+    html = bulk_action_button(icon: :globe, label: "Publish selected photos", value: "publish")
+
+    assert_includes html, "cursor-pointer"
+    assert_includes html, "disabled:cursor-not-allowed"
+  end
+
   private
 
   def attached_photo
