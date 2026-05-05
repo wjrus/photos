@@ -6,6 +6,13 @@ class QueueStatusSnapshot
     failed: { table: "solid_queue_failed_executions", queue_column: false },
     blocked: { table: "solid_queue_blocked_executions", queue_column: true }
   }.freeze
+  COUNT_SQL = {
+    "solid_queue_ready_executions" => "SELECT COUNT(*) FROM solid_queue_ready_executions",
+    "solid_queue_claimed_executions" => "SELECT COUNT(*) FROM solid_queue_claimed_executions",
+    "solid_queue_scheduled_executions" => "SELECT COUNT(*) FROM solid_queue_scheduled_executions",
+    "solid_queue_failed_executions" => "SELECT COUNT(*) FROM solid_queue_failed_executions",
+    "solid_queue_blocked_executions" => "SELECT COUNT(*) FROM solid_queue_blocked_executions"
+  }.freeze
 
   attr_reader :generated_at
 
@@ -136,7 +143,7 @@ class QueueStatusSnapshot
   def count_rows(table)
     return 0 unless table_exists?(table)
 
-    connection.select_value("SELECT COUNT(*) FROM #{quote_table(table)}").to_i
+    connection.select_value(COUNT_SQL.fetch(table)).to_i
   end
 
   def grouped_counts(definition)
