@@ -36,6 +36,25 @@ class GeneratePhotoDerivativesJobTest < ActiveJob::TestCase
     assert_equal true, preview_only_value
   end
 
+  test "accepts serialized preview options from solid queue" do
+    photo = users(:one).photos.new
+    photo.original.attach(
+      io: StringIO.new("fake mov bytes"),
+      filename: "clip.mov",
+      content_type: "video/quicktime"
+    )
+    photo.save!
+
+    preview_only_value = nil
+    job = GeneratePhotoDerivativesJob.new
+    job.define_singleton_method(:generate_video_derivatives) do |_record, preview_only: false|
+      preview_only_value = preview_only
+    end
+    job.perform(photo, { "preview_only" => true })
+
+    assert_equal true, preview_only_value
+  end
+
   test "reports missing ffmpeg for video originals" do
     photo = users(:one).photos.new
     photo.original.attach(

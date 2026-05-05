@@ -9,8 +9,10 @@ class GeneratePhotoDerivativesJob < ApplicationJob
   VIDEO_DISPLAY_SIZE = 1800
   FFMPEG = "ffmpeg".freeze
 
-  def perform(photo, preview_only: false)
+  def perform(photo, options = {})
     return unless photo.original.attached?
+
+    preview_only = options.fetch(:preview_only, options.fetch("preview_only", false))
 
     if photo.image?
       generate_image_derivatives(photo)
