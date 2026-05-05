@@ -1,0 +1,178 @@
+<% content_for :title, "Queues" %>
+
+<section class="min-h-screen bg-stone-50 text-zinc-950">
+  <%= render "shared/site_header" %>
+
+  <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <div class="flex flex-col gap-4 border-b border-zinc-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Owner</p>
+        <h1 class="mt-2 text-3xl font-semibold text-zinc-950">Queue status</h1>
+        <p class="mt-2 text-sm text-zinc-600">Generated <%= time_ago_in_words(@snapshot.generated_at) %> ago.</p>
+      </div>
+
+      <%= link_to "Refresh",
+            queue_status_path,
+            class: "inline-flex w-fit items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+    </div>
+
+    <% unless @snapshot.available? %>
+      <div class="mt-6 rounded-lg border border-rose-200 bg-rose-50 p-5 text-sm leading-6 text-rose-950">
+        The Solid Queue tables are not available from this process. In production this page reads from the configured queue database.
+      </div>
+    <% else %>
+      <div class="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-7">
+        <% @totals.each do |state, count| %>
+          <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500"><%= state %></p>
+            <p class="mt-2 text-2xl font-semibold <%= state == :failed ? "text-rose-800" : "text-zinc-950" %>"><%= number_with_delimiter(count) %></p>
+          </div>
+        <% end %>
+        <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+          <p class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">finished 1h</p>
+          <p class="mt-2 text-2xl font-semibold text-zinc-950"><%= number_with_delimiter(@finished_counts.fetch(:last_hour)) %></p>
+        </div>
+        <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+          <p class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">finished 24h</p>
+          <p class="mt-2 text-2xl font-semibold text-zinc-950"><%= number_with_delimiter(@finished_counts.fetch(:last_day)) %></p>
+        </div>
+      </div>
+
+      <% if @pauses.any? %>
+        <div class="mt-6 rounded-lg border border-rose-200 bg-rose-50 p-4">
+          <p class="text-sm font-semibold text-rose-950">Paused queues</p>
+          <p class="mt-1 text-sm text-rose-900">
+            <%= @pauses.map { |pause| pause.fetch("queue_name") }.join(", ") %>
+          </p>
+        </div>
+      <% end %>
+
+      <div class="mt-8 grid gap-6 xl:grid-cols-[1fr_26rem]">
+        <div class="space-y-8">
+          <section>
+            <h2 class="text-sm font-semibold uppercase tracking-[0.16em] text-zinc-500">Queues</h2>
+            <div class="mt-3 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
+              <% if @queues.any? %>
+                <table class="w-full text-left text-sm">
+                  <thead class="border-b border-zinc-200 bg-stone-50 text-xs uppercase tracking-[0.14em] text-zinc-500">
+                    <tr>
+                      <th class="px-4 py-3">Queue</th>
+                      <th class="px-4 py-3 text-right">Ready</th>
+                      <th class="px-4 py-3 text-right">Claimed</th>
+                      <th class="px-4 py-3 text-right">Scheduled</th>
+                      <th class="px-4 py-3 text-right">Failed</th>
+                      <th class="px-4 py-3 text-right">Blocked</th>
+                      <th class="px-4 py-3 text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-zinc-100">
+                    <% @queues.each do |queue| %>
+                      <% counts = queue.fetch(:counts) %>
+                      <tr>
+                        <td class="px-4 py-3 font-medium text-zinc-950"><%= queue.fetch(:name) %></td>
+                        <td class="px-4 py-3 text-right text-zinc-700"><%= number_with_delimiter(counts.fetch(:ready)) %></td>
+                        <td class="px-4 py-3 text-right text-zinc-700"><%= number_with_delimiter(counts.fetch(:claimed)) %></td>
+                        <td class="px-4 py-3 text-right text-zinc-700"><%= number_with_delimiter(counts.fetch(:scheduled)) %></td>
+                        <td class="px-4 py-3 text-right text-rose-800"><%= number_with_delimiter(counts.fetch(:failed)) %></td>
+                        <td class="px-4 py-3 text-right text-zinc-700"><%= number_with_delimiter(counts.fetch(:blocked)) %></td>
+                        <td class="px-4 py-3 text-right font-medium text-zinc-950"><%= number_with_delimiter(queue.fetch(:total)) %></td>
+                      </tr>
+                    <% end %>
+                  </tbody>
+                </table>
+              <% else %>
+                <div class="p-6 text-sm text-zinc-600">No queued executions.</div>
+              <% end %>
+            </div>
+          </section>
+
+          <section>
+            <h2 class="text-sm font-semibold uppercase tracking-[0.16em] text-zinc-500">Job classes</h2>
+            <div class="mt-3 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
+              <% if @job_classes.any? %>
+                <table class="w-full text-left text-sm">
+                  <thead class="border-b border-zinc-200 bg-stone-50 text-xs uppercase tracking-[0.14em] text-zinc-500">
+                    <tr>
+                      <th class="px-4 py-3">Class</th>
+                      <th class="px-4 py-3 text-right">Ready</th>
+                      <th class="px-4 py-3 text-right">Claimed</th>
+                      <th class="px-4 py-3 text-right">Scheduled</th>
+                      <th class="px-4 py-3 text-right">Failed</th>
+                      <th class="px-4 py-3 text-right">Blocked</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-zinc-100">
+                    <% @job_classes.each do |job_class| %>
+                      <% counts = job_class.fetch(:counts) %>
+                      <tr>
+                        <td class="max-w-[20rem] truncate px-4 py-3 font-medium text-zinc-950" title="<%= job_class.fetch(:name) %>"><%= job_class.fetch(:name) %></td>
+                        <td class="px-4 py-3 text-right text-zinc-700"><%= number_with_delimiter(counts.fetch(:ready)) %></td>
+                        <td class="px-4 py-3 text-right text-zinc-700"><%= number_with_delimiter(counts.fetch(:claimed)) %></td>
+                        <td class="px-4 py-3 text-right text-zinc-700"><%= number_with_delimiter(counts.fetch(:scheduled)) %></td>
+                        <td class="px-4 py-3 text-right text-rose-800"><%= number_with_delimiter(counts.fetch(:failed)) %></td>
+                        <td class="px-4 py-3 text-right text-zinc-700"><%= number_with_delimiter(counts.fetch(:blocked)) %></td>
+                      </tr>
+                    <% end %>
+                  </tbody>
+                </table>
+              <% else %>
+                <div class="p-6 text-sm text-zinc-600">No active job classes.</div>
+              <% end %>
+            </div>
+          </section>
+        </div>
+
+        <aside class="space-y-6">
+          <section>
+            <h2 class="text-sm font-semibold uppercase tracking-[0.16em] text-zinc-500">Workers</h2>
+            <div class="mt-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+              <% if @processes.any? %>
+                <ul class="space-y-4">
+                  <% @processes.each do |process| %>
+                    <li class="text-sm">
+                      <div class="flex items-start justify-between gap-3">
+                        <p class="min-w-0 truncate font-medium text-zinc-950" title="<%= process.fetch("name") %>"><%= process.fetch("name") %></p>
+                        <span class="shrink-0 rounded-lg border border-zinc-200 bg-stone-50 px-2 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-zinc-600"><%= process.fetch("kind") %></span>
+                      </div>
+                      <p class="mt-1 text-xs text-zinc-600">
+                        pid <%= process.fetch("pid") %>
+                        <% if process.fetch("hostname").present? %>
+                          · <%= process.fetch("hostname") %>
+                        <% end %>
+                      </p>
+                      <p class="mt-1 text-xs text-zinc-500">Heartbeat <%= time_ago_in_words(process.fetch("last_heartbeat_at")) %> ago</p>
+                    </li>
+                  <% end %>
+                </ul>
+              <% else %>
+                <p class="text-sm text-zinc-600">No queue workers are registered.</p>
+              <% end %>
+            </div>
+          </section>
+
+          <section>
+            <h2 class="text-sm font-semibold uppercase tracking-[0.16em] text-zinc-500">Recent failures</h2>
+            <div class="mt-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+              <% if @recent_failures.any? %>
+                <ul class="space-y-4">
+                  <% @recent_failures.each do |failure| %>
+                    <li class="text-sm">
+                      <div class="flex items-start justify-between gap-3">
+                        <p class="min-w-0 truncate font-medium text-zinc-950" title="<%= failure.fetch("class_name") %>"><%= failure.fetch("class_name") %></p>
+                        <span class="shrink-0 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-900"><%= failure.fetch("queue_name") %></span>
+                      </div>
+                      <p class="mt-2 break-words text-xs leading-5 text-rose-800"><%= failure.fetch("error").to_s.lines.first(3).join.strip %></p>
+                      <p class="mt-2 text-xs text-zinc-500"><%= time_ago_in_words(failure.fetch("failed_at")) %> ago</p>
+                    </li>
+                  <% end %>
+                </ul>
+              <% else %>
+                <p class="text-sm text-zinc-600">No failed jobs.</p>
+              <% end %>
+            </div>
+          </section>
+        </aside>
+      </div>
+    <% end %>
+  </main>
+</section>
