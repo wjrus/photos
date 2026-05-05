@@ -2,7 +2,7 @@
 
 <% if current_user&.owner? %>
   <% content_for :header_actions do %>
-    <%= render "photos/bulk_toolbar", albums: @albums, return_to: album_path(@album), form_id: "album-photo-bulk-form" %>
+    <%= render "photos/bulk_toolbar", albums: @albums, return_to: album_path(@album), form_id: "album-photo-bulk-form", album: @album %>
   <% end %>
 <% end %>
 

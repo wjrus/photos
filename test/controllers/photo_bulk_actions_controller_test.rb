@@ -55,6 +55,62 @@ class PhotoBulkActionsControllerTest < ActionDispatch::IntegrationTest
     assert_includes album.photos, photo
   end
 
+  test "owner can remove selected photos from the current album" do
+    album = @owner.photo_albums.create!(title: "Trip", source: "manual")
+    first = attached_photo(title: "Album first")
+    second = attached_photo(title: "Album second")
+    album.photos << first
+    album.photos << second
+    album.update!(cover_photo: first)
+
+    assert_difference "PhotoAlbumMembership.count", -2 do
+      post photo_bulk_actions_path, params: {
+        bulk_action: "remove_from_album",
+        context_album_id: album.id,
+        photo_ids: [ first.id, second.id ],
+        return_to: album_path(album)
+      }
+    end
+
+    assert_redirected_to album_path(album)
+    assert_empty album.reload.photos
+    assert_nil album.cover_photo
+  end
+
+  test "owner can set selected photo as the current album cover" do
+    album = @owner.photo_albums.create!(title: "Trip", source: "manual")
+    photo = attached_photo(title: "New cover")
+    album.photos << photo
+
+    post photo_bulk_actions_path, params: {
+      bulk_action: "set_album_cover",
+      context_album_id: album.id,
+      photo_ids: [ photo.id ],
+      return_to: album_path(album)
+    }
+
+    assert_redirected_to album_path(album)
+    assert_equal photo, album.reload.cover_photo
+  end
+
+  test "setting album cover requires one selected photo" do
+    album = @owner.photo_albums.create!(title: "Trip", source: "manual")
+    first = attached_photo(title: "First cover choice")
+    second = attached_photo(title: "Second cover choice")
+    album.photos << first
+    album.photos << second
+
+    post photo_bulk_actions_path, params: {
+      bulk_action: "set_album_cover",
+      context_album_id: album.id,
+      photo_ids: [ first.id, second.id ],
+      return_to: album_path(album)
+    }
+
+    assert_redirected_to album_path(album)
+    assert_nil album.reload.cover_photo
+  end
+
   test "owner can bulk delete photos" do
     first = attached_photo(title: "Delete first")
     second = attached_photo(title: "Delete second")

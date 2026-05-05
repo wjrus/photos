@@ -23,6 +23,20 @@ class PhotoBulkActionsController < ApplicationController
     when "restore"
       photos.find_each(&:restore!)
       redirect_to safe_return_path, notice: "Restored #{photos.size} #{'photo'.pluralize(photos.size)} to the stream."
+    when "remove_from_album"
+      album = context_album
+      return redirect_to safe_return_path, alert: "Open an album before removing photos from it." unless album
+
+      removed = remove_photos_from_album(photos, album)
+      redirect_to safe_return_path, notice: "Removed #{removed} #{'photo'.pluralize(removed)} from #{album.title}."
+    when "set_album_cover"
+      album = context_album
+      return redirect_to safe_return_path, alert: "Open an album before setting its cover." unless album
+      return redirect_to safe_return_path, alert: "Select exactly one photo to use as the album cover." unless photos.one?
+
+      photo = album.photos.visible_to(current_user).find(photos.first.id)
+      album.update!(cover_photo: photo)
+      redirect_to safe_return_path, notice: "Album cover updated."
     when "delete"
       count = photos.size
       photos.destroy_all
@@ -61,5 +75,19 @@ class PhotoBulkActionsController < ApplicationController
     photos.count do |photo|
       PhotoAlbumMembership.find_or_create_by!(photo: photo, photo_album: album).previously_new_record?
     end
+  end
+
+  def context_album
+    current_user.photo_albums.find_by(id: params[:context_album_id])
+  end
+
+  def remove_photos_from_album(photos, album)
+    removed_photo_ids = []
+    album.photo_album_memberships.where(photo_id: photos.select(:id)).find_each do |membership|
+      removed_photo_ids << membership.photo_id
+      membership.destroy!
+    end
+    album.update!(cover_photo: nil) if removed_photo_ids.include?(album.cover_photo_id)
+    removed_photo_ids.size
   end
 end

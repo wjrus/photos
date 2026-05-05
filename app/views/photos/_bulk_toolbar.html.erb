@@ -6,6 +6,7 @@
         data: { bulk_selection_target: "bar", action: "submit->bulk-selection#guard" }
       } do %>
   <%= hidden_field_tag :return_to, return_to %>
+  <%= hidden_field_tag :context_album_id, local_assigns[:album].id if local_assigns[:album].present? %>
   <p class="hidden rounded-lg bg-zinc-950 px-3 py-2 text-sm font-semibold text-white shadow-sm sm:block" aria-live="polite" data-bulk-selection-target="count">
     Select photos, then choose an action.
   </p>
@@ -18,6 +19,17 @@
         <%= bulk_action_button(icon: :globe, label: "Publish selected photos", value: "publish") %>
         <%= bulk_action_button(icon: :lock, label: "Make selected photos private", value: "unpublish") %>
         <%= bulk_action_button(icon: :archive, label: "Move selected photos to archive", value: "archive") %>
+        <% if local_assigns[:album].present? %>
+          <%= bulk_action_button(icon: :image, label: "Set selected photo as album cover", value: "set_album_cover") %>
+          <%= render "shared/bulk_confirm_modal",
+                button_icon: :image_minus,
+                button_label: "Remove selected photos from this album",
+                title_id: "remove-selected-from-album-title",
+                title: "Remove selected photos from this album?",
+                body: "This removes the selected items from #{local_assigns[:album].title}. The photos stay in your library.",
+                value: "remove_from_album",
+                confirm_label: "Remove" %>
+        <% end %>
         <%= render "shared/bulk_confirm_modal",
               button_icon: :shield,
               button_label: "Move selected photos to Private",
