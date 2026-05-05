@@ -539,15 +539,15 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, photo.original_filename
   end
 
-  test "video detail renders a player while display derivative processes" do
+  test "video detail waits for browser compatible display derivative" do
     photo = attached_video
 
     get photo_path(photo)
 
     assert_response :success
-    assert_includes response.body, "<video"
-    assert_includes response.body, video_photo_path(photo)
-    refute_includes response.body, "Video derivative processing."
+    assert_includes response.body, "Video derivative processing."
+    refute_includes response.body, "<video"
+    refute_includes response.body, video_photo_path(photo)
   end
 
   test "public viewer can access video display derivative for public photos" do
@@ -562,13 +562,12 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.location, "clip-display.mp4"
   end
 
-  test "video route falls back to original until display derivative exists" do
+  test "video route returns not found until display derivative exists" do
     photo = attached_video
 
     get video_photo_path(photo)
 
-    assert_response :redirect
-    assert_includes response.location, "clip.mov"
+    assert_response :not_found
   end
 
   private

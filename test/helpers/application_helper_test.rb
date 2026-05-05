@@ -36,14 +36,14 @@ class ApplicationHelperTest < ActionView::TestCase
     assert_not_includes html, media_photo_path(photo)
   end
 
-  test "detail video falls back to playable original while derivative processes" do
+  test "detail video waits for browser compatible display derivative" do
     photo = attached_video
 
     html = photo_detail_media(photo)
 
-    assert_includes html, "<video"
-    assert_includes html, video_photo_path(photo)
-    assert_includes html, 'preload="metadata"'
+    assert_includes html, "Video derivative processing."
+    assert_not_includes html, "<video"
+    assert_not_includes html, video_photo_path(photo)
     assert_not_includes html, media_photo_path(photo)
   end
 

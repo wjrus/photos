@@ -36,6 +36,12 @@ module ApplicationHelper
 
   def photo_detail_media(photo)
     if photo.video?
+      unless photo.video_display.attached?
+        return tag.div class: "mx-auto flex min-h-80 w-full max-w-xl items-center justify-center rounded-lg border border-white/15 bg-white/5 p-8 text-center text-sm leading-6 text-white/75 shadow-2xl" do
+          "Video derivative processing."
+        end
+      end
+
       video_options = {
         controls: true,
         preload: "metadata",
