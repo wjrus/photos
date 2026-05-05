@@ -72,6 +72,21 @@ class ApplicationHelperTest < ActionView::TestCase
     assert_includes html, "disabled:cursor-not-allowed"
   end
 
+  test "formats video metadata" do
+    metadata = PhotoMetadata.new(
+      video_codec: "h264",
+      audio_codec: "aac",
+      video_bitrate: 8_250_000,
+      video_duration: 65.432,
+      video_frame_rate: 29.97
+    )
+
+    assert_equal "h264 / aac", video_codecs(metadata)
+    assert_equal "8.3 Mbps", video_bitrate(metadata)
+    assert_equal "1:05", video_duration(metadata)
+    assert_equal "29.97 fps", video_frame_rate(metadata)
+  end
+
   private
 
   def attached_photo

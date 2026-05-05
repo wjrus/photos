@@ -14,16 +14,52 @@ class ExtractPhotoMetadataJobTest < ActiveJob::TestCase
     assert_predicate metadata.extracted_at, :present?
   end
 
-  test "marks video originals unsupported for exif extraction" do
+  test "extracts video metadata with ffprobe" do
     photo = attached_video
+    job = ExtractPhotoMetadataJob.new
+    job.define_singleton_method(:ffprobe_metadata) do |_path|
+      {
+        "format" => {
+          "format_name" => "mov,mp4,m4a,3gp,3g2,mj2",
+          "format_long_name" => "QuickTime / MOV",
+          "duration" => "65.432000",
+          "bit_rate" => "8250000",
+          "tags" => { "creation_time" => "2026-04-29T14:12:33.000000Z" }
+        },
+        "streams" => [
+          {
+            "codec_type" => "video",
+            "codec_name" => "h264",
+            "profile" => "High",
+            "width" => 1920,
+            "height" => 1080,
+            "avg_frame_rate" => "30000/1001"
+          },
+          {
+            "codec_type" => "audio",
+            "codec_name" => "aac"
+          }
+        ]
+      }
+    end
 
-    ExtractPhotoMetadataJob.perform_now(photo)
+    job.perform(photo)
 
     metadata = photo.reload.metadata
-    assert_equal "unsupported", metadata.extraction_status
-    assert_equal({}, metadata.raw)
-    assert_nil metadata.width
-    assert_nil metadata.height
+    assert_equal "complete", metadata.extraction_status
+    assert_equal Time.zone.parse("2026-04-29T14:12:33Z"), metadata.captured_at
+    assert_equal metadata.captured_at, photo.captured_at
+    assert_equal 1920, metadata.width
+    assert_equal 1080, metadata.height
+    assert_equal "h264", metadata.video_codec
+    assert_equal "High", metadata.video_profile
+    assert_equal "aac", metadata.audio_codec
+    assert_equal "QuickTime / MOV", metadata.video_container
+    assert_equal 8_250_000, metadata.video_bitrate
+    assert_equal BigDecimal("65.432"), metadata.video_duration
+    assert_equal BigDecimal("29.970"), metadata.video_frame_rate
+    assert_equal "h264", metadata.raw.dig("streams", 0, "codec_name")
+    assert_predicate metadata, :video?
   end
 
   test "extracts heic-style exif from vips metadata" do

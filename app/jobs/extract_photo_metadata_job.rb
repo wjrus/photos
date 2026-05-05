@@ -1,3 +1,5 @@
+require "json"
+require "open3"
 require "vips"
 
 class ExtractPhotoMetadataJob < ApplicationJob
@@ -11,8 +13,13 @@ class ExtractPhotoMetadataJob < ApplicationJob
       return
     end
 
+    if photo.video?
+      extract_video_metadata(photo, metadata)
+      return
+    end
+
     unless photo.image?
-      metadata.update!(extraction_status: "unsupported", extraction_error: nil, raw: {}, extracted_at: Time.current)
+      clear_media_metadata(metadata, extraction_status: "unsupported", raw: {})
       return
     end
 
@@ -28,6 +35,13 @@ class ExtractPhotoMetadataJob < ApplicationJob
           raw: {},
           width: dimensions[:width],
           height: dimensions[:height],
+          video_codec: nil,
+          video_profile: nil,
+          audio_codec: nil,
+          video_container: nil,
+          video_bitrate: nil,
+          video_duration: nil,
+          video_frame_rate: nil,
           extracted_at: Time.current
         )
         return
@@ -50,6 +64,13 @@ class ExtractPhotoMetadataJob < ApplicationJob
         longitude: gps_coordinate(exif["GPSLongitude"], exif["GPSLongitudeRef"]),
         width: dimensions[:width],
         height: dimensions[:height],
+        video_codec: nil,
+        video_profile: nil,
+        audio_codec: nil,
+        video_container: nil,
+        video_bitrate: nil,
+        video_duration: nil,
+        video_frame_rate: nil,
         raw: exif,
         extracted_at: Time.current
       )
@@ -65,6 +86,48 @@ class ExtractPhotoMetadataJob < ApplicationJob
   end
 
   private
+
+  def extract_video_metadata(photo, metadata)
+    photo.original.blob.open do |file|
+      probe = ffprobe_metadata(file.path)
+      format = probe.fetch("format", {})
+      video_stream = streams(probe).find { |stream| stream["codec_type"] == "video" }
+      audio_stream = streams(probe).find { |stream| stream["codec_type"] == "audio" }
+      captured_at = parse_video_captured_at(format, video_stream)
+
+      metadata.update!(
+        extraction_status: "complete",
+        extraction_error: nil,
+        captured_at: captured_at,
+        width: integer_value(video_stream&.fetch("width", nil)),
+        height: integer_value(video_stream&.fetch("height", nil)),
+        video_codec: video_stream&.fetch("codec_name", nil),
+        video_profile: video_stream&.fetch("profile", nil),
+        audio_codec: audio_stream&.fetch("codec_name", nil),
+        video_container: format["format_long_name"].presence || format["format_name"],
+        video_bitrate: integer_value(format["bit_rate"]) || integer_value(video_stream&.fetch("bit_rate", nil)),
+        video_duration: decimal_value(format["duration"]) || decimal_value(video_stream&.fetch("duration", nil)),
+        video_frame_rate: frame_rate(video_stream&.fetch("avg_frame_rate", nil) || video_stream&.fetch("r_frame_rate", nil)),
+        raw: probe,
+        extracted_at: Time.current
+      )
+      photo.update_columns(captured_at: captured_at, updated_at: Time.current) if captured_at
+    end
+  end
+
+  def ffprobe_metadata(path)
+    stdout, stderr, status = Open3.capture3(
+      "ffprobe",
+      "-v", "error",
+      "-print_format", "json",
+      "-show_format",
+      "-show_streams",
+      path
+    )
+    raise "ffprobe failed: #{stderr.presence || stdout.presence || 'unknown error'}" unless status.success?
+
+    JSON.parse(stdout)
+  end
 
   def extract_exif(image)
     image.get_fields.filter_map do |field|
@@ -108,6 +171,71 @@ class ExtractPhotoMetadataJob < ApplicationJob
     Time.zone.strptime(value, "%Y:%m:%d %H:%M:%S")
   rescue ArgumentError
     nil
+  end
+
+  def parse_video_captured_at(format, video_stream)
+    creation_time = format.dig("tags", "creation_time") || video_stream&.dig("tags", "creation_time")
+    return if creation_time.blank?
+
+    Time.zone.parse(creation_time)
+  rescue ArgumentError
+    nil
+  end
+
+  def streams(probe)
+    Array(probe["streams"])
+  end
+
+  def integer_value(value)
+    return if value.blank? || value == "N/A"
+
+    value.to_i
+  end
+
+  def decimal_value(value)
+    return if value.blank? || value == "N/A"
+
+    BigDecimal(value.to_s)
+  rescue ArgumentError
+    nil
+  end
+
+  def frame_rate(value)
+    return if value.blank? || value == "0/0" || value == "N/A"
+
+    numerator, denominator = value.split("/", 2).map(&:to_d)
+    return numerator unless denominator
+    return if denominator.zero?
+
+    numerator / denominator
+  end
+
+  def clear_media_metadata(metadata, attributes)
+    metadata.update!(
+      {
+        extraction_error: nil,
+        captured_at: nil,
+        camera_make: nil,
+        camera_model: nil,
+        lens_model: nil,
+        iso: nil,
+        aperture: nil,
+        exposure_time: nil,
+        focal_length: nil,
+        latitude: nil,
+        longitude: nil,
+        width: nil,
+        height: nil,
+        video_codec: nil,
+        video_profile: nil,
+        audio_codec: nil,
+        video_container: nil,
+        video_bitrate: nil,
+        video_duration: nil,
+        video_frame_rate: nil,
+        extracted_at: Time.current
+      }.merge(attributes)
+    )
   end
 
   def gps_coordinate(value, reference)

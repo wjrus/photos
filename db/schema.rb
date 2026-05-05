@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_05_003000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_05_082023) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -136,6 +136,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_05_003000) do
 
   create_table "photo_metadata", force: :cascade do |t|
     t.string "aperture"
+    t.string "audio_codec"
     t.string "camera_make"
     t.string "camera_model"
     t.datetime "captured_at"
@@ -153,6 +154,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_05_003000) do
     t.bigint "photo_id", null: false
     t.jsonb "raw", default: {}, null: false
     t.datetime "updated_at", null: false
+    t.bigint "video_bitrate"
+    t.string "video_codec"
+    t.string "video_container"
+    t.decimal "video_duration", precision: 12, scale: 3
+    t.decimal "video_frame_rate", precision: 10, scale: 3
+    t.string "video_profile"
     t.integer "width"
     t.index ["extraction_status"], name: "index_photo_metadata_on_extraction_status"
     t.index ["latitude", "longitude"], name: "index_photo_metadata_on_location", where: "((latitude IS NOT NULL) AND (longitude IS NOT NULL))"

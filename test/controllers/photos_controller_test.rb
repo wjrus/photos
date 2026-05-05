@@ -285,6 +285,31 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, "Photo location map"
   end
 
+  test "owner sees video metadata details" do
+    photo = attached_video
+    photo.create_metadata!(
+      extraction_status: "complete",
+      width: 1920,
+      height: 1080,
+      video_codec: "h264",
+      audio_codec: "aac",
+      video_container: "QuickTime / MOV",
+      video_bitrate: 8_250_000,
+      video_duration: 65.432,
+      video_frame_rate: 29.97,
+      raw: {}
+    )
+
+    get photo_path(photo)
+
+    assert_response :success
+    assert_includes response.body, "QuickTime / MOV"
+    assert_includes response.body, "h264 / aac"
+    assert_includes response.body, "1:05"
+    assert_includes response.body, "8.3 Mbps"
+    assert_includes response.body, "29.97 fps"
+  end
+
   test "owner can access original media" do
     photo = attached_photo
 

@@ -17,4 +17,8 @@ class PhotoMetadata < ApplicationRecord
   def location?
     latitude.present? && longitude.present?
   end
+
+  def video?
+    video_codec.present? || audio_codec.present? || video_container.present? || video_duration.present?
+  end
 end

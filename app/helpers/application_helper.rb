@@ -65,6 +65,42 @@ module ApplicationHelper
     "#{number_with_delimiter(metadata.width)} x #{number_with_delimiter(metadata.height)}"
   end
 
+  def video_duration(metadata)
+    return "unknown" unless metadata&.video_duration.present?
+
+    total_seconds = metadata.video_duration.to_f.round
+    hours = total_seconds / 3600
+    minutes = (total_seconds % 3600) / 60
+    seconds = total_seconds % 60
+
+    if hours.positive?
+      format("%d:%02d:%02d", hours, minutes, seconds)
+    else
+      format("%d:%02d", minutes, seconds)
+    end
+  end
+
+  def video_bitrate(metadata)
+    return "unknown" unless metadata&.video_bitrate.present?
+
+    bitrate = metadata.video_bitrate.to_i
+    if bitrate >= 1_000_000
+      "#{number_with_precision(bitrate / 1_000_000.0, precision: 1, strip_insignificant_zeros: true)} Mbps"
+    else
+      "#{number_with_delimiter((bitrate / 1_000.0).round)} kbps"
+    end
+  end
+
+  def video_frame_rate(metadata)
+    return "unknown" unless metadata&.video_frame_rate.present?
+
+    "#{number_with_precision(metadata.video_frame_rate, precision: 2, strip_insignificant_zeros: true)} fps"
+  end
+
+  def video_codecs(metadata)
+    [ metadata.video_codec, metadata.audio_codec ].compact_blank.join(" / ").presence || "unknown"
+  end
+
   def photo_map_embed_url(metadata)
     return if google_maps_api_key.blank?
 

@@ -9,6 +9,13 @@
         <div class="flex justify-between gap-4"><dt class="text-zinc-500">Camera</dt><dd class="text-right text-zinc-800"><%= [metadata.camera_make, metadata.camera_model].compact_blank.join(" ").presence || "unknown" %></dd></div>
         <div class="flex justify-between gap-4"><dt class="text-zinc-500">Lens</dt><dd class="text-right text-zinc-800"><%= metadata.lens_model.presence || "unknown" %></dd></div>
         <div class="flex justify-between gap-4"><dt class="text-zinc-500">Exposure</dt><dd class="text-right text-zinc-800"><%= [metadata.focal_length, metadata.aperture, metadata.exposure_time, ("ISO #{metadata.iso}" if metadata.iso)].compact_blank.join(" · ").presence || "unknown" %></dd></div>
+        <% if metadata.video? %>
+          <div class="flex justify-between gap-4"><dt class="text-zinc-500">Container</dt><dd class="text-right text-zinc-800"><%= metadata.video_container.presence || "unknown" %></dd></div>
+          <div class="flex justify-between gap-4"><dt class="text-zinc-500">Codecs</dt><dd class="text-right text-zinc-800"><%= video_codecs(metadata) %></dd></div>
+          <div class="flex justify-between gap-4"><dt class="text-zinc-500">Duration</dt><dd class="text-right text-zinc-800"><%= video_duration(metadata) %></dd></div>
+          <div class="flex justify-between gap-4"><dt class="text-zinc-500">Bitrate</dt><dd class="text-right text-zinc-800"><%= video_bitrate(metadata) %></dd></div>
+          <div class="flex justify-between gap-4"><dt class="text-zinc-500">Frame rate</dt><dd class="text-right text-zinc-800"><%= video_frame_rate(metadata) %></dd></div>
+        <% end %>
       </dl>
 
       <% if metadata.location? %>
