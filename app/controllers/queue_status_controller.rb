@@ -13,4 +13,10 @@ class QueueStatusController < ApplicationController
     @pauses = @snapshot.pauses
     @finished_counts = @snapshot.finished_counts
   end
+
+  def destroy_failures
+    cleared_count = QueueStatusSnapshot.build.clear_failures
+
+    redirect_to queue_status_path, notice: "Cleared #{cleared_count} failed #{'job'.pluralize(cleared_count)}."
+  end
 end

@@ -36,6 +36,28 @@ class QueueStatusControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to root_path
   end
 
+  test "owner can clear failed queue executions" do
+    snapshot = Struct.new(:clear_failures).new(3)
+    original_build = QueueStatusSnapshot.method(:build)
+    QueueStatusSnapshot.define_singleton_method(:build) { snapshot }
+
+    delete queue_failures_path
+
+    assert_redirected_to queue_status_path
+    assert_equal "Cleared 3 failed jobs.", flash[:notice]
+  ensure
+    QueueStatusSnapshot.define_singleton_method(:build, original_build)
+  end
+
+  test "non owner cannot clear failed queue executions" do
+    delete sign_out_path
+    sign_in_as(users(:two))
+
+    delete queue_failures_path
+
+    assert_redirected_to root_path
+  end
+
   private
 
   def sign_in_as(user)

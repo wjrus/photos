@@ -91,6 +91,12 @@ class QueueStatusSnapshot
     SQL
   end
 
+  def clear_failures
+    return 0 unless available? && table_exists?("solid_queue_failed_executions")
+
+    connection.delete("DELETE FROM #{quote_table('solid_queue_failed_executions')}")
+  end
+
   def processes
     return [] unless available? && table_exists?("solid_queue_processes")
 
