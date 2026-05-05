@@ -28,9 +28,10 @@ class PhotosController < ApplicationController
   end
 
   def video
-    return head :not_found unless @photo.video? && @photo.video_display.attached?
+    return head :not_found unless @photo.video?
 
-    redirect_to rails_blob_path(@photo.video_display, disposition: "inline")
+    blob = @photo.video_display.attached? ? @photo.video_display : @photo.original
+    redirect_to rails_blob_path(blob, disposition: "inline")
   end
 
   def media

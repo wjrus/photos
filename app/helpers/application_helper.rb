@@ -36,20 +36,14 @@ module ApplicationHelper
 
   def photo_detail_media(photo)
     if photo.video?
-      if photo.video_display.attached?
-        video_options = {
-          controls: true,
-          preload: "metadata",
-          class: "max-h-[calc(100vh-3rem)] w-auto max-w-full rounded-lg object-contain shadow-2xl"
-        }
-        video_options[:poster] = url_for(photo.video_preview) if photo.video_preview.attached?
+      video_options = {
+        controls: true,
+        preload: "metadata",
+        class: "max-h-[calc(100vh-3rem)] w-auto max-w-full rounded-lg object-contain shadow-2xl"
+      }
+      video_options[:poster] = url_for(photo.video_preview) if photo.video_preview.attached?
 
-        video_tag video_photo_path(photo), **video_options
-      else
-        tag.div class: "mx-auto flex min-h-80 w-full max-w-xl items-center justify-center rounded-lg border border-white/15 bg-white/5 p-8 text-center text-sm leading-6 text-white/75 shadow-2xl" do
-          "Video derivative processing."
-        end
-      end
+      video_tag video_photo_path(photo), **video_options
     else
       detail_variant = photo.processed_original_variant_record(:display) || photo.processed_original_variant_record(:stream)
 
