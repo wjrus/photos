@@ -34,7 +34,7 @@ class PhotoSearch
     query = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q].to_s.strip)}%"
     album_ids = PhotoAlbum.visible_to(user).where("photo_albums.title ILIKE ?", query).pluck(:id)
     tagged_user_ids = User.where("users.name ILIKE :query OR users.email ILIKE :query", query: query).pluck(:id)
-    location_ids = PhotoLocationPlace.where("photo_location_places.name ILIKE ?", query).pluck(:location_id)
+    location_ids = PhotoLocationPlace.matching_name(query).pluck(:location_id)
 
     scope
       .left_outer_joins(:photo_albums, photo_people_tags: :user)

@@ -36,7 +36,7 @@ class SearchController < ApplicationController
         .merge(PhotoPeopleTag.joins(:photo).merge(Photo.visible_to(current_user)))
         .distinct
         .order(:name),
-      places: PhotoLocationPlace.order(:name)
+      places: PhotoLocationPlace.select(:name).distinct.order(:name)
     }
   end
 end

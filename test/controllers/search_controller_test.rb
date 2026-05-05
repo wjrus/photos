@@ -72,6 +72,28 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, "Elsewhere lunch"
   end
 
+  test "search finds photos by place tag hierarchy" do
+    match = attached_photo(title: "Downtown lunch")
+    match.create_metadata!(
+      extraction_status: "complete",
+      latitude: 44.7622,
+      longitude: -85.5980,
+      raw: {}
+    )
+    PhotoLocationPlace.create!(
+      location_id: PhotoLocation.id_for_coordinates(44.7622, -85.5980),
+      name: "Traverse City, Michigan",
+      names: [ "Traverse City, Michigan", "Traverse City", "Michigan", "United States" ]
+    )
+    other = attached_photo(title: "Elsewhere lunch")
+
+    get search_path(q: "United States")
+
+    assert_response :success
+    assert_includes response.body, "Downtown lunch"
+    refute_includes response.body, "Elsewhere lunch"
+  end
+
   private
 
   def attached_photo(title:)

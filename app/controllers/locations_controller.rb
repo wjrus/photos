@@ -5,8 +5,9 @@ class LocationsController < ApplicationController
   before_action :set_location, only: :show
 
   def index
-    @locations = cached_location_rows
-    @location_places = location_places(@locations)
+    location_rows = cached_location_rows
+    @location_places = location_places(location_rows)
+    @locations = grouped_location_rows(location_rows, @location_places)
     @location_covers = location_covers(@locations)
   end
 
@@ -62,12 +63,18 @@ class LocationsController < ApplicationController
     @location_id = params[:id].to_s
     raise ActiveRecord::RecordNotFound unless PhotoLocation.valid_id?(@location_id)
 
-    @location_row = PhotoLocation.rows(location_photo_scope, limit: 1).first
-    raise ActiveRecord::RecordNotFound unless @location_row
+    if PhotoLocation.place_id?(@location_id)
+      @location_title = PhotoLocation.place_name_from_id(@location_id)
+      @location_photo_count = location_photo_scope.count
+    else
+      @location_row = PhotoLocation.rows(location_photo_scope, limit: 1).first
+      raise ActiveRecord::RecordNotFound unless @location_row
 
-    @location_places = location_places([ @location_row ])
-    enqueue_missing_location_names([ @location_row ], @location_places)
-    @location_title = PhotoLocation.title_for_row(@location_row, @location_places)
+      @location_places = location_places([ @location_row ])
+      enqueue_missing_location_names([ @location_row ], @location_places)
+      @location_title = PhotoLocation.title_for_row(@location_row, @location_places)
+      @location_photo_count = @location_row.photo_count.to_i
+    end
   end
 
   def location_photo_scope
@@ -75,8 +82,31 @@ class LocationsController < ApplicationController
   end
 
   def location_places(locations)
-    ids = locations.map { |location| PhotoLocation.id_for_coordinates(location.latitude, location.longitude) }
+    ids = locations.map do |location|
+      if location.respond_to?(:location_ids)
+        location.location_ids
+      else
+        PhotoLocation.id_for_coordinates(location.latitude, location.longitude)
+      end
+    end.flatten
+
     PhotoLocationPlace.where(location_id: ids).index_by(&:location_id)
+  end
+
+  def grouped_location_rows(locations, places)
+    groups = {}
+
+    locations.each do |location|
+      location_id = PhotoLocation.id_for(location.latitude_bucket, location.longitude_bucket)
+      place_name = places[location_id]&.name.presence
+      group_id = place_name ? PhotoLocation.place_id_for_name(place_name) : location_id
+      title = place_name || PhotoLocation.title_for_row(location, places)
+
+      groups[group_id] ||= PhotoLocationGroup.new(id: group_id, title: title)
+      groups[group_id].add(location)
+    end
+
+    groups.values.sort_by { |location| [ -location.photo_count.to_i, -(location.newest_at&.to_i || 0) ] }
   end
 
   def enqueue_missing_location_names(locations, places)

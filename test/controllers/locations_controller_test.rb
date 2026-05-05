@@ -5,6 +5,7 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     OmniAuth.config.test_mode = true
     @owner = users(:one)
     @google_maps_api_key = ENV["GOOGLE_MAPS_EMBED_API_KEY"]
+    Rails.cache.clear
     sign_in_as(@owner)
   end
 
@@ -29,7 +30,53 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Traverse City, Michigan"
     assert_includes response.body, "1 photo location"
     assert_includes response.body, "1 photo"
-    assert_select "a[href='#{location_path(location_id_for(photo))}']"
+    assert_select "a[href='#{location_path(PhotoLocation.place_id_for_name("Traverse City, Michigan"))}']"
+  end
+
+  test "locations index groups cells with the same place name" do
+    first = attached_photo(title: "First place cell")
+    geotag(first, latitude: 44.7622, longitude: -85.5980)
+    second = attached_photo(title: "Second place cell")
+    geotag(second, latitude: 44.8022, longitude: -85.6380)
+    place_name = "Traverse City, Michigan"
+
+    [ first, second ].each do |photo|
+      PhotoLocationPlace.create!(
+        location_id: location_id_for(photo),
+        name: place_name
+      )
+    end
+
+    get locations_path
+
+    assert_response :success
+    assert_includes response.body, "1 photo location"
+    assert_includes response.body, "2 photos"
+    assert_select "a[href='#{location_path(PhotoLocation.place_id_for_name(place_name))}']"
+  end
+
+  test "place location page shows all matching location cells" do
+    first = attached_photo(title: "First grouped place")
+    geotag(first, latitude: 44.7622, longitude: -85.5980)
+    second = attached_photo(title: "Second grouped place")
+    geotag(second, latitude: 44.8022, longitude: -85.6380)
+    outside = attached_photo(title: "Outside grouped place")
+    geotag(outside, latitude: 45.5, longitude: -86.5)
+    place_name = "Traverse City, Michigan"
+
+    [ first, second ].each do |photo|
+      PhotoLocationPlace.create!(
+        location_id: location_id_for(photo),
+        name: place_name
+      )
+    end
+
+    get location_path(PhotoLocation.place_id_for_name(place_name))
+
+    assert_response :success
+    assert_includes response.body, "First grouped place"
+    assert_includes response.body, "Second grouped place"
+    refute_includes response.body, "Outside grouped place"
   end
 
   test "locations index does not bulk enqueue missing geocodes" do

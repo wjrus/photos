@@ -4,6 +4,13 @@ set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+REFRESH="${GEOCODE_REFRESH:-0}"
+
+if [[ "${1:-}" == "--refresh" ]]; then
+  REFRESH="1"
+  shift
+fi
+
 LIMIT="${1:-25}"
 SERVICE="${2:-web}"
 SCAN_LIMIT="${GEOCODE_SCAN_LIMIT:-500}"
@@ -11,23 +18,27 @@ SCAN_LIMIT="${GEOCODE_SCAN_LIMIT:-500}"
 if [[ "$LIMIT" == "-h" || "$LIMIT" == "--help" ]]; then
   cat <<'USAGE'
 Usage:
-  ./scripts/geocode-locations [limit] [service]
+  ./scripts/geocode-locations [--refresh] [limit] [service]
 
 Examples:
   ./scripts/geocode-locations
   ./scripts/geocode-locations 100
+  ./scripts/geocode-locations --refresh 500
 
 Queues a bounded number of missing location-name lookups. Results are stored
-in photo_location_places, so completed names persist.
+in photo_location_places, so completed names persist. Use --refresh to replace
+stored place names and location tag hierarchies for the scanned locations.
 USAGE
   exit 0
 fi
 
 docker compose exec -T \
   -e GEOCODE_LIMIT="$LIMIT" \
+  -e GEOCODE_REFRESH="$REFRESH" \
   -e GEOCODE_SCAN_LIMIT="$SCAN_LIMIT" \
   "$SERVICE" bin/rails runner "$(cat <<'RUBY'
 limit = Integer(ENV.fetch("GEOCODE_LIMIT", 25))
+refresh = ENV.fetch("GEOCODE_REFRESH", "0") == "1"
 scan_limit = Integer(ENV.fetch("GEOCODE_SCAN_LIMIT", 500))
 
 abort "GOOGLE_MAPS_GEOCODING_API_KEY, GOOGLE_GEOCODING_API_KEY, or GOOGLE_MAPS_EMBED_API_KEY is not set; cannot geocode locations." if LocationReverseGeocoder.api_key.blank?
@@ -40,7 +51,8 @@ scope = Photo
 
 rows = PhotoLocation.rows(scope, limit: scan_limit).to_a
 ids = rows.map { |row| PhotoLocation.id_for_coordinates(row.latitude, row.longitude) }
-existing_ids = PhotoLocationPlace.where(location_id: ids).pluck(:location_id)
+deleted = refresh ? PhotoLocationPlace.where(location_id: ids).delete_all : 0
+existing_ids = refresh ? [] : PhotoLocationPlace.where(location_id: ids).pluck(:location_id)
 queued = 0
 
 rows.each do |row|
@@ -52,6 +64,7 @@ rows.each do |row|
   break if queued >= limit
 end
 
+puts "Deleted #{deleted} existing location #{'row'.pluralize(deleted)}." if refresh
 puts "Queued #{queued} location geocode #{'job'.pluralize(queued)}."
 RUBY
 )"
