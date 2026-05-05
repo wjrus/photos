@@ -2,13 +2,24 @@ require "net/http"
 
 class LocationReverseGeocoder
   ENDPOINT = "https://maps.googleapis.com/maps/api/geocode/json".freeze
+  CACHE_TTL = 30.days
 
-  def initialize(api_key: ENV["GOOGLE_MAPS_EMBED_API_KEY"])
+  def self.api_key
+    ENV["GOOGLE_MAPS_GEOCODING_API_KEY"].presence ||
+      ENV["GOOGLE_GEOCODING_API_KEY"].presence ||
+      ENV["GOOGLE_MAPS_EMBED_API_KEY"].presence
+  end
+
+  def initialize(api_key: self.class.api_key)
     @api_key = api_key
   end
 
   def geocode(latitude:, longitude:)
     return unless @api_key.present?
+
+    cache_key = "location-reverse-geocoder/v1/#{format('%.5f', latitude.to_f)},#{format('%.5f', longitude.to_f)}"
+    cached = Rails.cache.read(cache_key)
+    return cached if cached.present?
 
     uri = URI(ENDPOINT)
     uri.query = URI.encode_www_form(
@@ -18,21 +29,46 @@ class LocationReverseGeocoder
     )
 
     response = Net::HTTP.get_response(uri)
-    return unless response.is_a?(Net::HTTPSuccess)
+    unless response.is_a?(Net::HTTPSuccess)
+      Rails.logger.warn("Location reverse geocode HTTP failure: status=#{response.code}")
+      return
+    end
 
     payload = JSON.parse(response.body)
+    unless payload["status"] == "OK"
+      log_payload_status(payload)
+      return
+    end
+
     result = payload.fetch("results", []).first
     return unless result
 
-    {
+    geocoded = {
       name: place_name(result),
       raw: result
     }
-  rescue JSON::ParserError, SocketError, SystemCallError, Timeout::Error
+
+    Rails.cache.write(cache_key, geocoded, expires_in: CACHE_TTL) if geocoded[:name].present?
+    geocoded
+  rescue JSON::ParserError, SocketError, SystemCallError, Timeout::Error => error
+    Rails.logger.warn("Location reverse geocode error: #{error.class}: #{error.message}")
     nil
   end
 
   private
+
+  def log_payload_status(payload)
+    status = payload["status"].presence || "UNKNOWN"
+    message = payload["error_message"].presence
+    log_line = "Location reverse geocode failed: status=#{status}"
+    log_line = "#{log_line} error=#{message}" if message
+
+    if status == "ZERO_RESULTS"
+      Rails.logger.info(log_line)
+    else
+      Rails.logger.warn(log_line)
+    end
+  end
 
   def place_name(result)
     components = result.fetch("address_components", [])

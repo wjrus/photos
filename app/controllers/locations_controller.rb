@@ -80,7 +80,7 @@ class LocationsController < ApplicationController
   end
 
   def enqueue_missing_location_names(locations, places)
-    return unless ENV["GOOGLE_MAPS_EMBED_API_KEY"].present?
+    return unless LocationReverseGeocoder.api_key.present?
 
     locations.each do |location|
       location_id = PhotoLocation.id_for_coordinates(location.latitude, location.longitude)

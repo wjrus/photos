@@ -30,7 +30,7 @@ docker compose exec -T \
 limit = Integer(ENV.fetch("GEOCODE_LIMIT", 25))
 scan_limit = Integer(ENV.fetch("GEOCODE_SCAN_LIMIT", 500))
 
-abort "GOOGLE_MAPS_EMBED_API_KEY is not set; cannot geocode locations." if ENV["GOOGLE_MAPS_EMBED_API_KEY"].blank?
+abort "GOOGLE_MAPS_GEOCODING_API_KEY, GOOGLE_GEOCODING_API_KEY, or GOOGLE_MAPS_EMBED_API_KEY is not set; cannot geocode locations." if LocationReverseGeocoder.api_key.blank?
 
 scope = Photo
   .not_archived
