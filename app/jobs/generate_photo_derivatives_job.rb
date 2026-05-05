@@ -38,12 +38,7 @@ class GeneratePhotoDerivativesJob < ApplicationJob
         display_path = File.join(dir, "display.mp4")
 
         unless photo.video_preview.attached?
-          run_ffmpeg!(
-            "-i", original_file.path,
-            "-vf", "thumbnail,scale='min(#{VIDEO_PREVIEW_SIZE},iw)':-2",
-            "-frames:v", "1",
-            preview_path
-          )
+          generate_video_preview_file(original_file.path, preview_path)
           attach_video_preview(photo, preview_path)
         end
 
@@ -91,14 +86,38 @@ class GeneratePhotoDerivativesJob < ApplicationJob
     )
   end
 
+  def generate_video_preview_file(original_path, preview_path)
+    run_ffmpeg(
+      "-i", original_path,
+      "-vf", "thumbnail,scale='min(#{VIDEO_PREVIEW_SIZE},iw)':-2",
+      "-frames:v", "1",
+      preview_path
+    )
+  rescue RuntimeError => error
+    Rails.logger.warn("Video thumbnail filter failed, falling back to seeked frame: #{error.message}")
+    File.delete(preview_path) if File.exist?(preview_path)
+
+    run_ffmpeg!(
+      "-ss", "1",
+      "-i", original_path,
+      "-vf", "scale='min(#{VIDEO_PREVIEW_SIZE},iw)':-2",
+      "-frames:v", "1",
+      preview_path
+    )
+  end
+
   def video_derivative_basename(photo)
     File.basename(photo.original_filename.to_s.presence || "video", ".*").parameterize.presence || "video"
   end
 
-  def run_ffmpeg!(*args)
+  def run_ffmpeg(*args)
     stdout, stderr, status = Open3.capture3(FFMPEG, "-y", "-hide_banner", "-loglevel", "error", *args)
     return if status.success?
 
     raise "ffmpeg failed: #{stderr.presence || stdout.presence || 'unknown error'}"
+  end
+
+  def run_ffmpeg!(*args)
+    run_ffmpeg(*args)
   end
 end

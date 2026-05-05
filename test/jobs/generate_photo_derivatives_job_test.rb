@@ -76,6 +76,31 @@ class GeneratePhotoDerivativesJobTest < ActiveJob::TestCase
     end
   end
 
+  test "falls back to a seeked frame when thumbnail filter fails" do
+    photo = users(:one).photos.new
+    photo.original.attach(
+      io: StringIO.new("fake mov bytes"),
+      filename: "clip.mov",
+      content_type: "video/quicktime"
+    )
+    photo.save!
+
+    calls = []
+    job = GeneratePhotoDerivativesJob.new
+    job.define_singleton_method(:run_ffmpeg) do |*args|
+      calls << args
+      raise "ffmpeg failed: no thumbnail" if calls.one?
+    end
+    job.define_singleton_method(:run_ffmpeg!) { |*args| calls << args }
+    job.define_singleton_method(:attach_video_preview) { |_record, _path| }
+
+    job.generate_video_derivatives(photo, preview_only: true)
+
+    assert_equal 2, calls.size
+    assert_includes calls.first, "thumbnail,scale='min(700,iw)':-2"
+    assert_includes calls.second, "-ss"
+  end
+
   private
 
   def attached_photo

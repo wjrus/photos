@@ -287,6 +287,7 @@ class Photo < ApplicationRecord
   end
 
   def enqueue_derivatives
+    GenerateVideoPreviewJob.perform_later(self) if video?
     GeneratePhotoDerivativesJob.perform_later(self)
   end
 end

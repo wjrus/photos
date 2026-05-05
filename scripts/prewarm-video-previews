@@ -41,7 +41,7 @@ loop do
     next unless photo.original.attached?
     next if photo.video_preview.attached?
 
-    GeneratePhotoDerivativesJob.perform_later(photo, preview_only: true)
+    GenerateVideoPreviewJob.perform_later(photo)
     queued += 1
     break if queued >= limit
   end
