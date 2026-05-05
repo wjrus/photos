@@ -1,5 +1,5 @@
 <% day_key = photo_stream_day_key(day) %>
-<% group_columns = [photos.size, 4].min.clamp(feature_first ? 2 : 1, 4) %>
+<% group_columns = [photos.size, 5].min.clamp(feature_first ? 2 : 1, 5) %>
 <% group_width = "#{(group_columns * 13) + ((group_columns - 1) * 0.75)}rem" %>
 
 <section id="day-<%= day_key %>"
