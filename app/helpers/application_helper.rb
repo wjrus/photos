@@ -82,6 +82,12 @@ module ApplicationHelper
     "https://www.google.com/maps/search/?api=1&#{URI.encode_www_form(query: "#{metadata.latitude},#{metadata.longitude}")}"
   end
 
+  def photo_location_place(metadata)
+    return unless metadata&.location?
+
+    PhotoLocationPlace.find_by(location_id: PhotoLocation.id_for_coordinates(metadata.latitude, metadata.longitude))
+  end
+
   def google_maps_api_key
     ENV["GOOGLE_MAPS_EMBED_API_KEY"]
   end

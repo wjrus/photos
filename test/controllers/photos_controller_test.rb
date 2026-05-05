@@ -243,6 +243,11 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
       longitude: -85.597983,
       raw: {}
     )
+    PhotoLocationPlace.create!(
+      location_id: PhotoLocation.id_for_coordinates(44.762222, -85.597983),
+      name: "Traverse City, Michigan",
+      names: [ "Traverse City, Michigan", "Traverse City", "Michigan", "United States" ]
+    )
 
     get photo_path(photo)
 
@@ -258,6 +263,8 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Fuji X100"
     assert_includes response.body, "3,024 x 4,032"
     assert_includes response.body, "Photo location map"
+    assert_includes response.body, "Traverse City, Michigan"
+    assert_includes response.body, "Traverse City · Michigan · United States"
     assert_includes response.body, "google.com/maps/embed/v1/place"
     assert_includes response.body, photo.original_filename
     assert_includes response.body, "Download original"
