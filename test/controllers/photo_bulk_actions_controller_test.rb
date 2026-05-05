@@ -83,6 +83,23 @@ class PhotoBulkActionsControllerTest < ActionDispatch::IntegrationTest
     assert_not second.reload.archived?
   end
 
+  test "owner can move selected photos to restricted private" do
+    first = attached_photo(title: "Restrict first")
+    second = attached_photo(title: "Restrict second")
+    first.publish!
+
+    post photo_bulk_actions_path, params: { bulk_action: "restrict", photo_ids: [ first.id, second.id ] }
+
+    assert_redirected_to root_path
+    assert_predicate first.reload, :restricted?
+    assert_predicate first, :private?
+    assert_nil first.published_at
+    assert_not first.archived?
+    assert_predicate second.reload, :restricted?
+    assert_predicate second, :private?
+    assert_not second.archived?
+  end
+
   test "bulk archive ignores restricted photos" do
     photo = attached_photo(title: "Restricted")
     photo.update!(restricted: true)

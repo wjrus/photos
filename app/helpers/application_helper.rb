@@ -161,6 +161,7 @@ module ApplicationHelper
       image_plus: '<path d="M16 5h6"/><path d="M19 2v6"/><path d="M21 11v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7"/><path d="m3 16 4-4c.9-.9 2.1-.9 3 0l5 5"/><path d="m14 16 1-1c.9-.9 2.1-.9 3 0l3 3"/><path d="M8.5 9.5h.01"/>',
       lock: '<path d="M7 11V8a5 5 0 0 1 10 0v3"/><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M12 15v2"/>',
       rotate_ccw: '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v6h6"/>',
+      shield: '<path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3v8Z"/><path d="m9 12 2 2 4-4"/>',
       trash: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 15H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>',
       x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'
     }

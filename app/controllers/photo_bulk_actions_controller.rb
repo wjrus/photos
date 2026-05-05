@@ -17,6 +17,9 @@ class PhotoBulkActionsController < ApplicationController
     when "archive"
       photos.find_each(&:archive!)
       redirect_to safe_return_path, notice: "Archived #{photos.size} #{'photo'.pluralize(photos.size)}."
+    when "restrict"
+      photos.find_each(&:restrict!)
+      redirect_to safe_return_path, notice: "Moved #{photos.size} #{'photo'.pluralize(photos.size)} to Private."
     when "restore"
       photos.find_each(&:restore!)
       redirect_to safe_return_path, notice: "Restored #{photos.size} #{'photo'.pluralize(photos.size)} to the stream."

@@ -18,6 +18,14 @@
         <%= bulk_action_button(icon: :globe, label: "Publish selected photos", value: "publish") %>
         <%= bulk_action_button(icon: :lock, label: "Make selected photos private", value: "unpublish") %>
         <%= bulk_action_button(icon: :archive, label: "Move selected photos to archive", value: "archive") %>
+        <%= render "shared/bulk_confirm_modal",
+              button_icon: :shield,
+              button_label: "Move selected photos to Private",
+              title_id: "restrict-selected-title",
+              title: "Move selected photos to Private?",
+              body: "This hides the selected items from the normal stream, albums, search, locations, and map. They will only be visible after unlocking Private.",
+              value: "restrict",
+              confirm_label: "Move" %>
       <% end %>
 
       <% unless local_assigns[:archive_context] %>

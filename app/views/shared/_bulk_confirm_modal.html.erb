@@ -1,6 +1,6 @@
 <div data-controller="confirm-modal" data-action="keydown@window->confirm-modal#keydown">
   <%= bulk_action_button(
-        icon: :trash,
+        icon: local_assigns.fetch(:button_icon, :trash),
         label: button_label,
         type: "button",
         danger: true,
