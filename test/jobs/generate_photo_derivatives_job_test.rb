@@ -86,17 +86,23 @@ class GeneratePhotoDerivativesJobTest < ActiveJob::TestCase
     photo.save!
 
     calls = []
+    timeouts = []
     job = GeneratePhotoDerivativesJob.new
-    job.define_singleton_method(:run_ffmpeg) do |*args|
+    job.define_singleton_method(:run_ffmpeg) do |*args, timeout:|
       calls << args
+      timeouts << timeout
       raise "ffmpeg failed: no thumbnail" if calls.one?
     end
-    job.define_singleton_method(:run_ffmpeg!) { |*args| calls << args }
+    job.define_singleton_method(:run_ffmpeg!) do |*args, timeout:|
+      calls << args
+      timeouts << timeout
+    end
     job.define_singleton_method(:attach_video_preview) { |_record, _path| }
 
     job.generate_video_derivatives(photo, preview_only: true)
 
     assert_equal 2, calls.size
+    assert_equal [ 45.seconds, 45.seconds ], timeouts
     assert_includes calls.first, "thumbnail,scale='min(700,iw)':-2"
     assert_includes calls.second, "-ss"
   end
