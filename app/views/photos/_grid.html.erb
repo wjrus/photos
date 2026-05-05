@@ -10,6 +10,7 @@
         owner_controls: local_assigns.fetch(:owner_controls, current_user&.owner?),
         archive_context: local_assigns[:archive_context],
         album: local_assigns[:album],
+        group_by_day: local_assigns.fetch(:group_by_day, true),
         next_cursor: next_cursor,
         next_page_path: next_page_path %>
 </div>
