@@ -30,7 +30,7 @@ class LocationReverseGeocoderTest < ActiveSupport::TestCase
       results: []
     )
 
-    Net::HTTP.stub(:get_response, response) do
+    stub_get_response(response) do
       assert_nil LocationReverseGeocoder.new.geocode(latitude: 44.7622, longitude: -85.5980)
     end
   end
@@ -51,7 +51,7 @@ class LocationReverseGeocoderTest < ActiveSupport::TestCase
       ]
     )
 
-    Net::HTTP.stub(:get_response, response) do
+    stub_get_response(response) do
       result = LocationReverseGeocoder.new.geocode(latitude: 44.7622, longitude: -85.5980)
 
       assert_equal "Traverse City, Michigan", result[:name]
@@ -65,5 +65,14 @@ class LocationReverseGeocoderTest < ActiveSupport::TestCase
     response.instance_variable_set(:@read, true)
     response.body = payload.to_json
     response
+  end
+
+  def stub_get_response(response)
+    Net::HTTP.singleton_class.alias_method :original_get_response, :get_response
+    Net::HTTP.define_singleton_method(:get_response) { |_uri| response }
+    yield
+  ensure
+    Net::HTTP.singleton_class.alias_method :get_response, :original_get_response
+    Net::HTTP.singleton_class.remove_method :original_get_response
   end
 end
