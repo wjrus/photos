@@ -34,9 +34,8 @@ class GeocodePhotoLocationJobTest < ActiveJob::TestCase
   test "rate limits geocode requests" do
     Rails.cache.write(
       GeocodePhotoLocationJob::THROTTLE_CACHE_KEY,
-      Time.current.to_f,
-      expires_in: GeocodePhotoLocationJob::THROTTLE_INTERVAL,
-      unless_exist: true
+      GeocodePhotoLocationJob::THROTTLE_INTERVAL.from_now.to_f,
+      expires_in: GeocodePhotoLocationJob::THROTTLE_CACHE_TTL
     )
 
     assert_enqueued_with(job: GeocodePhotoLocationJob) do
