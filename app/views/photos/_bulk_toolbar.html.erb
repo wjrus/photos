@@ -16,8 +16,8 @@
       <% if local_assigns[:archive_context] %>
         <%= bulk_action_button(icon: :rotate_ccw, label: "Restore selected photos to stream", value: "restore") %>
       <% else %>
-        <%= bulk_action_button(icon: :globe, label: "Publish selected photos", value: "publish") %>
-        <%= bulk_action_button(icon: :lock, label: "Make selected photos private", value: "unpublish") %>
+        <%= bulk_action_button(icon: :globe, label: "Publish selected", value: "publish") %>
+        <%= bulk_action_button(icon: :lock, label: "Unpublish selected", value: "unpublish") %>
         <%= bulk_action_button(icon: :archive, label: "Move selected photos to archive", value: "archive") %>
         <% if local_assigns[:album].present? %>
           <%= bulk_action_button(icon: :image, label: "Set selected photo as album cover", value: "set_album_cover") %>
@@ -32,9 +32,9 @@
         <% end %>
         <%= render "shared/bulk_confirm_modal",
               button_icon: :shield,
-              button_label: "Move selected photos to Private",
+              button_label: "Lock selected",
               title_id: "restrict-selected-title",
-              title: "Move selected photos to Private?",
+              title: "Lock selected?",
               body: "This hides the selected items from the normal stream, albums, search, locations, and map. They will only be visible after unlocking Private.",
               value: "restrict",
               confirm_label: "Move" %>
