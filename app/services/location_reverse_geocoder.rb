@@ -30,7 +30,7 @@ class LocationReverseGeocoder
 
     response = Net::HTTP.get_response(uri)
     unless response.is_a?(Net::HTTPSuccess)
-      Rails.logger.warn("Location reverse geocode HTTP failure: status=#{response.code}")
+      Rails.logger.warn("Location reverse geocode HTTP failure: status=#{response.code} key=#{api_key_fingerprint}")
       return
     end
 
@@ -49,9 +49,9 @@ class LocationReverseGeocoder
     }
 
     Rails.cache.write(cache_key, geocoded, expires_in: CACHE_TTL) if geocoded[:name].present?
-    geocoded
+    geocoded.merge(key_fingerprint: api_key_fingerprint)
   rescue JSON::ParserError, SocketError, SystemCallError, Timeout::Error => error
-    Rails.logger.warn("Location reverse geocode error: #{error.class}: #{error.message}")
+    Rails.logger.warn("Location reverse geocode error: #{error.class}: #{error.message} key=#{api_key_fingerprint}")
     nil
   end
 
@@ -60,7 +60,7 @@ class LocationReverseGeocoder
   def log_payload_status(payload)
     status = payload["status"].presence || "UNKNOWN"
     message = payload["error_message"].presence
-    log_line = "Location reverse geocode failed: status=#{status}"
+    log_line = "Location reverse geocode failed: status=#{status} key=#{api_key_fingerprint}"
     log_line = "#{log_line} error=#{message}" if message
 
     if status == "ZERO_RESULTS"
@@ -84,5 +84,11 @@ class LocationReverseGeocoder
 
   def component_name(components, type)
     components.find { |component| component.fetch("types", []).include?(type) }&.fetch("long_name", nil)
+  end
+
+  def api_key_fingerprint
+    return "blank" if @api_key.blank?
+
+    "#{@api_key.first(6)}...#{@api_key.last(4)}"
   end
 end

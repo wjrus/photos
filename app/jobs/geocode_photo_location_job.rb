@@ -14,7 +14,7 @@ class GeocodePhotoLocationJob < ApplicationJob
         name: result.fetch(:name),
         latitude: latitude,
         longitude: longitude,
-        raw: result.fetch(:raw),
+        raw: result.fetch(:raw).except(:key_fingerprint),
         geocoded_at: Time.current,
         created_at: Time.current,
         updated_at: Time.current
@@ -22,6 +22,6 @@ class GeocodePhotoLocationJob < ApplicationJob
       unique_by: :index_photo_location_places_on_location_id
     )
 
-    Rails.logger.info("Geocoded photo location #{location_id}: #{result.fetch(:name)}")
+    Rails.logger.info("Geocoded photo location #{location_id}: #{result.fetch(:name)} key=#{result.fetch(:key_fingerprint, 'unknown')}")
   end
 end
