@@ -398,7 +398,10 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     get root_path
 
     assert_response :success
+    assert_select ".photo-day-groups"
     assert_select "section#day-2024-04-29[data-bulk-selection-group][data-stream-date-group-key='2024-04-29']"
+    assert_select "section#day-2024-04-29.photo-day-group[style*='--day-group-columns']"
+    assert_select "section#day-2024-04-29 .photo-day-group-grid"
     assert_select "input[data-bulk-selection-group-toggle][aria-label='Select all photos from Mon, Apr 29, 2024']"
   end
 

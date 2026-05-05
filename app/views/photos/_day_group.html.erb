@@ -1,10 +1,13 @@
 <% day_key = photo_stream_day_key(day) %>
+<% group_columns = [photos.size, 4].min.clamp(feature_first ? 2 : 1, 4) %>
+<% group_width = "#{(group_columns * 13) + ((group_columns - 1) * 0.75)}rem" %>
 
 <section id="day-<%= day_key %>"
-         class="scroll-mt-24"
+         class="photo-day-group scroll-mt-24"
+         style="--day-group-columns: <%= group_columns %>; --day-group-width: <%= group_width %>;"
          data-bulk-selection-group
          data-stream-date-group-key="<%= day_key %>">
-  <header class="mb-3 flex items-center">
+  <header class="photo-day-group-header flex items-center">
     <% if owner_controls %>
       <label class="day-selection-control inline-flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5"
              title="Select all photos from <%= photo_stream_day_label(day) %>">
@@ -20,7 +23,7 @@
     <% end %>
   </header>
 
-  <div class="grid auto-rows-[220px] grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+  <div class="photo-day-group-grid">
     <% photos.each_with_index do |photo, index| %>
       <%= render "photos/card",
             photo: photo,

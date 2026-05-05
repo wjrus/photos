@@ -11,17 +11,19 @@
   </div>
 <% end %>
 
-<% grouped_photos.each_with_index do |(day, day_photos), group_index| %>
-  <%= render "photos/day_group",
-        day: day,
-        photos: day_photos,
-        return_to: return_to,
-        feature_first: feature_first && group_index.zero?,
-        bulk_form_id: local_assigns[:bulk_form_id],
-        owner_controls: owner_controls,
-        archive_context: local_assigns[:archive_context],
-        album: album %>
-<% end %>
+<div class="photo-day-groups">
+  <% grouped_photos.each_with_index do |(day, day_photos), group_index| %>
+    <%= render "photos/day_group",
+          day: day,
+          photos: day_photos,
+          return_to: return_to,
+          feature_first: feature_first && group_index.zero?,
+          bulk_form_id: local_assigns[:bulk_form_id],
+          owner_controls: owner_controls,
+          archive_context: local_assigns[:archive_context],
+          album: album %>
+  <% end %>
+</div>
 
 <% if next_cursor.present? %>
   <div class="py-6 text-center text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500"

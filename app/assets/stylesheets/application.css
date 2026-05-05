@@ -114,6 +114,40 @@
   pointer-events: none;
 }
 
+.photo-day-groups {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1.25rem 0.75rem;
+}
+
+.photo-day-group {
+  width: 100%;
+}
+
+.photo-day-group-header {
+  margin-block-end: 0.75rem;
+}
+
+.photo-day-group-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 220px;
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .photo-day-group {
+    flex: 0 1 var(--day-group-width);
+    width: var(--day-group-width);
+    max-width: 100%;
+  }
+
+  .photo-day-group-grid {
+    grid-template-columns: repeat(var(--day-group-columns), minmax(0, 1fr));
+  }
+}
+
 .ui-tooltip {
   position: relative;
 }
