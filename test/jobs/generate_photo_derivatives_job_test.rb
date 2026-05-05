@@ -88,6 +88,8 @@ class GeneratePhotoDerivativesJobTest < ActiveJob::TestCase
     calls = []
     timeouts = []
     job = GeneratePhotoDerivativesJob.new
+    GeneratePhotoDerivativesJob.singleton_class.alias_method :original_ffmpeg_available?, :ffmpeg_available?
+    GeneratePhotoDerivativesJob.define_singleton_method(:ffmpeg_available?) { true }
     job.define_singleton_method(:run_ffmpeg) do |*args, timeout:|
       calls << args
       timeouts << timeout
@@ -99,7 +101,12 @@ class GeneratePhotoDerivativesJobTest < ActiveJob::TestCase
     end
     job.define_singleton_method(:attach_video_preview) { |_record, _path| }
 
-    job.generate_video_derivatives(photo, preview_only: true)
+    begin
+      job.generate_video_derivatives(photo, preview_only: true)
+    ensure
+      GeneratePhotoDerivativesJob.singleton_class.alias_method :ffmpeg_available?, :original_ffmpeg_available?
+      GeneratePhotoDerivativesJob.singleton_class.remove_method :original_ffmpeg_available?
+    end
 
     assert_equal 2, calls.size
     assert_equal [ 45.seconds, 45.seconds ], timeouts
