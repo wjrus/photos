@@ -103,6 +103,34 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     assert_predicate album, :public?
   end
 
+  test "owner sees delete album action while viewing an album" do
+    album = @owner.photo_albums.create!(title: "Trip", source: "manual")
+
+    get album_path(album)
+
+    assert_response :success
+    assert_select "button", text: "Delete album"
+    assert_select "form[action='#{album_path(album)}'][method='post'] input[name='_method'][value='delete']"
+    assert_includes response.body, "The photos stay in your library."
+  end
+
+  test "owner can delete an album without deleting photos" do
+    album = @owner.photo_albums.create!(title: "Trip", source: "manual")
+    photo = attached_photo(title: "Album item")
+    album.photos << photo
+
+    assert_no_difference "Photo.count" do
+      assert_difference "PhotoAlbum.count", -1 do
+        assert_difference "PhotoAlbumMembership.count", -1 do
+          delete album_path(album)
+        end
+      end
+    end
+
+    assert_redirected_to albums_path
+    assert Photo.exists?(photo.id)
+  end
+
   test "owner can remove a photo from an album without deleting it" do
     album = @owner.photo_albums.create!(title: "Trip", source: "manual")
     photo = attached_photo(title: "Album item")
