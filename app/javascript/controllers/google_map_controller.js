@@ -12,6 +12,7 @@ export default class extends Controller {
   }
 
   disconnect() {
+    clearTimeout(this.ignoreNextIdleTimeout)
     window.google?.maps?.event?.clearInstanceListeners(this.map)
   }
 
@@ -47,8 +48,18 @@ export default class extends Controller {
     this.infoWindow.addListener("domready", () => this.bindInfoWindow())
     this.statusElement = this.status()
 
-    this.map.addListener("idle", () => this.loadVisibleMarkers())
+    this.map.addListener("idle", () => this.loadVisibleMarkersAfterIdle())
     this.map.addListener("click", () => this.infoWindow.close())
+  }
+
+  loadVisibleMarkersAfterIdle() {
+    if (this.ignoreNextIdle) {
+      this.ignoreNextIdle = false
+      clearTimeout(this.ignoreNextIdleTimeout)
+      return
+    }
+
+    this.loadVisibleMarkers()
   }
 
   async loadVisibleMarkers() {
@@ -99,6 +110,8 @@ export default class extends Controller {
     })
 
     mapMarker.addListener("click", () => {
+      this.ignoreMapIdleOnce()
+
       if (marker.type === "location") {
         this.activeLocationPosition = position
         this.infoWindow.setContent(this.locationInfoWindowContent(marker))
@@ -111,6 +124,14 @@ export default class extends Controller {
     })
 
     return mapMarker
+  }
+
+  ignoreMapIdleOnce() {
+    this.ignoreNextIdle = true
+    clearTimeout(this.ignoreNextIdleTimeout)
+    this.ignoreNextIdleTimeout = setTimeout(() => {
+      this.ignoreNextIdle = false
+    }, 1000)
   }
 
   status() {
