@@ -12,7 +12,7 @@ class PhotosController < ApplicationController
       return
     end
 
-    @return_to = safe_return_path(default: root_path(photo_id: @photo.id))
+    @return_to = photo_return_path(@photo)
     @taggable_users = User.where.not(id: current_user.id).order(Arel.sql("LOWER(email) ASC")) if current_user&.owner?
     set_stream_neighbors
   end
@@ -189,5 +189,16 @@ class PhotosController < ApplicationController
 
   def active_upload_batch
     UploadBatch.active_for(current_user)
+  end
+
+  def photo_return_path(photo)
+    return_path = safe_return_path(default: root_path(photo_id: photo.id))
+    uri = URI.parse(return_path)
+
+    return root_path(photo_id: photo.id) if uri.relative? && [ "", root_path ].include?(uri.path)
+
+    return_path
+  rescue URI::InvalidURIError
+    root_path(photo_id: photo.id)
   end
 end

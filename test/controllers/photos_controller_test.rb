@@ -256,8 +256,9 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "Archive"
-    assert_select "section[data-controller~='info-panel'][data-controller~='history-back']"
-    assert_select "section[data-controller~='info-panel'] > a.fixed[aria-label='Return to stream'][title='Return to stream'][data-action='history-back#go']"
+    assert_select "section[data-controller~='info-panel']"
+    assert_select "section[data-controller~='history-back']", false
+    assert_select "section[data-controller~='info-panel'] > a.fixed[href='#{root_path(photo_id: photo.id)}'][aria-label='Return to stream'][title='Return to stream']"
     assert_select "main a[aria-label='Return to stream']", false
     assert_select "aside#photo-info-panel a", { text: "Back to stream", count: 0 }
     assert_select "button[aria-label='Show photo information'][data-action='info-panel#toggle']"
@@ -274,6 +275,16 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Remove photo?"
     assert_select "[data-controller='confirm-modal']"
     assert_select "[data-turbo-confirm]", false
+  end
+
+  test "detail view return link follows the currently viewed photo in the stream" do
+    photo = attached_photo
+
+    get photo_path(photo)
+
+    assert_response :success
+    assert_select "a[aria-label='Return to stream'][href='#{root_path(photo_id: photo.id)}']"
+    assert_includes response.body, %(data-stream-navigation-back-url-value="#{root_path(photo_id: photo.id)}")
   end
 
   test "owner sees location unavailable when metadata has no gps" do
