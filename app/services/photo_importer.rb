@@ -1,6 +1,7 @@
 class PhotoImporter
-  def initialize(owner:)
+  def initialize(owner:, upload_batch: nil)
     @owner = owner
+    @upload_batch = upload_batch
   end
 
   def import(files)
@@ -11,7 +12,7 @@ class PhotoImporter
 
     Photo.transaction do
       originals.each do |original|
-        photo = owner.photos.new
+        photo = owner.photos.new(upload_batch: upload_batch)
         photo.original.attach(original)
         Array(sidecars_by_basename[import_basename(original)]).each { |sidecar| photo.sidecars.attach(sidecar) }
         photo.save!
@@ -19,12 +20,12 @@ class PhotoImporter
       end
     end
 
-    { created: created }
+    { created: created, upload_batch: upload_batch }
   end
 
   private
 
-  attr_reader :owner
+  attr_reader :owner, :upload_batch
 
   def sidecar_file?(file)
     File.extname(original_filename(file)).casecmp?(".aae")

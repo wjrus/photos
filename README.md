@@ -82,6 +82,13 @@ bin/setup
 bin/dev
 ```
 
+When running Rails commands from automation or a non-interactive shell, prefer
+the explicit rbenv form:
+
+```sh
+rbenv exec bundle exec rails test
+```
+
 Google OAuth redirect URI for local development:
 
 ```text
@@ -91,16 +98,16 @@ http://127.0.0.1:3000/auth/google_oauth2/callback
 ## Tests And Checks
 
 ```sh
-bin/rails test
-bundle exec rubocop
-bin/brakeman --no-pager
-bin/rails zeitwerk:check
+rbenv exec bundle exec rails test
+rbenv exec bundle exec rubocop
+rbenv exec bundle exec brakeman --no-pager
+rbenv exec bundle exec rails zeitwerk:check
 ```
 
 System tests can be run separately when browser coverage is needed:
 
 ```sh
-bin/rails test:system
+rbenv exec bundle exec rails test:system
 ```
 
 ## Production

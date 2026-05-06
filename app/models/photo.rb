@@ -7,6 +7,7 @@ class Photo < ApplicationRecord
   STREAM_TUPLE_LESS_THAN_SQL = "#{STREAM_TUPLE_SQL} < (:has_capture, :captured_at, :created_at, :id)".freeze
 
   belongs_to :owner, class_name: "User", inverse_of: :photos
+  belongs_to :upload_batch, optional: true
   has_one :metadata, class_name: "PhotoMetadata", dependent: :destroy, inverse_of: :photo
   has_one :drive_archive_object, dependent: :destroy
   has_many :photo_album_memberships, dependent: :destroy

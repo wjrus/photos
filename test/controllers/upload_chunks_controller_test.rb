@@ -22,7 +22,7 @@ class UploadChunksControllerTest < ActionDispatch::IntegrationTest
     post upload_chunks_path, params: chunk_params(upload_id, "file-1", 0, "IMG_O0073.AAE", "application/xml", "<?xml version=\"1.0\"?>")
     assert_response :success
 
-    assert_difference "Photo.count", 1 do
+    assert_difference [ "Photo.count", "UploadBatch.count" ], 1 do
       post complete_upload_chunks_path,
         params: {
           upload_id: upload_id,
@@ -50,6 +50,7 @@ class UploadChunksControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal 1, photo.sidecar_count
     assert_equal "private", photo.visibility
+    assert_equal @owner.upload_batches.reviewing.sole, photo.upload_batch
     assert_equal uploads_path, response.parsed_body.fetch("redirect_url")
     assert_not Dir.exist?(resumable_upload_root.join(@owner.id.to_s, upload_id))
   end

@@ -20,6 +20,23 @@ class UploadsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "HEIC JPG PNG MOV MP4 AAE"
   end
 
+  test "owner sees reviewing upload batch on upload page" do
+    owner = users(:one)
+    batch = UploadBatch.create!(owner: owner)
+    photo = owner.photos.new(upload_batch: batch)
+    photo.original.attach(Rack::Test::UploadedFile.new(Rails.root.join("public/icon.png"), "image/png"))
+    photo.save!
+    sign_in_as(owner)
+
+    get uploads_path
+
+    assert_response :success
+    assert_includes response.body, "Upload batch"
+    assert_includes response.body, "Commit upload"
+    assert_includes response.body, "Undo upload"
+    assert_includes response.body, "1 photo"
+  end
+
   test "non owner cannot view upload page" do
     sign_in_as(users(:two))
 

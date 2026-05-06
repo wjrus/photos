@@ -37,6 +37,61 @@
       </div>
     <% end %>
 
+    <% if @upload_batch.present? %>
+      <% counts = @upload_batch_counts %>
+      <% processing_count = counts[:total] - counts[:metadata_complete] - counts[:metadata_failed] %>
+      <% missing_video_derivatives = counts[:videos] - counts[:video_derivatives_ready] %>
+      <section class="mt-6 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Upload batch</h2>
+            <p class="mt-1 text-sm font-semibold text-zinc-950">
+              <%= pluralize(counts[:photos], "photo") %><%= ", #{pluralize(counts[:videos], "video")}" if counts[:videos].positive? %>
+            </p>
+          </div>
+
+          <dl class="grid grid-cols-2 gap-3 text-sm text-zinc-700 sm:grid-cols-4">
+            <div>
+              <dt class="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-zinc-400">Metadata</dt>
+              <dd class="mt-1"><%= counts[:metadata_complete] %>/<%= counts[:total] %></dd>
+            </div>
+            <div>
+              <dt class="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-zinc-400">Checksums</dt>
+              <dd class="mt-1"><%= counts[:checksums_complete] %>/<%= counts[:total] %></dd>
+            </div>
+            <div>
+              <dt class="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-zinc-400">Videos</dt>
+              <dd class="mt-1"><%= counts[:video_derivatives_ready] %>/<%= counts[:videos] %></dd>
+            </div>
+            <div>
+              <dt class="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-zinc-400">Failures</dt>
+              <dd class="mt-1"><%= counts[:metadata_failed] + counts[:checksums_failed] + counts[:drive_failures] %></dd>
+            </div>
+          </dl>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <%= button_to "Commit upload",
+                  commit_upload_batch_path(@upload_batch),
+                  method: :patch,
+                  class: "rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800" %>
+            <%= button_to "Undo upload",
+                  rollback_upload_batch_path(@upload_batch),
+                  method: :delete,
+                  form: { data: { turbo_confirm: "Delete #{pluralize(counts[:total], "uploaded item")} from this batch?" } },
+                  class: "rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition hover:border-red-700 hover:bg-red-50" %>
+          </div>
+        </div>
+
+        <% if processing_count.positive? || missing_video_derivatives.positive? || counts[:drive_failures].positive? %>
+          <p class="mt-3 text-sm text-zinc-500">
+            <%= "#{pluralize(processing_count, "item")} still collecting metadata." if processing_count.positive? %>
+            <%= "#{pluralize(missing_video_derivatives, "video")} still generating playback files." if missing_video_derivatives.positive? %>
+            <%= "#{pluralize(counts[:drive_failures], "Drive archive")} failed." if counts[:drive_failures].positive? %>
+          </p>
+        <% end %>
+      </section>
+    <% end %>
+
     <% if @failed_drive_archive_count.positive? %>
       <section class="mt-6 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
         <div class="flex items-center justify-between gap-4">

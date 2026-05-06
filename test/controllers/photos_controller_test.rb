@@ -31,6 +31,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to root_path
     assert_equal @owner, photo.owner
     assert_equal "private", photo.visibility
+    assert_equal @owner.upload_batches.reviewing.sole, photo.upload_batch
     assert_predicate photo.original, :attached?
   end
 
@@ -114,6 +115,8 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to root_path
     assert_equal 1, heic.sidecar_count
     assert_equal 0, mp4.sidecar_count
+    assert_equal heic.upload_batch, mp4.upload_batch
+    assert_equal @owner.upload_batches.reviewing.sole, heic.upload_batch
     assert_equal "private", heic.visibility
     assert_equal "private", mp4.visibility
   end

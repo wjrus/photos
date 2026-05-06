@@ -16,6 +16,18 @@ class PhotoImporterTest < ActiveSupport::TestCase
     assert_equal 1, photo.sidecar_count
   end
 
+  test "attaches imported photos to an upload batch" do
+    owner = users(:one)
+    upload_batch = UploadBatch.create!(owner: owner)
+
+    PhotoImporter.new(owner: owner, upload_batch: upload_batch).import([
+      uploaded_file("fake jpg bytes", "IMG_1000.JPG", "image/jpeg")
+    ])
+
+    photo = Photo.find_by!(original_filename: "IMG_1000.JPG")
+    assert_equal upload_batch, photo.upload_batch
+  end
+
   private
 
   def uploaded_file(body, filename, content_type)

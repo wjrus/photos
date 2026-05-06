@@ -29,6 +29,10 @@ Rails.application.routes.draw do
   post "/private/access", to: "restricted_photos#unlock", as: :unlock_restricted_photos
   delete "/private/access", to: "restricted_photos#lock", as: :lock_restricted_photos
   get "/uploads", to: "uploads#show", as: :uploads
+  resources :upload_batches, only: [] do
+    patch :commit, on: :member
+    delete :rollback, on: :member
+  end
   resource :album_bulk_actions, only: :create
   resource :photo_bulk_actions, only: :create
   resources :albums, only: %i[index show create update destroy] do

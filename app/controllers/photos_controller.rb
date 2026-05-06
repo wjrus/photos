@@ -55,7 +55,7 @@ class PhotosController < ApplicationController
       return
     end
 
-    @photo = current_user.photos.new(photo_params)
+    @photo = current_user.photos.new(photo_params.merge(upload_batch: active_upload_batch))
 
     if @photo.save
       redirect_to safe_return_path, notice: "Photo uploaded privately."
@@ -121,7 +121,7 @@ class PhotosController < ApplicationController
 
   def create_batch_photos
     files = Array(params.require(:photos).permit(files: [])[:files]).compact_blank
-    PhotoImporter.new(owner: current_user).import(files)
+    PhotoImporter.new(owner: current_user, upload_batch: active_upload_batch).import(files)
   rescue ActiveRecord::RecordInvalid => e
     redirect_to root_path, alert: e.record.errors.full_messages.to_sentence
     {}
@@ -185,5 +185,9 @@ class PhotosController < ApplicationController
     return photo.original_filename if current_user&.owner?
 
     "photo-#{photo.id}#{extension}"
+  end
+
+  def active_upload_batch
+    UploadBatch.active_for(current_user)
   end
 end

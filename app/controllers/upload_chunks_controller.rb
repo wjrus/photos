@@ -20,7 +20,7 @@ class UploadChunksController < ApplicationController
 
   def complete
     files = assembled_files
-    result = PhotoImporter.new(owner: current_user).import(files)
+    result = PhotoImporter.new(owner: current_user, upload_batch: active_upload_batch).import(files)
     flash[:notice] = "Uploaded #{result[:created]} private item#{'s' unless result[:created] == 1}."
     render json: { redirect_url: uploads_path }
   rescue ActiveRecord::RecordInvalid => e
@@ -132,5 +132,9 @@ class UploadChunksController < ApplicationController
 
   def owner_access_json_response?
     true
+  end
+
+  def active_upload_batch
+    UploadBatch.active_for(current_user)
   end
 end

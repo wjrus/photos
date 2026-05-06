@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_05_082023) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_06_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -195,6 +195,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_05_082023) do
     t.boolean "restricted", default: false, null: false
     t.string "title"
     t.datetime "updated_at", null: false
+    t.bigint "upload_batch_id"
     t.string "visibility", default: "private", null: false
     t.index ["archived_at"], name: "index_photos_on_archived_at"
     t.index ["captured_at", "created_at", "id"], name: "index_photos_on_public_stream_order", order: :desc, where: "(((visibility)::text = 'public'::text) AND (restricted = false) AND (archived_at IS NULL))"
@@ -205,7 +206,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_05_082023) do
     t.index ["published_at"], name: "index_photos_on_published_at"
     t.index ["restricted"], name: "index_photos_on_restricted"
     t.index ["updated_at"], name: "index_photos_on_updated_at"
+    t.index ["upload_batch_id"], name: "index_photos_on_upload_batch_id"
     t.index ["visibility"], name: "index_photos_on_visibility"
+  end
+
+  create_table "upload_batches", force: :cascade do |t|
+    t.datetime "committed_at"
+    t.datetime "created_at", null: false
+    t.bigint "owner_id", null: false
+    t.datetime "rolled_back_at"
+    t.string "status", default: "reviewing", null: false
+    t.datetime "updated_at", null: false
+    t.index ["owner_id", "status"], name: "index_upload_batches_on_owner_id_and_status"
+    t.index ["owner_id"], name: "index_upload_batches_on_owner_id"
   end
 
   create_table "users", force: :cascade do |t|
@@ -245,6 +258,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_05_082023) do
   add_foreign_key "photo_people_tags", "photos"
   add_foreign_key "photo_people_tags", "users"
   add_foreign_key "photo_people_tags", "users", column: "tagged_by_id"
+  add_foreign_key "photos", "upload_batches"
   add_foreign_key "photos", "users", column: "owner_id"
+  add_foreign_key "upload_batches", "users", column: "owner_id"
   add_foreign_key "users", "users", column: "invited_by_id"
 end
