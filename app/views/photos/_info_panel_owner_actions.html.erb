@@ -1,4 +1,4 @@
-<div class="flex shrink-0 items-start gap-2" data-controller="confirm-modal" data-action="keydown@window->confirm-modal#keydown">
+<div class="flex flex-wrap items-start gap-2" data-controller="confirm-modal" data-action="keydown@window->confirm-modal#keydown">
   <% if photo.public? %>
     <%= button_to "Make private", unpublish_photo_path(photo),
           method: :patch,

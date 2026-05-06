@@ -4,7 +4,7 @@
        class="fixed inset-y-0 right-0 z-40 w-full max-w-[390px] translate-x-full overflow-y-auto border-l border-zinc-200 bg-white shadow-2xl transition duration-200 ease-out"
        data-info-panel-target="panel">
   <header class="sticky top-0 z-10 border-b border-zinc-200 bg-white/95 p-5 backdrop-blur">
-    <div class="flex items-start gap-3">
+    <div class="grid grid-cols-[auto_minmax(0,1fr)] gap-3">
       <button type="button"
               class="flex size-9 shrink-0 items-center justify-center rounded-lg border border-zinc-300 text-xl leading-none text-zinc-700 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white"
               aria-label="Close photo information"
@@ -18,7 +18,9 @@
       </div>
 
       <% if current_user&.owner? %>
-        <%= render "photos/info_panel_owner_actions", photo: photo, return_to: return_to, cover_context: local_assigns[:cover_context] %>
+        <div class="col-span-2">
+          <%= render "photos/info_panel_owner_actions", photo: photo, return_to: return_to, cover_context: local_assigns[:cover_context] %>
+        </div>
       <% end %>
     </div>
   </header>
