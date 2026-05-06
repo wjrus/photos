@@ -285,6 +285,9 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_select "section[data-controller~='info-panel'] > a.fixed[href='#{root_path(photo_id: photo.id)}'][aria-label='Return to stream'][title='Return to stream']"
     assert_select "main a[aria-label='Return to stream']", false
     assert_select "aside#photo-info-panel a", { text: "Back to stream", count: 0 }
+    assert_select "body.photo-detail-page"
+    assert_select "section.photo-detail-frame"
+    assert_select "main.photo-viewer-shell.overflow-hidden"
     assert_select "button[aria-label='Show photo information'][data-action='info-panel#toggle']"
     assert_select "button[aria-label='Close photo information'][data-action='info-panel#close']"
     assert_select "aside#photo-info-panel.translate-x-full"

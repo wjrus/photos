@@ -204,6 +204,26 @@
   pointer-events: none;
 }
 
+html:has(body.photo-detail-page),
+body.photo-detail-page {
+  block-size: 100%;
+  overflow: hidden;
+}
+
+.photo-detail-frame,
+.photo-viewer-shell {
+  block-size: 100vh;
+  min-block-size: 0;
+  overflow: hidden;
+}
+
+@supports (block-size: 100dvh) {
+  .photo-detail-frame,
+  .photo-viewer-shell {
+    block-size: 100dvh;
+  }
+}
+
 @media (min-width: 1024px) {
   .photo-viewer-shell.info-panel-open {
     padding-right: calc(390px + 1.5rem);
