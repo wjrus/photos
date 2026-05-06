@@ -1,6 +1,18 @@
 class Photo < ApplicationRecord
   VISIBILITIES = %w[private public].freeze
   CHECKSUM_STATUSES = %w[pending complete failed].freeze
+  STILL_IMAGE_EXTENSIONS = %w[
+    .avif
+    .gif
+    .heic
+    .heif
+    .jpeg
+    .jpg
+    .png
+    .tif
+    .tiff
+    .webp
+  ].freeze
   STREAM_PAGE_SIZE = 60
   STREAM_TUPLE_SQL = "(CASE WHEN photos.captured_at IS NULL THEN 0 ELSE 1 END, COALESCE(photos.captured_at, TIMESTAMP '0001-01-01'), photos.created_at, photos.id)".freeze
   STREAM_TUPLE_GREATER_THAN_SQL = "#{STREAM_TUPLE_SQL} > (:has_capture, :captured_at, :created_at, :id)".freeze
@@ -194,11 +206,11 @@ class Photo < ApplicationRecord
   end
 
   def image?
-    content_type.to_s.start_with?("image/")
+    content_type.to_s.start_with?("image/") || still_image_filename?
   end
 
   def video?
-    content_type.to_s.start_with?("video/")
+    content_type.to_s.start_with?("video/") && !still_image_filename?
   end
 
   def derivative_media?
@@ -257,7 +269,7 @@ class Photo < ApplicationRecord
 
   def copy_original_blob_attributes
     self.original_filename = original.filename.to_s
-    self.content_type = original.content_type
+    self.content_type = normalized_original_content_type
     self.byte_size = original.byte_size
   end
 
@@ -267,9 +279,20 @@ class Photo < ApplicationRecord
 
   def original_must_be_supported_media
     return unless original.attached?
-    return if original.content_type.to_s.start_with?("image/", "video/")
+    return if original.content_type.to_s.start_with?("image/", "video/") || still_image_filename?
 
     errors.add(:original, "must be an image or video")
+  end
+
+  def still_image_filename?
+    STILL_IMAGE_EXTENSIONS.include?(File.extname(original_filename.to_s).downcase)
+  end
+
+  def normalized_original_content_type
+    return "image/heic" if original_filename.to_s.downcase.end_with?(".heic")
+    return "image/heif" if original_filename.to_s.downcase.end_with?(".heif")
+
+    original.content_type
   end
 
   def sidecars_must_be_aae

@@ -47,6 +47,20 @@ class PhotoTest < ActiveSupport::TestCase
     assert_equal "Portrait", photo.title
   end
 
+  test "treats heic filenames as photos even with a bad video content type" do
+    photo = users(:one).photos.new
+    photo.original.attach(
+      io: StringIO.new("fake heic bytes"),
+      filename: "misread.HEIC",
+      content_type: "video/quicktime"
+    )
+
+    assert_predicate photo, :valid?
+    assert_predicate photo, :image?
+    assert_not photo.video?
+    assert_equal "image/heic", photo.content_type
+  end
+
   test "preserves aae sidecars with originals" do
     photo = users(:one).photos.new
     photo.original.attach(
