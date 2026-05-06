@@ -33,6 +33,7 @@ class AlbumsController < ApplicationController
       return_to: album_path(@album),
       bulk_form_id: "album-photo-bulk-form",
       album: @album,
+      group_by_day: false,
       next_page_path: album_path(@album)
     )
   end

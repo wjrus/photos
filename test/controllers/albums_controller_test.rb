@@ -172,6 +172,18 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-stream-date-group-key]", false
   end
 
+  test "album infinite scroll pages do not render date groups" do
+    album = @owner.photo_albums.create!(title: "Concert", source: "manual")
+    album.photos << attached_photo(title: "First")
+    album.photos << attached_photo(title: "Second")
+
+    get album_path(album, stream_page: 1)
+
+    assert_response :success
+    assert_select ".photo-flat-grid"
+    assert_select "[data-stream-date-group-key]", false
+  end
+
   test "owner can remove a photo from an album without deleting it" do
     album = @owner.photo_albums.create!(title: "Trip", source: "manual")
     photo = attached_photo(title: "Album item")
