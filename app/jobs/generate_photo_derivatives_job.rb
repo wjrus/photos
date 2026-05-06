@@ -1,4 +1,5 @@
 require "open3"
+require "json"
 require "tmpdir"
 
 class GeneratePhotoDerivativesJob < ApplicationJob
@@ -10,6 +11,7 @@ class GeneratePhotoDerivativesJob < ApplicationJob
   VIDEO_PREVIEW_TIMEOUT = 45.seconds
   VIDEO_DISPLAY_TIMEOUT = 30.minutes
   FFMPEG = "ffmpeg".freeze
+  FFPROBE = "ffprobe".freeze
 
   def perform(photo, options = {})
     return unless photo.original.attached?
@@ -54,21 +56,7 @@ class GeneratePhotoDerivativesJob < ApplicationJob
         next if preview_only || photo.video_display.attached?
 
         Rails.logger.info("Generating video display derivative for photo #{photo.id}")
-        run_ffmpeg!(
-          "-i", original_file.path,
-          "-map", "0:v:0",
-          "-map", "0:a?",
-          "-vf", "scale='min(#{VIDEO_DISPLAY_SIZE},iw)':-2",
-          "-c:v", "libx264",
-          "-preset", "veryfast",
-          "-crf", "23",
-          "-pix_fmt", "yuv420p",
-          "-c:a", "aac",
-          "-b:a", "128k",
-          "-movflags", "+faststart",
-          display_path,
-          timeout: VIDEO_DISPLAY_TIMEOUT
-        )
+        run_ffmpeg!(*video_display_ffmpeg_args(original_file.path, display_path), timeout: VIDEO_DISPLAY_TIMEOUT)
 
         attach_video_display(photo, display_path)
         Rails.logger.info("Attached video display derivative for photo #{photo.id}")
@@ -118,6 +106,66 @@ class GeneratePhotoDerivativesJob < ApplicationJob
       preview_path,
       timeout: VIDEO_PREVIEW_TIMEOUT
     )
+  end
+
+  def video_display_ffmpeg_args(original_path, display_path)
+    args = [
+      "-i", original_path,
+      "-map", "0:v:0"
+    ]
+
+    if (audio_stream_index = decodable_audio_stream_index(original_path))
+      args.push("-map", "0:#{audio_stream_index}")
+    end
+
+    args.concat(
+      [
+        "-vf", "scale='min(#{VIDEO_DISPLAY_SIZE},iw)':-2",
+        "-c:v", "libx264",
+        "-preset", "veryfast",
+        "-crf", "23",
+        "-pix_fmt", "yuv420p"
+      ]
+    )
+
+    if audio_stream_index
+      args.concat(
+        [
+          "-c:a", "aac",
+          "-b:a", "128k"
+        ]
+      )
+    end
+
+    args.concat(
+      [
+        "-movflags", "+faststart",
+        display_path
+      ]
+    )
+  end
+
+  def decodable_audio_stream_index(original_path)
+    stdout, stderr, status = Open3.capture3(
+      FFPROBE,
+      "-v", "error",
+      "-select_streams", "a",
+      "-show_entries", "stream=index,codec_name",
+      "-of", "json",
+      original_path
+    )
+
+    unless status.success?
+      Rails.logger.warn("ffprobe audio stream scan failed: #{stderr.presence || stdout.presence || 'unknown error'}")
+      return
+    end
+
+    JSON.parse(stdout).fetch("streams", []).find do |stream|
+      stream["index"].present? && stream["codec_name"].present? && stream["codec_name"] != "none"
+    end&.fetch("index")
+  rescue Errno::ENOENT, JSON::ParserError => error
+    Rails.logger.warn("ffprobe audio stream scan failed: #{error.message}")
+    nil
   end
 
   def video_derivative_basename(photo)

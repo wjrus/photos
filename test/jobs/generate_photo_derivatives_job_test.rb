@@ -114,6 +114,29 @@ class GeneratePhotoDerivativesJobTest < ActiveJob::TestCase
     assert_includes calls.second, "-ss"
   end
 
+  test "maps the first decodable audio stream for video display derivatives" do
+    job = GeneratePhotoDerivativesJob.new
+    job.define_singleton_method(:decodable_audio_stream_index) { |_path| 2 }
+
+    args = job.send(:video_display_ffmpeg_args, "/tmp/source.mov", "/tmp/display.mp4")
+
+    assert_includes args.each_cons(2).to_a, [ "-map", "0:v:0" ]
+    assert_includes args.each_cons(2).to_a, [ "-map", "0:2" ]
+    assert_includes args.each_cons(2).to_a, [ "-c:a", "aac" ]
+  end
+
+  test "omits audio options when no decodable audio stream is available" do
+    job = GeneratePhotoDerivativesJob.new
+    job.define_singleton_method(:decodable_audio_stream_index) { |_path| nil }
+
+    args = job.send(:video_display_ffmpeg_args, "/tmp/source.mov", "/tmp/display.mp4")
+
+    assert_includes args.each_cons(2).to_a, [ "-map", "0:v:0" ]
+    assert_not_includes args, "0:a?"
+    assert_not_includes args, "-c:a"
+    assert_not_includes args, "-b:a"
+  end
+
   private
 
   def attached_photo
