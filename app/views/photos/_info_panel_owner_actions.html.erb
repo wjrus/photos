@@ -11,6 +11,13 @@
           class: "rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
   <% end %>
 
+  <% if local_assigns[:cover_context].present? %>
+    <%= button_to cover_context[:label],
+          cover_context[:path],
+          method: :patch,
+          class: "rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+  <% end %>
+
   <button type="button"
           class="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-800 transition hover:bg-rose-800 hover:text-white"
           data-action="confirm-modal#open">

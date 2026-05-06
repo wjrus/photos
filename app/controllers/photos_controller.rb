@@ -14,6 +14,7 @@ class PhotosController < ApplicationController
 
     @return_to = photo_return_path(@photo)
     @taggable_users = User.where.not(id: current_user.id).order(Arel.sql("LOWER(email) ASC")) if current_user&.owner?
+    @cover_context = photo_cover_context(@photo, @return_to) if current_user&.owner?
     set_stream_neighbors
   end
 
@@ -200,5 +201,41 @@ class PhotosController < ApplicationController
     return_path
   rescue URI::InvalidURIError
     root_path(photo_id: photo.id)
+  end
+
+  def photo_cover_context(photo, return_path)
+    album_cover_context(photo, return_path) || location_cover_context(photo, return_path)
+  end
+
+  def album_cover_context(photo, return_path)
+    album_id = return_path.to_s.match(%r{\A/albums/(\d+)\z})&.[](1)
+    return unless album_id
+
+    album = current_user.photo_albums.find_by(id: album_id)
+    return unless album&.photos&.exists?(photo.id)
+
+    {
+      label: "Set album cover",
+      path: album_cover_path(album, photo)
+    }
+  end
+
+  def location_cover_context(photo, return_path)
+    location_id = return_path.to_s.match(%r{\A/locations/([^/?#]+)\z})&.[](1)
+    return unless location_id && PhotoLocation.valid_id?(location_id)
+
+    return unless PhotoLocation.scope_for(geotagged_photo_scope, location_id).exists?(photo.id)
+
+    {
+      label: "Set location cover",
+      path: location_cover_path(location_id, photo)
+    }
+  end
+
+  def geotagged_photo_scope
+    current_user.photos
+      .visible_to(current_user)
+      .joins(:metadata)
+      .where.not(photo_metadata: { latitude: nil, longitude: nil })
   end
 end

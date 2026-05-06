@@ -19,6 +19,7 @@ Rails.application.routes.draw do
   resources :users, only: %i[index create destroy]
   get "/archive", to: "archived_photos#index", as: :archived_photos
   resources :locations, only: %i[index show]
+  patch "/locations/:location_id/cover/:photo_id", to: "location_covers#update", as: :location_cover
   get "/search", to: "search#show", as: :search
   get "/map", to: "maps#show", as: :map
   get "/map/markers", to: "maps#markers", as: :map_markers

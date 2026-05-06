@@ -12,6 +12,7 @@ class Photo < ApplicationRecord
   has_one :drive_archive_object, dependent: :destroy
   has_many :photo_album_memberships, dependent: :destroy
   has_many :photo_albums, through: :photo_album_memberships
+  has_many :photo_location_covers, foreign_key: :cover_photo_id, dependent: :destroy, inverse_of: :cover_photo
   has_many :photo_people_tags, dependent: :destroy
   has_many :tagged_users, through: :photo_people_tags, source: :user
   has_one_attached :original do |attachable|

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_06_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_06_123000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -118,6 +118,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_06_120000) do
     t.index ["published_at"], name: "index_photo_albums_on_published_at"
     t.index ["updated_at"], name: "index_photo_albums_on_updated_at"
     t.index ["visibility"], name: "index_photo_albums_on_visibility"
+  end
+
+  create_table "photo_location_covers", force: :cascade do |t|
+    t.bigint "cover_photo_id", null: false
+    t.datetime "created_at", null: false
+    t.string "location_id", null: false
+    t.bigint "owner_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["cover_photo_id"], name: "index_photo_location_covers_on_cover_photo_id"
+    t.index ["owner_id", "location_id"], name: "index_photo_location_covers_on_owner_id_and_location_id", unique: true
+    t.index ["owner_id"], name: "index_photo_location_covers_on_owner_id"
   end
 
   create_table "photo_location_places", force: :cascade do |t|
@@ -254,6 +265,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_06_120000) do
   add_foreign_key "photo_album_memberships", "photos"
   add_foreign_key "photo_albums", "photos", column: "cover_photo_id"
   add_foreign_key "photo_albums", "users", column: "owner_id"
+  add_foreign_key "photo_location_covers", "photos", column: "cover_photo_id"
+  add_foreign_key "photo_location_covers", "users", column: "owner_id"
   add_foreign_key "photo_metadata", "photos"
   add_foreign_key "photo_people_tags", "photos"
   add_foreign_key "photo_people_tags", "users"

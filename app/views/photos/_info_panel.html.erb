@@ -18,7 +18,7 @@
       </div>
 
       <% if current_user&.owner? %>
-        <%= render "photos/info_panel_owner_actions", photo: photo, return_to: return_to %>
+        <%= render "photos/info_panel_owner_actions", photo: photo, return_to: return_to, cover_context: local_assigns[:cover_context] %>
       <% end %>
     </div>
   </header>

@@ -287,6 +287,35 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, %(data-stream-navigation-back-url-value="#{root_path(photo_id: photo.id)}")
   end
 
+  test "detail view can set current album cover from the info pane" do
+    album = @owner.photo_albums.create!(title: "Info Cover Album", source: "manual")
+    photo = attached_photo(title: "Album Cover Candidate")
+    album.photos << photo
+
+    get photo_path(photo, return_to: album_path(album))
+    follow_redirect!
+
+    assert_response :success
+    assert_select "form[action='#{album_cover_path(album, photo)}'][method='post']", text: "Set album cover"
+  end
+
+  test "detail view can set current location cover from the info pane" do
+    photo = attached_photo(title: "Location Cover Candidate")
+    photo.create_metadata!(
+      extraction_status: "complete",
+      latitude: 44.7622,
+      longitude: -85.5980,
+      raw: {}
+    )
+    location_id = PhotoLocation.id_for_coordinates(44.7622, -85.5980)
+
+    get photo_path(photo, return_to: location_path(location_id))
+    follow_redirect!
+
+    assert_response :success
+    assert_select "form[action='#{location_cover_path(location_id, photo)}'][method='post']", text: "Set location cover"
+  end
+
   test "owner sees location unavailable when metadata has no gps" do
     photo = attached_photo
     photo.create_metadata!(extraction_status: "complete", camera_make: "Fuji", camera_model: "X100", raw: {})

@@ -36,11 +36,13 @@ class LocationsController < ApplicationController
 
   def location_index_cache_key
     [
-      "locations-index/v1",
+      "locations-index/v2",
       cache_audience_key,
       Photo.maximum(:updated_at)&.utc&.to_i,
       PhotoMetadata.maximum(:updated_at)&.utc&.to_i,
-      PhotoMetadata.count
+      PhotoMetadata.count,
+      PhotoLocationCover.maximum(:updated_at)&.utc&.to_i,
+      PhotoLocationCover.count
     ]
   end
 
@@ -52,13 +54,27 @@ class LocationsController < ApplicationController
   end
 
   def location_covers(locations)
-    cover_ids = locations.map { |location| location.representative_photo_id.to_i }
+    fallback_cover_ids = locations.map { |location| location.representative_photo_id.to_i }
+    explicit_covers = explicit_location_covers(locations)
+    cover_ids = (fallback_cover_ids + explicit_covers.values).uniq
 
-    Photo
+    photos = Photo
       .with_original_variant_records
       .visible_to(current_user)
       .where(id: cover_ids)
       .index_by(&:id)
+
+    locations.each_with_object({}) do |location, covers|
+      cover = photos[explicit_covers[location.id]] || photos[location.representative_photo_id.to_i]
+      covers[location.id] = cover if cover
+    end
+  end
+
+  def explicit_location_covers(locations)
+    PhotoLocationCover
+      .where(location_id: locations.map(&:id))
+      .pluck(:location_id, :cover_photo_id)
+      .to_h
   end
 
   def set_location

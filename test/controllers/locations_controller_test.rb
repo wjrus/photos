@@ -71,6 +71,25 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_select "article", text: /Traverse City, Michigan.*1 photo, 1 video/m
   end
 
+  test "locations index uses explicit location covers" do
+    fallback = attached_photo(title: "Fallback cover")
+    geotag(fallback, latitude: 44.7622, longitude: -85.5980)
+    explicit = attached_video(title: "Explicit cover")
+    explicit.video_preview.attach(
+      io: File.open(Rails.root.join("public/icon.png")),
+      filename: "explicit-cover.png",
+      content_type: "image/png"
+    )
+    geotag(explicit, latitude: 44.7623, longitude: -85.5981)
+    location_id = location_id_for(fallback)
+    @owner.photo_location_covers.create!(location_id: location_id, cover_photo: explicit)
+
+    get locations_path
+
+    assert_response :success
+    assert_select "img[alt='Explicit cover']"
+  end
+
   test "place location page shows all matching location cells" do
     first = attached_photo(title: "First grouped place")
     geotag(first, latitude: 44.7622, longitude: -85.5980)

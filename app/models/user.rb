@@ -6,6 +6,7 @@ class User < ApplicationRecord
 
   has_many :photos, foreign_key: :owner_id, dependent: :restrict_with_exception, inverse_of: :owner
   has_many :photo_albums, foreign_key: :owner_id, dependent: :restrict_with_exception, inverse_of: :owner
+  has_many :photo_location_covers, foreign_key: :owner_id, dependent: :destroy, inverse_of: :owner
   has_many :upload_batches, foreign_key: :owner_id, dependent: :restrict_with_exception, inverse_of: :owner
   has_many :google_takeout_import_runs, foreign_key: :owner_id, dependent: :restrict_with_exception, inverse_of: :owner
   has_many :sent_invitations, class_name: "User", foreign_key: :invited_by_id, dependent: :nullify, inverse_of: :invited_by

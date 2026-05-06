@@ -19,7 +19,7 @@
     <% if @locations.any? %>
       <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <% @locations.each do |location| %>
-          <% cover = @location_covers[location.representative_photo_id.to_i] %>
+          <% cover = @location_covers[location.id] %>
           <article class="group overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition hover:border-zinc-950">
             <%= link_to location_path(location.id), class: "block" do %>
               <div class="aspect-[4/3] bg-zinc-900">
