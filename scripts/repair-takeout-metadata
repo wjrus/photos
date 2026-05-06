@@ -4,13 +4,13 @@ set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-LIMIT="${1:-500}"
+BATCH_SIZE="${1:-1000}"
 SERVICE="${2:-web}"
 
-if [[ "$LIMIT" == "-h" || "$LIMIT" == "--help" ]]; then
+if [[ "$BATCH_SIZE" == "-h" || "$BATCH_SIZE" == "--help" ]]; then
   cat <<'USAGE'
 Usage:
-  ./scripts/repair-takeout-metadata [limit] [service]
+  ./scripts/repair-takeout-metadata [batch_size] [service]
 
 Examples:
   ./scripts/repair-takeout-metadata
@@ -18,13 +18,14 @@ Examples:
 
 Re-reads Google Takeout sidecar JSON using folder-aware matching and repairs
 already imported photo metadata when the stored coordinates came from the old
-Takeout sidecar data. This is useful after fixing basename-only sidecar matches.
+Takeout sidecar data. Processes all imported records in batches. Duplicate
+import records are skipped because they were never supposed to apply metadata.
 USAGE
   exit 0
 fi
 
 docker compose exec -T \
-  -e REPAIR_LIMIT="$LIMIT" \
+  -e REPAIR_BATCH_SIZE="$BATCH_SIZE" \
   "$SERVICE" bin/rails runner "$(cat <<'RUBY'
 require "json"
 require "zip"
@@ -70,28 +71,36 @@ def close_enough?(first, second)
   (first.to_d - second.to_d).abs < BigDecimal("0.000001")
 end
 
-limit = Integer(ENV.fetch("REPAIR_LIMIT", 500))
-records = GoogleTakeoutImport
-  .where(status: %w[imported duplicate])
-  .where.not(photo_id: nil)
-  .includes(photo: :metadata)
-  .order(:zip_path, :entry_name)
-  .limit(limit)
+def changed_coordinates?(metadata, geo)
+  !close_enough?(metadata.latitude, geo.fetch("latitude")) ||
+    !close_enough?(metadata.longitude, geo.fetch("longitude"))
+end
 
-puts "Scanning #{records.size} imported Takeout #{'record'.pluralize(records.size)}..."
+batch_size = Integer(ENV.fetch("REPAIR_BATCH_SIZE", 1000))
+scope = GoogleTakeoutImport
+  .where(status: "imported")
+  .where.not(photo_id: nil)
+  .order(:zip_path, :entry_name)
+
+record_count = scope.count
+puts "Scanning #{record_count} imported Takeout #{'record'.pluralize(record_count)} in batches of #{batch_size}..."
 
 updated = 0
 coordinates_updated = 0
 missing_zip = 0
 missing_sidecar = 0
 unchanged = 0
+bad_sidecar = 0
 
-records.group_by(&:zip_path).each do |zip_path, zip_records|
+scope.distinct.pluck(:zip_path).sort.each do |zip_path|
+  zip_record_count = scope.where(zip_path: zip_path).count
   unless File.exist?(zip_path)
-    missing_zip += zip_records.size
-    puts "Missing zip: #{zip_path} (#{zip_records.size} records)"
+    missing_zip += zip_record_count
+    puts "Missing zip: #{zip_path} (#{zip_record_count} records)"
     next
   end
+
+  puts "Reading #{zip_path} (#{zip_record_count} records)"
 
   Zip::File.open(zip_path) do |zip_file|
     sidecars = {}
@@ -102,14 +111,16 @@ records.group_by(&:zip_path).each do |zip_path, zip_records|
       sidecars[sidecar_key(entry.name)] = entry
     end
 
-    zip_records.each do |record|
+    scope
+      .where(zip_path: zip_path)
+      .includes(photo: :metadata)
+      .find_each(batch_size: batch_size) do |record|
       photo = record.photo
       metadata = PhotoMetadata.for_photo(photo)
       sidecar = sidecars[sidecar_key(record.entry_name)]
 
       unless sidecar
         missing_sidecar += 1
-        puts "No sidecar: photo ##{photo.id} #{record.entry_name}"
         next
       end
 
@@ -120,32 +131,44 @@ records.group_by(&:zip_path).each do |zip_path, zip_records|
       captured_at = timestamp_from_google_metadata(google_metadata)
       raw = metadata.raw.merge("google_takeout" => google_metadata).compact
 
-      attributes = { raw: raw }
-      if new_geo && (photo.video? || old_geo.blank? || (close_enough?(metadata.latitude, old_geo["latitude"]) && close_enough?(metadata.longitude, old_geo["longitude"])))
+      attributes = {}
+      attributes[:raw] = raw unless metadata.raw["google_takeout"] == google_metadata
+
+      if new_geo &&
+          changed_coordinates?(metadata, new_geo) &&
+          (photo.video? || old_geo.blank? || (close_enough?(metadata.latitude, old_geo["latitude"]) && close_enough?(metadata.longitude, old_geo["longitude"])))
         attributes[:latitude] = new_geo.fetch("latitude")
         attributes[:longitude] = new_geo.fetch("longitude")
       end
-      attributes[:captured_at] = captured_at if captured_at && (metadata.captured_at.blank? || metadata.captured_at == timestamp_from_google_metadata(old_google_metadata))
 
-      if attributes.except(:raw).empty? && metadata.raw["google_takeout"] == google_metadata
+      old_captured_at = timestamp_from_google_metadata(old_google_metadata)
+      if captured_at &&
+          metadata.captured_at != captured_at &&
+          (metadata.captured_at.blank? || metadata.captured_at == old_captured_at)
+        attributes[:captured_at] = captured_at
+      end
+
+      if attributes.empty? &&
+          !(captured_at && photo.captured_at != captured_at && (photo.captured_at.blank? || photo.captured_at == old_captured_at))
         unchanged += 1
         next
       end
 
-      metadata.update!(attributes)
-      if captured_at && (photo.captured_at.blank? || photo.captured_at == timestamp_from_google_metadata(old_google_metadata))
+      metadata.update!(attributes) if attributes.any?
+      if captured_at && photo.captured_at != captured_at && (photo.captured_at.blank? || photo.captured_at == old_captured_at)
         photo.update_columns(captured_at: captured_at, updated_at: Time.current)
       end
 
       updated += 1
       coordinates_updated += 1 if attributes.key?(:latitude)
-      puts "Updated photo ##{photo.id} #{photo.original_filename}: #{attributes.key?(:latitude) ? "#{attributes[:latitude]}, #{attributes[:longitude]}" : "raw sidecar only"}"
+      puts "Updated photo ##{photo.id} #{photo.original_filename}: #{attributes.key?(:latitude) ? "#{attributes[:latitude]}, #{attributes[:longitude]}" : "metadata only"}"
     rescue JSON::ParserError => e
+      bad_sidecar += 1
       puts "Bad sidecar JSON: #{record.entry_name}: #{e.message}"
     end
   end
 end
 
-puts "Done. Updated #{updated}; coordinates updated #{coordinates_updated}; unchanged #{unchanged}; missing sidecar #{missing_sidecar}; missing zip records #{missing_zip}."
+puts "Done. Updated #{updated}; coordinates updated #{coordinates_updated}; unchanged #{unchanged}; missing sidecar #{missing_sidecar}; bad sidecar #{bad_sidecar}; missing zip records #{missing_zip}."
 RUBY
 )"
