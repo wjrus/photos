@@ -168,6 +168,7 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     get album_path(album)
 
     assert_response :success
+    assert_select ".photo-flat-pages"
     assert_select ".photo-flat-grid"
     assert_select "[data-stream-date-group-key]", false
   end
@@ -180,6 +181,7 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     get album_path(album, stream_page: 1)
 
     assert_response :success
+    assert_select ".photo-flat-pages", false
     assert_select ".photo-flat-grid"
     assert_select "[data-stream-date-group-key]", false
   end

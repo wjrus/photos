@@ -1,4 +1,6 @@
-<div class="space-y-7"
+<% group_by_day = local_assigns.fetch(:group_by_day, true) %>
+
+<div class="<%= group_by_day ? "space-y-7" : "photo-flat-pages" %>"
      data-stream-page-container
      data-stream-state-target-photo-id-value="<%= local_assigns[:stream_target_photo_id] %>"
      data-controller="<%= [("infinite-scroll" if next_cursor.present? || local_assigns[:newer_cursor].present?), "stream-state", "stream-virtualizer"].compact.join(" ") %>"
@@ -11,7 +13,7 @@
         owner_controls: local_assigns.fetch(:owner_controls, current_user&.owner?),
         archive_context: local_assigns[:archive_context],
         album: local_assigns[:album],
-        group_by_day: local_assigns.fetch(:group_by_day, true),
+        group_by_day: group_by_day,
         next_cursor: next_cursor,
         newer_cursor: local_assigns[:newer_cursor],
         next_page_path: next_page_path %>
