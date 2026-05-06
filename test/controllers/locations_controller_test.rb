@@ -158,6 +158,26 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-stream-date-group-key]", false
   end
 
+  test "location page can focus around a returned photo" do
+    newer = attached_photo(title: "Newer location photo")
+    target = attached_photo(title: "Returned location photo")
+    older = attached_photo(title: "Older location photo")
+    [ newer, target, older ].each do |photo|
+      geotag(photo, latitude: 44.7622, longitude: -85.5980)
+    end
+    newer.update_columns(created_at: Time.zone.local(2026, 1, 3), updated_at: Time.zone.local(2026, 1, 3))
+    target.update_columns(created_at: Time.zone.local(2026, 1, 2), updated_at: Time.zone.local(2026, 1, 2))
+    older.update_columns(created_at: Time.zone.local(2026, 1, 1), updated_at: Time.zone.local(2026, 1, 1))
+    location_id = location_id_for(target)
+
+    get location_path(location_id, photo_id: target.id)
+
+    assert_response :success
+    assert_select "[data-stream-state-target-photo-id-value='#{target.id}']"
+    assert_select "[data-photo-id='#{target.id}']"
+    assert_select "[data-photo-id='#{older.id}']"
+  end
+
   test "location infinite scroll pages do not render date groups" do
     inside = attached_photo(title: "Inside location")
     geotag(inside, latitude: 44.7622, longitude: -85.5980)

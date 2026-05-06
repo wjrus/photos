@@ -25,7 +25,7 @@ class AlbumsController < ApplicationController
       .visible_to(current_user)
       .stream_order
 
-    @photos, @next_cursor = paginate_photo_stream(visible_photos)
+    @photos, @next_cursor, @newer_cursor = paginate_photo_stream_with_focus(visible_photos)
     @visible_media_count = visible_media_counts_for([ @album ]).fetch(@album.id, { photos: 0, videos: 0 })
     @albums = current_user.photo_albums.display_order if current_user&.owner?
 
@@ -34,7 +34,8 @@ class AlbumsController < ApplicationController
       bulk_form_id: "album-photo-bulk-form",
       album: @album,
       group_by_day: false,
-      next_page_path: album_path(@album)
+      next_page_path: album_path(@album),
+      stream_target_photo_id: @stream_target_photo_id
     )
   end
 

@@ -12,6 +12,17 @@ module PhotoStreamPagination
     [ photos.first(Photo::STREAM_PAGE_SIZE), next_photo&.stream_cursor, nil ]
   end
 
+  def paginate_photo_stream_with_focus(scope)
+    focused_photo = focused_stream_photo(scope)
+
+    if focused_photo
+      @stream_target_photo_id = focused_photo.id
+      paginate_photo_stream_focused(scope, focused_photo)
+    else
+      paginate_photo_stream(scope)
+    end
+  end
+
   def paginate_photo_stream_focused(scope, photo)
     previous_photo = scope.stream_before(photo)
     page_scope = previous_photo ? scope.before_stream_cursor(previous_photo.stream_cursor) : scope
@@ -37,8 +48,15 @@ module PhotoStreamPagination
       owner_controls: owner_controls,
       next_cursor: @next_cursor,
       newer_cursor: newer_cursor,
-      next_page_path: next_page_path
+      next_page_path: next_page_path,
+      stream_target_photo_id: @stream_target_photo_id
     }.merge(extras)
+  end
+
+  def focused_stream_photo(scope)
+    return if params[:photo_id].blank? || params[:stream_page].present? || params[:cursor].present? || params[:newer_cursor].present?
+
+    scope.find_by(id: params[:photo_id])
   end
 
   def paginate_newer_photo_stream(scope)

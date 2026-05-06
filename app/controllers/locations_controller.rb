@@ -12,7 +12,7 @@ class LocationsController < ApplicationController
   end
 
   def show
-    @photos, @next_cursor, = paginate_photo_stream(location_photo_scope
+    @photos, @next_cursor, @newer_cursor = paginate_photo_stream_with_focus(location_photo_scope
       .with_original_variant_records
       .stream_order)
     @location_media_count = media_counts_for(location_photo_scope)
@@ -22,7 +22,8 @@ class LocationsController < ApplicationController
       return_to: location_path(@location_id),
       bulk_form_id: "location-photo-bulk-form",
       group_by_day: false,
-      next_page_path: location_path(@location_id)
+      next_page_path: location_path(@location_id),
+      stream_target_photo_id: @stream_target_photo_id
     )
   end
 

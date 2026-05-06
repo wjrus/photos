@@ -52,6 +52,22 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
     assert_select "option[selected]", text: "23mm F2"
   end
 
+  test "search page can focus around a returned photo" do
+    newer = attached_photo(title: "Florida newer")
+    target = attached_photo(title: "Florida returned")
+    older = attached_photo(title: "Florida older")
+    newer.update_columns(created_at: Time.zone.local(2026, 1, 3), updated_at: Time.zone.local(2026, 1, 3))
+    target.update_columns(created_at: Time.zone.local(2026, 1, 2), updated_at: Time.zone.local(2026, 1, 2))
+    older.update_columns(created_at: Time.zone.local(2026, 1, 1), updated_at: Time.zone.local(2026, 1, 1))
+
+    get search_path(q: "Florida", photo_id: target.id)
+
+    assert_response :success
+    assert_select "[data-stream-state-target-photo-id-value='#{target.id}']"
+    assert_select "[data-photo-id='#{target.id}']"
+    assert_select "[data-photo-id='#{older.id}']"
+  end
+
   test "search finds photos by place name" do
     match = attached_photo(title: "Downtown lunch")
     match.create_metadata!(

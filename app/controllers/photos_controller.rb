@@ -209,10 +209,26 @@ class PhotosController < ApplicationController
     uri = URI.parse(return_path)
 
     return root_path(photo_id: photo.id) if uri.relative? && [ "", root_path ].include?(uri.path)
+    return focused_stream_return_path(uri, photo) if stream_return_path?(uri.path)
 
     return_path
   rescue URI::InvalidURIError
     root_path(photo_id: photo.id)
+  end
+
+  def focused_stream_return_path(uri, photo)
+    query = Rack::Utils.parse_nested_query(uri.query)
+    query["photo_id"] = photo.id
+    uri.query = query.to_query.presence
+    uri.to_s
+  end
+
+  def stream_return_path?(path)
+    path == search_path ||
+      path == archived_photos_path ||
+      path == restricted_photos_path ||
+      path.match?(%r{\A/albums/\d+\z}) ||
+      path.match?(%r{\A/locations/[^/]+\z})
   end
 
   def photo_cover_context(photo, return_path)
@@ -220,7 +236,7 @@ class PhotosController < ApplicationController
   end
 
   def album_cover_context(photo, return_path)
-    album_id = return_path.to_s.match(%r{\A/albums/(\d+)\z})&.[](1)
+    album_id = return_path_path(return_path).match(%r{\A/albums/(\d+)\z})&.[](1)
     return unless album_id
 
     album = current_user.photo_albums.find_by(id: album_id)
@@ -233,7 +249,7 @@ class PhotosController < ApplicationController
   end
 
   def location_cover_context(photo, return_path)
-    location_id = return_path.to_s.match(%r{\A/locations/([^/?#]+)\z})&.[](1)
+    location_id = return_path_path(return_path).match(%r{\A/locations/([^/]+)\z})&.[](1)
     return unless location_id && PhotoLocation.valid_id?(location_id)
 
     return unless PhotoLocation.scope_for(geotagged_photo_scope, location_id).exists?(photo.id)
@@ -242,6 +258,12 @@ class PhotosController < ApplicationController
       label: "Set location cover",
       path: location_cover_path(location_id, photo)
     }
+  end
+
+  def return_path_path(return_path)
+    URI.parse(return_path.to_s).path
+  rescue URI::InvalidURIError
+    ""
   end
 
   def geotagged_photo_scope

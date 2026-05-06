@@ -173,6 +173,24 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-stream-date-group-key]", false
   end
 
+  test "album page can focus around a returned photo" do
+    album = @owner.photo_albums.create!(title: "Concert", source: "manual")
+    newer = attached_photo(title: "Newer album photo")
+    target = attached_photo(title: "Returned album photo")
+    older = attached_photo(title: "Older album photo")
+    [ newer, target, older ].each { |photo| album.photos << photo }
+    newer.update_columns(created_at: Time.zone.local(2026, 1, 3), updated_at: Time.zone.local(2026, 1, 3))
+    target.update_columns(created_at: Time.zone.local(2026, 1, 2), updated_at: Time.zone.local(2026, 1, 2))
+    older.update_columns(created_at: Time.zone.local(2026, 1, 1), updated_at: Time.zone.local(2026, 1, 1))
+
+    get album_path(album, photo_id: target.id)
+
+    assert_response :success
+    assert_select "[data-stream-state-target-photo-id-value='#{target.id}']"
+    assert_select "[data-photo-id='#{target.id}']"
+    assert_select "[data-photo-id='#{older.id}']"
+  end
+
   test "album infinite scroll pages do not render date groups" do
     album = @owner.photo_albums.create!(title: "Concert", source: "manual")
     album.photos << attached_photo(title: "First")

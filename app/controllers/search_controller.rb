@@ -5,14 +5,15 @@ class SearchController < ApplicationController
     @search_params = search_params
     search = PhotoSearch.new(params: @search_params, user: current_user)
     @search_active = search.active?
-    @photos, @next_cursor, = paginate_photo_stream(search.results)
+    @photos, @next_cursor, @newer_cursor = paginate_photo_stream_with_focus(search_stream(search.results))
     @albums = current_user.photo_albums.display_order if current_user&.owner?
     @filter_options = filter_options
 
     render_photo_page_if_requested(
       return_to: search_path(@search_params),
       bulk_form_id: "search-photo-bulk-form",
-      next_page_path: search_path(@search_params)
+      next_page_path: search_path(@search_params),
+      stream_target_photo_id: @stream_target_photo_id
     )
   end
 
@@ -20,6 +21,14 @@ class SearchController < ApplicationController
 
   def search_params
     params.permit(*PhotoSearch::FILTER_PARAMS, :cursor, :stream_page).to_h.symbolize_keys.slice(*PhotoSearch::FILTER_PARAMS)
+  end
+
+  def search_stream(results)
+    Photo
+      .visible_to(current_user)
+      .with_original_variant_records
+      .where(id: results.except(:order).select(:id))
+      .stream_order
   end
 
   def filter_options

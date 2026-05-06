@@ -97,7 +97,9 @@
               bulk_form_id: "album-photo-bulk-form",
               album: @album,
               group_by_day: false,
+              stream_target_photo_id: @stream_target_photo_id,
               next_cursor: @next_cursor,
+              newer_cursor: @newer_cursor,
               next_page_path: album_path(@album) %>
       <% else %>
         <div class="flex min-h-[340px] items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-white p-8 text-center shadow-sm">

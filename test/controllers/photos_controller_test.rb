@@ -324,6 +324,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     follow_redirect!
 
     assert_response :success
+    assert_includes response.body, %(data-stream-navigation-back-url-value="#{album_path(album, photo_id: photo.id)}")
     assert_select "form[action='#{album_cover_path(album, photo)}'][method='post']", text: "Set album cover"
   end
 
@@ -341,6 +342,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     follow_redirect!
 
     assert_response :success
+    assert_includes response.body, %(data-stream-navigation-back-url-value="#{location_path(location_id, photo_id: photo.id)}")
     assert_select "form[action='#{location_cover_path(location_id, photo)}'][method='post']", text: "Set location cover"
   end
 
@@ -361,7 +363,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     follow_redirect!
 
     assert_response :success
-    assert_includes response.body, %(data-stream-navigation-back-url-value="#{location_path(location_id)}")
+    assert_includes response.body, %(data-stream-navigation-back-url-value="#{location_path(location_id, photo_id: photo.id)}")
     assert_select "form[action='#{location_cover_path(location_id, photo)}'][method='post']", text: "Set location cover"
   end
 
