@@ -139,6 +139,44 @@ class PhotoBulkActionsControllerTest < ActionDispatch::IntegrationTest
     assert_not second.reload.archived?
   end
 
+  test "bulk archive reports selected count and returns near archived stream position" do
+    newer = attached_photo(title: "Newer stream item")
+    first = attached_photo(title: "Older archive first")
+    second = attached_photo(title: "Older archive second")
+    anchor = attached_photo(title: "Nearby remaining item")
+    newer.update_columns(captured_at: Time.zone.local(2024, 1, 1), created_at: Time.zone.local(2024, 1, 1), updated_at: Time.zone.local(2024, 1, 1))
+    first.update_columns(captured_at: Time.zone.local(2014, 1, 3), created_at: Time.zone.local(2014, 1, 3), updated_at: Time.zone.local(2014, 1, 3))
+    second.update_columns(captured_at: Time.zone.local(2014, 1, 2), created_at: Time.zone.local(2014, 1, 2), updated_at: Time.zone.local(2014, 1, 2))
+    anchor.update_columns(captured_at: Time.zone.local(2014, 1, 1), created_at: Time.zone.local(2014, 1, 1), updated_at: Time.zone.local(2014, 1, 1))
+
+    post photo_bulk_actions_path, params: {
+      bulk_action: "archive",
+      photo_ids: [ first.id, second.id ],
+      return_to: root_path
+    }
+
+    assert_redirected_to root_path(photo_id: anchor.id)
+    assert_equal "Archived 2 photos.", flash[:notice]
+    assert_predicate first.reload, :archived?
+    assert_predicate second.reload, :archived?
+    refute_predicate newer.reload, :archived?
+    refute_predicate anchor.reload, :archived?
+  end
+
+  test "bulk publish from stream returns to selected photo" do
+    photo = attached_photo(title: "Publish anchor")
+
+    post photo_bulk_actions_path, params: {
+      bulk_action: "publish",
+      photo_ids: [ photo.id ],
+      return_to: root_path
+    }
+
+    assert_redirected_to root_path(photo_id: photo.id)
+    assert_equal "Published 1 photo.", flash[:notice]
+    assert_predicate photo.reload, :public?
+  end
+
   test "owner can move selected photos to restricted private" do
     first = attached_photo(title: "Restrict first")
     second = attached_photo(title: "Restrict second")

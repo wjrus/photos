@@ -4,25 +4,34 @@ class PhotoBulkActionsController < ApplicationController
   before_action :require_owner!
 
   def create
-    photos = selected_photos
+    photos = selected_photos.to_a
     return redirect_to safe_return_path, alert: "Select at least one photo." if photos.empty?
 
     case params[:bulk_action]
     when "publish"
-      photos.find_each(&:publish!)
-      redirect_to safe_return_path, notice: "Published #{photos.size} #{'photo'.pluralize(photos.size)}."
+      count = photos.size
+      return_path = bulk_return_path(photos)
+      photos.each(&:publish!)
+      redirect_to return_path, notice: "Published #{count} #{'photo'.pluralize(count)}."
     when "unpublish"
-      photos.find_each(&:unpublish!)
-      redirect_to safe_return_path, notice: "Made #{photos.size} #{'photo'.pluralize(photos.size)} private."
+      count = photos.size
+      return_path = bulk_return_path(photos)
+      photos.each(&:unpublish!)
+      redirect_to return_path, notice: "Made #{count} #{'photo'.pluralize(count)} private."
     when "archive"
-      photos.find_each(&:archive!)
-      redirect_to safe_return_path, notice: "Archived #{photos.size} #{'photo'.pluralize(photos.size)}."
+      count = photos.size
+      return_path = bulk_return_path(photos, removing_from_stream: true)
+      photos.each(&:archive!)
+      redirect_to return_path, notice: "Archived #{count} #{'photo'.pluralize(count)}."
     when "restrict"
-      photos.find_each(&:restrict!)
-      redirect_to safe_return_path, notice: "Moved #{photos.size} #{'photo'.pluralize(photos.size)} to Private."
+      count = photos.size
+      return_path = bulk_return_path(photos, removing_from_stream: true)
+      photos.each(&:restrict!)
+      redirect_to return_path, notice: "Moved #{count} #{'photo'.pluralize(count)} to Private."
     when "restore"
-      photos.find_each(&:restore!)
-      redirect_to safe_return_path, notice: "Restored #{photos.size} #{'photo'.pluralize(photos.size)} to the stream."
+      count = photos.size
+      photos.each(&:restore!)
+      redirect_to safe_return_path, notice: "Restored #{count} #{'photo'.pluralize(count)} to the stream."
     when "remove_from_album"
       album = context_album
       return redirect_to safe_return_path, alert: "Open an album before removing photos from it." unless album
@@ -39,8 +48,9 @@ class PhotoBulkActionsController < ApplicationController
       redirect_to safe_return_path, notice: "Album cover updated."
     when "delete"
       count = photos.size
-      photos.destroy_all
-      redirect_to safe_return_path, notice: "Removed #{count} #{'photo'.pluralize(count)}."
+      return_path = bulk_return_path(photos, removing_from_stream: true)
+      photos.each(&:destroy!)
+      redirect_to return_path, notice: "Removed #{count} #{'photo'.pluralize(count)}."
     when "add_to_album"
       album = target_album
       return redirect_to safe_return_path, alert: "Choose an album or name a new one." unless album
@@ -63,6 +73,36 @@ class PhotoBulkActionsController < ApplicationController
     params[:bulk_action] == "restore" ? scope.archived : scope.not_archived
   end
 
+  def bulk_return_path(photos, removing_from_stream: false)
+    return_path = safe_return_path
+    return return_path if params[:return_to].blank?
+    return return_path unless main_stream_return_path?(return_path)
+
+    anchor = if removing_from_stream
+      stream_anchor_after_removing(photos)
+    else
+      photos.first
+    end
+
+    anchor ? root_path(photo_id: anchor.id) : return_path
+  end
+
+  def main_stream_return_path?(return_path)
+    uri = URI.parse(return_path)
+    uri.relative? && uri.path == root_path && uri.query.blank?
+  rescue URI::InvalidURIError
+    false
+  end
+
+  def stream_anchor_after_removing(photos)
+    selected_ids = photos.map(&:id)
+    ordered_selected = current_user.photos.where(id: selected_ids).stream_order.to_a
+    return if ordered_selected.empty?
+
+    remaining_stream = Photo.visible_to(current_user).where.not(id: selected_ids).stream_order
+    remaining_stream.stream_after(ordered_selected.last) || remaining_stream.stream_before(ordered_selected.first)
+  end
+
   def target_album
     if params[:new_album_title].present?
       current_user.photo_albums.create!(title: params[:new_album_title].strip, source: "manual")
@@ -83,7 +123,7 @@ class PhotoBulkActionsController < ApplicationController
 
   def remove_photos_from_album(photos, album)
     removed_photo_ids = []
-    album.photo_album_memberships.where(photo_id: photos.select(:id)).find_each do |membership|
+    album.photo_album_memberships.where(photo_id: photos.map(&:id)).find_each do |membership|
       removed_photo_ids << membership.photo_id
       membership.destroy!
     end
