@@ -11,6 +11,18 @@
           class: "rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
   <% end %>
 
+  <% if photo.archived? %>
+    <%= button_to "Restore", restore_photo_path(photo),
+          method: :patch,
+          params: { return_to: return_to },
+          class: "rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+  <% else %>
+    <%= button_to "Archive", archive_photo_path(photo),
+          method: :patch,
+          params: { return_to: return_to },
+          class: "rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+  <% end %>
+
   <% if local_assigns[:cover_context].present? %>
     <%= button_to cover_context[:label],
           cover_context[:path],

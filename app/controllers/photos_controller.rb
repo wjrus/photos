@@ -3,7 +3,7 @@ class PhotosController < ApplicationController
 
   before_action :require_owner!, except: %i[show display video]
   before_action :set_visible_photo, only: %i[show display video]
-  before_action :set_photo, only: %i[media caption publish unpublish retry_archive destroy]
+  before_action :set_photo, only: %i[media caption publish unpublish archive restore retry_archive destroy]
 
   def show
     if params[:return_to].present?
@@ -73,6 +73,16 @@ class PhotosController < ApplicationController
   def unpublish
     @photo.unpublish!
     redirect_to visibility_return_path, notice: "Photo returned to private."
+  end
+
+  def archive
+    @photo.archive!
+    redirect_to safe_return_path, notice: "Photo archived."
+  end
+
+  def restore
+    @photo.restore!
+    redirect_to safe_return_path, notice: "Photo restored."
   end
 
   def retry_archive

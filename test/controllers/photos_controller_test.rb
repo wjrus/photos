@@ -168,6 +168,30 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_predicate photo.reload, :public?
   end
 
+  test "owner can archive a photo from detail without removing album membership" do
+    album = @owner.photo_albums.create!(title: "Still Joined", source: "manual")
+    photo = attached_photo(title: "Archive candidate")
+    album.photos << photo
+
+    assert_no_difference "PhotoAlbumMembership.count" do
+      patch archive_photo_path(photo), params: { return_to: album_path(album) }
+    end
+
+    assert_redirected_to album_path(album)
+    assert_predicate photo.reload, :archived?
+    assert PhotoAlbumMembership.exists?(photo: photo, photo_album: album)
+  end
+
+  test "owner can restore an archived photo from detail" do
+    photo = attached_photo(title: "Restore candidate")
+    photo.archive!
+
+    patch restore_photo_path(photo), params: { return_to: archived_photos_path }
+
+    assert_redirected_to archived_photos_path
+    refute_predicate photo.reload, :archived?
+  end
+
   test "owner can save an optional caption" do
     photo = attached_photo
 
@@ -274,6 +298,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Download original"
     assert_includes response.body, "Remove photo?"
     assert_select "[data-controller='confirm-modal']"
+    assert_select "form[action='#{archive_photo_path(photo)}'][method='post']", text: "Archive"
     assert_select "[data-turbo-confirm]", false
   end
 
@@ -401,6 +426,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "a[href='#{photo_path(newer)}'][aria-label='Previous item in stream']"
     assert_select "a[href='#{photo_path(older)}'][aria-label='Next item in stream']"
+    assert_select "form[action='#{restore_photo_path(photo)}'][method='post']", text: "Restore"
     refute_includes response.body, photo_path(active)
   end
 

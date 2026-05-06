@@ -54,6 +54,8 @@ Rails.application.routes.draw do
     patch :caption, on: :member
     patch :publish, on: :member
     patch :unpublish, on: :member
+    patch :archive, on: :member
+    patch :restore, on: :member
     post :retry_archive, on: :member
     resources :photo_people_tags, only: :create
   end
