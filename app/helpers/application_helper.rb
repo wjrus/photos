@@ -58,9 +58,9 @@ module ApplicationHelper
           alt: photo.title,
           class: "max-h-[calc(100vh-3rem)] w-auto rounded-lg object-contain shadow-2xl"
       else
-        tag.div class: "mx-auto flex min-h-80 w-full max-w-xl items-center justify-center rounded-lg border border-white/15 bg-white/5 p-8 text-center text-sm leading-6 text-white/75 shadow-2xl" do
-          "Image derivative processing."
-        end
+        image_tag photo_display_image_path(photo),
+          alt: photo.title,
+          class: "max-h-[calc(100vh-3rem)] w-auto rounded-lg object-contain shadow-2xl"
       end
     end
   end

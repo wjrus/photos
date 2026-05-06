@@ -653,6 +653,18 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, video_photo_path(photo)
   end
 
+  test "image detail queues missing display derivatives" do
+    photo = attached_photo
+
+    assert_enqueued_with(job: GeneratePhotoDerivativesJob, args: [ photo ]) do
+      get photo_path(photo)
+    end
+
+    assert_response :success
+    assert_includes response.body, display_photo_path(photo)
+    refute_includes response.body, "Image derivative processing"
+  end
+
   test "public viewer can access video display derivative for public photos" do
     photo = attached_video
     attach_video_derivatives(photo)

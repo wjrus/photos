@@ -56,13 +56,14 @@ class ApplicationHelperTest < ActionView::TestCase
     assert_not_includes html, display_photo_path(photo)
   end
 
-  test "detail image waits for a preprocessed derivative" do
+  test "detail image falls back to on-demand display route" do
     photo = attached_photo
 
     html = photo_detail_media(photo)
 
-    assert_includes html, "Image derivative processing"
-    assert_not_includes html, display_photo_path(photo)
+    assert_includes html, "<img"
+    assert_includes html, display_photo_path(photo)
+    assert_not_includes html, "Image derivative processing"
   end
 
   test "bulk action buttons use link-like pointer cursors" do
