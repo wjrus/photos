@@ -3,7 +3,16 @@ class HomeController < ApplicationController
 
   def show
     visible_stream = Photo.visible_to(current_user)
-    @photos, @next_cursor, @newer_cursor = paginate_photo_stream(visible_stream.with_original_variant_records.stream_order)
+    stream_scope = visible_stream.with_original_variant_records.stream_order
+    focused_photo = visible_stream.find_by(id: params[:photo_id]) if params[:photo_id].present? && !params[:stream_page].present?
+
+    if focused_photo
+      @stream_target_photo_id = focused_photo.id
+      @photos, @next_cursor, @newer_cursor = paginate_photo_stream_focused(stream_scope, focused_photo)
+    else
+      @photos, @next_cursor, @newer_cursor = paginate_photo_stream(stream_scope)
+    end
+
     @newer_cursor ||= timeline_newer_cursor(visible_stream) if params[:timeline_page].present?
     @albums = current_user.photo_albums.display_order if current_user&.owner?
     @timeline_periods = stream_timeline_periods(visible_stream) unless params[:cursor].present?
@@ -11,7 +20,8 @@ class HomeController < ApplicationController
     render_photo_page_if_requested(
       return_to: root_path,
       bulk_form_id: "photo-bulk-form",
-      next_page_path: root_path
+      next_page_path: root_path,
+      stream_target_photo_id: @stream_target_photo_id
     )
   end
 

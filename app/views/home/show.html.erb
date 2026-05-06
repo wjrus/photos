@@ -18,7 +18,9 @@
             return_to: root_path,
             feature_first: true,
             bulk_form_id: "photo-bulk-form",
+            stream_target_photo_id: @stream_target_photo_id,
             next_cursor: @next_cursor,
+            newer_cursor: @newer_cursor,
             next_page_path: root_path %>
       <%= render "photos/timeline", periods: @timeline_periods if @timeline_periods.present? %>
     <% else %>

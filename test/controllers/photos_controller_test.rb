@@ -375,6 +375,35 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-infinite-scroll-target='sentinel']"
   end
 
+  test "direct photo detail links back to a focused stream" do
+    photo = attached_photo(title: "Direct link")
+
+    get photo_path(photo)
+
+    assert_response :success
+    assert_select "a[href='#{root_path(photo_id: photo.id)}'][aria-label='Return to stream']"
+    assert_includes response.body, %(data-stream-navigation-back-url-value="#{root_path(photo_id: photo.id)}")
+  end
+
+  test "photo stream can render focused around a requested photo" do
+    newer = attached_photo(title: "Newer")
+    target = attached_photo(title: "Target")
+    older = attached_photo(title: "Older")
+    newer.update_columns(created_at: Time.zone.local(2026, 1, 3), updated_at: Time.zone.local(2026, 1, 3))
+    target.update_columns(created_at: Time.zone.local(2026, 1, 2), updated_at: Time.zone.local(2026, 1, 2))
+    older.update_columns(created_at: Time.zone.local(2026, 1, 1), updated_at: Time.zone.local(2026, 1, 1))
+
+    get root_path(photo_id: target.id)
+
+    assert_response :success
+    assert_select "[data-stream-state-target-photo-id-value='#{target.id}']"
+    assert_select "[data-photo-id='#{target.id}']"
+    assert_select "[data-photo-id='#{older.id}']"
+    assert_select "[data-photo-id='#{newer.id}']", false
+    assert_select "[data-controller~='infinite-scroll']"
+    assert_select "[data-stream-page-direction='newer']"
+  end
+
   test "photo stream renders a right side timeline for captured dates" do
     newer = attached_photo(title: "Timeline newer")
     newer.update!(captured_at: Time.zone.local(2024, 5, 12, 10))

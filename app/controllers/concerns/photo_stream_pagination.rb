@@ -12,6 +12,16 @@ module PhotoStreamPagination
     [ photos.first(Photo::STREAM_PAGE_SIZE), next_photo&.stream_cursor, nil ]
   end
 
+  def paginate_photo_stream_focused(scope, photo)
+    previous_photo = scope.stream_before(photo)
+    page_scope = previous_photo ? scope.before_stream_cursor(previous_photo.stream_cursor) : scope
+    photos = page_scope.limit(Photo::STREAM_PAGE_SIZE + 1).to_a
+    next_photo = photos[Photo::STREAM_PAGE_SIZE]
+    page = photos.first(Photo::STREAM_PAGE_SIZE)
+
+    [ page, next_photo&.stream_cursor, (page.first&.stream_cursor if previous_photo) ]
+  end
+
   def render_photo_page_if_requested(**locals)
     return unless params[:cursor].present? || params[:newer_cursor].present? || params[:stream_page].present?
 

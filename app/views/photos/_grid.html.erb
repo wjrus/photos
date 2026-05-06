@@ -1,6 +1,7 @@
 <div class="space-y-7"
      data-stream-page-container
-     data-controller="<%= [("infinite-scroll" if next_cursor.present?), "stream-state", "stream-virtualizer"].compact.join(" ") %>"
+     data-stream-state-target-photo-id-value="<%= local_assigns[:stream_target_photo_id] %>"
+     data-controller="<%= [("infinite-scroll" if next_cursor.present? || local_assigns[:newer_cursor].present?), "stream-state", "stream-virtualizer"].compact.join(" ") %>"
      data-action="click->stream-state#save">
   <%= render "photos/page",
         photos: photos,
@@ -12,5 +13,6 @@
         album: local_assigns[:album],
         group_by_day: local_assigns.fetch(:group_by_day, true),
         next_cursor: next_cursor,
+        newer_cursor: local_assigns[:newer_cursor],
         next_page_path: next_page_path %>
 </div>

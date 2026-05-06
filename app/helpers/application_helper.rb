@@ -45,7 +45,7 @@ module ApplicationHelper
       video_options = {
         controls: true,
         preload: "metadata",
-        class: "max-h-[calc(100vh-3rem)] w-auto max-w-full rounded-lg object-contain shadow-2xl"
+        class: "h-[calc(100vh-3rem)] w-full max-w-full rounded-lg object-contain shadow-2xl"
       }
       video_options[:poster] = url_for(photo.video_preview) if photo.video_preview.attached?
 
