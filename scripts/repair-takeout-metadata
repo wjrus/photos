@@ -24,9 +24,13 @@ USAGE
   exit 0
 fi
 
+echo "Starting Takeout metadata repair in batches of ${BATCH_SIZE} using ${SERVICE}..."
+
 docker compose exec -T \
   -e REPAIR_BATCH_SIZE="$BATCH_SIZE" \
   "$SERVICE" bin/rails runner "$(cat <<'RUBY'
+$stdout.sync = true
+
 require "json"
 require "zip"
 
