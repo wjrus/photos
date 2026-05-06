@@ -143,6 +143,7 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Inside location"
     refute_includes response.body, "Outside location"
     assert_select "[data-controller~='stream-state']"
+    assert_select "a[href='#{photo_path(inside)}'][data-photo-return-to='#{location_path(location_id_for(inside))}']"
   end
 
   test "location page renders as a flat grid without date groups" do

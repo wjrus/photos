@@ -18,13 +18,20 @@ export default class extends Controller {
     const link = event.target.closest("a")
     if (!link) return
     if (!link.pathname.startsWith("/photos/")) return
+    if (event.defaultPrevented) return
 
-    this.storeReturnTo(link.dataset.photoReturnTo || this.currentPath)
+    const returnTo = link.dataset.photoReturnTo || this.currentPath
+    this.storeReturnTo(returnTo)
     sessionStorage.setItem(this.storageKey, JSON.stringify({
       path: this.currentPath,
       scrollY: window.scrollY,
       savedAt: Date.now()
     }))
+
+    if (!this.shouldNavigateWithReturnTo(event, link)) return
+
+    event.preventDefault()
+    this.visitWithReturnTo(link.href, returnTo)
   }
 
   storeReturnTo(path) {
@@ -36,6 +43,28 @@ export default class extends Controller {
       "max-age=86400",
       "samesite=lax"
     ].join("; ")
+  }
+
+  shouldNavigateWithReturnTo(event, link) {
+    return event.button === 0 &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      !event.shiftKey &&
+      !event.altKey &&
+      !link.target &&
+      !link.hasAttribute("download")
+  }
+
+  visitWithReturnTo(href, returnTo) {
+    const url = new URL(href, window.location.origin)
+    url.searchParams.set("return_to", returnTo)
+    const path = `${url.pathname}${url.search}${url.hash}`
+
+    if (window.Turbo) {
+      window.Turbo.visit(path)
+    } else {
+      window.location.href = path
+    }
   }
 
   async restore() {

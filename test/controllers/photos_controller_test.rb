@@ -344,6 +344,27 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_select "form[action='#{location_cover_path(location_id, photo)}'][method='post']", text: "Set location cover"
   end
 
+  test "explicit return path overrides a stale remembered album path" do
+    stale_album = @owner.photo_albums.create!(title: "Stale Album", source: "manual")
+    photo = attached_photo(title: "Place photo")
+    photo.create_metadata!(
+      extraction_status: "complete",
+      latitude: 44.7622,
+      longitude: -85.5980,
+      raw: {}
+    )
+    location_id = PhotoLocation.id_for_coordinates(44.7622, -85.5980)
+    cookies[:photos_return_to] = album_path(stale_album)
+
+    get photo_path(photo, return_to: location_path(location_id))
+    assert_redirected_to photo_path(photo)
+    follow_redirect!
+
+    assert_response :success
+    assert_includes response.body, %(data-stream-navigation-back-url-value="#{location_path(location_id)}")
+    assert_select "form[action='#{location_cover_path(location_id, photo)}'][method='post']", text: "Set location cover"
+  end
+
   test "owner sees location unavailable when metadata has no gps" do
     photo = attached_photo
     photo.create_metadata!(extraction_status: "complete", camera_make: "Fuji", camera_model: "X100", raw: {})

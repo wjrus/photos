@@ -22,6 +22,7 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Banff overlook"
     refute_includes response.body, "Office note"
     assert_select "a[href='#{photo_path(match)}'][data-photo-return-to='#{search_path(q: "Banff")}']"
+    assert_select "form[data-controller='stream-state-reset'][data-action='submit->stream-state-reset#clear']"
   end
 
   test "search filters by camera and lens metadata" do
