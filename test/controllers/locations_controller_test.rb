@@ -55,6 +55,22 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href='#{location_path(PhotoLocation.place_id_for_name(place_name))}']"
   end
 
+  test "locations index splits photo and video counts" do
+    photo = attached_photo(title: "Place photo")
+    geotag(photo, latitude: 44.7622, longitude: -85.5980)
+    video = attached_video(title: "Place video")
+    geotag(video, latitude: 44.7623, longitude: -85.5981)
+    PhotoLocationPlace.create!(
+      location_id: location_id_for(photo),
+      name: "Traverse City, Michigan"
+    )
+
+    get locations_path
+
+    assert_response :success
+    assert_select "article", text: /Traverse City, Michigan.*1 photo, 1 video/m
+  end
+
   test "place location page shows all matching location cells" do
     first = attached_photo(title: "First grouped place")
     geotag(first, latitude: 44.7622, longitude: -85.5980)
@@ -110,6 +126,42 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-controller~='stream-state']"
   end
 
+  test "location page renders as a flat grid without date groups" do
+    inside = attached_photo(title: "Inside location")
+    geotag(inside, latitude: 44.7622, longitude: -85.5980)
+
+    get location_path(location_id_for(inside))
+
+    assert_response :success
+    assert_select ".photo-flat-pages"
+    assert_select ".photo-flat-grid"
+    assert_select "[data-stream-date-group-key]", false
+  end
+
+  test "location infinite scroll pages do not render date groups" do
+    inside = attached_photo(title: "Inside location")
+    geotag(inside, latitude: 44.7622, longitude: -85.5980)
+
+    get location_path(location_id_for(inside), stream_page: 1)
+
+    assert_response :success
+    assert_select ".photo-flat-pages", false
+    assert_select ".photo-flat-grid"
+    assert_select "[data-stream-date-group-key]", false
+  end
+
+  test "location page splits photo and video counts" do
+    photo = attached_photo(title: "Location photo")
+    geotag(photo, latitude: 44.7622, longitude: -85.5980)
+    video = attached_video(title: "Location video")
+    geotag(video, latitude: 44.7623, longitude: -85.5981)
+
+    get location_path(location_id_for(photo))
+
+    assert_response :success
+    assert_select "p", text: /1 photo, 1 video/
+  end
+
   test "location detail may enqueue only its missing geocode" do
     ENV["GOOGLE_MAPS_EMBED_API_KEY"] = "test-key"
     inside = attached_photo(title: "Specific ungeocoded")
@@ -155,6 +207,17 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
       io: File.open(Rails.root.join("public/icon.png")),
       filename: "#{title.parameterize}.png",
       content_type: "image/png"
+    )
+    photo.save!
+    photo
+  end
+
+  def attached_video(title:)
+    photo = @owner.photos.new(title: title)
+    photo.original.attach(
+      io: StringIO.new("fake mp4 bytes"),
+      filename: "#{title.parameterize}.mp4",
+      content_type: "video/mp4"
     )
     photo.save!
     photo

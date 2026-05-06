@@ -15,7 +15,7 @@
       <div>
         <%= link_to "< Locations", locations_path, class: "text-xs font-semibold uppercase tracking-[0.18em] text-teal-700 transition hover:text-teal-900" %>
         <h1 class="mt-3 text-3xl font-semibold text-zinc-950"><%= @location_title %></h1>
-        <p class="mt-1 text-sm text-zinc-600"><%= pluralize(@location_photo_count.to_i, "photo") %></p>
+        <p class="mt-1 text-sm text-zinc-600"><%= media_count_label(photo_count: @location_media_count[:photos], video_count: @location_media_count[:videos]) %></p>
       </div>
 
       <%= link_to "Map",
@@ -28,6 +28,7 @@
           return_to: location_path(@location_id),
           feature_first: false,
           bulk_form_id: "location-photo-bulk-form",
+          group_by_day: false,
           next_cursor: @next_cursor,
           next_page_path: location_path(@location_id) %>
   </main>

@@ -8,6 +8,8 @@ class PhotoLocation
     FLOOR(photo_metadata.latitude / :cell_size) AS latitude_bucket,
     FLOOR(photo_metadata.longitude / :cell_size) AS longitude_bucket,
     COUNT(*) AS photo_count,
+    COUNT(*) FILTER (WHERE photos.content_type LIKE 'image/%') AS image_count,
+    COUNT(*) FILTER (WHERE photos.content_type LIKE 'video/%') AS video_count,
     AVG(photo_metadata.latitude) AS latitude,
     AVG(photo_metadata.longitude) AS longitude,
     MAX(COALESCE(photos.captured_at, photos.created_at)) AS newest_at,
