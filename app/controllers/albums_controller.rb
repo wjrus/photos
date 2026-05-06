@@ -15,15 +15,18 @@ class AlbumsController < ApplicationController
     album_payload = cached_album_index_payload(@albums)
     @public_album_count = album_payload.fetch(:public_album_count)
     @private_album_count = album_payload.fetch(:private_album_count)
-    @visible_photo_counts = album_payload.fetch(:visible_photo_counts)
+    @visible_media_counts = album_payload.fetch(:visible_media_counts)
     @album_covers = album_covers_from_ids(album_payload.fetch(:cover_photo_ids))
   end
 
   def show
-    @photos, @next_cursor = paginate_photo_stream(@album.photos
+    visible_photos = @album.photos
       .with_original_variant_records
       .visible_to(current_user)
-      .stream_order)
+      .stream_order
+
+    @photos, @next_cursor = paginate_photo_stream(visible_photos)
+    @visible_media_count = visible_media_counts_for([ @album ]).fetch(@album.id, { photos: 0, videos: 0 })
     @albums = current_user.photo_albums.display_order if current_user&.owner?
 
     render_photo_page_if_requested(
@@ -83,7 +86,7 @@ class AlbumsController < ApplicationController
     @album = current_user.photo_albums.find(params[:id])
   end
 
-  def visible_photo_counts_for(albums)
+  def visible_media_counts_for(albums)
     album_ids = albums.map(&:id)
     return {} if album_ids.empty?
 
@@ -91,8 +94,15 @@ class AlbumsController < ApplicationController
       .joins(:photo)
       .where(photo_album_id: album_ids)
       .merge(Photo.visible_to(current_user))
+      .select(
+        "photo_album_memberships.photo_album_id",
+        "COUNT(*) FILTER (WHERE photos.content_type LIKE 'image/%') AS photo_count",
+        "COUNT(*) FILTER (WHERE photos.content_type LIKE 'video/%') AS video_count"
+      )
       .group(:photo_album_id)
-      .count
+      .each_with_object({}) do |row, counts|
+        counts[row.photo_album_id] = { photos: row.photo_count.to_i, videos: row.video_count.to_i }
+      end
   end
 
   def cached_album_index_payload(albums)
@@ -100,7 +110,7 @@ class AlbumsController < ApplicationController
       {
         public_album_count: albums.count(&:public?),
         private_album_count: albums.count(&:private?),
-        visible_photo_counts: visible_photo_counts_for(albums),
+        visible_media_counts: visible_media_counts_for(albums),
         cover_photo_ids: cover_photo_ids_for(albums)
       }
     end
@@ -108,7 +118,7 @@ class AlbumsController < ApplicationController
 
   def album_index_cache_key(albums)
     [
-      "album-index/v2",
+      "album-index/v3",
       cache_audience_key,
       PhotoAlbum.maximum(:updated_at)&.utc&.to_i,
       PhotoAlbum.count,

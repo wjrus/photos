@@ -69,6 +69,35 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "&lt; Stream"
   end
 
+  test "album index splits visible photo and video counts" do
+    mixed_album = @owner.photo_albums.create!(title: "Mixed", source: "manual")
+    video_album = @owner.photo_albums.create!(title: "Videos", source: "manual")
+    photo_album = @owner.photo_albums.create!(title: "Photos", source: "manual")
+
+    mixed_album.photos << attached_photo(title: "Mixed photo")
+    mixed_album.photos << attached_video(title: "Mixed video")
+    video_album.photos << attached_video(title: "Only video")
+    photo_album.photos << attached_photo(title: "Only photo")
+
+    get albums_path
+
+    assert_response :success
+    assert_select "article", text: /Mixed.*1 photo, 1 video/m
+    assert_select "article", text: /Videos.*1 video/m
+    assert_select "article", text: /Photos.*1 photo/m
+  end
+
+  test "album detail splits visible photo and video counts" do
+    album = @owner.photo_albums.create!(title: "Mixed detail", source: "manual")
+    album.photos << attached_photo(title: "Still")
+    album.photos << attached_video(title: "Motion")
+
+    get album_path(album)
+
+    assert_response :success
+    assert_select "p", text: /1 photo, 1 video/
+  end
+
   test "album index is sorted alphabetically" do
     @owner.photo_albums.create!(title: "zebra trip", source: "manual")
     @owner.photo_albums.create!(title: "Apple trip", source: "manual")
@@ -191,6 +220,17 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
       io: File.open(Rails.root.join("public/icon.png")),
       filename: "#{title.parameterize}.png",
       content_type: "image/png"
+    )
+    photo.save!
+    photo
+  end
+
+  def attached_video(title:)
+    photo = @owner.photos.new(title: title)
+    photo.original.attach(
+      io: StringIO.new("fake mp4 bytes"),
+      filename: "#{title.parameterize}.mp4",
+      content_type: "video/mp4"
     )
     photo.save!
     photo

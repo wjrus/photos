@@ -107,6 +107,14 @@ module ApplicationHelper
     [ metadata.video_codec, metadata.audio_codec ].compact_blank.join(" / ").presence || "unknown"
   end
 
+  def media_count_label(photo_count:, video_count:)
+    parts = []
+    parts << pluralize(photo_count, "photo") if photo_count.positive?
+    parts << pluralize(video_count, "video") if video_count.positive?
+
+    parts.presence&.join(", ") || pluralize(0, "photo")
+  end
+
   def photo_map_embed_url(metadata)
     return if google_maps_api_key.blank?
 

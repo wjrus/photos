@@ -44,7 +44,7 @@
       <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <% @albums.each do |album| %>
           <% cover = @album_covers[album.id] %>
-          <% visible_count = @visible_photo_counts.fetch(album.id, 0) %>
+          <% visible_count = @visible_media_counts.fetch(album.id, { photos: 0, videos: 0 }) %>
           <article class="group relative overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition hover:border-zinc-950" data-bulk-selection-card>
             <% if current_user&.owner? %>
               <label class="selection-control absolute left-3 top-3 z-20 cursor-pointer"
@@ -68,7 +68,7 @@
               <div class="flex items-start justify-between gap-4 p-4">
                 <div class="min-w-0">
                   <h2 class="truncate text-lg font-semibold text-zinc-950"><%= album.title %></h2>
-                  <p class="mt-1 text-sm text-zinc-600"><%= pluralize(visible_count, "photo") %></p>
+                  <p class="mt-1 text-sm text-zinc-600"><%= media_count_label(photo_count: visible_count[:photos], video_count: visible_count[:videos]) %></p>
                 </div>
                 <% if current_user&.owner? %>
                   <span class="shrink-0 rounded-lg border border-zinc-200 bg-stone-50 px-2 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-zinc-600"><%= album.visibility %></span>
