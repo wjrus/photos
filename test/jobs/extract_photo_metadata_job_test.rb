@@ -100,6 +100,44 @@ class ExtractPhotoMetadataJobTest < ActiveJob::TestCase
     assert_in_delta(-85.597983, metadata.longitude.to_f, 0.000001)
   end
 
+  test "extracts gps coordinates from alternate vips metadata formatting" do
+    photo = attached_png
+    image = FakeVipsImage.new({
+      "exif-ifd2-DateTimeOriginal" => "2026:03:22 10:58:00 (2026:03:22 10:58:00, ASCII, 20 components, 20 bytes)",
+      "exif-ifd3-GPSLatitude" => "(44, 45, 44.00, Rational, 3 components, 24 bytes)",
+      "exif-ifd3-GPSLatitudeRef" => "(N, ASCII, 2 components, 2 bytes)",
+      "exif-ifd3-GPSLongitude" => "(85, 35, 52.74, Rational, 3 components, 24 bytes)",
+      "exif-ifd3-GPSLongitudeRef" => "(W, ASCII, 2 components, 2 bytes)"
+    })
+
+    job = ExtractPhotoMetadataJob.new
+    job.define_singleton_method(:vips_image) { |_path| image }
+    job.perform(photo)
+
+    metadata = photo.reload.metadata
+    assert_in_delta 44.762222, metadata.latitude.to_f, 0.000001
+    assert_in_delta(-85.597983, metadata.longitude.to_f, 0.000001)
+  end
+
+  test "ignores malformed gps coordinates" do
+    photo = attached_png
+    image = FakeVipsImage.new({
+      "exif-ifd2-DateTimeOriginal" => "2026:03:22 10:58:00 (2026:03:22 10:58:00, ASCII, 20 components, 20 bytes)",
+      "exif-ifd3-GPSLatitude" => "not coordinates",
+      "exif-ifd3-GPSLatitudeRef" => "N (N, ASCII, 2 components, 2 bytes)",
+      "exif-ifd3-GPSLongitude" => "85/1 35/1 5274/100 (85, 35, 52.74, Rational, 3 components, 24 bytes)",
+      "exif-ifd3-GPSLongitudeRef" => "W (W, ASCII, 2 components, 2 bytes)"
+    })
+
+    job = ExtractPhotoMetadataJob.new
+    job.define_singleton_method(:vips_image) { |_path| image }
+    job.perform(photo)
+
+    metadata = photo.reload.metadata
+    assert_nil metadata.latitude
+    assert_in_delta(-85.597983, metadata.longitude.to_f, 0.000001)
+  end
+
   private
 
   class FakeVipsImage

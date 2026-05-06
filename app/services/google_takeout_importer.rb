@@ -91,9 +91,9 @@ class GoogleTakeoutImporter
     zip_file.each_with_object({}) do |entry, sidecars|
       next if entry.directory? || !sidecar_entry?(entry)
 
-      basename = normalized_basename(entry.name)
-      sidecars[basename] ||= []
-      sidecars[basename] << entry
+      key = sidecar_key(entry.name)
+      sidecars[key] ||= []
+      sidecars[key] << entry
     end
   end
 
@@ -288,7 +288,7 @@ class GoogleTakeoutImporter
   end
 
   def sidecars_for_entry(entry, sidecars)
-    sidecars[normalized_basename(entry.name)] || []
+    sidecars[sidecar_key(entry.name)] || []
   end
 
   def normalized_basename(name)
@@ -298,6 +298,10 @@ class GoogleTakeoutImporter
     basename = basename.delete_suffix(".aae")
     MEDIA_EXTENSIONS.each { |extension| basename = basename.delete_suffix(extension) }
     basename.sub(/\A(img)_o(\d+)\z/, "\\1_e\\2")
+  end
+
+  def sidecar_key(name)
+    File.join(File.dirname(name).downcase, normalized_basename(name))
   end
 
   def record_skipped(zip_path, entry)

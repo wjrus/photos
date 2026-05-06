@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+LIMIT="${1:-500}"
+SERVICE="${2:-web}"
+
+if [[ "$LIMIT" == "-h" || "$LIMIT" == "--help" ]]; then
+  cat <<'USAGE'
+Usage:
+  ./scripts/repair-takeout-metadata [limit] [service]
+
+Examples:
+  ./scripts/repair-takeout-metadata
+  ./scripts/repair-takeout-metadata 2000
+
+Re-reads Google Takeout sidecar JSON using folder-aware matching and repairs
+already imported photo metadata when the stored coordinates came from the old
+Takeout sidecar data. This is useful after fixing basename-only sidecar matches.
+USAGE
+  exit 0
+fi
+
+docker compose exec -T \
+  -e REPAIR_LIMIT="$LIMIT" \
+  "$SERVICE" bin/rails runner "$(cat <<'RUBY'
+require "json"
+require "zip"
+
+MEDIA_EXTENSIONS = %w[.heic .jpg .jpeg .png .mov .mp4].freeze
+
+def normalized_basename(name)
+  basename = File.basename(name).downcase
+  basename = basename.delete_suffix(".supplemental-metadata.json")
+  basename = basename.delete_suffix(".json")
+  basename = basename.delete_suffix(".aae")
+  MEDIA_EXTENSIONS.each { |extension| basename = basename.delete_suffix(extension) }
+  basename.sub(/\A(img)_o(\d+)\z/, "\\1_e\\2")
+end
+
+def sidecar_key(name)
+  File.join(File.dirname(name).downcase, normalized_basename(name))
+end
+
+def timestamp_from_google_metadata(metadata)
+  timestamp = metadata.dig("photoTakenTime", "timestamp").presence ||
+    metadata.dig("creationTime", "timestamp").presence
+  return unless timestamp
+
+  Time.zone.at(Integer(timestamp))
+rescue ArgumentError, TypeError
+  nil
+end
+
+def usable_geo_data(data)
+  return unless data.is_a?(Hash)
+
+  latitude = data["latitude"].to_f
+  longitude = data["longitude"].to_f
+  return if latitude.zero? && longitude.zero?
+
+  { "latitude" => latitude, "longitude" => longitude }
+end
+
+def close_enough?(first, second)
+  return false if first.blank? || second.blank?
+
+  (first.to_d - second.to_d).abs < BigDecimal("0.000001")
+end
+
+limit = Integer(ENV.fetch("REPAIR_LIMIT", 500))
+records = GoogleTakeoutImport
+  .where(status: %w[imported duplicate])
+  .where.not(photo_id: nil)
+  .includes(photo: :metadata)
+  .order(:zip_path, :entry_name)
+  .limit(limit)
+
+puts "Scanning #{records.size} imported Takeout #{'record'.pluralize(records.size)}..."
+
+updated = 0
+coordinates_updated = 0
+missing_zip = 0
+missing_sidecar = 0
+unchanged = 0
+
+records.group_by(&:zip_path).each do |zip_path, zip_records|
+  unless File.exist?(zip_path)
+    missing_zip += zip_records.size
+    puts "Missing zip: #{zip_path} (#{zip_records.size} records)"
+    next
+  end
+
+  Zip::File.open(zip_path) do |zip_file|
+    sidecars = {}
+    zip_file.each do |entry|
+      next if entry.directory?
+      next unless File.extname(entry.name).casecmp?(".json")
+
+      sidecars[sidecar_key(entry.name)] = entry
+    end
+
+    zip_records.each do |record|
+      photo = record.photo
+      metadata = PhotoMetadata.for_photo(photo)
+      sidecar = sidecars[sidecar_key(record.entry_name)]
+
+      unless sidecar
+        missing_sidecar += 1
+        puts "No sidecar: photo ##{photo.id} #{record.entry_name}"
+        next
+      end
+
+      google_metadata = JSON.parse(sidecar.get_input_stream.read)
+      old_google_metadata = metadata.raw["google_takeout"] || {}
+      old_geo = usable_geo_data(old_google_metadata["geoDataExif"]) || usable_geo_data(old_google_metadata["geoData"])
+      new_geo = usable_geo_data(google_metadata["geoDataExif"]) || usable_geo_data(google_metadata["geoData"])
+      captured_at = timestamp_from_google_metadata(google_metadata)
+      raw = metadata.raw.merge("google_takeout" => google_metadata).compact
+
+      attributes = { raw: raw }
+      if new_geo && (photo.video? || old_geo.blank? || (close_enough?(metadata.latitude, old_geo["latitude"]) && close_enough?(metadata.longitude, old_geo["longitude"])))
+        attributes[:latitude] = new_geo.fetch("latitude")
+        attributes[:longitude] = new_geo.fetch("longitude")
+      end
+      attributes[:captured_at] = captured_at if captured_at && (metadata.captured_at.blank? || metadata.captured_at == timestamp_from_google_metadata(old_google_metadata))
+
+      if attributes.except(:raw).empty? && metadata.raw["google_takeout"] == google_metadata
+        unchanged += 1
+        next
+      end
+
+      metadata.update!(attributes)
+      if captured_at && (photo.captured_at.blank? || photo.captured_at == timestamp_from_google_metadata(old_google_metadata))
+        photo.update_columns(captured_at: captured_at, updated_at: Time.current)
+      end
+
+      updated += 1
+      coordinates_updated += 1 if attributes.key?(:latitude)
+      puts "Updated photo ##{photo.id} #{photo.original_filename}: #{attributes.key?(:latitude) ? "#{attributes[:latitude]}, #{attributes[:longitude]}" : "raw sidecar only"}"
+    rescue JSON::ParserError => e
+      puts "Bad sidecar JSON: #{record.entry_name}: #{e.message}"
+    end
+  end
+end
+
+puts "Done. Updated #{updated}; coordinates updated #{coordinates_updated}; unchanged #{unchanged}; missing sidecar #{missing_sidecar}; missing zip records #{missing_zip}."
+RUBY
+)"

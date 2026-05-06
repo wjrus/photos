@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+QUERY="${1:-Kula}"
+LIMIT="${2:-50}"
+SERVICE="${3:-web}"
+
+if [[ "$QUERY" == "-h" || "$QUERY" == "--help" ]]; then
+  cat <<'USAGE'
+Usage:
+  ./scripts/audit-location-metadata [place-or-location-id] [limit] [service]
+
+Examples:
+  ./scripts/audit-location-metadata Kula
+  ./scripts/audit-location-metadata Hawaii 100
+  ./scripts/audit-location-metadata 831_-6253 25
+
+Shows the photos behind a geocoded location, including coordinates, Takeout
+entry paths, Google sidecar coordinates, and raw EXIF GPS values when present.
+Use it before and after ./scripts/repair-takeout-metadata to confirm bad
+location rows moved where they belong.
+USAGE
+  exit 0
+fi
+
+docker compose exec -T \
+  -e AUDIT_QUERY="$QUERY" \
+  -e AUDIT_LIMIT="$LIMIT" \
+  "$SERVICE" bin/rails runner "$(cat <<'RUBY'
+query = ENV.fetch("AUDIT_QUERY")
+limit = Integer(ENV.fetch("AUDIT_LIMIT", 50))
+
+def google_geo(metadata)
+  google = metadata.raw["google_takeout"] || {}
+  exif = google["geoDataExif"] || {}
+  geo = google["geoData"] || {}
+  [
+    exif["latitude"],
+    exif["longitude"],
+    geo["latitude"],
+    geo["longitude"]
+  ]
+end
+
+def exif_geo(metadata)
+  raw = metadata.raw || {}
+  [
+    raw["GPSLatitudeRef"],
+    raw["GPSLatitude"],
+    raw["GPSLongitudeRef"],
+    raw["GPSLongitude"]
+  ]
+end
+
+def location_ids_for(query)
+  if PhotoLocation.valid_id?(query) && !PhotoLocation.place_id?(query)
+    return [ query ]
+  end
+
+  PhotoLocationPlace
+    .where("name ILIKE :query OR names::text ILIKE :query", query: "%#{query}%")
+    .order(:name)
+    .pluck(:location_id)
+end
+
+location_ids = location_ids_for(query)
+
+if location_ids.empty?
+  puts "No geocoded locations matched #{query.inspect}."
+  exit
+end
+
+places = PhotoLocationPlace.where(location_id: location_ids).index_by(&:location_id)
+puts "Matched #{location_ids.size} #{'location'.pluralize(location_ids.size)} for #{query.inspect}:"
+location_ids.each do |location_id|
+  place = places[location_id]
+  puts "  #{location_id} #{place&.name || '(no place row)'} #{place&.latitude},#{place&.longitude}"
+end
+
+scope = Photo
+  .not_archived
+  .where(restricted: false)
+  .joins(:metadata)
+  .includes(:metadata)
+
+photos = PhotoLocation.scope_for_ids(scope, location_ids)
+  .left_outer_joins(:drive_archive_object)
+  .order(Arel.sql("COALESCE(photos.captured_at, photos.created_at) DESC, photos.id DESC"))
+  .limit(limit)
+  .to_a
+
+imports = GoogleTakeoutImport.where(photo_id: photos.map(&:id)).index_by(&:photo_id)
+
+puts
+puts "Showing #{photos.size} #{'photo'.pluralize(photos.size)}:"
+photos.each do |photo|
+  metadata = photo.metadata
+  import = imports[photo.id]
+  google_exif_lat, google_exif_lng, google_lat, google_lng = google_geo(metadata)
+  gps_lat_ref, gps_lat, gps_lng_ref, gps_lng = exif_geo(metadata)
+  current_location_id = PhotoLocation.id_for_coordinates(metadata.latitude, metadata.longitude)
+  place = places[current_location_id]
+
+  puts
+  puts "photo ##{photo.id} #{photo.original_filename}"
+  puts "  captured: #{photo.captured_at || metadata.captured_at || 'unknown'}"
+  puts "  current:  #{metadata.latitude}, #{metadata.longitude} -> #{current_location_id} #{place&.name}"
+  puts "  takeout:  #{import&.entry_name || '(no import record)'}"
+  puts "  google:   geoDataExif=#{google_exif_lat},#{google_exif_lng} geoData=#{google_lat},#{google_lng}"
+  puts "  exif:     #{gps_lat_ref} #{gps_lat} / #{gps_lng_ref} #{gps_lng}"
+end
+RUBY
+)"

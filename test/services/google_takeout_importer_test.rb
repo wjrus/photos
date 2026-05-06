@@ -46,6 +46,37 @@ class GoogleTakeoutImporterTest < ActiveSupport::TestCase
     assert_equal "imported", GoogleTakeoutImport.find_by!(entry_name: "Takeout/Google Photos/Photos from 2024/IMG_0001.JPG").status
   end
 
+  test "matches google metadata sidecars within the same folder" do
+    write_zip(
+      "Takeout/Google Photos/Traverse City/IMG_0001.JPG" => "traverse city bytes",
+      "Takeout/Google Photos/Traverse City/IMG_0001.JPG.supplemental-metadata.json" => google_json(
+        title: "IMG_0001.JPG",
+        description: "Snow day.",
+        timestamp: "1714586400",
+        latitude: 44.762222,
+        longitude: -85.597983
+      ),
+      "Takeout/Google Photos/Hawaii/IMG_0001.JPG" => "hawaii bytes",
+      "Takeout/Google Photos/Hawaii/IMG_0001.JPG.supplemental-metadata.json" => google_json(
+        title: "IMG_0001.JPG",
+        description: "Beach day.",
+        timestamp: "1714586400",
+        latitude: 20.791111,
+        longitude: -156.326944
+      )
+    )
+
+    summary = GoogleTakeoutImporter.new(owner: @owner).import_path(@zip_path)
+
+    assert_equal 2, summary.fetch(:imported)
+    traverse_city = GoogleTakeoutImport.find_by!(entry_name: "Takeout/Google Photos/Traverse City/IMG_0001.JPG").photo
+    hawaii = GoogleTakeoutImport.find_by!(entry_name: "Takeout/Google Photos/Hawaii/IMG_0001.JPG").photo
+    assert_in_delta 44.762222, traverse_city.metadata.latitude.to_f, 0.000001
+    assert_in_delta(-85.597983, traverse_city.metadata.longitude.to_f, 0.000001)
+    assert_in_delta 20.791111, hawaii.metadata.latitude.to_f, 0.000001
+    assert_in_delta(-156.326944, hawaii.metadata.longitude.to_f, 0.000001)
+  end
+
   test "skips duplicate media by sha256" do
     existing = attached_photo(checksum_sha256: Digest::SHA256.hexdigest("duplicate bytes"))
     write_zip("Takeout/Google Photos/duplicate.JPG" => "duplicate bytes")

@@ -241,9 +241,19 @@ class ExtractPhotoMetadataJob < ApplicationJob
   def gps_coordinate(value, reference)
     return if value.blank? || reference.blank?
 
-    degrees, minutes, seconds = value.split.first(3).map { |component| rational_value(component) }
+    components = value.to_s.scan(/[+-]?\d+(?:\.\d+)?(?:\/[+-]?\d+(?:\.\d+)?)?/).first(3)
+    return unless components&.size == 3
+
+    reference = reference.to_s[/[NSEW]/i]&.upcase
+    return unless reference
+
+    degrees, minutes, seconds = components.map { |component| rational_value(component) }
     coordinate = degrees + (minutes / 60) + (seconds / 3600)
+    return if coordinate.negative? || coordinate > 180
+
     reference.in?(%w[S W]) ? -coordinate : coordinate
+  rescue ArgumentError, ZeroDivisionError
+    nil
   end
 
   def rational_value(value)
