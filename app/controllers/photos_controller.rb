@@ -15,6 +15,7 @@ class PhotosController < ApplicationController
     @return_to = photo_return_path(@photo)
     @taggable_users = User.where.not(id: current_user.id).order(Arel.sql("LOWER(email) ASC")) if current_user&.owner?
     @cover_context = photo_cover_context(@photo, @return_to) if current_user&.owner?
+    queue_missing_video_display_derivative
     set_stream_neighbors
   end
 
@@ -247,5 +248,13 @@ class PhotosController < ApplicationController
       .visible_to(current_user)
       .joins(:metadata)
       .where.not(photo_metadata: { latitude: nil, longitude: nil })
+  end
+
+  def queue_missing_video_display_derivative
+    return unless current_user&.owner?
+    return unless @photo.video? && @photo.original.attached?
+    return if @photo.video_display.attached?
+
+    GeneratePhotoDerivativesJob.perform_later(@photo)
   end
 end

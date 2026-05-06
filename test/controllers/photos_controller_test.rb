@@ -643,7 +643,9 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
   test "video detail waits for browser compatible display derivative" do
     photo = attached_video
 
-    get photo_path(photo)
+    assert_enqueued_with(job: GeneratePhotoDerivativesJob, args: [ photo ]) do
+      get photo_path(photo)
+    end
 
     assert_response :success
     assert_includes response.body, "Video derivative processing."

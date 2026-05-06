@@ -56,9 +56,27 @@ class PhotoTest < ActiveSupport::TestCase
     )
 
     assert_predicate photo, :valid?
+    photo.save!
+
     assert_predicate photo, :image?
     assert_not photo.video?
     assert_equal "image/heic", photo.content_type
+    assert_equal "image/heic", photo.original.blob.reload.content_type
+  end
+
+  test "missing variant records do not transform stale invariable image blobs" do
+    photo = users(:one).photos.new
+    photo.original.attach(
+      io: StringIO.new("fake heic bytes"),
+      filename: "stale.HEIC",
+      content_type: "video/quicktime"
+    )
+    photo.save!
+    photo.original.blob.update!(content_type: "video/quicktime")
+
+    assert_predicate photo, :image?
+    assert_not photo.original.variable?
+    assert_nil photo.processed_original_variant_record(:stream)
   end
 
   test "preserves aae sidecars with originals" do

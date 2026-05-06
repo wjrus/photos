@@ -43,6 +43,7 @@ class Photo < ApplicationRecord
 
   before_validation :copy_original_blob_attributes, if: -> { original.attached? }
   before_validation :set_title_from_original, if: -> { title.blank? && original_filename.present? }
+  after_save :normalize_original_blob_content_type, if: -> { original.attached? }
   after_create_commit :enqueue_checksum, unless: :checksum_complete?
   after_create_commit :enqueue_drive_archive, if: :checksum_complete?
   after_create_commit :enqueue_metadata_extraction
@@ -226,7 +227,7 @@ class Photo < ApplicationRecord
   end
 
   def processed_original_variant_record(variant_name)
-    return unless image? && original.attached?
+    return unless image? && original.attached? && original.variable?
 
     variation_digest = original.variant(variant_name).variation.digest
     variant_records = original.blob.variant_records
@@ -293,6 +294,14 @@ class Photo < ApplicationRecord
     return "image/heif" if original_filename.to_s.downcase.end_with?(".heif")
 
     original.content_type
+  end
+
+  def normalize_original_blob_content_type
+    return unless original.blob.persisted?
+    return if original.blob.content_type == content_type
+    return unless content_type.to_s.start_with?("image/")
+
+    original.blob.update!(content_type: content_type)
   end
 
   def sidecars_must_be_aae

@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+LIMIT="${1:-5000}"
+SERVICE="${2:-web}"
+
+if [[ "$LIMIT" == "-h" || "$LIMIT" == "--help" ]]; then
+  cat <<'USAGE'
+Usage:
+  ./scripts/prewarm-video-displays [limit] [service]
+
+Examples:
+  ./scripts/prewarm-video-displays
+  ./scripts/prewarm-video-displays 20000
+
+Queues full browser-compatible video display derivatives for videos missing
+their playable MP4. This is separate from thumbnail-only preview generation.
+USAGE
+  exit 0
+fi
+
+docker compose exec -T -e PREWARM_LIMIT="$LIMIT" "$SERVICE" bin/rails runner "$(cat <<'RUBY'
+limit = Integer(ENV.fetch("PREWARM_LIMIT", 5000))
+queued = 0
+
+scope = Photo
+  .where("photos.content_type LIKE 'video/%'")
+  .where.not(
+    id: ActiveStorage::Attachment
+      .where(record_type: "Photo", name: "video_display")
+      .select(:record_id)
+  )
+  .order(:id)
+
+puts "Found #{scope.count} videos missing display derivatives."
+
+scope.find_each do |photo|
+  next unless photo.original.attached?
+
+  GeneratePhotoDerivativesJob.perform_later(photo)
+  queued += 1
+  puts "Queued photo ##{photo.id} #{photo.original_filename}"
+  break if queued >= limit
+end
+
+puts "Queued #{queued} video display #{'job'.pluralize(queued)}."
+RUBY
+)"
