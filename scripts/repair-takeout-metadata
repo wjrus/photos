@@ -80,7 +80,6 @@ batch_size = Integer(ENV.fetch("REPAIR_BATCH_SIZE", 1000))
 scope = GoogleTakeoutImport
   .where(status: "imported")
   .where.not(photo_id: nil)
-  .order(:zip_path, :entry_name)
 
 record_count = scope.count
 puts "Scanning #{record_count} imported Takeout #{'record'.pluralize(record_count)} in batches of #{batch_size}..."
