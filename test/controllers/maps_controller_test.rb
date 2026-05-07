@@ -99,13 +99,16 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert_equal map_path(album_id: trip.id), marker.fetch("return_to")
   end
 
-  test "trusted viewer only sees public geotagged photos" do
+  test "invited viewer sees private geotagged photos but not locked photos" do
     ENV["PHOTOS_TRUSTED_VIEWER_EMAILS"] = users(:two).email
     public_photo = attached_photo(title: "Public overlook")
     public_photo.publish!
     geotag(public_photo, latitude: 44.7622, longitude: -85.5980)
     private_photo = attached_photo(title: "Private driveway")
     geotag(private_photo, latitude: 45.0, longitude: -86.0)
+    locked_photo = attached_photo(title: "Locked overlook")
+    locked_photo.restrict!
+    geotag(locked_photo, latitude: 45.5, longitude: -86.5)
 
     delete sign_out_path
     sign_in_as(users(:two))
@@ -113,14 +116,16 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     get map_path
 
     assert_response :success
-    refute_includes response.body, "Private driveway"
 
     get map_markers_path(north: 46, south: 44, east: -84, west: -87)
 
     assert_response :success
     payload = JSON.parse(response.body)
-    assert_equal 1, payload.fetch("total")
-    assert_equal "Public overlook", payload.dig("markers", 0, "title")
+    marker_titles = payload.fetch("markers").map { |marker| marker.fetch("title") }
+    assert_equal 2, payload.fetch("total")
+    assert_includes marker_titles, "Public overlook"
+    assert_includes marker_titles, "Private driveway"
+    refute_includes marker_titles, "Locked overlook"
   end
 
   test "anonymous viewer cannot see map" do

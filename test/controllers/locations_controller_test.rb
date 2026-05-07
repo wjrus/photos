@@ -214,6 +214,30 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "invited viewer browses private locations but not locked locations" do
+    private_photo = attached_photo(title: "Private place")
+    geotag(private_photo, latitude: 44.7622, longitude: -85.5980)
+    locked_photo = attached_photo(title: "Locked place")
+    locked_photo.restrict!
+    geotag(locked_photo, latitude: 45.5, longitude: -86.5)
+    delete sign_out_path
+    sign_in_as(users(:two))
+
+    get locations_path
+
+    assert_response :success
+    assert_includes response.body, "1 photo location"
+
+    get location_path(location_id_for(private_photo))
+
+    assert_response :success
+    assert_includes response.body, "Private place"
+
+    get location_path(location_id_for(locked_photo))
+
+    assert_response :not_found
+  end
+
   test "anonymous viewer cannot browse locations" do
     delete sign_out_path
 

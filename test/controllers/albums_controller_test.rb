@@ -59,6 +59,28 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "invited viewer sees private albums and private album photos" do
+    album = @owner.photo_albums.create!(title: "Family album", source: "manual")
+    private_photo = attached_photo(title: "Family private")
+    locked_photo = attached_photo(title: "Locked album item")
+    locked_photo.restrict!
+    album.photos << private_photo
+    album.photos << locked_photo
+    delete sign_out_path
+    sign_in_as(users(:two))
+
+    get albums_path
+
+    assert_response :success
+    assert_includes response.body, "Family album"
+
+    get album_path(album)
+
+    assert_response :success
+    assert_includes response.body, "Family private"
+    refute_includes response.body, "Locked album item"
+  end
+
   test "owner sees public and private album counts" do
     @owner.photo_albums.create!(title: "Private album", source: "manual")
     @owner.photo_albums.create!(title: "Public album", source: "manual", visibility: "public")

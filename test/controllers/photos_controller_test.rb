@@ -625,6 +625,20 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, archived.title
   end
 
+  test "invited viewer sees private stream photos but not locked photos" do
+    private_photo = attached_photo(title: "Family dinner")
+    locked_photo = attached_photo(title: "Locked folder item")
+    locked_photo.restrict!
+    delete sign_out_path
+    sign_in_as(users(:two))
+
+    get root_path
+
+    assert_response :success
+    assert_includes response.body, private_photo.title
+    refute_includes response.body, locked_photo.title
+  end
+
   test "public viewer sees public display without privileged metadata" do
     photo = attached_photo
     photo.update!(description: "Private travel note.")

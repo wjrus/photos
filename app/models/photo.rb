@@ -50,7 +50,7 @@ class Photo < ApplicationRecord
   after_create_commit :enqueue_derivatives, if: :derivative_media?
 
   scope :visible_to, ->(user) {
-    if user&.owner?
+    if user&.trusted_viewer?
       where(restricted: false, archived_at: nil)
     elsif user
       tagged_photo_ids = PhotoPeopleTag.where(user_id: user.id).select(:photo_id)

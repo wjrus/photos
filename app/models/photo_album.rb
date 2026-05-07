@@ -12,7 +12,7 @@ class PhotoAlbum < ApplicationRecord
   validates :visibility, inclusion: { in: VISIBILITIES }
 
   scope :visible_to, ->(user) {
-    if user&.owner?
+    if user&.trusted_viewer?
       all
     elsif user
       tagged_album_ids = PhotoAlbumMembership
