@@ -7,20 +7,26 @@ class PhotoAlbum < ApplicationRecord
   has_many :photo_album_memberships, dependent: :destroy
   has_many :photos, through: :photo_album_memberships
   has_many :album_downloads, dependent: :destroy
+  has_many :photo_album_shares, dependent: :destroy
+  has_many :shared_users, through: :photo_album_shares, source: :user
 
   validates :title, presence: true
   validates :source, inclusion: { in: SOURCES }
   validates :visibility, inclusion: { in: VISIBILITIES }
 
   scope :visible_to, ->(user) {
-    if user&.trusted_viewer?
+    if user&.owner?
       all
     elsif user
       tagged_album_ids = PhotoAlbumMembership
         .joins(photo: :photo_people_tags)
         .where(photo_people_tags: { user_id: user.id })
         .select(:photo_album_id)
-      where("photo_albums.visibility = :public_visibility OR photo_albums.id IN (#{tagged_album_ids.to_sql})", public_visibility: "public")
+      shared_album_ids = PhotoAlbumShare.where(user_id: user.id).select(:photo_album_id)
+      where(
+        "photo_albums.visibility = :public_visibility OR photo_albums.id IN (#{tagged_album_ids.to_sql}) OR photo_albums.id IN (#{shared_album_ids.to_sql})",
+        public_visibility: "public"
+      )
     else
       where(visibility: "public")
     end

@@ -59,13 +59,17 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
-  test "invited viewer sees private albums and private album photos" do
+  test "invited viewer sees shared private albums and private album photos" do
     album = @owner.photo_albums.create!(title: "Family album", source: "manual")
+    unshared_album = @owner.photo_albums.create!(title: "Unshared album", source: "manual")
     private_photo = attached_photo(title: "Family private")
+    unshared_photo = attached_photo(title: "Unshared private")
     locked_photo = attached_photo(title: "Locked album item")
     locked_photo.restrict!
     album.photos << private_photo
     album.photos << locked_photo
+    unshared_album.photos << unshared_photo
+    album.photo_album_shares.create!(user: users(:two), shared_by: @owner)
     delete sign_out_path
     sign_in_as(users(:two))
 
@@ -73,12 +77,17 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "Family album"
+    refute_includes response.body, "Unshared album"
 
     get album_path(album)
 
     assert_response :success
     assert_includes response.body, "Family private"
     refute_includes response.body, "Locked album item"
+
+    get album_path(unshared_album)
+
+    assert_response :not_found
   end
 
   test "owner sees public and private album counts" do
@@ -161,9 +170,39 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     get album_path(album)
 
     assert_response :success
+    assert_select "summary", text: "Album info"
     assert_select "button", text: "Delete album"
     assert_select "form[action='#{album_path(album)}'][method='post'] input[name='_method'][value='delete']"
     assert_includes response.body, "The photos stay in your library."
+  end
+
+  test "owner can share and unshare a private album with an invited user" do
+    album = @owner.photo_albums.create!(title: "Private Trip", source: "manual")
+    viewer = users(:two)
+
+    get album_path(album)
+
+    assert_response :success
+    assert_select "form[action='#{album_album_shares_path(album)}'][method='post'] option[value='#{viewer.id}']", text: viewer.display_name
+
+    assert_difference "PhotoAlbumShare.count", 1 do
+      post album_album_shares_path(album), params: { user_id: viewer.id }
+    end
+
+    assert_redirected_to album_path(album)
+    share = album.photo_album_shares.find_by!(user: viewer)
+
+    get album_path(album)
+
+    assert_response :success
+    assert_includes response.body, viewer.email
+    assert_select "form[action='#{album_share_path(share)}'][method='post'] input[name='_method'][value='delete']"
+
+    assert_difference "PhotoAlbumShare.count", -1 do
+      delete album_share_path(share)
+    end
+
+    assert_redirected_to album_path(album)
   end
 
   test "owner sees album download action while viewing an album" do

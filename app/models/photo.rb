@@ -51,11 +51,18 @@ class Photo < ApplicationRecord
   after_create_commit :enqueue_derivatives, if: :derivative_media?
 
   scope :visible_to, ->(user) {
-    if user&.trusted_viewer?
+    if user&.owner?
       where(restricted: false, archived_at: nil)
     elsif user
       tagged_photo_ids = PhotoPeopleTag.where(user_id: user.id).select(:photo_id)
-      where(restricted: false, archived_at: nil).where("photos.visibility = :public_visibility OR photos.id IN (#{tagged_photo_ids.to_sql})", public_visibility: "public")
+      shared_photo_ids = PhotoAlbumMembership
+        .joins(photo_album: :photo_album_shares)
+        .where(photo_album_shares: { user_id: user.id })
+        .select(:photo_id)
+      where(restricted: false, archived_at: nil).where(
+        "photos.visibility = :public_visibility OR photos.id IN (#{tagged_photo_ids.to_sql}) OR photos.id IN (#{shared_photo_ids.to_sql})",
+        public_visibility: "public"
+      )
     else
       where(visibility: "public", restricted: false, archived_at: nil)
     end

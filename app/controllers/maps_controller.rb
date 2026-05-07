@@ -162,6 +162,9 @@ class MapsController < ApplicationController
       "map-markers/v3",
       cache_audience_key,
       @selected_album&.id || "all",
+      Photo.maximum(:updated_at)&.utc&.to_i,
+      PhotoAlbumShare.maximum(:updated_at)&.utc&.to_i,
+      PhotoAlbumShare.count,
       map_cell_size(params[:zoom]),
       normalized_map_bounds
     ]

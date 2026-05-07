@@ -214,12 +214,17 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
-  test "invited viewer browses private locations but not locked locations" do
-    private_photo = attached_photo(title: "Private place")
-    geotag(private_photo, latitude: 44.7622, longitude: -85.5980)
+  test "invited viewer browses shared private locations but not unshared or locked locations" do
+    album = @owner.photo_albums.create!(title: "Shared places", source: "manual")
+    shared_photo = attached_photo(title: "Shared private place")
+    geotag(shared_photo, latitude: 44.7622, longitude: -85.5980)
+    private_photo = attached_photo(title: "Unshared private place")
+    geotag(private_photo, latitude: 45.0, longitude: -86.0)
     locked_photo = attached_photo(title: "Locked place")
     locked_photo.restrict!
     geotag(locked_photo, latitude: 45.5, longitude: -86.5)
+    album.photos << [ shared_photo, locked_photo ]
+    album.photo_album_shares.create!(user: users(:two), shared_by: @owner)
     delete sign_out_path
     sign_in_as(users(:two))
 
@@ -228,10 +233,14 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "1 photo location"
 
-    get location_path(location_id_for(private_photo))
+    get location_path(location_id_for(shared_photo))
 
     assert_response :success
-    assert_includes response.body, "Private place"
+    assert_includes response.body, "Shared private place"
+
+    get location_path(location_id_for(private_photo))
+
+    assert_response :not_found
 
     get location_path(location_id_for(locked_photo))
 

@@ -40,6 +40,7 @@ Rails.application.routes.draw do
   resources :albums, only: %i[index show create update destroy] do
     patch :publish, on: :member
     patch :unpublish, on: :member
+    resources :album_shares, only: %i[create destroy], shallow: true
     resources :photo_album_memberships, only: :destroy, shallow: true
     patch "cover/:photo_id", to: "album_covers#update", as: :cover
   end

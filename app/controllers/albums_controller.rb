@@ -27,7 +27,11 @@ class AlbumsController < ApplicationController
 
     @photos, @next_cursor, @newer_cursor = paginate_photo_stream_with_focus(visible_photos)
     @visible_media_count = visible_media_counts_for([ @album ]).fetch(@album.id, { photos: 0, videos: 0 })
-    @albums = current_user.photo_albums.display_order if current_user&.owner?
+    if current_user&.owner?
+      @albums = current_user.photo_albums.display_order
+      @album_shares = @album.photo_album_shares.joins(:user).includes(:user).order(Arel.sql("LOWER(users.email) ASC"))
+      @shareable_users = shareable_users_for(@album)
+    end
 
     render_photo_page_if_requested(
       return_to: album_path(@album),
@@ -124,6 +128,8 @@ class AlbumsController < ApplicationController
       cache_audience_key,
       PhotoAlbum.maximum(:updated_at)&.utc&.to_i,
       PhotoAlbum.count,
+      PhotoAlbumShare.maximum(:updated_at)&.utc&.to_i,
+      PhotoAlbumShare.count,
       PhotoAlbumMembership.maximum(:created_at)&.utc&.to_i,
       PhotoAlbumMembership.count,
       Photo.maximum(:updated_at)&.utc&.to_i,
@@ -189,5 +195,15 @@ class AlbumsController < ApplicationController
         photo_album_memberships.photo_album_id AS album_cover_album_id
       SQL
       .order(Arel.sql("photo_album_memberships.photo_album_id, photos.captured_at DESC NULLS LAST, photos.created_at DESC, photos.id DESC"))
+  end
+
+  def shareable_users_for(album)
+    shared_user_ids = album.photo_album_shares.select(:user_id)
+
+    User
+      .where(role: "viewer")
+      .where.not(invited_at: nil)
+      .where.not(id: shared_user_ids)
+      .order(Arel.sql("LOWER(email) ASC"))
   end
 end

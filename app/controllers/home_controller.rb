@@ -61,7 +61,9 @@ class HomeController < ApplicationController
       "stream-timeline/v2",
       cache_audience_key,
       Photo.maximum(:updated_at)&.utc&.to_i,
-      Photo.count
+      Photo.count,
+      PhotoAlbumShare.maximum(:updated_at)&.utc&.to_i,
+      PhotoAlbumShare.count
     ]
   end
 end

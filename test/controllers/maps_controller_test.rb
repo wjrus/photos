@@ -99,16 +99,20 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert_equal map_path(album_id: trip.id), marker.fetch("return_to")
   end
 
-  test "invited viewer sees private geotagged photos but not locked photos" do
-    ENV["PHOTOS_TRUSTED_VIEWER_EMAILS"] = users(:two).email
+  test "invited viewer sees shared private geotagged photos but not unshared or locked photos" do
+    album = @owner.photo_albums.create!(title: "Shared map", source: "manual")
     public_photo = attached_photo(title: "Public overlook")
     public_photo.publish!
     geotag(public_photo, latitude: 44.7622, longitude: -85.5980)
-    private_photo = attached_photo(title: "Private driveway")
-    geotag(private_photo, latitude: 45.0, longitude: -86.0)
+    shared_photo = attached_photo(title: "Shared private driveway")
+    geotag(shared_photo, latitude: 45.0, longitude: -86.0)
+    private_photo = attached_photo(title: "Unshared private driveway")
+    geotag(private_photo, latitude: 45.1, longitude: -86.1)
     locked_photo = attached_photo(title: "Locked overlook")
     locked_photo.restrict!
     geotag(locked_photo, latitude: 45.5, longitude: -86.5)
+    album.photos << [ shared_photo, locked_photo ]
+    album.photo_album_shares.create!(user: users(:two), shared_by: @owner)
 
     delete sign_out_path
     sign_in_as(users(:two))
@@ -124,7 +128,8 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     marker_titles = payload.fetch("markers").map { |marker| marker.fetch("title") }
     assert_equal 2, payload.fetch("total")
     assert_includes marker_titles, "Public overlook"
-    assert_includes marker_titles, "Private driveway"
+    assert_includes marker_titles, "Shared private driveway"
+    refute_includes marker_titles, "Unshared private driveway"
     refute_includes marker_titles, "Locked overlook"
   end
 

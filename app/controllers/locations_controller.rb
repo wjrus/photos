@@ -42,6 +42,8 @@ class LocationsController < ApplicationController
       Photo.maximum(:updated_at)&.utc&.to_i,
       PhotoMetadata.maximum(:updated_at)&.utc&.to_i,
       PhotoMetadata.count,
+      PhotoAlbumShare.maximum(:updated_at)&.utc&.to_i,
+      PhotoAlbumShare.count,
       PhotoLocationCover.maximum(:updated_at)&.utc&.to_i,
       PhotoLocationCover.count
     ]

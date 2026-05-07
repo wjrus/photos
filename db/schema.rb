@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_07_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_07_160000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -116,6 +116,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_07_150000) do
     t.index ["photo_album_id"], name: "index_photo_album_memberships_on_photo_album_id"
     t.index ["photo_id", "photo_album_id"], name: "index_photo_album_memberships_on_photo_id_and_photo_album_id", unique: true
     t.index ["photo_id"], name: "index_photo_album_memberships_on_photo_id"
+  end
+
+  create_table "photo_album_shares", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "photo_album_id", null: false
+    t.bigint "shared_by_id", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["photo_album_id", "user_id"], name: "index_photo_album_shares_on_photo_album_id_and_user_id", unique: true
+    t.index ["photo_album_id"], name: "index_photo_album_shares_on_photo_album_id"
+    t.index ["shared_by_id"], name: "index_photo_album_shares_on_shared_by_id"
+    t.index ["user_id"], name: "index_photo_album_shares_on_user_id"
   end
 
   create_table "photo_albums", force: :cascade do |t|
@@ -282,6 +294,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_07_150000) do
   add_foreign_key "google_takeout_imports", "photos", on_delete: :nullify
   add_foreign_key "photo_album_memberships", "photo_albums"
   add_foreign_key "photo_album_memberships", "photos"
+  add_foreign_key "photo_album_shares", "photo_albums"
+  add_foreign_key "photo_album_shares", "users"
+  add_foreign_key "photo_album_shares", "users", column: "shared_by_id"
   add_foreign_key "photo_albums", "photos", column: "cover_photo_id"
   add_foreign_key "photo_albums", "users", column: "owner_id"
   add_foreign_key "photo_location_covers", "photos", column: "cover_photo_id"

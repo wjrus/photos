@@ -14,6 +14,9 @@ class User < ApplicationRecord
   belongs_to :invited_by, class_name: "User", optional: true
   has_many :photo_people_tags, dependent: :destroy
   has_many :tagged_photos, through: :photo_people_tags, source: :photo
+  has_many :photo_album_shares, dependent: :destroy
+  has_many :shared_photo_albums, through: :photo_album_shares, source: :photo_album
+  has_many :created_photo_album_shares, class_name: "PhotoAlbumShare", foreign_key: :shared_by_id, dependent: :destroy, inverse_of: :shared_by
   has_one_attached :avatar
 
   normalizes :email, with: ->(email) { email.to_s.strip.downcase }
@@ -69,6 +72,10 @@ class User < ApplicationRecord
 
   def owner?
     role == "owner"
+  end
+
+  def viewer?
+    role == "viewer"
   end
 
   def trusted_viewer?

@@ -664,9 +664,15 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, archived.title
   end
 
-  test "invited viewer sees private stream photos but not locked photos" do
-    private_photo = attached_photo(title: "Family dinner")
+  test "invited viewer sees tagged and shared album photos but not unrelated private photos" do
+    shared_album = @owner.photo_albums.create!(title: "Shared album", source: "manual")
+    shared_photo = attached_photo(title: "Shared family dinner")
+    tagged_photo = attached_photo(title: "Tagged family dinner")
+    private_photo = attached_photo(title: "Unshared family dinner")
     locked_photo = attached_photo(title: "Locked folder item")
+    shared_album.photos << shared_photo
+    shared_album.photo_album_shares.create!(user: users(:two), shared_by: @owner)
+    tagged_photo.photo_people_tags.create!(user: users(:two), tagged_by: @owner)
     locked_photo.restrict!
     delete sign_out_path
     sign_in_as(users(:two))
@@ -674,7 +680,9 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     get root_path
 
     assert_response :success
-    assert_includes response.body, private_photo.title
+    assert_includes response.body, shared_photo.title
+    assert_includes response.body, tagged_photo.title
+    refute_includes response.body, private_photo.title
     refute_includes response.body, locked_photo.title
   end
 
