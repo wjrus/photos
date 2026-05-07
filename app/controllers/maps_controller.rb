@@ -73,7 +73,7 @@ class MapsController < ApplicationController
   def location_payloads(scope)
     rows = location_rows(scope)
     photos_by_id = preview_photos(rows)
-    places = location_places(rows)
+    places = location_places(rows, photos_by_id)
 
     rows.first(MARKER_LIMIT).filter_map do |row|
       count = row.photo_count.to_i
@@ -105,10 +105,12 @@ class MapsController < ApplicationController
   end
 
   def location_payload(row, count, photos_by_id, places)
-    location_id = PhotoLocation.id_for(
-      (row.latitude.to_f / PhotoLocation::CELL_SIZE).floor,
-      (row.longitude.to_f / PhotoLocation::CELL_SIZE).floor
-    )
+    representative_photo = photos_by_id[row.representative_photo_id.to_i]
+    location_id = if representative_photo
+      PhotoLocation.id_for_coordinates(representative_photo.metadata.latitude, representative_photo.metadata.longitude)
+    else
+      PhotoLocation.id_for_coordinates(row.latitude, row.longitude)
+    end
 
     {
       type: "location",
@@ -130,8 +132,16 @@ class MapsController < ApplicationController
     url_for(photo.video_preview) if photo.video? && photo.video_preview.attached?
   end
 
-  def location_places(rows)
-    ids = rows.first(MARKER_LIMIT).map { |row| PhotoLocation.id_for_coordinates(row.latitude, row.longitude) }
+  def location_places(rows, photos_by_id)
+    ids = rows.first(MARKER_LIMIT).map do |row|
+      representative_photo = photos_by_id[row.representative_photo_id.to_i]
+      if representative_photo
+        PhotoLocation.id_for_coordinates(representative_photo.metadata.latitude, representative_photo.metadata.longitude)
+      else
+        PhotoLocation.id_for_coordinates(row.latitude, row.longitude)
+      end
+    end
+
     PhotoLocationPlace.where(location_id: ids).index_by(&:location_id)
   end
 

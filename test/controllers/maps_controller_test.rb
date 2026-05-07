@@ -70,6 +70,25 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 3, payload.fetch("total")
   end
 
+  test "clustered location marker links to an existing location page" do
+    first = attached_photo(title: "West edge")
+    second = attached_photo(title: "East edge")
+    geotag(first, latitude: 44.701, longitude: -85.301)
+    geotag(second, latitude: 44.789, longitude: -85.389)
+
+    get map_markers_path(north: 45, south: 44, east: -85, west: -86, zoom: 10)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    location = payload.fetch("markers").find { |marker| marker.fetch("type") == "location" }
+    assert location
+    assert_equal 2, location.fetch("count")
+
+    get location.fetch("location_url")
+
+    assert_response :success
+  end
+
   test "owner can focus map on an album" do
     trip = @owner.photo_albums.create!(title: "Trip", source: "manual")
     other = @owner.photo_albums.create!(title: "Other", source: "manual")
