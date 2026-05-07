@@ -237,17 +237,31 @@ body.photo-detail-page {
   }
 }
 
+.photo-stream-navigation {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: opacity 160ms ease, transform 200ms ease, right 200ms ease;
+}
+
+.photo-viewer-shell:hover .photo-stream-navigation,
+.photo-viewer-shell:focus-within .photo-stream-navigation {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.photo-viewer-shell.info-panel-open [data-info-panel-button] {
+  opacity: 0;
+  pointer-events: none;
+}
+
 @media (min-width: 1024px) {
   .photo-viewer-shell.info-panel-open {
     padding-right: calc(390px + 1.5rem);
   }
 
-  .photo-viewer-shell.info-panel-open [data-info-panel-shiftable] {
-    transform: translateX(-390px);
-  }
-
-  .photo-viewer-shell.info-panel-open nav[data-info-panel-shiftable] {
-    transform: translateX(-390px) translateY(-50%);
+  .photo-viewer-shell.info-panel-open .photo-stream-navigation {
+    right: calc(390px + 1rem);
   }
 }
 

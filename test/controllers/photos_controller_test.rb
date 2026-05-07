@@ -768,7 +768,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, "Download original"
   end
 
-  test "photo viewer can recenter when info panel opens" do
+  test "photo viewer keeps pane controls separate from stream navigation" do
     photo = attached_photo(title: "Centered detail")
 
     get photo_path(photo)
@@ -776,7 +776,8 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "main.photo-viewer-shell[data-info-panel-target='viewer']"
     assert_select "aside#photo-info-panel[data-info-panel-target='panel']"
-    assert_select "[data-info-panel-shiftable]", minimum: 1
+    assert_select "button[data-info-panel-button][data-info-panel-target='button']"
+    assert_select "[data-info-panel-shiftable]", false
   end
 
   test "trusted signed-in viewer sees public photo location without archive access" do
