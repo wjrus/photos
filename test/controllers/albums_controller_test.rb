@@ -172,10 +172,11 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     get album_path(album)
 
     assert_response :success
-    assert_select "a[href='#{download_album_path(album)}']", text: "Download ZIP"
+    assert_select "button[data-action='album-download#start']", text: "Download ZIP"
+    assert_includes response.body, album_downloads_path(album_id: album.id)
   end
 
-  test "owner can download visible album originals as a zip" do
+  test "owner can prepare and download visible album originals as a zip" do
     album = @owner.photo_albums.create!(title: "Trip Stuff!", source: "manual")
     visible = attached_photo(title: "Visible Photo")
     archived = attached_photo(title: "Archived Photo")
@@ -183,8 +184,24 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     album.photos << visible
     album.photos << archived
 
-    get download_album_path(album)
+    perform_enqueued_jobs do
+      post album_downloads_path(album_id: album.id), as: :json
+    end
 
+    assert_response :accepted
+    payload = JSON.parse(response.body)
+    download = AlbumDownload.find(payload.fetch("id"))
+    assert_predicate download, :ready?
+    assert_equal 1, download.total_entries
+    assert_equal 1, download.processed_entries
+
+    get album_download_path(download), as: :json
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal "ready", payload.fetch("status")
+    assert_equal file_album_download_path(download), payload.fetch("file_url")
+
+    get file_album_download_path(download)
     assert_response :success
     assert_equal "application/zip", response.media_type
     assert_match(/attachment;.+trip-stuff-album\.zip/, response.headers["Content-Disposition"])
@@ -195,13 +212,13 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "non owner cannot download an album zip" do
+  test "non owner cannot prepare an album zip" do
     album = @owner.photo_albums.create!(title: "Trip", source: "manual")
     delete sign_out_path
 
-    get download_album_path(album)
+    post album_downloads_path(album_id: album.id), as: :json
 
-    assert_redirected_to root_path
+    assert_response :forbidden
   end
 
   test "owner can delete an album without deleting photos" do

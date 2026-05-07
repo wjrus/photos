@@ -6,6 +6,7 @@ class PhotoAlbum < ApplicationRecord
   belongs_to :cover_photo, class_name: "Photo", optional: true
   has_many :photo_album_memberships, dependent: :destroy
   has_many :photos, through: :photo_album_memberships
+  has_many :album_downloads, dependent: :destroy
 
   validates :title, presence: true
   validates :source, inclusion: { in: SOURCES }

@@ -5,9 +5,10 @@ class AlbumZipExporter
 
   attr_reader :filename
 
-  def initialize(album:, photos:)
+  def initialize(album:, photos:, progress: nil)
     @album = album
     @photos = photos
+    @progress = progress
     @filename = "#{safe_album_name}-album.zip"
   end
 
@@ -23,6 +24,7 @@ class AlbumZipExporter
         zip.get_output_stream(entry_name_for(photo, index)) do |entry|
           photo.original.blob.download { |chunk| entry.write(chunk) }
         end
+        @progress&.call(index)
       end
     end
 

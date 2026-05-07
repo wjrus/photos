@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_06_125000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_07_133000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -40,6 +40,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_06_125000) do
     t.bigint "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
+
+  create_table "album_downloads", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "error"
+    t.string "filename", null: false
+    t.bigint "photo_album_id", null: false
+    t.integer "processed_entries", default: 0, null: false
+    t.string "status", default: "pending", null: false
+    t.integer "total_entries", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.string "zip_path"
+    t.index ["photo_album_id"], name: "index_album_downloads_on_photo_album_id"
+    t.index ["status"], name: "index_album_downloads_on_status"
+    t.index ["user_id", "created_at"], name: "index_album_downloads_on_user_id_and_created_at"
+    t.index ["user_id"], name: "index_album_downloads_on_user_id"
   end
 
   create_table "drive_archive_objects", force: :cascade do |t|
@@ -258,6 +275,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_06_125000) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "album_downloads", "photo_albums"
+  add_foreign_key "album_downloads", "users"
   add_foreign_key "drive_archive_objects", "photos"
   add_foreign_key "google_takeout_import_runs", "users", column: "owner_id"
   add_foreign_key "google_takeout_imports", "photos"

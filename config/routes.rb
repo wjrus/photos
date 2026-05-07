@@ -4,6 +4,7 @@ Rails.application.routes.draw do
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
   # Can be used by load balancers and uptime monitors to verify that the app is live.
   get "up" => "rails/health#show", as: :rails_health_check
+  get "/favicon.ico", to: redirect("/icon.png")
 
   # Render dynamic PWA files from app/views/pwa/* (remember to link manifest in application.html.erb)
   # get "manifest" => "rails/pwa#manifest", as: :pwa_manifest
@@ -37,11 +38,13 @@ Rails.application.routes.draw do
   resource :album_bulk_actions, only: :create
   resource :photo_bulk_actions, only: :create
   resources :albums, only: %i[index show create update destroy] do
-    get :download, on: :member
     patch :publish, on: :member
     patch :unpublish, on: :member
     resources :photo_album_memberships, only: :destroy, shallow: true
     patch "cover/:photo_id", to: "album_covers#update", as: :cover
+  end
+  resources :album_downloads, only: %i[create show] do
+    get :file, on: :member
   end
   resources :upload_chunks, only: :create do
     post :status, on: :collection

@@ -20,10 +20,29 @@
 
       <% if current_user&.owner? %>
         <div class="flex flex-wrap items-center gap-2">
-          <%= link_to "Download ZIP",
-                download_album_path(@album),
-                class: "rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white",
-                data: { turbo: false } %>
+          <div class="flex items-center gap-2"
+               data-controller="album-download"
+               data-album-download-create-url-value="<%= album_downloads_path(album_id: @album.id) %>">
+            <button type="button"
+                    class="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white disabled:cursor-wait disabled:opacity-70"
+                    data-album-download-target="button"
+                    data-action="album-download#start">
+              Download ZIP
+            </button>
+            <a href="#"
+               hidden
+               class="rounded-lg bg-zinc-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800"
+               data-album-download-target="link"
+               data-turbo="false">
+              Save ZIP
+            </a>
+            <div class="min-w-40" hidden data-album-download-target="progress">
+              <div class="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500" data-album-download-target="status">Preparing ZIP...</div>
+              <div class="h-2 overflow-hidden rounded-full bg-zinc-200">
+                <div class="h-full w-0 rounded-full bg-teal-700 transition-[width]" data-album-download-target="bar"></div>
+              </div>
+            </div>
+          </div>
 
           <details class="relative">
             <summary class="cursor-pointer list-none rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white">
