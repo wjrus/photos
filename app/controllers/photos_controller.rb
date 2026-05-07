@@ -1,4 +1,6 @@
 class PhotosController < ApplicationController
+  include PhotoStreamReturnPaths
+
   owner_access_message "Only the owner can manage photos."
 
   before_action :require_owner!, except: %i[show display video]
@@ -96,8 +98,9 @@ class PhotosController < ApplicationController
   end
 
   def destroy
+    return_path = photo_stream_return_path_after_removing([ @photo ])
     @photo.destroy!
-    redirect_to root_path, notice: "Photo removed."
+    redirect_to return_path, notice: "Photo removed."
   end
 
   def retry_failed_archives

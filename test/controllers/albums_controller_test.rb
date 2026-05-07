@@ -296,6 +296,26 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to album_path(album)
   end
 
+  test "owner can remove a photo from an album and return near album position" do
+    album = @owner.photo_albums.create!(title: "Trip", source: "manual")
+    newer = attached_photo(title: "Newer album item")
+    target = attached_video(title: "Removed album item")
+    older = attached_photo(title: "Older album item")
+    [ newer, target, older ].each { |photo| album.photos << photo }
+    set_stream_time(newer, Time.zone.local(2026, 1, 3))
+    set_stream_time(target, Time.zone.local(2026, 1, 2))
+    set_stream_time(older, Time.zone.local(2026, 1, 1))
+
+    assert_no_difference "Photo.count" do
+      assert_difference "PhotoAlbumMembership.count", -1 do
+        delete photo_album_membership_path(album.photo_album_memberships.find_by!(photo: target)),
+          params: { return_to: album_path(album, photo_id: target.id) }
+      end
+    end
+
+    assert_redirected_to album_path(album, photo_id: older.id)
+  end
+
   test "owner can set an album cover" do
     album = @owner.photo_albums.create!(title: "Trip", source: "manual")
     photo = attached_photo(title: "Cover")
@@ -344,5 +364,9 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     )
     photo.save!
     photo
+  end
+
+  def set_stream_time(photo, time)
+    photo.update_columns(captured_at: time, created_at: time, updated_at: time)
   end
 end

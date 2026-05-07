@@ -291,6 +291,23 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_nil import.reload.photo_id
   end
 
+  test "owner can destroy a photo from album detail and return near album position" do
+    album = @owner.photo_albums.create!(title: "Trip", source: "manual")
+    newer = attached_photo(title: "Newer album item")
+    target = attached_video
+    older = attached_photo(title: "Older album item")
+    [ newer, target, older ].each { |photo| album.photos << photo }
+    set_stream_time(newer, Time.zone.local(2026, 1, 3))
+    set_stream_time(target, Time.zone.local(2026, 1, 2))
+    set_stream_time(older, Time.zone.local(2026, 1, 1))
+
+    assert_difference "Photo.count", -1 do
+      delete photo_path(target), params: { return_to: album_path(album, photo_id: target.id) }
+    end
+
+    assert_redirected_to album_path(album, photo_id: older.id)
+  end
+
   test "non owner cannot destroy a photo" do
     photo = attached_photo
     delete sign_out_path
@@ -405,6 +422,8 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, %(data-stream-navigation-back-url-value="#{album_path(album, photo_id: photo.id)}")
     assert_select "form[action='#{album_cover_path(album, photo)}'][method='post']", text: "Set album cover"
+    assert_select "form[action='#{photo_path(photo)}'][method='post'] input[name='return_to'][value='#{album_path(album, photo_id: photo.id)}']"
+    assert_select "form[action='#{photo_album_membership_path(album.photo_album_memberships.find_by!(photo: photo))}'][method='post'] input[name='return_to'][value='#{album_path(album, photo_id: photo.id)}']"
   end
 
   test "detail view can set current location cover from the info pane" do
@@ -856,5 +875,9 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
       filename: "clip-display.mp4",
       content_type: "video/mp4"
     )
+  end
+
+  def set_stream_time(photo, time)
+    photo.update_columns(captured_at: time, created_at: time, updated_at: time)
   end
 end

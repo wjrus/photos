@@ -57,6 +57,7 @@
         <%= button_to "Remove",
               photo_path(photo),
               method: :delete,
+              params: { return_to: return_to },
               class: "w-full rounded-lg bg-rose-800 px-3 py-2 text-xs font-semibold uppercase text-white transition hover:bg-rose-950" %>
       </div>
     </div>

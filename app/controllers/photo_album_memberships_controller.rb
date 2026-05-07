@@ -1,4 +1,6 @@
 class PhotoAlbumMembershipsController < ApplicationController
+  include PhotoStreamReturnPaths
+
   owner_access_message "Only the owner can manage albums."
 
   before_action :require_owner!
@@ -24,10 +26,12 @@ class PhotoAlbumMembershipsController < ApplicationController
       .where(photo_albums: { owner_id: current_user.id })
       .find(params[:id])
     album = membership.photo_album
+    photo = membership.photo
+    return_path = photo_stream_return_path_after_removing([ photo ], return_path: safe_return_path(default: album_path(album)))
     membership.destroy!
     album.update!(cover_photo: nil) if album.cover_photo_id == membership.photo_id
 
-    redirect_to album_path(album), notice: "Photo removed from album."
+    redirect_to return_path, notice: "Photo removed from album."
   end
 
   private
