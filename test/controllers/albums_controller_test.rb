@@ -202,13 +202,13 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     assert_equal file_album_download_path(download), payload.fetch("file_url")
 
     get file_album_download_path(download)
-    assert_response :success
-    assert_equal "application/zip", response.media_type
-    assert_match(/attachment;.+trip-stuff-album\.zip/, response.headers["Content-Disposition"])
+    assert_redirected_to rails_blob_path(download.archive, disposition: "attachment")
 
-    Zip::File.open_buffer(StringIO.new(response.body)) do |zip|
-      assert_equal [ "0001-visible-photo.png" ], zip.map(&:name)
-      assert_equal File.binread(Rails.root.join("public/icon.png")), zip.read("0001-visible-photo.png")
+    download.archive.open do |file|
+      Zip::File.open(file.path) do |zip|
+        assert_equal [ "0001-visible-photo.png" ], zip.map(&:name)
+        assert_equal File.binread(Rails.root.join("public/icon.png")), zip.read("0001-visible-photo.png")
+      end
     end
   end
 

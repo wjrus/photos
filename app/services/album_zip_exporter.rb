@@ -5,18 +5,17 @@ class AlbumZipExporter
 
   attr_reader :filename
 
-  def initialize(album:, photos:, progress: nil, zip_path: nil)
+  def initialize(album:, photos:, progress: nil)
     @album = album
     @photos = photos
     @progress = progress
-    @zip_path = zip_path
     @filename = "#{safe_album_name}-album.zip"
   end
 
   def export
     cleanup_stale_files
 
-    zip_path = @zip_path || self.class.export_directory.join("#{SecureRandom.hex(16)}.zip")
+    zip_path = self.class.export_directory.join("#{SecureRandom.hex(16)}.zip")
 
     Zip::File.open(zip_path.to_s, create: true) do |zip|
       @photos.each.with_index(1) do |photo, index|

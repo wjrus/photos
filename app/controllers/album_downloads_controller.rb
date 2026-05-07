@@ -20,17 +20,12 @@ class AlbumDownloadsController < ApplicationController
   end
 
   def file
-    zip_file_path = AlbumDownload.zip_file_path_for(@album_download.id)
-
-    unless @album_download.ready? && zip_file_path.file?
+    unless @album_download.ready? && @album_download.archive.attached?
       redirect_to album_path(@album_download.photo_album), alert: "Album ZIP is not ready yet."
       return
     end
 
-    send_file zip_file_path.to_s,
-      type: "application/zip",
-      disposition: "attachment",
-      filename: @album_download.filename
+    redirect_to rails_blob_path(@album_download.archive, disposition: "attachment")
   end
 
   private
@@ -48,7 +43,7 @@ class AlbumDownloadsController < ApplicationController
       progress_percent: download.progress_percent,
       error: download.error,
       show_url: album_download_path(download),
-      file_url: (file_album_download_path(download) if download.ready?)
+      file_url: (file_album_download_path(download) if download.ready? && download.archive.attached?)
     }
   end
 end

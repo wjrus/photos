@@ -4,6 +4,8 @@ class AlbumDownload < ApplicationRecord
   belongs_to :photo_album
   belongs_to :user
 
+  has_one_attached :archive
+
   validates :status, inclusion: { in: STATUSES }
   validates :filename, presence: true
   validates :total_entries, :processed_entries, numericality: { greater_than_or_equal_to: 0, only_integer: true }
@@ -28,14 +30,5 @@ class AlbumDownload < ApplicationRecord
     return 0 if total_entries.zero?
 
     ((processed_entries.to_f / total_entries) * 100).clamp(0, 100).round
-  end
-
-  def zip_file_path
-    path = self.class.zip_file_path_for(id)
-    path if path.file?
-  end
-
-  def self.zip_file_path_for(id)
-    AlbumZipExporter.export_directory.join("album-download-#{Integer(id)}.zip")
   end
 end

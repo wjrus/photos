@@ -18,13 +18,16 @@ class PrepareAlbumDownloadJobTest < ActiveJob::TestCase
     assert_predicate download, :ready?
     assert_equal 1, download.total_entries
     assert_equal 1, download.processed_entries
-    assert File.exist?(download.zip_path)
+    assert_nil download.zip_path
+    assert_predicate download.archive, :attached?
 
-    Zip::File.open(download.zip_path) do |zip|
-      assert_equal [ "0001-visible.png" ], zip.map(&:name)
+    download.archive.open do |file|
+      Zip::File.open(file.path) do |zip|
+        assert_equal [ "0001-visible.png" ], zip.map(&:name)
+      end
     end
   ensure
-    FileUtils.rm_f(download&.zip_path)
+    download&.archive&.purge
   end
 
   private
