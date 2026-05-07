@@ -19,7 +19,7 @@
       </div>
 
       <% if current_user&.owner? %>
-        <details class="group relative">
+        <details class="group relative" data-controller="menu">
           <summary class="cursor-pointer list-none rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white">
             New album
           </summary>

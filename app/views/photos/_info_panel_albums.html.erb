@@ -8,7 +8,7 @@
       <h2 class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Albums</h2>
 
       <% if current_user&.owner? %>
-        <details class="relative">
+        <details class="relative" data-controller="menu">
           <summary class="cursor-pointer list-none rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white">
             Add to album
           </summary>
