@@ -14,6 +14,7 @@ class PhotosController < ApplicationController
 
     @return_to = photo_return_path(@photo)
     @taggable_users = User.where.not(id: current_user.id).order(Arel.sql("LOWER(email) ASC")) if current_user&.owner?
+    @albums = current_user.photo_albums.display_order if current_user&.owner?
     @cover_context = photo_cover_context(@photo, @return_to) if current_user&.owner?
     queue_missing_video_display_derivative
     queue_missing_image_derivatives

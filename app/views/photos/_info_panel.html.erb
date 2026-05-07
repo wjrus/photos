@@ -27,7 +27,7 @@
 
   <% if privileged_metadata_viewer? %>
     <%= render "photos/info_panel_caption", photo: photo, return_to: return_to %>
-    <%= render "photos/info_panel_albums", photo: photo %>
+    <%= render "photos/info_panel_albums", photo: photo, albums: local_assigns[:albums], return_to: return_to %>
   <% end %>
 
   <% if privileged_metadata_viewer? || photo.tagged_users.any? %>

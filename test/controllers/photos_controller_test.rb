@@ -182,6 +182,65 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert PhotoAlbumMembership.exists?(photo: photo, photo_album: album)
   end
 
+  test "owner can see add to album controls in photo details" do
+    album = @owner.photo_albums.create!(title: "Trip", source: "manual")
+    photo = attached_photo(title: "Album candidate")
+
+    get photo_path(photo)
+
+    assert_response :success
+    assert_includes response.body, "Not in any albums."
+    assert_select "summary", text: "Add to album"
+    assert_select "form[action='#{photo_photo_album_memberships_path(photo)}']"
+    assert_select "option[value='#{album.id}']", text: "Trip"
+    assert_select "input[name='new_album_title'][placeholder='New album']"
+  end
+
+  test "owner can add a photo to an existing album from details" do
+    album = @owner.photo_albums.create!(title: "Trip", source: "manual")
+    photo = attached_photo(title: "Album candidate")
+
+    assert_difference "PhotoAlbumMembership.count", 1 do
+      post photo_photo_album_memberships_path(photo), params: {
+        album_id: album.id,
+        return_to: photo_path(photo)
+      }
+    end
+
+    assert_redirected_to photo_path(photo)
+    assert PhotoAlbumMembership.exists?(photo: photo, photo_album: album)
+  end
+
+  test "owner can create a new album from photo details" do
+    photo = attached_photo(title: "Album candidate")
+
+    assert_difference "PhotoAlbum.count", 1 do
+      assert_difference "PhotoAlbumMembership.count", 1 do
+        post photo_photo_album_memberships_path(photo), params: {
+          new_album_title: "Fresh album",
+          return_to: photo_path(photo)
+        }
+      end
+    end
+
+    album = @owner.photo_albums.find_by!(title: "Fresh album")
+    assert_redirected_to photo_path(photo)
+    assert PhotoAlbumMembership.exists?(photo: photo, photo_album: album)
+  end
+
+  test "non owner cannot add a photo to an album" do
+    album = @owner.photo_albums.create!(title: "Trip", source: "manual")
+    photo = attached_photo(title: "Album candidate")
+    delete sign_out_path
+    sign_in_as(users(:two))
+
+    assert_no_difference "PhotoAlbumMembership.count" do
+      post photo_photo_album_memberships_path(photo), params: { album_id: album.id }
+    end
+
+    assert_redirected_to root_path
+  end
+
   test "owner can restore an archived photo from detail" do
     photo = attached_photo(title: "Restore candidate")
     photo.archive!

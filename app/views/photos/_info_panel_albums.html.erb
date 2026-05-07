@@ -1,13 +1,64 @@
 <% albums = photo.photo_albums.visible_to(current_user).display_order %>
-<% if albums.any? %>
+<% owner_albums = local_assigns[:albums].presence || [] %>
+<% addable_albums = owner_albums.reject { |album| albums.any? { |current_album| current_album.id == album.id } } %>
+
+<% if albums.any? || current_user&.owner? %>
   <section class="border-b border-zinc-200 p-5">
-    <h2 class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Albums</h2>
-    <div class="mt-3 flex flex-wrap gap-2">
-      <% albums.each do |album| %>
-        <%= link_to album.title,
-              album_path(album),
-              class: "rounded-lg border border-zinc-200 bg-stone-50 px-3 py-2 text-xs font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+    <div class="flex items-center justify-between gap-3">
+      <h2 class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Albums</h2>
+
+      <% if current_user&.owner? %>
+        <details class="relative">
+          <summary class="cursor-pointer list-none rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white">
+            Add to album
+          </summary>
+          <div class="absolute right-0 z-20 mt-3 w-[min(78vw,320px)] rounded-lg border border-zinc-200 bg-white p-4 shadow-2xl">
+            <%= form_with url: photo_photo_album_memberships_path(photo), method: :post, class: "space-y-3" do %>
+              <%= hidden_field_tag :return_to, photo_path(photo) %>
+
+              <% if addable_albums.any? %>
+                <div>
+                  <label for="info_panel_album_id" class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Existing</label>
+                  <select id="info_panel_album_id"
+                          name="album_id"
+                          class="mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15">
+                    <option value="">Choose album</option>
+                    <% addable_albums.each do |album| %>
+                      <option value="<%= album.id %>"><%= album.title %></option>
+                    <% end %>
+                  </select>
+                </div>
+              <% end %>
+
+              <div>
+                <label for="info_panel_new_album_title" class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">New</label>
+                <input id="info_panel_new_album_title"
+                       name="new_album_title"
+                       type="text"
+                       placeholder="New album"
+                       class="mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15">
+              </div>
+
+              <button type="submit"
+                      class="w-full rounded-lg bg-zinc-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-teal-800">
+                Add
+              </button>
+            <% end %>
+          </div>
+        </details>
       <% end %>
     </div>
+
+    <% if albums.any? %>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <% albums.each do |album| %>
+          <%= link_to album.title,
+                album_path(album),
+                class: "rounded-lg border border-zinc-200 bg-stone-50 px-3 py-2 text-xs font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+        <% end %>
+      </div>
+    <% else %>
+      <p class="mt-3 text-sm text-zinc-500">Not in any albums.</p>
+    <% end %>
   </section>
 <% end %>

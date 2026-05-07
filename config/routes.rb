@@ -58,6 +58,7 @@ Rails.application.routes.draw do
     patch :archive, on: :member
     patch :restore, on: :member
     post :retry_archive, on: :member
+    resources :photo_album_memberships, only: :create, shallow: true
     resources :photo_people_tags, only: :create
   end
   resources :photo_people_tags, only: :destroy
