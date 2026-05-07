@@ -33,6 +33,7 @@ async function loadStreamPage(sentinel, loadingLabel, position) {
 
     sentinel.insertAdjacentHTML(position, html)
     sentinel.remove()
+    document.dispatchEvent(new CustomEvent("photos:stream-page-loaded"))
     return true
   } finally {
     clearTimeout(timeout)

@@ -10,11 +10,13 @@ export default class extends Controller {
     this.loadingUrl = null
     this.updateActiveItem = this.updateActiveItem.bind(this)
     window.addEventListener("scroll", this.updateActiveItem, { passive: true })
+    document.addEventListener("photos:stream-page-loaded", this.updateActiveItem)
     this.updateActiveItem()
   }
 
   disconnect() {
     window.removeEventListener("scroll", this.updateActiveItem)
+    document.removeEventListener("photos:stream-page-loaded", this.updateActiveItem)
     this.abortController?.abort()
   }
 
@@ -79,7 +81,7 @@ export default class extends Controller {
     group?.scrollIntoView({ block: "start", behavior: "smooth" })
     this.setActivePeriod(periodKey)
     this.moveThumbToPeriod(periodKey)
-    this.showLabel(item)
+    this.showActiveLabel(periodKey)
   }
 
   nearestItem(clientY) {
@@ -110,7 +112,10 @@ export default class extends Controller {
 
   updateActiveItem() {
     const group = this.currentDateGroup()
-    if (!group) return
+    if (!group) {
+      if (!this.hovering && !this.dragging) this.hideLabel()
+      return
+    }
 
     const periodKey = group.dataset.streamDateGroupKey.slice(0, 7)
     const item = this.setActivePeriod(periodKey)
@@ -120,8 +125,15 @@ export default class extends Controller {
   }
 
   currentDateGroup() {
-    const groups = Array.from(document.querySelectorAll("[data-stream-date-group-key]"))
+    const groups = this.loadedDateGroups()
     return groups.find((group) => group.getBoundingClientRect().bottom > 120) || groups.at(-1)
+  }
+
+  loadedDateGroups() {
+    const loadedGroups = Array.from(document.querySelectorAll("[data-stream-date-group-key]:not([data-stream-virtualized='true'])"))
+    if (loadedGroups.length > 0) return loadedGroups
+
+    return Array.from(document.querySelectorAll("[data-stream-date-group-key]"))
   }
 
   findPeriodGroup(periodKey) {
@@ -151,6 +163,7 @@ export default class extends Controller {
       if (!response.ok) throw new Error(`Timeline jump failed with ${response.status}`)
 
       container.innerHTML = streamPageHtml(await response.text())
+      document.dispatchEvent(new CustomEvent("photos:stream-page-loaded"))
     } catch (error) {
       if (error.name !== "AbortError") {
         console.error(error)
@@ -184,6 +197,11 @@ export default class extends Controller {
   moveThumbToPeriod(periodKey) {
     const item = this.itemTargets.find((target) => target.dataset.streamTimelinePeriodKeyValue === periodKey)
     if (item) this.moveThumbToItem(item)
+  }
+
+  showActiveLabel(periodKey) {
+    const item = this.itemTargets.find((target) => target.dataset.streamTimelinePeriodKeyValue === periodKey)
+    if (item) this.showLabel(item)
   }
 
   moveThumbToItem(item) {
