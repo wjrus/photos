@@ -56,6 +56,23 @@ class PhotoBulkActionsControllerTest < ActionDispatch::IntegrationTest
     assert_includes album.reload.photos, photo
   end
 
+  test "bulk add to album from another album returns to selected photo in current album" do
+    current_album = @owner.photo_albums.create!(title: "Current", source: "manual")
+    target_album = @owner.photo_albums.create!(title: "Target", source: "manual")
+    photo = attached_photo(title: "Cross album add")
+    current_album.photos << photo
+
+    post photo_bulk_actions_path, params: {
+      bulk_action: "add_to_album",
+      album_id: target_album.id,
+      photo_ids: [ photo.id ],
+      return_to: album_path(current_album)
+    }
+
+    assert_redirected_to album_path(current_album, photo_id: photo.id)
+    assert_includes target_album.reload.photos, photo
+  end
+
   test "owner can add selected photos to a new album" do
     photo = attached_photo(title: "New album photo")
 
