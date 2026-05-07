@@ -1,16 +1,16 @@
 export async function appendNextStreamPage(sentinel, loadingLabel = "Loading...") {
-  return loadStreamPage(sentinel, loadingLabel, "beforebegin")
+  return loadStreamPage(sentinel, loadingLabel, "append")
 }
 
 export async function prependPreviousStreamPage(sentinel, loadingLabel = "Loading...") {
   const previousHeight = document.documentElement.scrollHeight
-  const loaded = await loadStreamPage(sentinel, loadingLabel, "afterend")
+  const loaded = await loadStreamPage(sentinel, loadingLabel, "prepend")
   const heightDelta = document.documentElement.scrollHeight - previousHeight
   if (heightDelta > 0) window.scrollBy(0, heightDelta)
   return loaded
 }
 
-async function loadStreamPage(sentinel, loadingLabel, position) {
+async function loadStreamPage(sentinel, loadingLabel, direction) {
   const url = sentinel?.dataset.nextUrl
   if (!url) return false
 
@@ -31,7 +31,7 @@ async function loadStreamPage(sentinel, loadingLabel, position) {
       return false
     }
 
-    sentinel.insertAdjacentHTML(position, html)
+    insertStreamPage(sentinel, html, direction)
     sentinel.remove()
     document.dispatchEvent(new CustomEvent("photos:stream-page-loaded"))
     return true
@@ -43,4 +43,82 @@ async function loadStreamPage(sentinel, loadingLabel, position) {
 export function streamPageHtml(html) {
   const document = new DOMParser().parseFromString(html, "text/html")
   return document.querySelector("[data-stream-page-container]")?.innerHTML || html
+}
+
+function insertStreamPage(sentinel, html, direction) {
+  const template = document.createElement("template")
+  template.innerHTML = html
+  const fragment = template.content
+
+  if (direction === "prepend") {
+    sentinel.after(fragment)
+    mergeAdjacentDayGroup(sentinel.nextElementSibling, "prepend")
+  } else {
+    sentinel.before(fragment)
+    mergeAdjacentDayGroup(sentinel.previousElementSibling, "append")
+  }
+}
+
+function mergeAdjacentDayGroup(insertedEdge, direction) {
+  const insertedGroup = edgeDayGroup(insertedEdge, direction)
+  if (!insertedGroup) return
+
+  const neighborGroup = direction === "prepend"
+    ? nextDayGroupAfter(insertedGroup)
+    : previousDayGroupBefore(insertedGroup)
+
+  if (!neighborGroup || neighborGroup.dataset.streamDateGroupKey !== insertedGroup.dataset.streamDateGroupKey) return
+
+  if (direction === "prepend") {
+    prependCards(neighborGroup, insertedGroup)
+  } else {
+    appendCards(neighborGroup, insertedGroup)
+  }
+
+  insertedGroup.remove()
+}
+
+function edgeDayGroup(element, direction) {
+  const groups = dayGroupsFrom(element)
+  return direction === "prepend" ? groups.at(-1) : groups[0]
+}
+
+function dayGroupsFrom(element) {
+  if (!element) return []
+  if (element.matches?.("[data-stream-date-group-key]")) return [element]
+  return Array.from(element.querySelectorAll?.("[data-stream-date-group-key]") || [])
+}
+
+function previousDayGroupBefore(group) {
+  let element = group.previousElementSibling
+  while (element) {
+    const groups = dayGroupsFrom(element)
+    if (groups.length > 0) return groups.at(-1)
+    element = element.previousElementSibling
+  }
+}
+
+function nextDayGroupAfter(group) {
+  let element = group.nextElementSibling
+  while (element) {
+    const groups = dayGroupsFrom(element)
+    if (groups.length > 0) return groups[0]
+    element = element.nextElementSibling
+  }
+}
+
+function appendCards(targetGroup, sourceGroup) {
+  const targetGrid = targetGroup.querySelector(".photo-day-group-grid")
+  const sourceGrid = sourceGroup.querySelector(".photo-day-group-grid")
+  if (!targetGrid || !sourceGrid) return
+
+  targetGrid.append(...sourceGrid.children)
+}
+
+function prependCards(targetGroup, sourceGroup) {
+  const targetGrid = targetGroup.querySelector(".photo-day-group-grid")
+  const sourceGrid = sourceGroup.querySelector(".photo-day-group-grid")
+  if (!targetGrid || !sourceGrid) return
+
+  targetGrid.prepend(...sourceGrid.children)
 }
