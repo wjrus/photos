@@ -56,7 +56,7 @@ class PhotoBulkActionsController < ApplicationController
       return redirect_to safe_return_path, alert: "Choose an album or name a new one." unless album
 
       added = add_photos_to_album(photos, album)
-      redirect_to safe_return_path, notice: "Added #{added} #{'photo'.pluralize(added)} to #{album.title}."
+      redirect_to bulk_return_path(photos), notice: "Added #{added} #{'photo'.pluralize(added)} to #{album.title}."
     else
       redirect_to safe_return_path, alert: "Choose an action."
     end

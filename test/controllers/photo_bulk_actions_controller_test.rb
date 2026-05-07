@@ -41,6 +41,21 @@ class PhotoBulkActionsControllerTest < ActionDispatch::IntegrationTest
     assert_includes album.reload.photos, photo
   end
 
+  test "bulk add to album from stream returns to selected photo" do
+    album = @owner.photo_albums.create!(title: "Existing", source: "manual")
+    photo = attached_photo(title: "For album")
+
+    post photo_bulk_actions_path, params: {
+      bulk_action: "add_to_album",
+      album_id: album.id,
+      photo_ids: [ photo.id ],
+      return_to: root_path
+    }
+
+    assert_redirected_to root_path(photo_id: photo.id)
+    assert_includes album.reload.photos, photo
+  end
+
   test "owner can add selected photos to a new album" do
     photo = attached_photo(title: "New album photo")
 
@@ -52,6 +67,21 @@ class PhotoBulkActionsControllerTest < ActionDispatch::IntegrationTest
 
     album = PhotoAlbum.find_by!(title: "New York")
     assert_redirected_to root_path
+    assert_includes album.photos, photo
+  end
+
+  test "bulk add to new album from stream returns to selected photo" do
+    photo = attached_photo(title: "New album photo")
+
+    post photo_bulk_actions_path, params: {
+      bulk_action: "add_to_album",
+      new_album_title: "New York",
+      photo_ids: [ photo.id ],
+      return_to: root_path
+    }
+
+    album = PhotoAlbum.find_by!(title: "New York")
+    assert_redirected_to root_path(photo_id: photo.id)
     assert_includes album.photos, photo
   end
 
