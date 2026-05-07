@@ -107,6 +107,29 @@ class PhotoBulkActionsControllerTest < ActionDispatch::IntegrationTest
     assert_nil album.cover_photo
   end
 
+  test "bulk remove from album returns near album stream position" do
+    album = @owner.photo_albums.create!(title: "Trip", source: "manual")
+    first = attached_photo(title: "Album remove first")
+    second = attached_photo(title: "Album remove second")
+    anchor = attached_photo(title: "Album remove anchor")
+    album.photos << [ first, second, anchor ]
+    set_stream_time(first, 3.days.ago)
+    set_stream_time(second, 2.days.ago)
+    set_stream_time(anchor, 1.day.ago)
+
+    post photo_bulk_actions_path, params: {
+      bulk_action: "remove_from_album",
+      context_album_id: album.id,
+      photo_ids: [ first.id, second.id ],
+      return_to: album_path(album)
+    }
+
+    assert_redirected_to album_path(album, photo_id: anchor.id)
+    assert_includes album.reload.photos, anchor
+    refute_includes album.photos, first
+    refute_includes album.photos, second
+  end
+
   test "owner can set selected photo as the current album cover" do
     album = @owner.photo_albums.create!(title: "Trip", source: "manual")
     photo = attached_photo(title: "New cover")
@@ -119,7 +142,23 @@ class PhotoBulkActionsControllerTest < ActionDispatch::IntegrationTest
       return_to: album_path(album)
     }
 
-    assert_redirected_to album_path(album)
+    assert_redirected_to album_path(album, photo_id: photo.id)
+    assert_equal photo, album.reload.cover_photo
+  end
+
+  test "bulk set album cover returns to selected photo in album stream" do
+    album = @owner.photo_albums.create!(title: "Trip", source: "manual")
+    photo = attached_photo(title: "Focused cover")
+    album.photos << photo
+
+    post photo_bulk_actions_path, params: {
+      bulk_action: "set_album_cover",
+      context_album_id: album.id,
+      photo_ids: [ photo.id ],
+      return_to: album_path(album)
+    }
+
+    assert_redirected_to album_path(album, photo_id: photo.id)
     assert_equal photo, album.reload.cover_photo
   end
 
@@ -207,6 +246,54 @@ class PhotoBulkActionsControllerTest < ActionDispatch::IntegrationTest
     assert_predicate photo.reload, :public?
   end
 
+  test "bulk publish preserves search stream context" do
+    photo = attached_photo(title: "Florida beach")
+
+    post photo_bulk_actions_path, params: {
+      bulk_action: "publish",
+      photo_ids: [ photo.id ],
+      return_to: search_path(q: "florida", cursor: "old", stream_page: 1)
+    }
+
+    assert_redirected_to search_path(q: "florida", photo_id: photo.id)
+    assert_predicate photo.reload, :public?
+  end
+
+  test "bulk archive preserves search stream context after selected photos disappear" do
+    first = attached_photo(title: "Florida first")
+    second = attached_photo(title: "Florida second")
+    anchor = attached_photo(title: "Florida anchor")
+    set_stream_time(first, 3.days.ago)
+    set_stream_time(second, 2.days.ago)
+    set_stream_time(anchor, 1.day.ago)
+
+    post photo_bulk_actions_path, params: {
+      bulk_action: "archive",
+      photo_ids: [ first.id, second.id ],
+      return_to: search_path(q: "florida")
+    }
+
+    assert_redirected_to search_path(q: "florida", photo_id: anchor.id)
+    assert_predicate first.reload, :archived?
+    assert_predicate second.reload, :archived?
+    assert_not anchor.reload.archived?
+  end
+
+  test "bulk publish preserves location stream context" do
+    photo = attached_photo(title: "Location publish")
+    PhotoMetadata.create!(photo: photo, latitude: 44.75, longitude: -85.60)
+    location_id = PhotoLocation.id_for_coordinates(44.75, -85.60)
+
+    post photo_bulk_actions_path, params: {
+      bulk_action: "publish",
+      photo_ids: [ photo.id ],
+      return_to: location_path(location_id)
+    }
+
+    assert_redirected_to location_path(location_id, photo_id: photo.id)
+    assert_predicate photo.reload, :public?
+  end
+
   test "owner can move selected photos to restricted private" do
     first = attached_photo(title: "Restrict first")
     second = attached_photo(title: "Restrict second")
@@ -222,6 +309,65 @@ class PhotoBulkActionsControllerTest < ActionDispatch::IntegrationTest
     assert_predicate second.reload, :restricted?
     assert_predicate second, :private?
     assert_not second.archived?
+  end
+
+  test "bulk restrict returns near album stream position after selected photos disappear" do
+    album = @owner.photo_albums.create!(title: "Trip", source: "manual")
+    first = attached_photo(title: "Restrict album first")
+    anchor = attached_photo(title: "Restrict album anchor")
+    album.photos << [ first, anchor ]
+    set_stream_time(first, 2.days.ago)
+    set_stream_time(anchor, 1.day.ago)
+
+    post photo_bulk_actions_path, params: {
+      bulk_action: "restrict",
+      photo_ids: [ first.id ],
+      return_to: album_path(album)
+    }
+
+    assert_redirected_to album_path(album, photo_id: anchor.id)
+    assert_predicate first.reload, :restricted?
+    assert_not anchor.reload.restricted?
+  end
+
+  test "bulk restore returns near archived stream position" do
+    first = attached_photo(title: "Restore first")
+    second = attached_photo(title: "Restore second")
+    anchor = attached_photo(title: "Restore anchor")
+    [ first, second, anchor ].each(&:archive!)
+    set_stream_time(first, 3.days.ago)
+    set_stream_time(second, 2.days.ago)
+    set_stream_time(anchor, 1.day.ago)
+
+    post photo_bulk_actions_path, params: {
+      bulk_action: "restore",
+      photo_ids: [ first.id, second.id ],
+      return_to: archived_photos_path
+    }
+
+    assert_redirected_to archived_photos_path(photo_id: anchor.id)
+    assert_not first.reload.archived?
+    assert_not second.reload.archived?
+    assert_predicate anchor.reload, :archived?
+  end
+
+  test "bulk delete can remove archived photos and returns near archive stream position" do
+    first = attached_photo(title: "Delete archived first")
+    anchor = attached_photo(title: "Delete archived anchor")
+    [ first, anchor ].each(&:archive!)
+    set_stream_time(first, 2.days.ago)
+    set_stream_time(anchor, 1.day.ago)
+
+    assert_difference "Photo.count", -1 do
+      post photo_bulk_actions_path, params: {
+        bulk_action: "delete",
+        photo_ids: [ first.id ],
+        return_to: archived_photos_path
+      }
+    end
+
+    assert_redirected_to archived_photos_path(photo_id: anchor.id)
+    assert_equal anchor, Photo.find(anchor.id)
   end
 
   test "bulk archive ignores restricted photos" do
@@ -271,5 +417,9 @@ class PhotoBulkActionsControllerTest < ActionDispatch::IntegrationTest
     )
     photo.save!
     photo
+  end
+
+  def set_stream_time(photo, time)
+    photo.update_columns(captured_at: time, created_at: time, updated_at: time)
   end
 end
