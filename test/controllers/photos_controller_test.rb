@@ -534,6 +534,67 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, %(data-stream-navigation-next-url-value="#{photo_path(older)}")
   end
 
+  test "album detail navigation stays inside the album stream" do
+    album = @owner.photo_albums.create!(title: "Scoped Album", source: "manual")
+    album_newer = attached_photo(title: "Album newer")
+    outside = attached_photo(title: "Outside album")
+    photo = attached_photo(title: "Album current")
+    album_older = attached_photo(title: "Album older")
+    album.photos << [ album_newer, photo, album_older ]
+    album_newer.update_columns(created_at: Time.zone.local(2026, 1, 4), updated_at: Time.zone.local(2026, 1, 4))
+    outside.update_columns(created_at: Time.zone.local(2026, 1, 3), updated_at: Time.zone.local(2026, 1, 3))
+    photo.update_columns(created_at: Time.zone.local(2026, 1, 2), updated_at: Time.zone.local(2026, 1, 2))
+    album_older.update_columns(created_at: Time.zone.local(2026, 1, 1), updated_at: Time.zone.local(2026, 1, 1))
+
+    get photo_path(photo, return_to: album_path(album))
+    assert_redirected_to photo_path(photo)
+    follow_redirect!
+
+    assert_response :success
+    assert_select "a[href='#{photo_path(album_newer)}'][aria-label='Previous item in stream']"
+    assert_select "a[href='#{photo_path(album_older)}'][aria-label='Next item in stream']"
+    assert_includes response.body, %(data-stream-navigation-previous-url-value="#{photo_path(album_newer)}")
+    assert_includes response.body, %(data-stream-navigation-next-url-value="#{photo_path(album_older)}")
+    refute_includes response.body, photo_path(outside)
+  end
+
+  test "location detail navigation stays inside the location stream" do
+    location_newer = attached_photo(title: "Location newer")
+    outside = attached_photo(title: "Outside location stream")
+    photo = attached_photo(title: "Location current")
+    location_older = attached_photo(title: "Location older")
+    [ location_newer, photo, location_older ].each do |candidate|
+      candidate.create_metadata!(
+        extraction_status: "complete",
+        latitude: 44.7622,
+        longitude: -85.5980,
+        raw: {}
+      )
+    end
+    outside.create_metadata!(
+      extraction_status: "complete",
+      latitude: 45.5,
+      longitude: -86.5,
+      raw: {}
+    )
+    location_id = PhotoLocation.id_for_coordinates(44.7622, -85.5980)
+    location_newer.update_columns(created_at: Time.zone.local(2026, 1, 4), updated_at: Time.zone.local(2026, 1, 4))
+    outside.update_columns(created_at: Time.zone.local(2026, 1, 3), updated_at: Time.zone.local(2026, 1, 3))
+    photo.update_columns(created_at: Time.zone.local(2026, 1, 2), updated_at: Time.zone.local(2026, 1, 2))
+    location_older.update_columns(created_at: Time.zone.local(2026, 1, 1), updated_at: Time.zone.local(2026, 1, 1))
+
+    get photo_path(photo, return_to: location_path(location_id))
+    assert_redirected_to photo_path(photo)
+    follow_redirect!
+
+    assert_response :success
+    assert_select "a[href='#{photo_path(location_newer)}'][aria-label='Previous item in stream']"
+    assert_select "a[href='#{photo_path(location_older)}'][aria-label='Next item in stream']"
+    assert_includes response.body, %(data-stream-navigation-previous-url-value="#{photo_path(location_newer)}")
+    assert_includes response.body, %(data-stream-navigation-next-url-value="#{photo_path(location_older)}")
+    refute_includes response.body, photo_path(outside)
+  end
+
   test "archive detail view uses archived stream neighbors" do
     newer = attached_photo(title: "Archived newer")
     photo = attached_photo(title: "Archived current")

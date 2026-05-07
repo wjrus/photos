@@ -159,13 +159,14 @@ class PhotosController < ApplicationController
   end
 
   def navigation_stream
-    return current_user.photos.restricted.stream_order if restricted_return_path?
-    return current_user.photos.archived.stream_order if archived_return_path?
+    return_context_stream || Photo.visible_to(current_user).stream_order
+  end
 
-    album = return_to_album
-    return album.photos.visible_to(current_user).stream_order if album
-
-    Photo.visible_to(current_user).stream_order
+  def return_context_stream
+    uri = URI.parse(safe_return_path)
+    photo_stream_return_scope(uri)
+  rescue URI::InvalidURIError
+    nil
   end
 
   def visible_photo_scope
@@ -184,18 +185,11 @@ class PhotosController < ApplicationController
   end
 
   def restricted_return_path?
-    current_user&.owner? && restricted_photos_unlocked? && safe_return_path == restricted_photos_path
+    current_user&.owner? && restricted_photos_unlocked? && return_path_path(safe_return_path) == restricted_photos_path
   end
 
   def archived_return_path?
-    current_user&.owner? && safe_return_path == archived_photos_path
-  end
-
-  def return_to_album
-    match = safe_return_path.match(%r{\A/albums/(\d+)\z})
-    return unless match
-
-    PhotoAlbum.visible_to(current_user).find_by(id: match[1])
+    current_user&.owner? && return_path_path(safe_return_path) == archived_photos_path
   end
 
   def public_filename(photo, extension)
