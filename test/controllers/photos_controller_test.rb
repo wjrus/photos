@@ -386,6 +386,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_select "main.photo-viewer-shell.overflow-hidden"
     assert_select "button[aria-label='Show photo information'][data-action='info-panel#toggle']"
     assert_select "button[aria-label='Close photo information'][data-action='info-panel#close']"
+    assert_select "[data-info-panel-target='backdrop']", false
     assert_select "aside#photo-info-panel.translate-x-full"
     assert_includes response.body, "Fuji X100"
     assert_includes response.body, "3,024 x 4,032"
@@ -714,6 +715,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "main.photo-viewer-shell[data-info-panel-target='viewer']"
     assert_select "aside#photo-info-panel[data-info-panel-target='panel']"
+    assert_select "[data-info-panel-shiftable]", minimum: 1
   end
 
   test "trusted signed-in viewer sees public photo location without archive access" do

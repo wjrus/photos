@@ -228,6 +228,14 @@ body.photo-detail-page {
   .photo-viewer-shell.info-panel-open {
     padding-right: calc(390px + 1.5rem);
   }
+
+  .photo-viewer-shell.info-panel-open [data-info-panel-shiftable] {
+    transform: translateX(-390px);
+  }
+
+  .photo-viewer-shell.info-panel-open nav[data-info-panel-shiftable] {
+    transform: translateX(-390px) translateY(-50%);
+  }
 }
 
 @media (min-width: 1024px) {
