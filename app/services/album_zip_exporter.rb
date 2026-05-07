@@ -5,17 +5,18 @@ class AlbumZipExporter
 
   attr_reader :filename
 
-  def initialize(album:, photos:, progress: nil)
+  def initialize(album:, photos:, progress: nil, zip_path: nil)
     @album = album
     @photos = photos
     @progress = progress
+    @zip_path = zip_path
     @filename = "#{safe_album_name}-album.zip"
   end
 
   def export
     cleanup_stale_files
 
-    zip_path = export_directory.join("#{SecureRandom.hex(16)}.zip")
+    zip_path = @zip_path || self.class.export_directory.join("#{SecureRandom.hex(16)}.zip")
 
     Zip::File.open(zip_path.to_s, create: true) do |zip|
       @photos.each.with_index(1) do |photo, index|
@@ -31,16 +32,16 @@ class AlbumZipExporter
     zip_path
   end
 
-  private
-
-  def export_directory
+  def self.export_directory
     Rails.root.join("tmp", "album-downloads").tap { |directory| FileUtils.mkdir_p(directory) }
   end
+
+  private
 
   def cleanup_stale_files
     cutoff = MAX_STALE_AGE.ago
 
-    export_directory.glob("*.zip").each do |path|
+    self.class.export_directory.glob("*.zip").each do |path|
       FileUtils.rm_f(path) if path.mtime < cutoff
     rescue Errno::ENOENT
       next

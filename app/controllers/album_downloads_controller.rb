@@ -20,12 +20,14 @@ class AlbumDownloadsController < ApplicationController
   end
 
   def file
-    unless @album_download.ready? && @album_download.zip_path.present? && File.exist?(@album_download.zip_path)
+    zip_file_path = AlbumDownload.zip_file_path_for(@album_download.id)
+
+    unless @album_download.ready? && zip_file_path.file?
       redirect_to album_path(@album_download.photo_album), alert: "Album ZIP is not ready yet."
       return
     end
 
-    send_file @album_download.zip_path,
+    send_file zip_file_path.to_s,
       type: "application/zip",
       disposition: "attachment",
       filename: @album_download.filename

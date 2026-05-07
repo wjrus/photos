@@ -1,0 +1,10 @@
+{
+  "ignored_warnings": [
+    {
+      "fingerprint": "a1bc62157af36e05aa05a387c287be4cbb11c05afdc0caff483746bfa6aafab6",
+      "note": "Album ZIP paths are server-generated from the authenticated AlbumDownload id and constrained to tmp/album-downloads; filenames are only response attachment names."
+    }
+  ],
+  "updated": "2026-05-07 01:31:00 +0000",
+  "brakeman_version": "8.0.4"
+}

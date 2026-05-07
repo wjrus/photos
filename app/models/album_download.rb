@@ -29,4 +29,13 @@ class AlbumDownload < ApplicationRecord
 
     ((processed_entries.to_f / total_entries) * 100).clamp(0, 100).round
   end
+
+  def zip_file_path
+    path = self.class.zip_file_path_for(id)
+    path if path.file?
+  end
+
+  def self.zip_file_path_for(id)
+    AlbumZipExporter.export_directory.join("album-download-#{Integer(id)}.zip")
+  end
 end

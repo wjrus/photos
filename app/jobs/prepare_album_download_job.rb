@@ -15,7 +15,8 @@ class PrepareAlbumDownloadJob < ApplicationJob
     exporter = AlbumZipExporter.new(
       album: album_download.photo_album,
       photos: photos,
-      progress: ->(processed_entries) { album_download.update!(processed_entries: processed_entries) }
+      progress: ->(processed_entries) { album_download.update!(processed_entries: processed_entries) },
+      zip_path: AlbumDownload.zip_file_path_for(album_download.id)
     )
 
     zip_path = exporter.export
