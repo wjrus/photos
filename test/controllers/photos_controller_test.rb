@@ -271,6 +271,26 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_raises(ActiveRecord::RecordNotFound) { photo.reload }
   end
 
+  test "owner can destroy a photo referenced by google takeout imports" do
+    photo = attached_photo
+    import = GoogleTakeoutImport.create!(
+      zip_path: "/imports/takeout.zip",
+      entry_name: "Takeout/Google Photos/fixture.png",
+      original_filename: "fixture.png",
+      status: "imported",
+      photo: photo
+    )
+
+    assert_difference "Photo.count", -1 do
+      assert_no_difference "GoogleTakeoutImport.count" do
+        delete photo_path(photo)
+      end
+    end
+
+    assert_redirected_to root_path
+    assert_nil import.reload.photo_id
+  end
+
   test "non owner cannot destroy a photo" do
     photo = attached_photo
     delete sign_out_path

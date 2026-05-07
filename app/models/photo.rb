@@ -26,6 +26,7 @@ class Photo < ApplicationRecord
   has_many :photo_albums, through: :photo_album_memberships
   has_many :photo_location_covers, foreign_key: :cover_photo_id, dependent: :destroy, inverse_of: :cover_photo
   has_many :photo_people_tags, dependent: :destroy
+  has_many :google_takeout_imports, dependent: :nullify, inverse_of: :photo
   has_many :tagged_users, through: :photo_people_tags, source: :user
   has_one_attached :original do |attachable|
     attachable.variant :stream, resize_to_fill: [ 700, 700 ], format: :jpg, saver: { strip: true, quality: 72 }

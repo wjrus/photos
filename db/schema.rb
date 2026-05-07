@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_07_133000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_07_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -279,7 +279,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_07_133000) do
   add_foreign_key "album_downloads", "users"
   add_foreign_key "drive_archive_objects", "photos"
   add_foreign_key "google_takeout_import_runs", "users", column: "owner_id"
-  add_foreign_key "google_takeout_imports", "photos"
+  add_foreign_key "google_takeout_imports", "photos", on_delete: :nullify
   add_foreign_key "photo_album_memberships", "photo_albums"
   add_foreign_key "photo_album_memberships", "photos"
   add_foreign_key "photo_albums", "photos", column: "cover_photo_id"
