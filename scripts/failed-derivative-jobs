@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+LIMIT="${1:-50}"
+SERVICE="${2:-web}"
+
+if [[ "$LIMIT" == "-h" || "$LIMIT" == "--help" ]]; then
+  cat <<'USAGE'
+Usage:
+  ./scripts/failed-derivative-jobs [limit] [service]
+
+Examples:
+  ./scripts/failed-derivative-jobs
+  ./scripts/failed-derivative-jobs 200
+
+Prints the newest failed GeneratePhotoDerivativesJob executions with their
+Photo id, filename, blob size, checksum, and the top-level failure message.
+USAGE
+  exit 0
+fi
+
+docker compose exec -T -e FAILED_DERIVATIVE_LIMIT="$LIMIT" "$SERVICE" bin/rails runner "$(cat <<'RUBY'
+require "json"
+
+limit = Integer(ENV.fetch("FAILED_DERIVATIVE_LIMIT", 50))
+
+def normalize_payload(value)
+  value = JSON.parse(value) if value.is_a?(String)
+  value.respond_to?(:deep_stringify_keys) ? value.deep_stringify_keys : value
+rescue JSON::ParserError
+  {}
+end
+
+def find_photo_gid(value)
+  case value
+  when Hash
+    direct_gid = value["_aj_globalid"].to_s
+    return direct_gid if direct_gid.match?(%r{\Agid://.*/Photo/\d+\z})
+
+    value.each_value do |child|
+      found = find_photo_gid(child)
+      return found if found
+    end
+  when Array
+    value.each do |child|
+      found = find_photo_gid(child)
+      return found if found
+    end
+  when String
+    return value if value.match?(%r{\Agid://.*/Photo/\d+\z})
+  end
+
+  nil
+end
+
+def photo_id_for(job)
+  find_photo_gid(normalize_payload(job.arguments)).to_s[%r{Photo/(\d+)}, 1]
+end
+
+def error_payload(failed_execution)
+  payload = normalize_payload(failed_execution.error)
+  payload.is_a?(Hash) ? payload : { "message" => failed_execution.error.to_s }
+end
+
+failed_jobs = SolidQueue::FailedExecution
+  .joins(:job)
+  .where(solid_queue_jobs: { class_name: "GeneratePhotoDerivativesJob" })
+  .includes(:job)
+  .order(created_at: :desc)
+  .limit(limit)
+
+if failed_jobs.none?
+  puts "No failed GeneratePhotoDerivativesJob executions found."
+  exit
+end
+
+failed_jobs.each do |failed|
+  job = failed.job
+  photo_id = photo_id_for(job)
+  photo = Photo.includes(original_attachment: :blob).find_by(id: photo_id)
+  blob = photo&.original&.blob
+  error = error_payload(failed)
+  exception_class = error["exception_class"].presence || "Error"
+  message = error["message"].presence || failed.error.to_s.lines.first.to_s.strip
+
+  puts
+  puts "failed=#{failed.id} job=#{job.id} active_job=#{job.active_job_id} queue=#{job.queue_name}"
+  puts "photo=#{photo_id || 'unknown'} filename=#{photo&.original_filename || 'unknown'} content_type=#{photo&.content_type || 'unknown'}"
+  puts "blob_id=#{blob&.id || 'unknown'} bytes=#{blob&.byte_size || 'unknown'} checksum=#{blob&.checksum || 'unknown'} key=#{blob&.key || 'unknown'}"
+  puts "#{exception_class}: #{message}"
+end
+RUBY
+)"
