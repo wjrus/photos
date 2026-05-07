@@ -20,6 +20,11 @@
 
       <% if current_user&.owner? %>
         <div class="flex flex-wrap items-center gap-2">
+          <%= link_to "Download ZIP",
+                download_album_path(@album),
+                class: "rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white",
+                data: { turbo: false } %>
+
           <details class="relative">
             <summary class="cursor-pointer list-none rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white">
               Edit

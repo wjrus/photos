@@ -1,4 +1,5 @@
 require "test_helper"
+require "zip"
 
 class AlbumsControllerTest < ActionDispatch::IntegrationTest
   setup do
@@ -141,6 +142,44 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     assert_select "button", text: "Delete album"
     assert_select "form[action='#{album_path(album)}'][method='post'] input[name='_method'][value='delete']"
     assert_includes response.body, "The photos stay in your library."
+  end
+
+  test "owner sees album download action while viewing an album" do
+    album = @owner.photo_albums.create!(title: "Trip", source: "manual")
+
+    get album_path(album)
+
+    assert_response :success
+    assert_select "a[href='#{download_album_path(album)}']", text: "Download ZIP"
+  end
+
+  test "owner can download visible album originals as a zip" do
+    album = @owner.photo_albums.create!(title: "Trip Stuff!", source: "manual")
+    visible = attached_photo(title: "Visible Photo")
+    archived = attached_photo(title: "Archived Photo")
+    archived.archive!
+    album.photos << visible
+    album.photos << archived
+
+    get download_album_path(album)
+
+    assert_response :success
+    assert_equal "application/zip", response.media_type
+    assert_match(/attachment;.+trip-stuff-album\.zip/, response.headers["Content-Disposition"])
+
+    Zip::File.open_buffer(StringIO.new(response.body)) do |zip|
+      assert_equal [ "0001-visible-photo.png" ], zip.map(&:name)
+      assert_equal File.binread(Rails.root.join("public/icon.png")), zip.read("0001-visible-photo.png")
+    end
+  end
+
+  test "non owner cannot download an album zip" do
+    album = @owner.photo_albums.create!(title: "Trip", source: "manual")
+    delete sign_out_path
+
+    get download_album_path(album)
+
+    assert_redirected_to root_path
   end
 
   test "owner can delete an album without deleting photos" do

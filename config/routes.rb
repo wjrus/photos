@@ -37,6 +37,7 @@ Rails.application.routes.draw do
   resource :album_bulk_actions, only: :create
   resource :photo_bulk_actions, only: :create
   resources :albums, only: %i[index show create update destroy] do
+    get :download, on: :member
     patch :publish, on: :member
     patch :unpublish, on: :member
     resources :photo_album_memberships, only: :destroy, shallow: true

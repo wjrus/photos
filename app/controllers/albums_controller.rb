@@ -4,7 +4,7 @@ class AlbumsController < ApplicationController
 
   before_action :require_owner!, except: %i[index show]
   before_action :set_visible_album, only: %i[show]
-  before_action :set_album, only: %i[update publish unpublish destroy]
+  before_action :set_album, only: %i[download update publish unpublish destroy]
 
   def index
     @albums = PhotoAlbum.visible_to(current_user)
@@ -59,6 +59,18 @@ class AlbumsController < ApplicationController
     end
   end
 
+  def download
+    photos = @album.photos
+      .visible_to(current_user)
+      .with_attached_original
+      .stream_order
+
+    exporter = AlbumZipExporter.new(album: @album, photos: photos)
+    zip_path = exporter.export
+
+    send_zip_file(zip_path, exporter.filename)
+  end
+
   def publish
     @album.publish!
     redirect_to album_path(@album), notice: "Album published."
@@ -86,6 +98,22 @@ class AlbumsController < ApplicationController
 
   def set_album
     @album = current_user.photo_albums.find(params[:id])
+  end
+
+  def send_zip_file(zip_path, filename)
+    file = File.open(zip_path, "rb")
+
+    self.status = :ok
+    self.content_type = "application/zip"
+    response.headers["Content-Disposition"] = ActionDispatch::Http::ContentDisposition.format(
+      disposition: "attachment",
+      filename: filename
+    )
+    response.headers["Content-Length"] = File.size(zip_path).to_s
+    self.response_body = Rack::BodyProxy.new(file) do
+      file.close
+      FileUtils.rm_f(zip_path)
+    end
   end
 
   def visible_media_counts_for(albums)
