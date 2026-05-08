@@ -50,11 +50,11 @@ module PhotoStreamPagination
       next [] unless oldest_at && newest_at
 
       precision = stream_timeline_precision(oldest_at, newest_at)
-      period_sql = Arel.sql("DATE_TRUNC('#{precision}', photos.captured_at)")
+      period_sql = stream_timeline_period_sql(precision)
 
       timeline_scope
         .group(period_sql)
-        .order(Arel.sql("DATE_TRUNC('#{precision}', photos.captured_at) DESC"))
+        .order(stream_timeline_period_order_sql(precision))
         .count
         .map do |period, count|
           period = stream_timeline_period_start(period, precision)
@@ -120,6 +120,22 @@ module PhotoStreamPagination
     return "day" if span <= 45.days
 
     "month"
+  end
+
+  def stream_timeline_period_sql(precision)
+    case precision
+    when "hour" then Arel.sql("DATE_TRUNC('hour', photos.captured_at)")
+    when "day" then Arel.sql("DATE_TRUNC('day', photos.captured_at)")
+    else Arel.sql("DATE_TRUNC('month', photos.captured_at)")
+    end
+  end
+
+  def stream_timeline_period_order_sql(precision)
+    case precision
+    when "hour" then Arel.sql("DATE_TRUNC('hour', photos.captured_at) DESC")
+    when "day" then Arel.sql("DATE_TRUNC('day', photos.captured_at) DESC")
+    else Arel.sql("DATE_TRUNC('month', photos.captured_at) DESC")
+    end
   end
 
   def stream_timeline_period_start(period, precision)
