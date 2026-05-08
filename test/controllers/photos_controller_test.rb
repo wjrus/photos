@@ -866,7 +866,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_select "meta[property='og:title'][content='Lake picnic']"
     assert_select "meta[property='og:description'][content='A quiet afternoon.']"
     assert_select "meta[property='og:url'][content='http://www.example.com/photos/#{photo.id}']"
-    assert_select "meta[property='og:image'][content='http://www.example.com/photos/#{photo.id}/display']"
+    assert_select "meta[property='og:image'][content='http://www.example.com/photos/#{photo.id}/preview.jpg']"
     assert_select "meta[property='og:image:type'][content='image/jpeg']"
     assert_select "meta[property='og:image:width'][content='3024']"
     assert_select "meta[property='og:image:height'][content='4032']"

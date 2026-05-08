@@ -48,6 +48,7 @@ Rails.application.routes.draw do
   resources :album_downloads, only: %i[create show] do
     get :file, on: :member
   end
+  get "/photos/:photo_id/preview.jpg", to: "public_photo_images#show", as: :public_photo_image
   resources :upload_chunks, only: :create do
     post :status, on: :collection
     post :complete, on: :collection

@@ -21,7 +21,7 @@ module ApplicationHelper
   def photo_social_image_url(photo)
     absolute_url_options = { host: request.host_with_port, protocol: request.protocol }
 
-    display_photo_url(photo, **absolute_url_options)
+    public_photo_image_url(photo, **absolute_url_options)
   end
 
   def photo_social_image_type(photo)
