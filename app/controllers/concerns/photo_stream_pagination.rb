@@ -150,7 +150,7 @@ module PhotoStreamPagination
 
   def stream_timeline_next_period(period, precision)
     case precision
-    when "hour" then period.next_hour
+    when "hour" then period + 1.hour
     when "day" then period.next_day
     else period.next_month
     end
