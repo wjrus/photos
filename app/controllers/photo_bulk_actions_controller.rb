@@ -61,6 +61,26 @@ class PhotoBulkActionsController < ApplicationController
 
       added = add_photos_to_album(photos, album)
       redirect_to bulk_return_path(photos), notice: "Added #{added} #{'photo'.pluralize(added)} to #{album.title}."
+    when "set_location"
+      address = params[:location_address].to_s.squish
+      return redirect_to safe_return_path, alert: "Enter an address or place name." if address.blank?
+
+      image_photos = photos.select(&:image?)
+      return redirect_to safe_return_path, alert: "Select at least one image photo." if image_photos.empty?
+
+      result = LocationAddressGeocoder.new.geocode(address: address)
+      unless result&.fetch(:latitude, nil).present? && result&.fetch(:longitude, nil).present?
+        return redirect_to safe_return_path, alert: "Location not found."
+      end
+
+      image_photos.each do |photo|
+        PhotoManualLocationAssigner.assign!(photo: photo, address: address, result: result)
+      end
+
+      skipped_count = photos.size - image_photos.size
+      notice = "Set location for #{image_photos.size} #{'photo'.pluralize(image_photos.size)}."
+      notice = "#{notice} Skipped #{skipped_count} non-image #{'item'.pluralize(skipped_count)}." if skipped_count.positive?
+      redirect_to bulk_return_path(image_photos), notice: notice
     else
       redirect_to safe_return_path, alert: "Choose an action."
     end

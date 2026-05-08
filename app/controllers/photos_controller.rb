@@ -73,7 +73,7 @@ class PhotosController < ApplicationController
       return
     end
 
-    save_manual_location!(address, result)
+    PhotoManualLocationAssigner.assign!(photo: @photo, address: address, result: result)
     redirect_to photo_path(@photo), notice: "Location saved."
   end
 
@@ -229,42 +229,6 @@ class PhotosController < ApplicationController
 
   def active_upload_batch
     UploadBatch.active_for(current_user)
-  end
-
-  def save_manual_location!(address, result)
-    now = Time.current
-    metadata = PhotoMetadata.for_photo(@photo)
-    raw = metadata.raw.to_h.deep_dup
-    raw["manual_location"] = {
-      "address" => address,
-      "geocoded_name" => result.fetch(:name, nil),
-      "geocoded_at" => now.iso8601,
-      "source" => "owner"
-    }
-    raw["manual_location_geocode"] = result.fetch(:raw, {})
-
-    metadata.update!(
-      latitude: result.fetch(:latitude),
-      longitude: result.fetch(:longitude),
-      extraction_status: metadata.extraction_status.presence || "complete",
-      extracted_at: metadata.extracted_at || now,
-      raw: raw
-    )
-
-    PhotoLocationPlace.upsert(
-      {
-        location_id: PhotoLocation.id_for_coordinates(result.fetch(:latitude), result.fetch(:longitude)),
-        name: result.fetch(:name),
-        names: result.fetch(:names, [ result.fetch(:name) ]),
-        latitude: result.fetch(:latitude),
-        longitude: result.fetch(:longitude),
-        raw: result.fetch(:raw, {}).except(:key_fingerprint),
-        geocoded_at: now,
-        created_at: now,
-        updated_at: now
-      },
-      unique_by: :index_photo_location_places_on_location_id
-    )
   end
 
   def photo_return_path(photo)

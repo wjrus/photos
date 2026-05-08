@@ -707,6 +707,15 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-infinite-scroll-target='sentinel']"
   end
 
+  test "owner photo stream bulk toolbar includes set location action" do
+    get root_path
+
+    assert_response :success
+    assert_select "summary[aria-label='Set selected photo location']"
+    assert_select "input[name='location_address'][placeholder='Address or place']"
+    assert_select "button[name='bulk_action'][value='set_location']", text: "Set location"
+  end
+
   test "direct photo detail links back to a focused stream" do
     photo = attached_photo(title: "Direct link")
 

@@ -87,6 +87,90 @@ class PhotoBulkActionsControllerTest < ActionDispatch::IntegrationTest
     assert_includes album.photos, photo
   end
 
+  test "owner can bulk set image photo location" do
+    first = attached_photo(title: "Location first")
+    second = attached_photo(title: "Location second")
+    first.create_metadata!(extraction_status: "complete", raw: { "camera" => "kept" })
+    geocoder = stub_address_geocoder(
+      latitude: BigDecimal("44.760800"),
+      longitude: BigDecimal("-85.622800"),
+      name: "Traverse City, MI, USA",
+      names: [ "Traverse City, MI, USA", "Traverse City", "Michigan", "United States" ],
+      raw: { "place_id" => "tc123" }
+    )
+
+    LocationAddressGeocoder.stub(:new, geocoder) do
+      post photo_bulk_actions_path, params: {
+        bulk_action: "set_location",
+        location_address: "Traverse City, MI",
+        photo_ids: [ first.id, second.id ],
+        return_to: root_path
+      }
+    end
+
+    assert_redirected_to root_path(photo_id: first.id)
+    assert_equal "Set location for 2 photos.", flash[:notice]
+    [ first, second ].each do |photo|
+      metadata = photo.reload.metadata
+      assert_equal BigDecimal("44.760800"), metadata.latitude
+      assert_equal BigDecimal("-85.622800"), metadata.longitude
+      assert_equal "Traverse City, MI", metadata.raw.dig("manual_location", "address")
+    end
+    assert_equal "kept", first.metadata.raw.dig("camera")
+    place = PhotoLocationPlace.find_by!(location_id: PhotoLocation.id_for_coordinates(44.760800, -85.622800))
+    assert_equal "Traverse City, MI, USA", place.name
+  end
+
+  test "bulk set location skips selected videos" do
+    image = attached_photo(title: "Location image")
+    video = attached_video(title: "Location video")
+    geocoder = stub_address_geocoder(
+      latitude: BigDecimal("44.760800"),
+      longitude: BigDecimal("-85.622800"),
+      name: "Traverse City, MI, USA",
+      names: [ "Traverse City, MI, USA" ],
+      raw: {}
+    )
+
+    LocationAddressGeocoder.stub(:new, geocoder) do
+      post photo_bulk_actions_path, params: {
+        bulk_action: "set_location",
+        location_address: "Traverse City, MI",
+        photo_ids: [ image.id, video.id ]
+      }
+    end
+
+    assert_redirected_to root_path
+    assert_equal "Set location for 1 photo. Skipped 1 non-image item.", flash[:notice]
+    assert_predicate image.reload.metadata, :location?
+    assert_nil video.reload.metadata
+  end
+
+  test "bulk set location requires an address and an image selection" do
+    image = attached_photo(title: "Needs address")
+
+    post photo_bulk_actions_path, params: {
+      bulk_action: "set_location",
+      location_address: "",
+      photo_ids: [ image.id ]
+    }
+
+    assert_redirected_to root_path
+    assert_equal "Enter an address or place name.", flash[:alert]
+    assert_nil image.reload.metadata
+
+    video = attached_video(title: "Only video")
+    post photo_bulk_actions_path, params: {
+      bulk_action: "set_location",
+      location_address: "Traverse City, MI",
+      photo_ids: [ video.id ]
+    }
+
+    assert_redirected_to root_path
+    assert_equal "Select at least one image photo.", flash[:alert]
+    assert_nil video.reload.metadata
+  end
+
   test "bulk add to new album from stream returns to selected photo" do
     photo = attached_photo(title: "New album photo")
 
@@ -436,7 +520,25 @@ class PhotoBulkActionsControllerTest < ActionDispatch::IntegrationTest
     photo
   end
 
+  def attached_video(title:)
+    photo = @owner.photos.new(title: title)
+    photo.original.attach(
+      io: StringIO.new("fake mov bytes"),
+      filename: "#{title.parameterize}.mov",
+      content_type: "video/quicktime"
+    )
+    photo.save!
+    photo
+  end
+
   def set_stream_time(photo, time)
     photo.update_columns(captured_at: time, created_at: time, updated_at: time)
+  end
+
+  def stub_address_geocoder(result)
+    Class.new do
+      define_method(:initialize) { |geocoded| @geocoded = geocoded }
+      define_method(:geocode) { |address:| @geocoded.merge(address: address) }
+    end.new(result)
   end
 end
