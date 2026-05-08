@@ -1,5 +1,5 @@
 <main class="photo-viewer-shell relative flex items-center justify-center overflow-hidden bg-zinc-950 p-3 transition-[padding] duration-200 ease-out lg:p-6"
-      data-controller="stream-navigation"
+      data-controller="stream-navigation photo-zoom"
       data-action="keydown@window->stream-navigation#keydown touchstart->stream-navigation#touchstart touchend->stream-navigation#touchend wheel->stream-navigation#wheel"
       data-info-panel-target="viewer"
       data-stream-navigation-back-url-value="<%= return_to %>"
@@ -15,6 +15,61 @@
           data-action="info-panel#toggle">
     i
   </button>
+
+  <div class="photo-zoom-controls absolute right-16 top-4 z-20 flex items-center justify-end transition-[right] duration-200 ease-out"
+       data-photo-zoom-target="controls">
+    <button type="button"
+            class="ui-tooltip flex size-10 cursor-pointer items-center justify-center rounded-full border border-white/25 bg-black/55 text-white backdrop-blur transition hover:bg-white hover:text-zinc-950"
+            aria-label="Show zoom controls"
+            title="Show zoom controls"
+            data-tooltip="Zoom"
+            data-photo-zoom-target="toggleButton"
+            data-action="photo-zoom#toggle">
+      <%= app_icon(:search, classes: "size-5") %>
+      <span class="sr-only">Show zoom controls</span>
+    </button>
+
+    <div class="hidden items-center gap-1 rounded-full border border-white/25 bg-black/55 p-1 text-white shadow-lg backdrop-blur"
+         data-photo-zoom-target="panel">
+      <button type="button"
+              class="ui-tooltip flex size-9 cursor-pointer items-center justify-center rounded-full transition hover:bg-white hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Zoom out"
+              title="Zoom out"
+              data-tooltip="Zoom out"
+              data-photo-zoom-target="zoomOutButton"
+              data-action="photo-zoom#zoomOut">
+        <%= app_icon(:zoom_out, classes: "size-5") %>
+        <span class="sr-only">Zoom out</span>
+      </button>
+      <button type="button"
+              class="min-w-14 cursor-pointer rounded-full px-2 py-1 text-center text-xs font-semibold tabular-nums transition hover:bg-white hover:text-zinc-950"
+              aria-label="Reset zoom"
+              title="Reset zoom"
+              data-photo-zoom-target="percent"
+              data-action="photo-zoom#reset">
+        100%
+      </button>
+      <button type="button"
+              class="ui-tooltip flex size-9 cursor-pointer items-center justify-center rounded-full transition hover:bg-white hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Zoom in"
+              title="Zoom in"
+              data-tooltip="Zoom in"
+              data-photo-zoom-target="zoomInButton"
+              data-action="photo-zoom#zoomIn">
+        <%= app_icon(:zoom_in, classes: "size-5") %>
+        <span class="sr-only">Zoom in</span>
+      </button>
+      <button type="button"
+              class="ui-tooltip flex size-9 cursor-pointer items-center justify-center rounded-full transition hover:bg-white hover:text-zinc-950"
+              aria-label="Hide zoom controls"
+              title="Hide zoom controls"
+              data-tooltip="Hide zoom"
+              data-action="photo-zoom#hide">
+        <%= app_icon(:search, classes: "size-5") %>
+        <span class="sr-only">Hide zoom controls</span>
+      </button>
+    </div>
+  </div>
 
   <% if previous_photo || next_photo %>
     <nav class="photo-stream-navigation absolute right-4 top-1/2 z-20 flex flex-col gap-2" aria-label="Stream navigation">
@@ -41,5 +96,8 @@
     </nav>
   <% end %>
 
-  <%= photo_detail_media(photo) %>
+  <div class="photo-zoom-frame flex max-h-full max-w-full items-center justify-center"
+       data-photo-zoom-target="frame">
+    <%= photo_detail_media(photo) %>
+  </div>
 </main>

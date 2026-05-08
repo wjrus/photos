@@ -260,6 +260,10 @@ body.photo-detail-page {
     padding-right: calc(390px + 1.5rem);
   }
 
+  .photo-viewer-shell.info-panel-open .photo-zoom-controls {
+    right: calc(390px + 1rem);
+  }
+
   .photo-viewer-shell.info-panel-open .photo-stream-navigation {
     right: calc(390px + 1rem);
   }
