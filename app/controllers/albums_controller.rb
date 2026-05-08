@@ -43,7 +43,7 @@ class AlbumsController < ApplicationController
       @album_shares = @album.photo_album_shares.joins(:user).includes(:user).order(Arel.sql("LOWER(users.email) ASC"))
       @shareable_users = shareable_users_for(@album)
     end
-    @timeline_periods = stream_timeline_periods(visible_photos, cache_key: album_timeline_cache_key(@album)) unless params[:cursor].present?
+    @timeline_periods = stream_timeline_periods(visible_photos, cache_key: album_timeline_cache_key(@album, visible_photos)) unless params[:cursor].present?
   end
 
   def create
@@ -140,15 +140,17 @@ class AlbumsController < ApplicationController
     ]
   end
 
-  def album_timeline_cache_key(album)
+  def album_timeline_cache_key(album, visible_photos)
     [
-      "album-timeline/v2",
+      "album-timeline/v3",
       cache_audience_key,
       album.id,
       album.updated_at&.utc&.to_i,
       PhotoAlbumMembership.where(photo_album_id: album.id).maximum(:created_at)&.utc&.to_i,
       PhotoAlbumMembership.where(photo_album_id: album.id).count,
-      Photo.maximum(:updated_at)&.utc&.to_i
+      PhotoAlbumShare.where(photo_album_id: album.id).maximum(:updated_at)&.utc&.to_i,
+      PhotoAlbumShare.where(photo_album_id: album.id).count,
+      stream_timeline_cache_fingerprint(visible_photos)
     ]
   end
 

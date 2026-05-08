@@ -29,7 +29,7 @@ class LocationsController < ApplicationController
 
     @location_media_count = media_counts_for(scoped_photos)
     @albums = current_user.photo_albums.display_order if current_user&.owner?
-    @timeline_periods = stream_timeline_periods(scoped_photos, cache_key: location_timeline_cache_key) unless params[:cursor].present?
+    @timeline_periods = stream_timeline_periods(scoped_photos, cache_key: location_timeline_cache_key(scoped_photos)) unless params[:cursor].present?
   end
 
   private
@@ -54,15 +54,16 @@ class LocationsController < ApplicationController
     ]
   end
 
-  def location_timeline_cache_key
+  def location_timeline_cache_key(scoped_photos)
     [
-      "location-timeline/v2",
+      "location-timeline/v3",
       cache_audience_key,
       @location_id,
       Photo.maximum(:updated_at)&.utc&.to_i,
       PhotoMetadata.maximum(:updated_at)&.utc&.to_i,
       PhotoAlbumShare.maximum(:updated_at)&.utc&.to_i,
-      PhotoAlbumShare.count
+      PhotoAlbumShare.count,
+      stream_timeline_cache_fingerprint(scoped_photos)
     ]
   end
 

@@ -122,6 +122,23 @@ module PhotoStreamPagination
     "month"
   end
 
+  def stream_timeline_cache_fingerprint(scope)
+    timeline_scope = scope.except(:order).where.not(captured_at: nil)
+    count, newest_update_at, oldest_at, newest_at = timeline_scope.pick(
+      Arel.sql("COUNT(*)"),
+      Arel.sql("MAX(photos.updated_at)"),
+      Arel.sql("MIN(photos.captured_at)"),
+      Arel.sql("MAX(photos.captured_at)")
+    )
+
+    [
+      count.to_i,
+      newest_update_at&.utc&.to_f,
+      oldest_at&.utc&.to_f,
+      newest_at&.utc&.to_f
+    ]
+  end
+
   def stream_timeline_period_sql(precision)
     case precision
     when "hour" then Arel.sql("DATE_TRUNC('hour', photos.captured_at)")
