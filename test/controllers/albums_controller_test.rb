@@ -327,9 +327,9 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     album_older = attached_photo(title: "Album timeline older")
     outside = attached_photo(title: "Outside timeline")
     album.photos << [ album_newer, album_older ]
-    album_newer.update!(captured_at: Time.zone.local(2024, 5, 12, 10))
-    album_older.update!(captured_at: Time.zone.local(2020, 2, 4, 10))
-    outside.update!(captured_at: Time.zone.local(2018, 2, 4, 10))
+    set_stream_time(album_newer, Time.zone.local(2024, 5, 12, 10))
+    set_stream_time(album_older, Time.zone.local(2020, 2, 4, 10))
+    set_stream_time(outside, Time.zone.local(2018, 2, 4, 10))
 
     get album_path(album)
 
@@ -352,8 +352,8 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     first = attached_photo(title: "Album timeline first day")
     second = attached_photo(title: "Album timeline second day")
     album.photos << [ first, second ]
-    first.update!(captured_at: Time.zone.local(1999, 9, 10, 14))
-    second.update!(captured_at: Time.zone.local(1999, 9, 12, 9))
+    set_stream_time(first, Time.zone.local(1999, 9, 10, 14))
+    set_stream_time(second, Time.zone.local(1999, 9, 12, 9))
 
     get album_path(album)
 
@@ -370,8 +370,8 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     morning = attached_photo(title: "Album timeline morning")
     afternoon = attached_photo(title: "Album timeline afternoon")
     album.photos << [ morning, afternoon ]
-    morning.update!(captured_at: Time.zone.local(1999, 9, 10, 9))
-    afternoon.update!(captured_at: Time.zone.local(1999, 9, 10, 14))
+    set_stream_time(morning, Time.zone.local(1999, 9, 10, 9))
+    set_stream_time(afternoon, Time.zone.local(1999, 9, 10, 14))
 
     get album_path(album)
 
