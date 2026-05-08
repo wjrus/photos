@@ -26,6 +26,13 @@ export default class extends Controller {
     this.inputTarget.click()
   }
 
+  keydown(event) {
+    if (event.key !== "Enter" && event.key !== " ") return
+
+    event.preventDefault()
+    this.browse(event)
+  }
+
   stop(event) {
     event.stopPropagation()
   }

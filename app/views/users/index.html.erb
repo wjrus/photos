@@ -14,9 +14,18 @@
     <section class="mt-6 rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
       <h2 class="text-sm font-semibold uppercase tracking-[0.16em] text-zinc-500">Invite</h2>
       <%= form_with model: @invite, url: users_path, class: "mt-4 grid gap-3 md:grid-cols-[1fr_1fr_1.4fr_auto]" do |form| %>
-        <%= form.text_field :first_name, placeholder: "First name", class: "rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15" %>
-        <%= form.text_field :last_name, placeholder: "Last name", class: "rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15" %>
-        <%= form.email_field :email, placeholder: "email@example.com", required: true, class: "rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15" %>
+        <div>
+          <%= form.label :first_name, "First name", class: "sr-only" %>
+          <%= form.text_field :first_name, placeholder: "First name", autocomplete: "given-name", class: "w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15" %>
+        </div>
+        <div>
+          <%= form.label :last_name, "Last name", class: "sr-only" %>
+          <%= form.text_field :last_name, placeholder: "Last name", autocomplete: "family-name", class: "w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15" %>
+        </div>
+        <div>
+          <%= form.label :email, "Email address", class: "sr-only" %>
+          <%= form.email_field :email, placeholder: "email@example.com", autocomplete: "email", required: true, class: "w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15" %>
+        </div>
         <%= form.submit "Invite", class: "rounded-lg bg-zinc-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800" %>
       <% end %>
     </section>

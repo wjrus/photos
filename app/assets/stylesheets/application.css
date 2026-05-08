@@ -22,6 +22,56 @@
   cursor: pointer;
 }
 
+.skip-link {
+  position: fixed;
+  inset-block-start: 0.75rem;
+  inset-inline-start: 0.75rem;
+  z-index: 100;
+  transform: translateY(-150%);
+  border-radius: 0.5rem;
+  background: #18181b;
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 700;
+  padding: 0.65rem 0.9rem;
+  transition: transform 120ms ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+:is(
+  a[href],
+  button,
+  summary,
+  input,
+  select,
+  textarea,
+  [role="button"],
+  [tabindex]:not([tabindex="-1"])
+):focus-visible {
+  outline: 3px solid #0f766e;
+  outline-offset: 3px;
+}
+
+:is(
+  .photo-viewer-shell,
+  .photo-detail-frame
+) :is(
+  a[href],
+  button,
+  summary,
+  input,
+  select,
+  textarea,
+  [role="button"],
+  [tabindex]:not([tabindex="-1"])
+):focus-visible {
+  outline-color: #ffffff;
+  box-shadow: 0 0 0 5px rgba(15, 118, 110, 0.72);
+}
+
 .selection-control {
   opacity: 0;
   transition: opacity 140ms ease, transform 140ms ease;
