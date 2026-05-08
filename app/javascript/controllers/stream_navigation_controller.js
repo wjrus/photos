@@ -32,10 +32,17 @@ export default class extends Controller {
   }
 
   touchstart(event) {
+    if (this.panningZoomedMedia(event)) return
+
     this.startY = event.changedTouches[0]?.clientY
   }
 
   touchend(event) {
+    if (this.panningZoomedMedia(event)) {
+      this.startY = null
+      return
+    }
+
     if (this.startY === null) return
 
     const endY = event.changedTouches[0]?.clientY
@@ -55,6 +62,7 @@ export default class extends Controller {
 
   wheel(event) {
     if (this.editingText(event)) return
+    if (this.panningZoomedMedia(event)) return
 
     const absX = Math.abs(event.deltaX)
     const absY = Math.abs(event.deltaY)
@@ -89,5 +97,9 @@ export default class extends Controller {
   editingText(event) {
     const tagName = event.target.tagName
     return ["INPUT", "SELECT", "TEXTAREA"].includes(tagName) || event.target.isContentEditable
+  }
+
+  panningZoomedMedia(event) {
+    return event.target.closest("[data-photo-zoom-pannable='true']")
   }
 }
