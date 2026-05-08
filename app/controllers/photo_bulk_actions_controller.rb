@@ -17,7 +17,7 @@ class PhotoBulkActionsController < ApplicationController
       redirect_to return_path, notice: "Published #{count} #{'photo'.pluralize(count)}."
     when "unpublish"
       count = photos.size
-      return_path = bulk_return_path(photos)
+      return_path = bulk_return_path(photos, removing_from_stream: public_return_path?)
       photos.each(&:unpublish!)
       redirect_to return_path, notice: "Made #{count} #{'photo'.pluralize(count)} private."
     when "archive"
@@ -94,6 +94,12 @@ class PhotoBulkActionsController < ApplicationController
 
   def archive_return_path?(return_path)
     URI.parse(return_path).path == archived_photos_path
+  rescue URI::InvalidURIError
+    false
+  end
+
+  def public_return_path?
+    URI.parse(safe_return_path).path == public_photos_path
   rescue URI::InvalidURIError
     false
   end

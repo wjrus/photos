@@ -19,6 +19,7 @@ Rails.application.routes.draw do
   patch "/invitations/:token", to: "invitations#update", as: :accept_invitation
   resources :users, only: %i[index create destroy]
   get "/archive", to: "archived_photos#index", as: :archived_photos
+  get "/public", to: "public_photos#index", as: :public_photos
   resources :locations, only: %i[index show]
   patch "/locations/:location_id/cover/:photo_id", to: "location_covers#update", as: :location_cover
   get "/search", to: "search#show", as: :search
@@ -57,6 +58,7 @@ Rails.application.routes.draw do
     get :video, on: :member
     get :media, on: :member
     patch :caption, on: :member
+    patch :manual_location, on: :member
     patch :publish, on: :member
     patch :unpublish, on: :member
     patch :archive, on: :member

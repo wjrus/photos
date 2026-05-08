@@ -18,6 +18,9 @@
               search_path,
               class: "block rounded-lg px-3 py-2 text-sm font-semibold text-zinc-800 transition hover:bg-zinc-950 hover:text-white" %>
         <% if current_user&.owner? %>
+          <%= link_to "Public",
+                public_photos_path,
+                class: "block rounded-lg px-3 py-2 text-sm font-semibold text-zinc-800 transition hover:bg-zinc-950 hover:text-white" %>
           <%= link_to "Archive",
                 archived_photos_path,
                 class: "block rounded-lg px-3 py-2 text-sm font-semibold text-zinc-800 transition hover:bg-zinc-950 hover:text-white" %>

@@ -45,6 +45,7 @@ module PhotoStreamReturnPaths
   def photo_stream_return_path?(path)
     path == root_path ||
       path == search_path ||
+      path == public_photos_path ||
       path == archived_photos_path ||
       path == restricted_photos_path ||
       path.match?(%r{\A/albums/\d+\z}) ||
@@ -55,6 +56,8 @@ module PhotoStreamReturnPaths
     case uri.path
     when root_path
       Photo.visible_to(current_user).stream_order
+    when public_photos_path
+      current_user.photos.publicly_visible.stream_order if current_user&.owner?
     when archived_photos_path
       current_user.photos.archived.stream_order
     when restricted_photos_path

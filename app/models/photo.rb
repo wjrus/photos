@@ -70,6 +70,7 @@ class Photo < ApplicationRecord
   scope :restricted, -> { where(restricted: true) }
   scope :archived, -> { where(restricted: false).where.not(archived_at: nil) }
   scope :not_archived, -> { where(archived_at: nil) }
+  scope :publicly_visible, -> { where(visibility: "public", restricted: false, archived_at: nil) }
   scope :stream_order, -> {
     order(Arel.sql("photos.captured_at DESC NULLS LAST, photos.created_at DESC, photos.id DESC"))
   }

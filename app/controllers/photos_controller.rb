@@ -5,7 +5,7 @@ class PhotosController < ApplicationController
 
   before_action :require_owner!, except: %i[show display video]
   before_action :set_visible_photo, only: %i[show display video]
-  before_action :set_photo, only: %i[media caption publish unpublish archive restore retry_archive destroy]
+  before_action :set_photo, only: %i[media caption manual_location publish unpublish archive restore retry_archive destroy]
 
   def show
     if params[:return_to].present?
@@ -50,6 +50,31 @@ class PhotosController < ApplicationController
     @photo.update!(caption_params)
     store_photo_return_path(safe_return_path)
     redirect_to photo_path(@photo), notice: "Caption saved."
+  end
+
+  def manual_location
+    return_path = safe_return_path
+    store_photo_return_path(return_path)
+
+    unless @photo.image?
+      redirect_to photo_path(@photo), alert: "Manual locations can only be added to image files."
+      return
+    end
+
+    address = manual_location_params[:address].to_s.squish
+    if address.blank?
+      redirect_to photo_path(@photo), alert: "Enter an address or place name."
+      return
+    end
+
+    result = LocationAddressGeocoder.new.geocode(address: address)
+    unless result&.fetch(:latitude, nil).present? && result&.fetch(:longitude, nil).present?
+      redirect_to photo_path(@photo), alert: "Location not found."
+      return
+    end
+
+    save_manual_location!(address, result)
+    redirect_to photo_path(@photo), notice: "Location saved."
   end
 
   def create
@@ -128,6 +153,10 @@ class PhotosController < ApplicationController
     params.require(:photo).permit(:description)
   end
 
+  def manual_location_params
+    params.require(:photo).permit(:address)
+  end
+
   def visibility_return_path
     safe_return_path
   end
@@ -202,6 +231,42 @@ class PhotosController < ApplicationController
     UploadBatch.active_for(current_user)
   end
 
+  def save_manual_location!(address, result)
+    now = Time.current
+    metadata = PhotoMetadata.for_photo(@photo)
+    raw = metadata.raw.to_h.deep_dup
+    raw["manual_location"] = {
+      "address" => address,
+      "geocoded_name" => result.fetch(:name, nil),
+      "geocoded_at" => now.iso8601,
+      "source" => "owner"
+    }
+    raw["manual_location_geocode"] = result.fetch(:raw, {})
+
+    metadata.update!(
+      latitude: result.fetch(:latitude),
+      longitude: result.fetch(:longitude),
+      extraction_status: metadata.extraction_status.presence || "complete",
+      extracted_at: metadata.extracted_at || now,
+      raw: raw
+    )
+
+    PhotoLocationPlace.upsert(
+      {
+        location_id: PhotoLocation.id_for_coordinates(result.fetch(:latitude), result.fetch(:longitude)),
+        name: result.fetch(:name),
+        names: result.fetch(:names, [ result.fetch(:name) ]),
+        latitude: result.fetch(:latitude),
+        longitude: result.fetch(:longitude),
+        raw: result.fetch(:raw, {}).except(:key_fingerprint),
+        geocoded_at: now,
+        created_at: now,
+        updated_at: now
+      },
+      unique_by: :index_photo_location_places_on_location_id
+    )
+  end
+
   def photo_return_path(photo)
     return_path = safe_return_path(default: root_path(photo_id: photo.id))
     uri = URI.parse(return_path)
@@ -223,6 +288,7 @@ class PhotosController < ApplicationController
 
   def stream_return_path?(path)
     path == search_path ||
+      path == public_photos_path ||
       path == archived_photos_path ||
       path == restricted_photos_path ||
       path.match?(%r{\A/albums/\d+\z}) ||

@@ -10,6 +10,24 @@ module ApplicationHelper
     media_photo_path(photo)
   end
 
+  def photo_social_title(photo)
+    photo.title.presence || "Photo"
+  end
+
+  def photo_social_description(photo)
+    photo.description.presence || photo.original_filename.presence || photo_social_title(photo)
+  end
+
+  def photo_social_image_url(photo)
+    absolute_url_options = { host: request.host_with_port, protocol: request.protocol }
+
+    display_photo_url(photo, **absolute_url_options)
+  end
+
+  def photo_social_image_type(photo)
+    "image/jpeg"
+  end
+
   def photo_stream_media(photo, **options)
     if photo.video?
       if photo.video_preview.attached?

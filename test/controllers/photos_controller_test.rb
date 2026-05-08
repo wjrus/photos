@@ -475,7 +475,60 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "Location"
     assert_includes response.body, "Unavailable"
+    assert_select "form[action='#{manual_location_photo_path(photo)}'][method='post']"
+    assert_select "input[name='photo[address]'][placeholder='Address or place']"
     refute_includes response.body, "Photo location map"
+  end
+
+  test "owner can manually set an image location from an address" do
+    photo = attached_photo
+    photo.create_metadata!(extraction_status: "complete", camera_make: "Fuji", raw: { "camera" => "kept" })
+
+    geocoder = stub_address_geocoder(
+      latitude: BigDecimal("44.760800"),
+      longitude: BigDecimal("-85.622800"),
+      name: "Traverse City, MI, USA",
+      names: [ "Traverse City, MI, USA", "Traverse City", "Michigan", "United States" ],
+      raw: { "place_id" => "tc123" }
+    )
+
+    LocationAddressGeocoder.stub(:new, geocoder) do
+      patch manual_location_photo_path(photo), params: {
+        return_to: album_path(@owner.photo_albums.create!(title: "Trip", source: "manual")),
+        photo: { address: "Traverse City, MI" }
+      }
+    end
+
+    assert_redirected_to photo_path(photo)
+    metadata = photo.reload.metadata
+    assert_equal BigDecimal("44.760800"), metadata.latitude
+    assert_equal BigDecimal("-85.622800"), metadata.longitude
+    assert_equal "kept", metadata.raw.dig("camera")
+    assert_equal "Traverse City, MI", metadata.raw.dig("manual_location", "address")
+    place = PhotoLocationPlace.find_by!(location_id: PhotoLocation.id_for_coordinates(metadata.latitude, metadata.longitude))
+    assert_equal "Traverse City, MI, USA", place.name
+    assert_equal [ "Traverse City, MI, USA", "Traverse City", "Michigan", "United States" ], place.names
+  end
+
+  test "manual location form is not shown for videos or trusted viewers" do
+    video = attached_video
+    video.create_metadata!(extraction_status: "complete", raw: {})
+
+    get photo_path(video)
+    assert_response :success
+    assert_select "form[action='#{manual_location_photo_path(video)}']", false
+
+    ENV["PHOTOS_TRUSTED_VIEWER_EMAILS"] = users(:two).email
+    photo = attached_photo
+    photo.create_metadata!(extraction_status: "complete", raw: {})
+    photo.publish!
+    delete sign_out_path
+    sign_in_as(users(:two))
+
+    get photo_path(photo)
+    assert_response :success
+    assert_includes response.body, "Unavailable"
+    assert_select "form[action='#{manual_location_photo_path(photo)}']", false
   end
 
   test "owner sees video metadata details" do
@@ -614,6 +667,30 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href='#{photo_path(older)}'][aria-label='Next item in stream']"
     assert_select "form[action='#{restore_photo_path(photo)}'][method='post']", text: "Restore"
     refute_includes response.body, photo_path(active)
+  end
+
+  test "public detail view uses public stream neighbors" do
+    public_newer = attached_photo(title: "Public newer")
+    outside_private = attached_photo(title: "Private outside public stream")
+    photo = attached_photo(title: "Public current")
+    public_older = attached_photo(title: "Public older")
+    [ public_newer, photo, public_older ].each(&:publish!)
+    public_newer.update_columns(created_at: Time.zone.local(2026, 1, 4), updated_at: Time.zone.local(2026, 1, 4))
+    outside_private.update_columns(created_at: Time.zone.local(2026, 1, 3), updated_at: Time.zone.local(2026, 1, 3))
+    photo.update_columns(created_at: Time.zone.local(2026, 1, 2), updated_at: Time.zone.local(2026, 1, 2))
+    public_older.update_columns(created_at: Time.zone.local(2026, 1, 1), updated_at: Time.zone.local(2026, 1, 1))
+
+    get photo_path(photo, return_to: public_photos_path)
+    assert_redirected_to photo_path(photo)
+    follow_redirect!
+
+    assert_response :success
+    assert_select "a[href='#{photo_path(public_newer)}'][aria-label='Previous item in stream']"
+    assert_select "a[href='#{photo_path(public_older)}'][aria-label='Next item in stream']"
+    assert_includes response.body, %(data-stream-navigation-back-url-value="#{public_photos_path(photo_id: photo.id)}")
+    assert_includes response.body, %(data-stream-navigation-previous-url-value="#{photo_path(public_newer)}")
+    assert_includes response.body, %(data-stream-navigation-next-url-value="#{photo_path(public_older)}")
+    refute_includes response.body, photo_path(outside_private)
   end
 
   test "photo stream renders an infinite scroll sentinel when more photos exist" do
@@ -766,6 +843,42 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, "Photo location map"
     refute_includes response.body, photo.original_filename
     refute_includes response.body, "Download original"
+  end
+
+  test "public image detail exposes open graph preview tags" do
+    photo = attached_photo(title: "Lake picnic")
+    photo.update!(description: "A quiet afternoon.", visibility: "public", published_at: Time.current)
+    photo.create_metadata!(extraction_status: "complete", width: 3024, height: 4032, raw: {})
+    delete sign_out_path
+
+    get photo_path(photo)
+
+    assert_response :success
+    assert_select "meta[property='og:title'][content='Lake picnic']"
+    assert_select "meta[property='og:description'][content='A quiet afternoon.']"
+    assert_select "meta[property='og:url'][content='http://www.example.com/photos/#{photo.id}']"
+    assert_select "meta[property='og:image'][content='http://www.example.com/photos/#{photo.id}/display']"
+    assert_select "meta[property='og:image:type'][content='image/jpeg']"
+    assert_select "meta[property='og:image:width'][content='3024']"
+    assert_select "meta[property='og:image:height'][content='4032']"
+    assert_select "meta[name='twitter:card'][content='summary_large_image']"
+  end
+
+  test "private images and public videos do not expose open graph preview images" do
+    private_photo = attached_photo(title: "Private lake")
+
+    get photo_path(private_photo)
+    assert_response :success
+    assert_select "meta[property='og:image']", false
+
+    video = attached_video
+    attach_video_derivatives(video)
+    video.publish!
+    delete sign_out_path
+
+    get photo_path(video)
+    assert_response :success
+    assert_select "meta[property='og:image']", false
   end
 
   test "photo viewer keeps pane controls separate from stream navigation" do
@@ -951,5 +1064,12 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
 
   def set_stream_time(photo, time)
     photo.update_columns(captured_at: time, created_at: time, updated_at: time)
+  end
+
+  def stub_address_geocoder(result)
+    Class.new do
+      define_method(:initialize) { |geocoded| @geocoded = geocoded }
+      define_method(:geocode) { |address:| @geocoded.merge(address: address) }
+    end.new(result)
   end
 end
