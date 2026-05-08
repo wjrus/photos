@@ -1,10 +1,12 @@
 <% total = periods.size %>
 <% edge_percent = 3.5 %>
 <% last_labeled_index = nil %>
+<% precision = periods.first&.fetch(:precision, "month") %>
 
 <nav class="stream-timeline fixed bottom-6 right-0 top-20 z-30 hidden w-28 lg:block"
      aria-label="Photo timeline"
      data-controller="stream-timeline"
+     data-stream-timeline-precision-value="<%= precision %>"
      data-action="pointerdown->stream-timeline#pointerdown pointermove->stream-timeline#pointermove pointerup->stream-timeline#pointerup pointerleave->stream-timeline#pointerleave">
   <div class="stream-timeline__rail relative h-full cursor-ns-resize select-none"
        data-stream-timeline-target="rail">
@@ -20,7 +22,8 @@
     <% periods.each_with_index do |period, index| %>
       <% position = total == 1 ? 50 : edge_percent + (index.to_f / (total - 1) * (100 - (edge_percent * 2))) %>
       <% year_changed = index.zero? || period[:year] != periods[index - 1][:year] %>
-      <% show_year = year_changed && (last_labeled_index.nil? || index - last_labeled_index >= 3 || index == total - 1) %>
+      <% show_year = precision == "month" && year_changed && (last_labeled_index.nil? || index - last_labeled_index >= 3 || index == total - 1) %>
+      <% show_marker_label = precision != "month" || show_year %>
       <% last_labeled_index = index if show_year %>
       <button type="button"
               class="stream-timeline__item absolute flex -translate-y-1/2 cursor-ns-resize items-center gap-2 text-xs font-semibold text-zinc-500 transition hover:text-zinc-950 focus:text-zinc-950"
@@ -32,10 +35,10 @@
               data-stream-timeline-page-url-value="<%= path_with_query(page_path, cursor: period[:cursor], stream_page: 1, timeline_page: 1) %>"
               data-stream-timeline-label-value="<%= period[:label] %>"
               data-stream-timeline-count-value="<%= pluralize(period[:count], "photo") %>">
-        <% if show_year %>
-          <span class="tabular-nums"><%= period[:year] %></span>
+        <% if show_marker_label %>
+          <span class="tabular-nums"><%= period[:marker_label] %></span>
         <% end %>
-        <span class="stream-timeline__dot <%= show_year ? "stream-timeline__dot--year bg-zinc-500" : "bg-zinc-400" %> rounded-full"></span>
+        <span class="stream-timeline__dot <%= show_marker_label ? "stream-timeline__dot--year bg-zinc-500" : "bg-zinc-400" %> rounded-full"></span>
       </button>
     <% end %>
   </div>

@@ -347,6 +347,42 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, outside.title
   end
 
+  test "album timeline uses day markers for short date spans" do
+    album = @owner.photo_albums.create!(title: "Short Timeline Album", source: "manual")
+    first = attached_photo(title: "Album timeline first day")
+    second = attached_photo(title: "Album timeline second day")
+    album.photos << [ first, second ]
+    first.update!(captured_at: Time.zone.local(1999, 9, 10, 14))
+    second.update!(captured_at: Time.zone.local(1999, 9, 12, 9))
+
+    get album_path(album)
+
+    assert_response :success
+    assert_select "nav[aria-label='Photo timeline'][data-stream-timeline-precision-value='day']"
+    assert_select "button[aria-label*='Jump to September 12, 1999'][data-stream-timeline-period-key-value='1999-09-12']"
+    assert_select "button[aria-label*='Jump to September 10, 1999'][data-stream-timeline-period-key-value='1999-09-10']"
+    assert_select "button span", text: "Sep 12"
+    assert_select "button span", text: "Sep 10"
+  end
+
+  test "album timeline uses hour markers for same day spans" do
+    album = @owner.photo_albums.create!(title: "Hourly Timeline Album", source: "manual")
+    morning = attached_photo(title: "Album timeline morning")
+    afternoon = attached_photo(title: "Album timeline afternoon")
+    album.photos << [ morning, afternoon ]
+    morning.update!(captured_at: Time.zone.local(1999, 9, 10, 9))
+    afternoon.update!(captured_at: Time.zone.local(1999, 9, 10, 14))
+
+    get album_path(album)
+
+    assert_response :success
+    assert_select "nav[aria-label='Photo timeline'][data-stream-timeline-precision-value='hour']"
+    assert_select "button[aria-label*='Jump to Sep 10, 1999, 2 PM'][data-stream-timeline-period-key-value='1999-09-10T14']"
+    assert_select "button[aria-label*='Jump to Sep 10, 1999, 9 AM'][data-stream-timeline-period-key-value='1999-09-10T09']"
+    assert_select "article[data-photo-id='#{morning.id}'][data-stream-timeline-hour-key='1999-09-10T09']"
+    assert_select "article[data-photo-id='#{afternoon.id}'][data-stream-timeline-hour-key='1999-09-10T14']"
+  end
+
   test "owner can remove a photo from an album without deleting it" do
     album = @owner.photo_albums.create!(title: "Trip", source: "manual")
     photo = attached_photo(title: "Album item")

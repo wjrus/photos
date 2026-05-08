@@ -26,7 +26,7 @@ class PublicPhotosController < ApplicationController
 
   def public_timeline_cache_key
     [
-      "public-stream-timeline/v1",
+      "public-stream-timeline/v2",
       current_user.id,
       current_user.photos.publicly_visible.maximum(:updated_at)&.utc&.to_i,
       current_user.photos.publicly_visible.count

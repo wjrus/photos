@@ -29,7 +29,7 @@ class HomeController < ApplicationController
 
   def stream_timeline_cache_key
     [
-      "stream-timeline/v2",
+      "stream-timeline/v3",
       cache_audience_key,
       Photo.maximum(:updated_at)&.utc&.to_i,
       Photo.count,

@@ -142,7 +142,7 @@ class AlbumsController < ApplicationController
 
   def album_timeline_cache_key(album)
     [
-      "album-timeline/v1",
+      "album-timeline/v2",
       cache_audience_key,
       album.id,
       album.updated_at&.utc&.to_i,

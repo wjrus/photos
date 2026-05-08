@@ -3,6 +3,9 @@ import { streamPageHtml } from "controllers/stream_page_loader"
 
 export default class extends Controller {
   static targets = ["item", "label", "rail", "thumb"]
+  static values = {
+    precision: { type: String, default: "month" }
+  }
 
   connect() {
     this.dragging = false
@@ -111,22 +114,33 @@ export default class extends Controller {
   }
 
   updateActiveItem() {
-    const group = this.currentDateGroup()
-    if (!group) {
+    const element = this.currentPeriodElement()
+    if (!element) {
       if (!this.hovering && !this.dragging) this.hideLabel()
       return
     }
 
-    const periodKey = group.dataset.streamDateGroupKey.slice(0, 7)
+    const periodKey = this.periodKeyForElement(element)
     const item = this.setActivePeriod(periodKey)
     this.moveThumbToPeriod(periodKey)
 
     if (!this.hovering && !this.dragging && item) this.showLabel(item)
   }
 
-  currentDateGroup() {
-    const groups = this.loadedDateGroups()
-    return groups.find((group) => group.getBoundingClientRect().bottom > 120) || groups.at(-1)
+  currentPeriodElement() {
+    const elements = this.loadedPeriodElements()
+    return elements.find((element) => element.getBoundingClientRect().bottom > 120) || elements.at(-1)
+  }
+
+  loadedPeriodElements() {
+    if (this.precisionValue === "hour") {
+      const loadedCards = Array.from(document.querySelectorAll("[data-stream-timeline-hour-key]:not([data-stream-virtualized='true'])"))
+      if (loadedCards.length > 0) return loadedCards
+
+      return Array.from(document.querySelectorAll("[data-stream-timeline-hour-key]"))
+    }
+
+    return this.loadedDateGroups()
   }
 
   loadedDateGroups() {
@@ -137,8 +151,10 @@ export default class extends Controller {
   }
 
   findPeriodGroup(periodKey) {
-    return Array.from(document.querySelectorAll("[data-stream-date-group-key]"))
-      .find((group) => group.dataset.streamDateGroupKey.startsWith(periodKey))
+    return Array.from(document.querySelectorAll(`[${this.periodDataAttribute}]`))
+      .find((group) => group.dataset[this.periodDatasetKey] === periodKey) ||
+      Array.from(document.querySelectorAll("[data-stream-date-group-key]"))
+        .find((group) => periodKey.startsWith(group.dataset.streamDateGroupKey))
   }
 
   async loadPeriodPage(item) {
@@ -211,5 +227,20 @@ export default class extends Controller {
     const railRect = this.railTarget.getBoundingClientRect()
     const progress = (itemRect.top - railRect.top) / railRect.height
     this.thumbTarget.style.top = `${Math.min(Math.max(progress, 0), 1) * 100}%`
+  }
+
+  periodKeyForElement(element) {
+    const dateGroupKey = element.dataset.streamDateGroupKey
+    const fallbackKey = this.precisionValue === "month" ? dateGroupKey?.slice(0, 7) : dateGroupKey
+
+    return element.dataset[this.periodDatasetKey] || fallbackKey
+  }
+
+  get periodDataAttribute() {
+    return `data-stream-timeline-${this.precisionValue}-key`
+  }
+
+  get periodDatasetKey() {
+    return `streamTimeline${this.precisionValue[0].toUpperCase()}${this.precisionValue.slice(1)}Key`
   }
 }

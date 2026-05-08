@@ -1,4 +1,11 @@
-<article class="<%= feature ? "col-span-2 row-span-2" : "" %> group relative overflow-hidden rounded-lg bg-zinc-900 shadow-sm" data-bulk-selection-card data-photo-id="<%= photo.id %>">
+<% stream_time = (photo.captured_at || photo.created_at).in_time_zone %>
+
+<article class="<%= feature ? "col-span-2 row-span-2" : "" %> group relative overflow-hidden rounded-lg bg-zinc-900 shadow-sm"
+         data-bulk-selection-card
+         data-photo-id="<%= photo.id %>"
+         data-stream-timeline-month-key="<%= stream_time.strftime("%Y-%m") %>"
+         data-stream-timeline-day-key="<%= stream_time.strftime("%Y-%m-%d") %>"
+         data-stream-timeline-hour-key="<%= stream_time.strftime("%Y-%m-%dT%H") %>">
   <% if owner_controls %>
     <label class="selection-control absolute left-3 top-3 z-20 cursor-pointer"
            title="Select"

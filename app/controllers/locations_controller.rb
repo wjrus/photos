@@ -56,7 +56,7 @@ class LocationsController < ApplicationController
 
   def location_timeline_cache_key
     [
-      "location-timeline/v1",
+      "location-timeline/v2",
       cache_audience_key,
       @location_id,
       Photo.maximum(:updated_at)&.utc&.to_i,

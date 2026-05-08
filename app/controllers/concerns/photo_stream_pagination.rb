@@ -42,22 +42,32 @@ module PhotoStreamPagination
 
   def stream_timeline_periods(scope, cache_key:)
     Rails.cache.fetch(cache_key, expires_in: 30.minutes, race_condition_ttl: 10.seconds) do
-      scope
-        .except(:order)
-        .where.not(captured_at: nil)
-        .group(Arel.sql("DATE_TRUNC('month', photos.captured_at)"))
-        .order(Arel.sql("DATE_TRUNC('month', photos.captured_at) DESC"))
+      timeline_scope = scope.except(:order).where.not(captured_at: nil)
+      oldest_at, newest_at = timeline_scope.pick(
+        Arel.sql("MIN(photos.captured_at)"),
+        Arel.sql("MAX(photos.captured_at)")
+      )
+      next [] unless oldest_at && newest_at
+
+      precision = stream_timeline_precision(oldest_at, newest_at)
+      period_sql = Arel.sql("DATE_TRUNC('#{precision}', photos.captured_at)")
+
+      timeline_scope
+        .group(period_sql)
+        .order(Arel.sql("DATE_TRUNC('#{precision}', photos.captured_at) DESC"))
         .count
         .map do |period, count|
-          period = period.in_time_zone.beginning_of_month
+          period = stream_timeline_period_start(period, precision)
           {
             period: period,
+            precision: precision,
             count: count,
-            label: period.strftime("%B %Y"),
+            label: stream_timeline_label(period, precision),
+            marker_label: stream_timeline_marker_label(period, precision),
             year: period.year,
             month: period.month,
-            key: period.strftime("%Y-%m"),
-            cursor: Photo.stream_cursor_before(period.next_month)
+            key: stream_timeline_key(period, precision),
+            cursor: Photo.stream_cursor_before(stream_timeline_next_period(period, precision))
           }
         end
     end
@@ -101,5 +111,56 @@ module PhotoStreamPagination
     page = photos.first(Photo::STREAM_PAGE_SIZE).reverse
 
     [ page, nil, (page.first.stream_cursor if has_more && page.any?) ]
+  end
+
+  def stream_timeline_precision(oldest_at, newest_at)
+    span = newest_at - oldest_at
+
+    return "hour" if span <= 36.hours
+    return "day" if span <= 45.days
+
+    "month"
+  end
+
+  def stream_timeline_period_start(period, precision)
+    time = period.in_time_zone
+
+    case precision
+    when "hour" then time.beginning_of_hour
+    when "day" then time.beginning_of_day
+    else time.beginning_of_month
+    end
+  end
+
+  def stream_timeline_next_period(period, precision)
+    case precision
+    when "hour" then period.next_hour
+    when "day" then period.next_day
+    else period.next_month
+    end
+  end
+
+  def stream_timeline_key(period, precision)
+    case precision
+    when "hour" then period.strftime("%Y-%m-%dT%H")
+    when "day" then period.strftime("%Y-%m-%d")
+    else period.strftime("%Y-%m")
+    end
+  end
+
+  def stream_timeline_label(period, precision)
+    case precision
+    when "hour" then period.strftime("%b %-d, %Y, %-l %p")
+    when "day" then period.strftime("%B %-d, %Y")
+    else period.strftime("%B %Y")
+    end
+  end
+
+  def stream_timeline_marker_label(period, precision)
+    case precision
+    when "hour" then period.strftime("%-l %p")
+    when "day" then period.strftime("%b %-d")
+    else period.year.to_s
+    end
   end
 end
