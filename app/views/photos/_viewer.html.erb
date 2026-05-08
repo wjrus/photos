@@ -6,7 +6,7 @@
       data-stream-navigation-previous-url-value="<%= photo_path(previous_photo) if previous_photo %>"
       data-stream-navigation-next-url-value="<%= photo_path(next_photo) if next_photo %>">
   <button type="button"
-          class="absolute right-4 top-4 z-20 flex size-11 items-center justify-center rounded-lg border border-white/25 bg-black/55 font-serif text-lg font-semibold italic text-white backdrop-blur transition hover:bg-white hover:text-zinc-950"
+          class="fixed right-4 top-4 z-20 flex size-11 items-center justify-center rounded-lg border border-white/25 bg-black/55 font-serif text-lg font-semibold italic text-white backdrop-blur transition hover:bg-white hover:text-zinc-950"
           aria-label="Show photo information"
           aria-controls="photo-info-panel"
           aria-expanded="false"
@@ -16,7 +16,7 @@
     i
   </button>
 
-  <div class="photo-zoom-controls absolute right-[4.25rem] top-4 z-20 flex items-center justify-end transition-[right] duration-200 ease-out"
+  <div class="photo-zoom-controls fixed right-[4.25rem] top-4 z-20 flex items-center justify-end transition-[right] duration-200 ease-out"
        data-photo-zoom-target="controls">
     <button type="button"
             class="ui-tooltip flex size-11 cursor-pointer items-center justify-center rounded-lg border border-white/25 bg-black/55 text-white backdrop-blur transition hover:bg-white hover:text-zinc-950"
