@@ -585,7 +585,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     follow_redirect!
 
     assert_response :success
-    assert_select "main[data-controller='stream-navigation']"
+    assert_select "main[data-controller~='stream-navigation']"
     assert_select "a[href='#{photo_path(newer)}'][data-turbo-action='replace'][aria-label='Previous item in stream'][title='Previous item in stream']"
     assert_select "a[href='#{photo_path(older)}'][data-turbo-action='replace'][aria-label='Next item in stream'][title='Next item in stream']"
     assert_includes response.body, "wheel->stream-navigation#wheel"
