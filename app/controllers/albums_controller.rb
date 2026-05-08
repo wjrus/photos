@@ -26,14 +26,8 @@ class AlbumsController < ApplicationController
       .stream_order
 
     @photos, @next_cursor, @newer_cursor = paginate_photo_stream_with_focus(visible_photos)
-    @visible_media_count = visible_media_counts_for([ @album ]).fetch(@album.id, { photos: 0, videos: 0 })
-    if current_user&.owner?
-      @albums = current_user.photo_albums.display_order
-      @album_shares = @album.photo_album_shares.joins(:user).includes(:user).order(Arel.sql("LOWER(users.email) ASC"))
-      @shareable_users = shareable_users_for(@album)
-    end
 
-    render_photo_page_if_requested(
+    return if render_photo_page_if_requested(
       return_to: album_path(@album),
       bulk_form_id: "album-photo-bulk-form",
       album: @album,
@@ -41,6 +35,13 @@ class AlbumsController < ApplicationController
       next_page_path: album_path(@album),
       stream_target_photo_id: @stream_target_photo_id
     )
+
+    @visible_media_count = visible_media_counts_for([ @album ]).fetch(@album.id, { photos: 0, videos: 0 })
+    if current_user&.owner?
+      @albums = current_user.photo_albums.display_order
+      @album_shares = @album.photo_album_shares.joins(:user).includes(:user).order(Arel.sql("LOWER(users.email) ASC"))
+      @shareable_users = shareable_users_for(@album)
+    end
   end
 
   def create

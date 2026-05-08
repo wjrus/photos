@@ -34,9 +34,10 @@ module PhotoStreamPagination
   end
 
   def render_photo_page_if_requested(**locals)
-    return unless params[:cursor].present? || params[:newer_cursor].present? || params[:stream_page].present?
+    return false unless params[:cursor].present? || params[:newer_cursor].present? || params[:stream_page].present?
 
     render partial: "photos/page", locals: photo_page_locals(**locals)
+    true
   end
 
   def photo_page_locals(return_to:, next_page_path:, bulk_form_id:, feature_first: false, owner_controls: current_user&.owner?, newer_cursor: @newer_cursor, **extras)

@@ -6,15 +6,16 @@ class SearchController < ApplicationController
     search = PhotoSearch.new(params: @search_params, user: current_user)
     @search_active = search.active?
     @photos, @next_cursor, @newer_cursor = paginate_photo_stream_with_focus(search_stream(search.results))
-    @albums = current_user.photo_albums.display_order if current_user&.owner?
-    @filter_options = filter_options
 
-    render_photo_page_if_requested(
+    return if render_photo_page_if_requested(
       return_to: search_path(@search_params),
       bulk_form_id: "search-photo-bulk-form",
       next_page_path: search_path(@search_params),
       stream_target_photo_id: @stream_target_photo_id
     )
+
+    @albums = current_user.photo_albums.display_order if current_user&.owner?
+    @filter_options = filter_options
   end
 
   private

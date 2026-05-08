@@ -15,16 +15,17 @@ class LocationsController < ApplicationController
     @photos, @next_cursor, @newer_cursor = paginate_photo_stream_with_focus(location_photo_scope
       .with_original_variant_records
       .stream_order)
-    @location_media_count = media_counts_for(location_photo_scope)
-    @albums = current_user.photo_albums.display_order if current_user&.owner?
 
-    render_photo_page_if_requested(
+    return if render_photo_page_if_requested(
       return_to: location_path(@location_id),
       bulk_form_id: "location-photo-bulk-form",
       group_by_day: false,
       next_page_path: location_path(@location_id),
       stream_target_photo_id: @stream_target_photo_id
     )
+
+    @location_media_count = media_counts_for(location_photo_scope)
+    @albums = current_user.photo_albums.display_order if current_user&.owner?
   end
 
   private

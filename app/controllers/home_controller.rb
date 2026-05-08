@@ -14,15 +14,15 @@ class HomeController < ApplicationController
     end
 
     @newer_cursor ||= timeline_newer_cursor(visible_stream) if params[:timeline_page].present?
-    @albums = current_user.photo_albums.display_order if current_user&.owner?
-    @timeline_periods = stream_timeline_periods(visible_stream) unless params[:cursor].present?
-
-    render_photo_page_if_requested(
+    return if render_photo_page_if_requested(
       return_to: root_path,
       bulk_form_id: "photo-bulk-form",
       next_page_path: root_path,
       stream_target_photo_id: @stream_target_photo_id
     )
+
+    @albums = current_user.photo_albums.display_order if current_user&.owner?
+    @timeline_periods = stream_timeline_periods(visible_stream) unless params[:cursor].present?
   end
 
   private

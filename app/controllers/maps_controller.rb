@@ -71,7 +71,7 @@ class MapsController < ApplicationController
   end
 
   def location_payloads(scope)
-    rows = location_rows(scope)
+    rows = location_rows(scope).to_a
     photos_by_id = preview_photos(rows)
     places = location_places(rows, photos_by_id)
 
@@ -101,7 +101,7 @@ class MapsController < ApplicationController
 
   def preview_photos(rows)
     ids = rows.first(MARKER_LIMIT).flat_map { |row| Array(row.preview_photo_ids).map(&:to_i) }
-    Photo.with_attached_original.includes(:metadata).where(id: ids).index_by(&:id)
+    Photo.with_attached_original.with_attached_video_preview.includes(:metadata).where(id: ids).index_by(&:id)
   end
 
   def location_payload(row, count, photos_by_id, places)

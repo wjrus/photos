@@ -9,9 +9,8 @@ class ArchivedPhotosController < ApplicationController
       .archived
       .with_original_variant_records
       .stream_order)
-    @albums = current_user.photo_albums.display_order
 
-    render_photo_page_if_requested(
+    return if render_photo_page_if_requested(
       return_to: archived_photos_path,
       bulk_form_id: "archive-photo-bulk-form",
       owner_controls: true,
@@ -19,5 +18,7 @@ class ArchivedPhotosController < ApplicationController
       next_page_path: archived_photos_path,
       stream_target_photo_id: @stream_target_photo_id
     )
+
+    @albums = current_user.photo_albums.display_order
   end
 end
