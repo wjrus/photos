@@ -15,7 +15,7 @@ module ApplicationHelper
   end
 
   def photo_social_description(photo)
-    photo.description.presence || photo.original_filename.presence || photo_social_title(photo)
+    photo_social_title(photo)
   end
 
   def photo_social_image_url(photo)

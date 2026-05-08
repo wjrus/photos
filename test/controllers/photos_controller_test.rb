@@ -492,7 +492,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
       raw: { "place_id" => "tc123" }
     )
 
-    LocationAddressGeocoder.stub(:new, geocoder) do
+    with_address_geocoder(geocoder) do
       patch manual_location_photo_path(photo), params: {
         return_to: album_path(@owner.photo_albums.create!(title: "Trip", source: "manual")),
         photo: { address: "Traverse City, MI" }
@@ -864,7 +864,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "meta[property='og:title'][content='Lake picnic']"
-    assert_select "meta[property='og:description'][content='A quiet afternoon.']"
+    assert_select "meta[property='og:description'][content='Lake picnic']"
     assert_select "meta[property='og:url'][content='http://www.example.com/photos/#{photo.id}']"
     assert_select "meta[property='og:image'][content='http://www.example.com/photos/#{photo.id}/preview.jpg']"
     assert_select "meta[property='og:image:type'][content='image/jpeg']"
@@ -1080,5 +1080,15 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
       define_method(:initialize) { |geocoded| @geocoded = geocoded }
       define_method(:geocode) { |address:| @geocoded.merge(address: address) }
     end.new(result)
+  end
+
+  def with_address_geocoder(geocoder)
+    LocationAddressGeocoder.singleton_class.alias_method :original_new, :new
+    LocationAddressGeocoder.define_singleton_method(:new) { geocoder }
+
+    yield
+  ensure
+    LocationAddressGeocoder.singleton_class.alias_method :new, :original_new
+    LocationAddressGeocoder.singleton_class.remove_method :original_new
   end
 end

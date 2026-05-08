@@ -99,7 +99,7 @@ class PhotoBulkActionsControllerTest < ActionDispatch::IntegrationTest
       raw: { "place_id" => "tc123" }
     )
 
-    LocationAddressGeocoder.stub(:new, geocoder) do
+    with_address_geocoder(geocoder) do
       post photo_bulk_actions_path, params: {
         bulk_action: "set_location",
         location_address: "Traverse City, MI",
@@ -132,7 +132,7 @@ class PhotoBulkActionsControllerTest < ActionDispatch::IntegrationTest
       raw: {}
     )
 
-    LocationAddressGeocoder.stub(:new, geocoder) do
+    with_address_geocoder(geocoder) do
       post photo_bulk_actions_path, params: {
         bulk_action: "set_location",
         location_address: "Traverse City, MI",
@@ -540,5 +540,15 @@ class PhotoBulkActionsControllerTest < ActionDispatch::IntegrationTest
       define_method(:initialize) { |geocoded| @geocoded = geocoded }
       define_method(:geocode) { |address:| @geocoded.merge(address: address) }
     end.new(result)
+  end
+
+  def with_address_geocoder(geocoder)
+    LocationAddressGeocoder.singleton_class.alias_method :original_new, :new
+    LocationAddressGeocoder.define_singleton_method(:new) { geocoder }
+
+    yield
+  ensure
+    LocationAddressGeocoder.singleton_class.alias_method :new, :original_new
+    LocationAddressGeocoder.singleton_class.remove_method :original_new
   end
 end
