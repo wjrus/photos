@@ -12,9 +12,12 @@ class LocationsController < ApplicationController
   end
 
   def show
-    @photos, @next_cursor, @newer_cursor = paginate_photo_stream_with_focus(location_photo_scope
+    scoped_photos = location_photo_scope
+    stream_scope = scoped_photos
       .with_original_variant_records
-      .stream_order)
+      .stream_order
+    @photos, @next_cursor, @newer_cursor = paginate_photo_stream_with_focus(stream_scope)
+    @newer_cursor ||= timeline_newer_cursor(scoped_photos) if params[:timeline_page].present?
 
     return if render_photo_page_if_requested(
       return_to: location_path(@location_id),
@@ -24,8 +27,9 @@ class LocationsController < ApplicationController
       stream_target_photo_id: @stream_target_photo_id
     )
 
-    @location_media_count = media_counts_for(location_photo_scope)
+    @location_media_count = media_counts_for(scoped_photos)
     @albums = current_user.photo_albums.display_order if current_user&.owner?
+    @timeline_periods = stream_timeline_periods(scoped_photos, cache_key: location_timeline_cache_key) unless params[:cursor].present?
   end
 
   private
@@ -47,6 +51,18 @@ class LocationsController < ApplicationController
       PhotoAlbumShare.count,
       PhotoLocationCover.maximum(:updated_at)&.utc&.to_i,
       PhotoLocationCover.count
+    ]
+  end
+
+  def location_timeline_cache_key
+    [
+      "location-timeline/v1",
+      cache_audience_key,
+      @location_id,
+      Photo.maximum(:updated_at)&.utc&.to_i,
+      PhotoMetadata.maximum(:updated_at)&.utc&.to_i,
+      PhotoAlbumShare.maximum(:updated_at)&.utc&.to_i,
+      PhotoAlbumShare.count
     ]
   end
 

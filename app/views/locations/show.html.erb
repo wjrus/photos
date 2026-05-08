@@ -1,4 +1,5 @@
 <% content_for :title, @location_title %>
+<% content_for :body_class, "stream-timeline-scrollbar" if @timeline_periods.present? %>
 
 <% if current_user&.owner? %>
   <% content_for :header_actions do %>
@@ -33,5 +34,6 @@
           next_cursor: @next_cursor,
           newer_cursor: @newer_cursor,
           next_page_path: location_path(@location_id) %>
+    <%= render "photos/timeline", periods: @timeline_periods, page_path: location_path(@location_id) if @timeline_periods.present? %>
   </main>
 </section>

@@ -40,6 +40,36 @@ module PhotoStreamPagination
     true
   end
 
+  def stream_timeline_periods(scope, cache_key:)
+    Rails.cache.fetch(cache_key, expires_in: 30.minutes, race_condition_ttl: 10.seconds) do
+      scope
+        .except(:order)
+        .where.not(captured_at: nil)
+        .group(Arel.sql("DATE_TRUNC('month', photos.captured_at)"))
+        .order(Arel.sql("DATE_TRUNC('month', photos.captured_at) DESC"))
+        .count
+        .map do |period, count|
+          period = period.in_time_zone.beginning_of_month
+          {
+            period: period,
+            count: count,
+            label: period.strftime("%B %Y"),
+            year: period.year,
+            month: period.month,
+            key: period.strftime("%Y-%m"),
+            cursor: Photo.stream_cursor_before(period.next_month)
+          }
+        end
+    end
+  end
+
+  def timeline_newer_cursor(scope)
+    cursor = @photos.first&.stream_cursor
+    return unless cursor
+
+    cursor if scope.after_stream_cursor(cursor).exists?
+  end
+
   def photo_page_locals(return_to:, next_page_path:, bulk_form_id:, feature_first: false, owner_controls: current_user&.owner?, newer_cursor: @newer_cursor, **extras)
     {
       photos: @photos,

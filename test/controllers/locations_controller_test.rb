@@ -190,6 +190,34 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-stream-date-group-key]", false
   end
 
+  test "location page renders timeline scoped to the location" do
+    location_newer = attached_photo(title: "Location timeline newer")
+    location_older = attached_photo(title: "Location timeline older")
+    outside = attached_photo(title: "Outside location timeline")
+    geotag(location_newer, latitude: 44.7622, longitude: -85.5980)
+    geotag(location_older, latitude: 44.7623, longitude: -85.5981)
+    geotag(outside, latitude: 45.5, longitude: -86.5)
+    location_newer.update!(captured_at: Time.zone.local(2024, 5, 12, 10))
+    location_older.update!(captured_at: Time.zone.local(2020, 2, 4, 10))
+    outside.update!(captured_at: Time.zone.local(2018, 2, 4, 10))
+    location_id = location_id_for(location_newer)
+
+    get location_path(location_id)
+
+    assert_response :success
+    assert_select "nav[aria-label='Photo timeline'][data-controller='stream-timeline']"
+    assert_select "button[aria-label*='Jump to May 2024'][data-stream-timeline-page-url-value^='#{location_path(location_id)}']"
+    assert_select "button[aria-label*='Jump to February 2020'][data-stream-timeline-page-url-value^='#{location_path(location_id)}']"
+    refute_includes response.body, "February 2018"
+
+    get location_path(location_id, cursor: Photo.stream_cursor_before(Time.zone.local(2021, 1, 1)), stream_page: 1, timeline_page: 1)
+
+    assert_response :success
+    assert_includes response.body, location_older.title
+    refute_includes response.body, location_newer.title
+    refute_includes response.body, outside.title
+  end
+
   test "location page splits photo and video counts" do
     photo = attached_photo(title: "Location photo")
     geotag(photo, latitude: 44.7622, longitude: -85.5980)

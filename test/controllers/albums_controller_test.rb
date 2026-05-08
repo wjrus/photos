@@ -321,6 +321,32 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-stream-date-group-key]", false
   end
 
+  test "album page renders timeline scoped to the album" do
+    album = @owner.photo_albums.create!(title: "Timeline Album", source: "manual")
+    album_newer = attached_photo(title: "Album timeline newer")
+    album_older = attached_photo(title: "Album timeline older")
+    outside = attached_photo(title: "Outside timeline")
+    album.photos << [ album_newer, album_older ]
+    album_newer.update!(captured_at: Time.zone.local(2024, 5, 12, 10))
+    album_older.update!(captured_at: Time.zone.local(2020, 2, 4, 10))
+    outside.update!(captured_at: Time.zone.local(2018, 2, 4, 10))
+
+    get album_path(album)
+
+    assert_response :success
+    assert_select "nav[aria-label='Photo timeline'][data-controller='stream-timeline']"
+    assert_select "button[aria-label*='Jump to May 2024'][data-stream-timeline-page-url-value^='#{album_path(album)}']"
+    assert_select "button[aria-label*='Jump to February 2020'][data-stream-timeline-page-url-value^='#{album_path(album)}']"
+    refute_includes response.body, "February 2018"
+
+    get album_path(album, cursor: Photo.stream_cursor_before(Time.zone.local(2021, 1, 1)), stream_page: 1, timeline_page: 1)
+
+    assert_response :success
+    assert_includes response.body, album_older.title
+    refute_includes response.body, album_newer.title
+    refute_includes response.body, outside.title
+  end
+
   test "owner can remove a photo from an album without deleting it" do
     album = @owner.photo_albums.create!(title: "Trip", source: "manual")
     photo = attached_photo(title: "Album item")

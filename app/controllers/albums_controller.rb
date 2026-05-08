@@ -26,6 +26,7 @@ class AlbumsController < ApplicationController
       .stream_order
 
     @photos, @next_cursor, @newer_cursor = paginate_photo_stream_with_focus(visible_photos)
+    @newer_cursor ||= timeline_newer_cursor(visible_photos) if params[:timeline_page].present?
 
     return if render_photo_page_if_requested(
       return_to: album_path(@album),
@@ -42,6 +43,7 @@ class AlbumsController < ApplicationController
       @album_shares = @album.photo_album_shares.joins(:user).includes(:user).order(Arel.sql("LOWER(users.email) ASC"))
       @shareable_users = shareable_users_for(@album)
     end
+    @timeline_periods = stream_timeline_periods(visible_photos, cache_key: album_timeline_cache_key(@album)) unless params[:cursor].present?
   end
 
   def create
@@ -135,6 +137,18 @@ class AlbumsController < ApplicationController
       PhotoAlbumMembership.count,
       Photo.maximum(:updated_at)&.utc&.to_i,
       albums.map(&:id)
+    ]
+  end
+
+  def album_timeline_cache_key(album)
+    [
+      "album-timeline/v1",
+      cache_audience_key,
+      album.id,
+      album.updated_at&.utc&.to_i,
+      PhotoAlbumMembership.where(photo_album_id: album.id).maximum(:created_at)&.utc&.to_i,
+      PhotoAlbumMembership.where(photo_album_id: album.id).count,
+      Photo.maximum(:updated_at)&.utc&.to_i
     ]
   end
 
