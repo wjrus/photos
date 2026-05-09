@@ -17,6 +17,8 @@ class RepositoryHealthControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "Repository health"
+    assert_includes response.body, "Queue baseline scan"
+    assert_includes response.body, "Showing latest"
   end
 
   test "owner account menu links to repository health" do
@@ -43,6 +45,15 @@ class RepositoryHealthControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to repository_health_path
     assert_equal "Repository patrol queued.", flash[:notice]
+  end
+
+  test "owner can queue baseline scan" do
+    assert_enqueued_with(job: OriginalFileHealthPatrolJob) do
+      post repository_health_path, params: { scan_type: "baseline" }
+    end
+
+    assert_redirected_to repository_health_path
+    assert_equal "Baseline repository scan queued.", flash[:notice]
   end
 
   private

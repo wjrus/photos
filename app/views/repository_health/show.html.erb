@@ -18,22 +18,34 @@
         <%= button_to "Queue patrol",
               repository_health_path,
               method: :post,
+              params: { scan_type: "patrol", batch_size: OriginalFileHealthPatrolJob::DEFAULT_BATCH_SIZE },
               class: "inline-flex items-center justify-center rounded-lg bg-zinc-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700" %>
+        <%= button_to "Queue baseline scan",
+              repository_health_path,
+              method: :post,
+              params: { scan_type: "baseline" },
+              class: "inline-flex items-center justify-center rounded-lg border border-teal-700 bg-teal-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950" %>
       </div>
     </div>
 
-    <div class="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
+    <div class="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-6">
       <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
-        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Photos</p>
-        <p class="mt-2 text-2xl font-semibold text-zinc-950"><%= number_with_delimiter(@totals.fetch(:photos)) %></p>
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Originals</p>
+        <p class="mt-2 text-2xl font-semibold text-zinc-950"><%= number_with_delimiter(@totals.fetch(:originals)) %></p>
       </div>
       <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
         <p class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Checked</p>
         <p class="mt-2 text-2xl font-semibold text-zinc-950"><%= number_with_delimiter(@totals.fetch(:checked)) %></p>
+        <p class="mt-1 text-xs text-zinc-500"><%= @totals.fetch(:checked_percent) %>% complete</p>
       </div>
       <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
         <p class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Unchecked</p>
         <p class="mt-2 text-2xl font-semibold text-zinc-950"><%= number_with_delimiter(@totals.fetch(:never_checked)) %></p>
+      </div>
+      <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Stale</p>
+        <p class="mt-2 text-2xl font-semibold text-zinc-950"><%= number_with_delimiter(@totals.fetch(:stale)) %></p>
+        <p class="mt-1 text-xs text-zinc-500">older than <%= distance_of_time_in_words(OriginalFileHealthPatrolJob::DEFAULT_STALE_AFTER) %></p>
       </div>
       <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
         <p class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Attention</p>
@@ -47,7 +59,10 @@
 
     <div class="mt-8 grid gap-6 xl:grid-cols-[1fr_28rem]">
       <section>
-        <h2 class="text-sm font-semibold uppercase tracking-[0.16em] text-zinc-500">Recent checks</h2>
+        <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <h2 class="text-sm font-semibold uppercase tracking-[0.16em] text-zinc-500">Recent checks</h2>
+          <p class="text-xs text-zinc-500">Showing latest <%= @recent_checks.size %> of <%= number_with_delimiter(@totals.fetch(:checked)) %> checked originals.</p>
+        </div>
         <%= render "repository_health/check_table", checks: @recent_checks, empty: "No file health checks have run yet." %>
       </section>
 
@@ -72,7 +87,10 @@
         </section>
 
         <section>
-          <h2 class="text-sm font-semibold uppercase tracking-[0.16em] text-zinc-500">Needs attention</h2>
+          <div class="flex flex-col gap-1">
+            <h2 class="text-sm font-semibold uppercase tracking-[0.16em] text-zinc-500">Needs attention</h2>
+            <p class="text-xs text-zinc-500">Showing latest <%= @recent_attention.size %> of <%= number_with_delimiter(@totals.fetch(:attention)) %>.</p>
+          </div>
           <div class="mt-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
             <% if @recent_attention.any? %>
               <ul class="space-y-4">
