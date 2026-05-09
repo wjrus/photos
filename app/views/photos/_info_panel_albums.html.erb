@@ -14,7 +14,7 @@
           </summary>
           <div class="absolute right-0 z-20 mt-3 w-[min(78vw,320px)] rounded-lg border border-zinc-200 bg-white p-4 shadow-2xl">
             <%= form_with url: photo_photo_album_memberships_path(photo), method: :post, class: "space-y-3" do %>
-              <%= hidden_field_tag :return_to, photo_path(photo) %>
+              <%= hidden_field_tag :return_to, return_to %>
 
               <% if addable_albums.any? %>
                 <div>

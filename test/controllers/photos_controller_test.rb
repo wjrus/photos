@@ -211,6 +211,23 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert PhotoAlbumMembership.exists?(photo: photo, photo_album: album)
   end
 
+  test "photo detail add to album can preserve album stream context" do
+    current_album = @owner.photo_albums.create!(title: "Current", source: "manual")
+    target_album = @owner.photo_albums.create!(title: "Target", source: "manual")
+    photo = attached_photo(title: "Contextual album candidate")
+    current_album.photos << photo
+
+    assert_difference "PhotoAlbumMembership.count", 1 do
+      post photo_photo_album_memberships_path(photo), params: {
+        album_id: target_album.id,
+        return_to: album_path(current_album, photo_id: photo.id)
+      }
+    end
+
+    assert_redirected_to album_path(current_album, photo_id: photo.id)
+    assert PhotoAlbumMembership.exists?(photo: photo, photo_album: target_album)
+  end
+
   test "owner can create a new album from photo details" do
     photo = attached_photo(title: "Album candidate")
 
@@ -431,6 +448,8 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, %(data-stream-navigation-back-url-value="#{album_path(album, photo_id: photo.id)}")
     assert_select "form[action='#{album_cover_path(album, photo)}'][method='post']", text: "Set album cover"
     assert_select "form[action='#{photo_path(photo)}'][method='post'] input[name='return_to'][value='#{album_path(album, photo_id: photo.id)}']"
+    assert_select "form[action='#{publish_photo_path(photo)}'][method='post'] input[name='return_to'][value='#{album_path(album, photo_id: photo.id)}']"
+    assert_select "form[action='#{photo_photo_album_memberships_path(photo)}'][method='post'] input[name='return_to'][value='#{album_path(album, photo_id: photo.id)}']"
     assert_select "form[action='#{photo_album_membership_path(album.photo_album_memberships.find_by!(photo: photo))}'][method='post'] input[name='return_to'][value='#{album_path(album, photo_id: photo.id)}']"
   end
 
