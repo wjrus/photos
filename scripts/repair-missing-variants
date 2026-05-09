@@ -1,0 +1,39 @@
+#!/usr/bin/env ruby
+
+require_relative "../config/environment"
+require "set"
+
+missing_source_blob_ids = Set.new
+removed = 0
+
+ActiveStorage::VariantRecord.includes(image_attachment: :blob).find_each do |variant|
+  next unless variant.image.attached?
+
+  image_blob = variant.image.blob
+  service = image_blob.service
+  exists = if service.respond_to?(:path_for)
+    File.exist?(service.path_for(image_blob.key))
+  else
+    service.exist?(image_blob.key)
+  end
+  next if exists
+
+  missing_source_blob_ids << variant.blob_id
+  puts "missing variant=#{variant.id} image_blob=#{image_blob.id} key=#{image_blob.key}"
+  variant.image.purge
+  variant.destroy!
+  removed += 1
+end
+
+photos = Photo
+  .joins(:original_attachment)
+  .where(active_storage_attachments: { name: "original", blob_id: missing_source_blob_ids.to_a })
+  .distinct
+
+puts "removed_missing_variants=#{removed}"
+puts "affected_photos=#{photos.count}"
+
+photos.find_each do |photo|
+  puts "queue derivatives photo=#{photo.id} #{photo.original_filename}"
+  GeneratePhotoDerivativesJob.perform_later(photo)
+end

@@ -2,6 +2,45 @@ require "test_helper"
 
 class HealOriginalFromDriveJobTest < ActiveJob::TestCase
   test "downloads verified drive copy and replaces corrupt local original" do
+    original_new = nil
+
+    with_auto_heal_enabled do
+      source_path = Rails.root.join("public/icon.png")
+      photo = attached_photo(source_path)
+      photo.create_drive_archive_object!(
+        status: "archived",
+        google_file_id: "drive-file-id",
+        archived_at: Time.current
+      )
+      File.write(storage_path(photo), "corrupt", mode: "wb")
+      check = photo.file_health_checks.create!(
+        active_storage_blob: photo.original.blob,
+        blob_key: photo.original.blob.key,
+        status: "mismatch",
+        expected_byte_size: photo.original.blob.byte_size,
+        expected_checksum_md5: photo.original.blob.checksum,
+        expected_checksum_sha256: photo.checksum_sha256,
+        actual_byte_size: "corrupt".bytesize,
+        checked_at: Time.current
+      )
+      fake_client = FakeDriveArchiveClient.new(source_path)
+      original_new = GoogleDriveArchiveClient.method(:new)
+      GoogleDriveArchiveClient.define_singleton_method(:new) { |_user| fake_client }
+
+      assert_enqueued_jobs 2 do
+        HealOriginalFromDriveJob.perform_now(check)
+      end
+
+      assert_equal File.binread(source_path), File.binread(storage_path(photo))
+      assert_equal "healed", check.reload.status
+      assert_not_nil check.healed_at
+      assert_not_nil photo.drive_archive_object.reload.verified_at
+    end
+  ensure
+    GoogleDriveArchiveClient.define_singleton_method(:new, original_new) if original_new
+  end
+
+  test "does not touch storage when auto heal is disabled" do
     source_path = Rails.root.join("public/icon.png")
     photo = attached_photo(source_path)
     photo.create_drive_archive_object!(
@@ -20,23 +59,22 @@ class HealOriginalFromDriveJobTest < ActiveJob::TestCase
       actual_byte_size: "corrupt".bytesize,
       checked_at: Time.current
     )
-    fake_client = FakeDriveArchiveClient.new(source_path)
-    original_new = GoogleDriveArchiveClient.method(:new)
-    GoogleDriveArchiveClient.define_singleton_method(:new) { |_user| fake_client }
 
-    assert_enqueued_jobs 2 do
-      HealOriginalFromDriveJob.perform_now(check)
-    end
+    HealOriginalFromDriveJob.perform_now(check)
 
-    assert_equal File.binread(source_path), File.binread(storage_path(photo))
-    assert_equal "healed", check.reload.status
-    assert_not_nil check.healed_at
-    assert_not_nil photo.drive_archive_object.reload.verified_at
-  ensure
-    GoogleDriveArchiveClient.define_singleton_method(:new, original_new) if original_new
+    assert_equal "corrupt", File.binread(storage_path(photo))
+    assert_equal "mismatch", check.reload.status
   end
 
   private
+
+  def with_auto_heal_enabled
+    previous = ENV["ORIGINAL_FILE_HEALTH_AUTO_HEAL"]
+    ENV["ORIGINAL_FILE_HEALTH_AUTO_HEAL"] = "true"
+    yield
+  ensure
+    ENV["ORIGINAL_FILE_HEALTH_AUTO_HEAL"] = previous
+  end
 
   class FakeDriveArchiveClient
     def initialize(source_path)

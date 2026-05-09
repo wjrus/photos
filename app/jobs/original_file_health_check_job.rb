@@ -2,6 +2,8 @@ class OriginalFileHealthCheckJob < ApplicationJob
   queue_as :maintenance
 
   READ_CHUNK_SIZE = 4.megabytes
+  MISSING_RETRY_ATTEMPTS = 3
+  MISSING_RETRY_DELAY = 0.1
 
   def perform(photo, heal: true)
     unless photo.original.attached?
@@ -10,9 +12,17 @@ class OriginalFileHealthCheckJob < ApplicationJob
     end
 
     blob = photo.original.blob
+    with_original_file_lock(blob) do
+      check_original(photo, blob, heal: heal)
+    end
+  end
+
+  private
+
+  def check_original(photo, blob, heal:)
     started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     check = build_check(photo, blob)
-    actual = fingerprint(blob)
+    actual = fingerprint_with_missing_retry(blob)
 
     check.actual_byte_size = actual.fetch(:byte_size)
     check.actual_checksum_md5 = actual.fetch(:md5)
@@ -54,8 +64,6 @@ class OriginalFileHealthCheckJob < ApplicationJob
     raise
   end
 
-  private
-
   def build_check(photo, blob)
     FileHealthCheck.new(
       photo: photo,
@@ -74,6 +82,20 @@ class OriginalFileHealthCheckJob < ApplicationJob
       fingerprint_path(blob.service.path_for(blob.key))
     else
       fingerprint_download(blob)
+    end
+  end
+
+  def fingerprint_with_missing_retry(blob)
+    attempts = 0
+
+    begin
+      fingerprint(blob)
+    rescue ActiveStorage::FileNotFoundError, Errno::ENOENT
+      attempts += 1
+      raise if attempts >= MISSING_RETRY_ATTEMPTS
+
+      sleep MISSING_RETRY_DELAY
+      retry
     end
   end
 
@@ -110,6 +132,7 @@ class OriginalFileHealthCheckJob < ApplicationJob
   end
 
   def maybe_enqueue_heal(check)
+    return unless original_file_auto_heal_enabled?
     return unless check.needs_attention?
     archive_object = check.photo.drive_archive_object
     return unless archive_object&.archived?

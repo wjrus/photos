@@ -38,7 +38,7 @@ module ApplicationHelper
       end
     else
       stream_variant = photo.processed_original_variant_record(:stream)
-      return photo_stream_placeholder("Processing") unless stream_variant&.image&.attached?
+      return photo_stream_placeholder("Processing") unless attached_blob_available?(stream_variant&.image)
 
       image_tag stream_variant.image,
         { alt: photo.title, class: "size-full object-cover", loading: "lazy", decoding: "async" }.merge(options)
@@ -71,7 +71,7 @@ module ApplicationHelper
     else
       detail_variant = photo.processed_original_variant_record(:display) || photo.processed_original_variant_record(:stream)
 
-      if detail_variant&.image&.attached?
+      if attached_blob_available?(detail_variant&.image)
         image_tag detail_variant.image,
           alt: photo.title,
           class: "max-h-[calc(100vh-3rem)] w-auto rounded-lg object-contain shadow-2xl"
@@ -158,6 +158,20 @@ module ApplicationHelper
     tag.div class: "flex size-full items-center justify-center bg-zinc-900 text-xs font-semibold uppercase tracking-[0.18em] text-white/70" do
       label
     end
+  end
+
+  def attached_blob_available?(attachment)
+    return false unless attachment&.attached?
+
+    blob = attachment.blob
+    service = blob.service
+    if service.respond_to?(:path_for)
+      File.exist?(service.path_for(blob.key))
+    else
+      service.exist?(blob.key)
+    end
+  rescue ActiveStorage::FileNotFoundError, Errno::ENOENT
+    false
   end
 
   def photo_stream_day(photo)

@@ -1,0 +1,23 @@
+#!/usr/bin/env ruby
+
+require_relative "../config/environment"
+
+HEALTH_JOB_CLASSES = %w[
+  OriginalFileHealthPatrolJob
+  OriginalFileHealthCheckJob
+  HealOriginalFromDriveJob
+].freeze
+
+queue_available = defined?(SolidQueue::Job) && SolidQueue::Job.connection.data_source_exists?("solid_queue_jobs")
+deleted_jobs = 0
+
+if queue_available
+  deleted_jobs = SolidQueue::Job.where(class_name: HEALTH_JOB_CLASSES).delete_all
+end
+
+deleted_checks = FileHealthCheck.delete_all
+
+puts "deleted_file_health_checks=#{deleted_checks}"
+puts "deleted_repository_health_jobs=#{deleted_jobs}"
+puts "auto_heal_enabled=#{ActiveModel::Type::Boolean.new.cast(ENV.fetch("ORIGINAL_FILE_HEALTH_AUTO_HEAL", "false"))}"
+puts "done"

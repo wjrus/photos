@@ -15,24 +15,45 @@ class OriginalFileHealthCheckJobTest < ActiveJob::TestCase
   end
 
   test "records mismatch and queues healing when archived drive copy exists" do
-    photo = attached_photo
-    photo.create_drive_archive_object!(
-      status: "archived",
-      google_file_id: "drive-file-id",
-      archived_at: Time.current
-    )
-    File.write(storage_path(photo), "wrong bytes", mode: "wb")
+    with_auto_heal_enabled do
+      photo = attached_photo
+      photo.create_drive_archive_object!(
+        status: "archived",
+        google_file_id: "drive-file-id",
+        archived_at: Time.current
+      )
+      File.write(storage_path(photo), "wrong bytes", mode: "wb")
 
-    assert_enqueued_with(job: HealOriginalFromDriveJob) do
-      check = OriginalFileHealthCheckJob.perform_now(photo)
+      assert_enqueued_with(job: HealOriginalFromDriveJob) do
+        check = OriginalFileHealthCheckJob.perform_now(photo)
 
-      assert_equal "mismatch", check.status
-      assert_includes check.error, "bytes"
-      assert_equal "wrong bytes".bytesize, check.actual_byte_size
+        assert_equal "mismatch", check.status
+        assert_includes check.error, "bytes"
+        assert_equal "wrong bytes".bytesize, check.actual_byte_size
+      end
     end
   end
 
   test "records missing and queues healing when archived drive copy exists" do
+    with_auto_heal_enabled do
+      photo = attached_photo
+      photo.create_drive_archive_object!(
+        status: "archived",
+        google_file_id: "drive-file-id",
+        archived_at: Time.current
+      )
+      File.delete(storage_path(photo))
+
+      assert_enqueued_with(job: HealOriginalFromDriveJob) do
+        check = OriginalFileHealthCheckJob.perform_now(photo)
+
+        assert_equal "missing", check.status
+        assert check.error.present?
+      end
+    end
+  end
+
+  test "records missing without queuing healing when auto heal is disabled" do
     photo = attached_photo
     photo.create_drive_archive_object!(
       status: "archived",
@@ -41,7 +62,7 @@ class OriginalFileHealthCheckJobTest < ActiveJob::TestCase
     )
     File.delete(storage_path(photo))
 
-    assert_enqueued_with(job: HealOriginalFromDriveJob) do
+    assert_no_enqueued_jobs only: HealOriginalFromDriveJob do
       check = OriginalFileHealthCheckJob.perform_now(photo)
 
       assert_equal "missing", check.status
@@ -50,6 +71,14 @@ class OriginalFileHealthCheckJobTest < ActiveJob::TestCase
   end
 
   private
+
+  def with_auto_heal_enabled
+    previous = ENV["ORIGINAL_FILE_HEALTH_AUTO_HEAL"]
+    ENV["ORIGINAL_FILE_HEALTH_AUTO_HEAL"] = "true"
+    yield
+  ensure
+    ENV["ORIGINAL_FILE_HEALTH_AUTO_HEAL"] = previous
+  end
 
   def attached_photo
     path = Rails.root.join("public/icon.png")

@@ -56,6 +56,18 @@ class ApplicationHelperTest < ActionView::TestCase
     assert_not_includes html, display_photo_path(photo)
   end
 
+  test "stream image waits when preprocessed thumbnail file is missing" do
+    photo = attached_photo
+    variant = photo.original.variant(:stream).processed
+    File.delete(ActiveStorage::Blob.service.path_for(variant.image.blob.key))
+    photo.reload
+
+    html = photo_stream_media(photo)
+
+    assert_includes html, "Processing"
+    assert_not_includes html, variant.image.blob.key
+  end
+
   test "detail image falls back to on-demand display route" do
     photo = attached_photo
 
@@ -64,6 +76,14 @@ class ApplicationHelperTest < ActionView::TestCase
     assert_includes html, "<img"
     assert_includes html, display_photo_path(photo)
     assert_not_includes html, "Image derivative processing"
+  end
+
+  test "attached blob availability returns false for missing disk files" do
+    photo = attached_photo
+    attachment = photo.original
+    File.delete(ActiveStorage::Blob.service.path_for(attachment.blob.key))
+
+    refute attached_blob_available?(attachment)
   end
 
   test "bulk action buttons use link-like pointer cursors" do
