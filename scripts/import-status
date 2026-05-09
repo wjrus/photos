@@ -4,6 +4,9 @@ set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+source "$ROOT/scripts/lib/compose_env"
+load_compose_env
+
 SERVICE="${1:-web}"
 
 if [[ "$SERVICE" == "-h" || "$SERVICE" == "--help" ]]; then
