@@ -15,12 +15,20 @@ class ApplicationJob < ActiveJob::Base
     return yield unless connection.adapter_name == "PostgreSQL"
 
     lock_id = Integer(blob.id)
-    connection.execute("SELECT pg_advisory_lock(#{ORIGINAL_FILE_LOCK_NAMESPACE}, #{lock_id})")
+    original_file_lock_query("SELECT pg_advisory_lock($1, $2)", lock_id)
     yield
   ensure
     if connection&.adapter_name == "PostgreSQL" && lock_id
-      connection.execute("SELECT pg_advisory_unlock(#{ORIGINAL_FILE_LOCK_NAMESPACE}, #{lock_id})")
+      original_file_lock_query("SELECT pg_advisory_unlock($1, $2)", lock_id)
     end
+  end
+
+  def original_file_lock_query(sql, lock_id)
+    integer_type = ActiveRecord::Type::Integer.new
+    ActiveRecord::Base.connection.exec_query(sql, "SQL", [
+      ActiveRecord::Relation::QueryAttribute.new("namespace", ORIGINAL_FILE_LOCK_NAMESPACE, integer_type),
+      ActiveRecord::Relation::QueryAttribute.new("lock_id", lock_id, integer_type)
+    ])
   end
 
   def original_file_auto_heal_enabled?
