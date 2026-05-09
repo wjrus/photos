@@ -47,7 +47,7 @@ services:
     ports:
       - "3000:80"
     volumes:
-      - ${PHOTOS_STORAGE_PATH:-app_storage}:/rails/storage
+      - ${PHOTOS_STORAGE_PATH:?Set PHOTOS_STORAGE_PATH to the production Active Storage path before running docker compose. Use ./scripts/deploy or export PHOTOS_STORAGE_PATH=/mnt/photos/app_storage.}:/rails/storage
       - ${PHOTOS_IMPORT_PATH:-/mnt/photos/imports}:/rails/imports:ro
 
   worker:
@@ -75,10 +75,9 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ${PHOTOS_STORAGE_PATH:-app_storage}:/rails/storage
+      - ${PHOTOS_STORAGE_PATH:?Set PHOTOS_STORAGE_PATH to the production Active Storage path before running docker compose. Use ./scripts/deploy or export PHOTOS_STORAGE_PATH=/mnt/photos/app_storage.}:/rails/storage
       - ${PHOTOS_IMPORT_PATH:-/mnt/photos/imports}:/rails/imports:ro
 
 volumes:
   postgres_data:
   redis_data:
-  app_storage:

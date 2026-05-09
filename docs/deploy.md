@@ -63,15 +63,16 @@ docker compose exec web bin/rails console
 ## Updates
 
 ```sh
-git pull
-docker compose build
-docker compose up -d
+./scripts/deploy
 ```
 
-Or use the deploy script:
+The deploy script exports `PHOTOS_STORAGE_PATH` from `.env.production` before invoking Docker Compose and verifies that both app containers mount that exact path at `/rails/storage`.
+
+If you need to run Docker Compose directly, export the storage path first:
 
 ```sh
-./scripts/deploy
+export PHOTOS_STORAGE_PATH=/mnt/photos/app_storage
+docker compose up -d
 ```
 
 ## Backups
@@ -80,9 +81,9 @@ Back up the database volume and the app storage path:
 
 - `photos_postgres_data`
 - `photos_redis_data`
-- `${PHOTOS_STORAGE_PATH}` when set, otherwise `photos_app_storage`
+- `${PHOTOS_STORAGE_PATH}`
 
-The database contains users, photo records, metadata, jobs, and Drive archive state. Redis contains disposable cache entries. `app_storage` contains originals and generated local files. Google Drive is an archive mirror, not the only source of truth.
+The database contains users, photo records, metadata, jobs, and Drive archive state. Redis contains disposable cache entries. `${PHOTOS_STORAGE_PATH}` contains originals and generated local files. Google Drive is an archive mirror, not the only source of truth.
 
 ## Nginx Proxy Manager
 

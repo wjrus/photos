@@ -101,9 +101,24 @@ require_file ".env.postgres"
 require_clean_tracked_worktree
 
 storage_path="$(env_value PHOTOS_STORAGE_PATH .env.production)"
-if [[ -n "$storage_path" ]]; then
-  export PHOTOS_STORAGE_PATH="$storage_path"
-fi
+[[ -n "$storage_path" ]] || fail "PHOTOS_STORAGE_PATH must be set in .env.production"
+[[ -d "$storage_path" ]] || fail "PHOTOS_STORAGE_PATH does not exist or is not a directory: $storage_path"
+export PHOTOS_STORAGE_PATH="$storage_path"
+
+require_storage_mount() {
+  local service="$1"
+  local container_id
+  local mounted_source
+
+  container_id="$(compose ps -q "$service")"
+  [[ -n "$container_id" ]] || fail "$service container is missing"
+
+  mounted_source="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/rails/storage"}}{{.Source}}{{end}}{{end}}' "$container_id")"
+  [[ "$mounted_source" == "$storage_path" ]] || {
+    compose logs --tail=80 "$service" >&2 || true
+    fail "$service mounted /rails/storage from ${mounted_source:-nothing}, expected $storage_path"
+  }
+}
 
 log "Pulling latest code"
 git pull --ff-only
@@ -123,10 +138,12 @@ wait_for_state db healthy 120
 
 log "Starting web"
 compose up -d web --remove-orphans
+require_storage_mount web
 wait_for_http 240
 
 log "Starting worker"
 compose up -d worker --remove-orphans
+require_storage_mount worker
 wait_for_state worker running 120
 
 log "Current status"
