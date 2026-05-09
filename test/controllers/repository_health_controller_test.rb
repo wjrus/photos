@@ -19,6 +19,7 @@ class RepositoryHealthControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Repository health"
     assert_includes response.body, "Queue baseline scan"
     assert_includes response.body, "Showing latest"
+    assert_includes response.body, "Health jobs"
   end
 
   test "owner account menu links to repository health" do

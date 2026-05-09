@@ -10,6 +10,7 @@ class OriginalFileHealthCheckJob < ApplicationJob
     end
 
     blob = photo.original.blob
+    started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     check = build_check(photo, blob)
     actual = fingerprint(blob)
 
@@ -32,6 +33,7 @@ class OriginalFileHealthCheckJob < ApplicationJob
     end
 
     check.save!
+    log_check_timing(photo, actual.fetch(:byte_size), started_at)
     maybe_enqueue_heal(check) if heal
     check
   rescue ActiveStorage::FileNotFoundError, Errno::ENOENT => error
@@ -114,5 +116,16 @@ class OriginalFileHealthCheckJob < ApplicationJob
     return if archive_object.google_file_id.blank?
 
     HealOriginalFromDriveJob.perform_later(check)
+  end
+
+  def log_check_timing(photo, byte_size, started_at)
+    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
+    return if elapsed <= 0
+
+    Rails.logger.info(
+      "Checked original file health for photo #{photo.id} " \
+      "(#{byte_size} bytes, " \
+      "#{(byte_size / elapsed / 1.megabyte).round(1)} MB/s, #{elapsed.round(2)}s)"
+    )
   end
 end

@@ -21,7 +21,7 @@ class OriginalFileHealthPatrolJob < ApplicationJob
       .joins(:original_attachment)
       .joins("LEFT JOIN (#{latest_checks.to_sql}) latest_file_health_checks ON latest_file_health_checks.photo_id = photos.id")
       .where("latest_file_health_checks.id IS NULL OR latest_file_health_checks.checked_at < ?", stale_after.ago)
-      .stream_order
+      .reorder(Arel.sql("photos.byte_size ASC NULLS LAST, photos.id ASC"))
       .limit(batch_size)
   end
 end

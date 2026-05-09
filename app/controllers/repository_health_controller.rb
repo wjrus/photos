@@ -16,6 +16,7 @@ class RepositoryHealthController < ApplicationController
       drive_archived: DriveArchiveObject.where(status: "archived").count
     }
     @status_counts = latest_checks.group(:status).count
+    @health_job_counts = health_job_counts
     @recent_checks = latest_checks.includes(:photo).latest_first.limit(25)
     @recent_attention = latest_checks.needs_attention.includes(:photo).latest_first.limit(25)
   end
@@ -65,5 +66,36 @@ class RepositoryHealthController < ApplicationController
     Integer(params[:batch_size].presence || never_checked_count).clamp(1, 50_000)
   rescue ArgumentError
     never_checked_count.clamp(1, 50_000)
+  end
+
+  def health_job_counts
+    counts = {
+      ready: 0,
+      claimed: 0,
+      scheduled: 0,
+      failed: 0,
+      blocked: 0,
+      total: 0
+    }
+    snapshot = QueueStatusSnapshot.build
+    return counts unless snapshot.available?
+
+    snapshot.job_classes.each do |job_class|
+      next unless job_class.fetch(:name).in?(health_job_class_names)
+
+      job_class.fetch(:counts).each do |state, count|
+        counts[state] += count
+      end
+      counts[:total] += job_class.fetch(:total)
+    end
+    counts
+  end
+
+  def health_job_class_names
+    %w[
+      OriginalFileHealthPatrolJob
+      OriginalFileHealthCheckJob
+      HealOriginalFromDriveJob
+    ]
   end
 end
