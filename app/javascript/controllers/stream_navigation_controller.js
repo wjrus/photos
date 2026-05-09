@@ -13,6 +13,8 @@ export default class extends Controller {
   }
 
   keydown(event) {
+    if (this.insideInfoPanel(event)) return
+    if (this.interactiveElement(event)) return
     if (this.editingText(event)) return
 
     if (event.key === "Escape") {
@@ -61,6 +63,7 @@ export default class extends Controller {
   }
 
   wheel(event) {
+    if (this.insideInfoPanel(event)) return
     if (this.editingText(event)) return
     if (this.panningZoomedMedia(event)) return
 
@@ -99,7 +102,15 @@ export default class extends Controller {
     return ["INPUT", "SELECT", "TEXTAREA"].includes(tagName) || event.target.isContentEditable
   }
 
+  interactiveElement(event) {
+    return event.target.closest?.("a, button, summary, [role='button']")
+  }
+
+  insideInfoPanel(event) {
+    return event.target.closest?.("#photo-info-panel")
+  }
+
   panningZoomedMedia(event) {
-    return event.target.closest("[data-photo-zoom-pannable='true']")
+    return event.target.closest?.("[data-photo-zoom-pannable='true']")
   }
 }

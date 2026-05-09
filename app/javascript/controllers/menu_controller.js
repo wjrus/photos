@@ -26,6 +26,8 @@ export default class extends Controller {
   closeOnEscape(event) {
     if (event.key !== "Escape" || !this.element.open) return
 
+    event.preventDefault()
+    event.stopPropagation()
     this.element.open = false
     this.summaryElement?.focus()
   }

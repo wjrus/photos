@@ -37,6 +37,7 @@ export default class extends Controller {
 
     if (event.key === "Escape") {
       event.preventDefault()
+      event.stopPropagation()
       this.close()
     } else if (event.key === "Tab") {
       this.trapFocus(event)
