@@ -36,6 +36,31 @@ class ArchivedPhotosControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to root_path
   end
 
+  test "archive stream renders timeline scoped to archived photos" do
+    newer = attached_photo(title: "Archive timeline newer")
+    older = attached_photo(title: "Archive timeline older")
+    active = attached_photo(title: "Active timeline outside")
+    [ newer, older ].each(&:archive!)
+    set_stream_time(newer, Time.zone.local(2024, 5, 12, 10))
+    set_stream_time(older, Time.zone.local(2020, 2, 4, 10))
+    set_stream_time(active, Time.zone.local(2018, 2, 4, 10))
+
+    get archived_photos_path
+
+    assert_response :success
+    assert_select "nav[aria-label='Photo timeline'][data-controller='stream-timeline']"
+    assert_select "button[aria-label*='Jump to May 2024'][data-stream-timeline-page-url-value^='#{archived_photos_path}']"
+    assert_select "button[aria-label*='Jump to February 2020'][data-stream-timeline-page-url-value^='#{archived_photos_path}']"
+    refute_includes response.body, "February 2018"
+
+    get archived_photos_path(cursor: Photo.stream_cursor_before(Time.zone.local(2021, 1, 1)), stream_page: 1, timeline_page: 1)
+
+    assert_response :success
+    assert_includes response.body, older.title
+    refute_includes response.body, newer.title
+    refute_includes response.body, active.title
+  end
+
   private
 
   def sign_in_as(user)
@@ -62,5 +87,10 @@ class ArchivedPhotosControllerTest < ActionDispatch::IntegrationTest
     )
     photo.save!
     photo
+  end
+
+  def set_stream_time(photo, time)
+    PhotoMetadata.for_photo(photo).update!(captured_at: time)
+    photo.update_columns(captured_at: time, created_at: time, updated_at: time)
   end
 end

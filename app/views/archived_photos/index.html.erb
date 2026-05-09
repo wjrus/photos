@@ -1,4 +1,5 @@
 <% content_for :title, "Archive" %>
+<% content_for :body_class, "stream-timeline-scrollbar" if @timeline_periods.present? %>
 
 <% content_for :header_actions do %>
   <%= render "photos/bulk_toolbar", albums: @albums, return_to: archived_photos_path, form_id: "archive-photo-bulk-form", archive_context: true %>
@@ -28,6 +29,7 @@
             next_cursor: @next_cursor,
             newer_cursor: @newer_cursor,
             next_page_path: archived_photos_path %>
+      <%= render "photos/timeline", periods: @timeline_periods, page_path: archived_photos_path if @timeline_periods.present? %>
     <% else %>
       <div class="flex min-h-[440px] items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-white p-8 text-center shadow-sm">
         <div>
