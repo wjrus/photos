@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_07_160000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_09_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -73,6 +73,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_07_160000) do
     t.index ["google_file_id"], name: "index_drive_archive_objects_on_google_file_id"
     t.index ["photo_id"], name: "index_drive_archive_objects_on_photo_id", unique: true
     t.index ["status"], name: "index_drive_archive_objects_on_status"
+  end
+
+  create_table "file_health_checks", force: :cascade do |t|
+    t.bigint "active_storage_blob_id", null: false
+    t.bigint "actual_byte_size"
+    t.string "actual_checksum_md5"
+    t.string "actual_checksum_sha256"
+    t.string "blob_key", null: false
+    t.datetime "checked_at", null: false
+    t.datetime "created_at", null: false
+    t.text "error"
+    t.bigint "expected_byte_size"
+    t.string "expected_checksum_md5"
+    t.string "expected_checksum_sha256"
+    t.datetime "healed_at"
+    t.bigint "photo_id", null: false
+    t.string "status", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active_storage_blob_id"], name: "index_file_health_checks_on_active_storage_blob_id"
+    t.index ["blob_key"], name: "index_file_health_checks_on_blob_key"
+    t.index ["checked_at"], name: "index_file_health_checks_on_checked_at"
+    t.index ["photo_id", "checked_at"], name: "index_file_health_checks_on_photo_id_and_checked_at"
+    t.index ["photo_id"], name: "index_file_health_checks_on_photo_id"
+    t.index ["status"], name: "index_file_health_checks_on_status"
   end
 
   create_table "google_takeout_import_runs", force: :cascade do |t|
@@ -290,6 +314,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_07_160000) do
   add_foreign_key "album_downloads", "photo_albums"
   add_foreign_key "album_downloads", "users"
   add_foreign_key "drive_archive_objects", "photos"
+  add_foreign_key "file_health_checks", "active_storage_blobs"
+  add_foreign_key "file_health_checks", "photos"
   add_foreign_key "google_takeout_import_runs", "users", column: "owner_id"
   add_foreign_key "google_takeout_imports", "photos", on_delete: :nullify
   add_foreign_key "photo_album_memberships", "photo_albums"

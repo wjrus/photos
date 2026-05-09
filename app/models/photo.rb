@@ -22,6 +22,7 @@ class Photo < ApplicationRecord
   belongs_to :upload_batch, optional: true
   has_one :metadata, class_name: "PhotoMetadata", dependent: :destroy, inverse_of: :photo
   has_one :drive_archive_object, dependent: :destroy
+  has_many :file_health_checks, dependent: :destroy
   has_many :photo_album_memberships, dependent: :destroy
   has_many :photo_albums, through: :photo_album_memberships
   has_many :photo_location_covers, foreign_key: :cover_photo_id, dependent: :destroy, inverse_of: :cover_photo
@@ -213,6 +214,10 @@ class Photo < ApplicationRecord
 
   def archive_status
     drive_archive_object&.status || "pending"
+  end
+
+  def latest_file_health_check
+    file_health_checks.latest_first.first
   end
 
   def image?

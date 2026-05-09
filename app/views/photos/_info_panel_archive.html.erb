@@ -1,12 +1,23 @@
 <section class="border-b border-zinc-200 p-5">
   <h2 class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Archive</h2>
   <div class="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
+    <% latest_file_health_check = photo.latest_file_health_check %>
     <span class="rounded-lg border border-teal-200 bg-teal-50 px-2 py-1 text-teal-700">
       Drive <%= photo.archive_status %>
     </span>
     <span class="rounded-lg border border-zinc-200 bg-stone-50 px-2 py-1 text-zinc-700" title="<%= photo.checksum_sha256 %>">
       SHA-256 <%= photo.checksum_status %>
     </span>
+    <% if latest_file_health_check %>
+      <span class="rounded-lg border px-2 py-1 <%= latest_file_health_check.needs_attention? ? "border-rose-200 bg-rose-50 text-rose-900" : "border-teal-200 bg-teal-50 text-teal-700" %>"
+            title="<%= latest_file_health_check.error.presence || "Checked #{time_ago_in_words(latest_file_health_check.checked_at)} ago" %>">
+        File <%= latest_file_health_check.status %>
+      </span>
+    <% else %>
+      <span class="rounded-lg border border-zinc-200 bg-stone-50 px-2 py-1 text-zinc-700">
+        File unchecked
+      </span>
+    <% end %>
   </div>
 
   <dl class="mt-4 space-y-2 text-sm">
@@ -34,6 +45,11 @@
     <% unless photo.drive_archive_object&.archived? %>
       <%= button_to "Retry Drive", retry_archive_photo_path(photo), method: :post, params: { return_to: return_to }, class: "rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
     <% end %>
+    <%= button_to "Check file",
+          photo_file_health_check_path(photo),
+          method: :post,
+          params: { return_to: return_to },
+          class: "rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
   </div>
 
   <% if photo.drive_archive_object&.error.present? %>

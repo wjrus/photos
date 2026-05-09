@@ -28,6 +28,8 @@ Rails.application.routes.draw do
   resources :imports, only: %i[index create]
   get "/queues", to: "queue_status#show", as: :queue_status
   delete "/queues/failures", to: "queue_status#destroy_failures", as: :queue_failures
+  get "/repository_health", to: "repository_health#show", as: :repository_health
+  post "/repository_health", to: "repository_health#create"
   get "/private", to: "restricted_photos#index", as: :restricted_photos
   post "/private/access", to: "restricted_photos#unlock", as: :unlock_restricted_photos
   delete "/private/access", to: "restricted_photos#lock", as: :lock_restricted_photos
@@ -65,6 +67,7 @@ Rails.application.routes.draw do
     patch :archive, on: :member
     patch :restore, on: :member
     post :retry_archive, on: :member
+    resource :file_health_check, only: :create, controller: :photo_file_health_checks
     resources :photo_album_memberships, only: :create, shallow: true
     resources :photo_people_tags, only: :create
   end

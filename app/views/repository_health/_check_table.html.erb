@@ -1,0 +1,42 @@
+<div class="mt-3 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
+  <% if checks.any? %>
+    <table class="w-full text-left text-sm">
+      <thead class="border-b border-zinc-200 bg-stone-50 text-xs uppercase tracking-[0.14em] text-zinc-500">
+        <tr>
+          <th class="px-4 py-3">Photo</th>
+          <th class="px-4 py-3">Status</th>
+          <th class="px-4 py-3 text-right">Expected</th>
+          <th class="px-4 py-3 text-right">Actual</th>
+          <th class="px-4 py-3">Checked</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-zinc-100">
+        <% checks.each do |check| %>
+          <tr>
+            <td class="max-w-[20rem] truncate px-4 py-3">
+              <%= link_to check.photo.original_filename,
+                    photo_path(check.photo),
+                    class: "font-medium text-zinc-950 underline decoration-zinc-300 underline-offset-4 hover:decoration-zinc-950",
+                    title: check.photo.original_filename %>
+            </td>
+            <td class="px-4 py-3">
+              <span class="rounded-lg border px-2 py-1 text-xs font-semibold <%= check.needs_attention? ? "border-rose-200 bg-rose-50 text-rose-900" : "border-teal-200 bg-teal-50 text-teal-700" %>">
+                <%= check.status %>
+              </span>
+            </td>
+            <td class="px-4 py-3 text-right text-zinc-700"><%= number_to_human_size(check.expected_byte_size) if check.expected_byte_size %></td>
+            <td class="px-4 py-3 text-right text-zinc-700"><%= number_to_human_size(check.actual_byte_size) if check.actual_byte_size %></td>
+            <td class="px-4 py-3 text-zinc-500"><%= time_ago_in_words(check.checked_at) %> ago</td>
+          </tr>
+          <% if check.error.present? %>
+            <tr>
+              <td colspan="5" class="bg-rose-50 px-4 py-3 text-xs leading-5 text-rose-900"><%= check.error %></td>
+            </tr>
+          <% end %>
+        <% end %>
+      </tbody>
+    </table>
+  <% else %>
+    <div class="p-6 text-sm text-zinc-600"><%= empty %></div>
+  <% end %>
+</div>

@@ -38,6 +38,12 @@ class GoogleDriveArchiveClient
     end
   end
 
+  def download_file(file_id, destination_path)
+    raise "Google Drive is not authorized for #{user.email}" unless user.google_drive_authorized?
+
+    drive_service.get_file(file_id, download_dest: destination_path)
+  end
+
   private
 
   attr_reader :user, :service
