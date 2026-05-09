@@ -26,7 +26,7 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "Map"
-    assert_includes response.body, "&lt; Stream"
+    assert_includes response.body, "Back to stream"
     assert_includes response.body, "1 geotagged photo"
     assert_includes response.body, "All photos"
     assert_includes response.body, "North"
