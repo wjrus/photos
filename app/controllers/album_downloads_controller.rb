@@ -5,6 +5,7 @@ class AlbumDownloadsController < ApplicationController
   before_action :set_album_download, only: %i[show file]
 
   def create
+    expires_now
     album = current_user.photo_albums.find(params[:album_id])
     download = current_user.album_downloads.create!(
       photo_album: album,
@@ -16,6 +17,7 @@ class AlbumDownloadsController < ApplicationController
   end
 
   def show
+    expires_now
     render json: download_payload(@album_download)
   end
 

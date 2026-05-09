@@ -228,6 +228,7 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :accepted
+    assert_match "no-cache", response.headers["Cache-Control"]
     payload = JSON.parse(response.body)
     download = AlbumDownload.find(payload.fetch("id"))
     assert_predicate download, :ready?
@@ -236,6 +237,7 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
 
     get album_download_path(download), as: :json
     assert_response :success
+    assert_match "no-cache", response.headers["Cache-Control"]
     payload = JSON.parse(response.body)
     assert_equal "ready", payload.fetch("status")
     assert_equal file_album_download_path(download), payload.fetch("file_url")

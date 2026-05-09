@@ -21,6 +21,7 @@ export default class extends Controller {
 
     const response = await fetch(this.createUrlValue, {
       method: "POST",
+      cache: "no-store",
       headers: {
         "Accept": "application/json",
         "X-CSRF-Token": document.querySelector("meta[name='csrf-token']")?.content
@@ -49,7 +50,10 @@ export default class extends Controller {
   }
 
   async poll() {
-    const response = await fetch(this.pollUrlValue, { headers: { "Accept": "application/json" } })
+    const response = await fetch(this.pollUrlValue, {
+      cache: "no-store",
+      headers: { "Accept": "application/json" }
+    })
     if (!response.ok) {
       this.fail("Could not check ZIP progress.")
       return
