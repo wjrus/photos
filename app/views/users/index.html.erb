@@ -61,16 +61,17 @@
                   <input type="text"
                          readonly
                          value="<%= invite_url %>"
-                         onclick="this.select()"
                          aria-label="Invitation link for <%= user.display_name %>"
+                         data-controller="select-text"
+                         data-action="focus->select-text#select click->select-text#select"
                          class="w-full rounded-lg border border-zinc-300 bg-stone-50 px-3 py-2 text-xs text-zinc-700">
                 <% else %>
-                  <span class="text-zinc-400">-</span>
+                  <span class="text-zinc-600">-</span>
                 <% end %>
               </td>
               <td class="px-4 py-3 text-right">
                 <% if user.owner? || user == current_user %>
-                  <span class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-400">Protected</span>
+                  <span class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-600">Protected</span>
                 <% else %>
                   <div class="inline-block" data-controller="confirm-modal" data-action="keydown@window->confirm-modal#keydown">
                     <button type="button"

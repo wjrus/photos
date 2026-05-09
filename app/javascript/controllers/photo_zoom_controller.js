@@ -1,7 +1,18 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["frame", "panel", "percent", "toggleButton", "zoomInButton", "zoomOutButton"]
+  static targets = [
+    "frame",
+    "minimap",
+    "minimapImage",
+    "minimapViewport",
+    "panel",
+    "percent",
+    "status",
+    "toggleButton",
+    "zoomInButton",
+    "zoomOutButton"
+  ]
 
   connect() {
     this.zoom = 1
@@ -10,6 +21,7 @@ export default class extends Controller {
     this.minZoom = 1
     this.maxZoom = 4
     this.step = 0.25
+    this.panStep = 48
     this.media = this.frameTarget.querySelector("img, video")
     this.dragging = false
     this.frameTarget.addEventListener("pointerdown", this.pointerdown)
@@ -84,9 +96,34 @@ export default class extends Controller {
     this.frameTarget.classList.toggle("cursor-grab", this.zoom > this.minZoom && !this.dragging)
     this.frameTarget.classList.toggle("cursor-grabbing", this.zoom > this.minZoom && this.dragging)
     this.frameTarget.dataset.photoZoomPannable = this.zoom > this.minZoom ? "true" : "false"
+    this.frameTarget.tabIndex = this.zoom > this.minZoom ? 0 : -1
     this.percentTarget.textContent = `${Math.round(this.zoom * 100)}%`
+    const status = this.statusText()
+    if (this.statusTarget.textContent !== status) {
+      this.statusTarget.textContent = status
+    }
     this.zoomOutButtonTarget.disabled = this.zoom <= this.minZoom
     this.zoomInButtonTarget.disabled = this.zoom >= this.maxZoom
+    this.updateMinimap()
+  }
+
+  keydown(event) {
+    if (this.zoom <= this.minZoom) return
+
+    const offsets = {
+      ArrowLeft: [this.panStep, 0],
+      ArrowRight: [-this.panStep, 0],
+      ArrowUp: [0, this.panStep],
+      ArrowDown: [0, -this.panStep]
+    }
+    const offset = offsets[event.key]
+    if (!offset) return
+
+    event.preventDefault()
+    this.panX += offset[0]
+    this.panY += offset[1]
+    this.clampPan()
+    this.update()
   }
 
   pointerdown = (event) => {
@@ -143,5 +180,55 @@ export default class extends Controller {
 
   isInteractiveElement(element) {
     return element.closest("a, button, input, select, textarea, summary, [role='button']")
+  }
+
+  updateMinimap() {
+    if (!this.hasMinimapTarget || !this.media || this.zoom <= this.minZoom) {
+      this.minimapTarget?.classList.add("hidden")
+      return
+    }
+
+    if (this.media.tagName !== "IMG") {
+      this.minimapTarget.classList.add("hidden")
+      return
+    }
+
+    const source = this.media.currentSrc || this.media.src
+    if (!source) {
+      this.minimapTarget.classList.add("hidden")
+      return
+    }
+
+    this.minimapTarget.classList.remove("hidden")
+    const mediaWidth = this.media.naturalWidth || this.media.videoWidth || this.media.offsetWidth
+    const mediaHeight = this.media.naturalHeight || this.media.videoHeight || this.media.offsetHeight
+    this.minimapImageTarget.style.aspectRatio = `${mediaWidth} / ${mediaHeight}`
+    this.minimapImageTarget.style.backgroundImage = `url("${source}")`
+    this.minimapImageTarget.style.backgroundPosition = "center"
+    this.minimapImageTarget.style.backgroundRepeat = "no-repeat"
+    this.minimapImageTarget.style.backgroundSize = "contain"
+
+    const frameRect = this.frameTarget.getBoundingClientRect()
+    const scaledWidth = Math.max(1, this.media.offsetWidth * this.zoom)
+    const scaledHeight = Math.max(1, this.media.offsetHeight * this.zoom)
+    const viewportWidth = Math.min(100, (frameRect.width / scaledWidth) * 100)
+    const viewportHeight = Math.min(100, (frameRect.height / scaledHeight) * 100)
+    const centerX = 50 - (this.panX / scaledWidth) * 100
+    const centerY = 50 - (this.panY / scaledHeight) * 100
+    const left = Math.min(100 - viewportWidth, Math.max(0, centerX - viewportWidth / 2))
+    const top = Math.min(100 - viewportHeight, Math.max(0, centerY - viewportHeight / 2))
+
+    this.minimapViewportTarget.style.left = `${left}%`
+    this.minimapViewportTarget.style.top = `${top}%`
+    this.minimapViewportTarget.style.width = `${viewportWidth}%`
+    this.minimapViewportTarget.style.height = `${viewportHeight}%`
+  }
+
+  statusText() {
+    if (this.zoom <= this.minZoom) return "Zoom 100%."
+
+    const horizontal = this.panX > this.panStep ? "left" : this.panX < -this.panStep ? "right" : "center"
+    const vertical = this.panY > this.panStep ? "top" : this.panY < -this.panStep ? "bottom" : "middle"
+    return `Zoom ${Math.round(this.zoom * 100)}%. View is near the ${vertical} ${horizontal} of the photo.`
   }
 }

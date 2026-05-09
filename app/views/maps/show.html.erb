@@ -16,11 +16,11 @@
               locations_path,
               class: "rounded-lg border border-zinc-300 bg-white px-4 py-2 text-center text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
 
-        <%= form_with url: map_path, method: :get, class: "w-full sm:w-72", data: { turbo: false } do %>
+        <%= form_with url: map_path, method: :get, class: "w-full sm:w-72", data: { controller: "auto-submit", turbo: false } do %>
           <label for="album_id" class="sr-only">Map album filter</label>
           <select id="album_id"
                   name="album_id"
-                  onchange="this.form.requestSubmit()"
+                  data-action="auto-submit#submit"
                   class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-800 shadow-sm outline-none transition hover:border-zinc-950 focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15">
             <option value="">All photos</option>
             <% @albums.each do |album| %>

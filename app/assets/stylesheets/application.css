@@ -314,6 +314,10 @@ body.photo-detail-page {
     right: calc(390px + 1rem);
   }
 
+  .photo-viewer-shell.info-panel-open .photo-zoom-minimap {
+    right: calc(390px + 1rem);
+  }
+
   .photo-viewer-shell.info-panel-open .photo-stream-navigation {
     right: calc(390px + 1rem);
   }

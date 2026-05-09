@@ -97,7 +97,23 @@
   <% end %>
 
   <div class="photo-zoom-frame flex max-h-full max-w-full items-center justify-center"
+       role="region"
+       tabindex="0"
+       aria-label="Zoomed photo viewport. Use arrow keys to pan while zoomed."
+       data-action="keydown->photo-zoom#keydown"
        data-photo-zoom-target="frame">
     <%= photo_detail_media(photo) %>
   </div>
+
+  <div class="photo-zoom-minimap pointer-events-none fixed right-4 top-[4.75rem] z-20 hidden w-36 overflow-hidden rounded-lg border border-white/25 bg-black/55 p-1 shadow-lg backdrop-blur transition-[right] duration-200 ease-out"
+       aria-hidden="true"
+       data-photo-zoom-target="minimap">
+    <div class="relative bg-zinc-950/80"
+         data-photo-zoom-target="minimapImage">
+      <div class="absolute border-2 border-white bg-white/15 shadow-[0_0_0_1px_rgba(0,0,0,0.45)]"
+           data-photo-zoom-target="minimapViewport"></div>
+    </div>
+  </div>
+
+  <p class="sr-only" aria-live="polite" data-photo-zoom-target="status">Zoom 100%.</p>
 </main>

@@ -25,6 +25,7 @@
   <% if current_user&.owner? && taggable_users.present? %>
     <%= form_with url: photo_photo_people_tags_path(photo), class: "mt-4 flex gap-2" do |form| %>
       <%= hidden_field_tag :return_to, return_to %>
+      <label for="user_id" class="sr-only">Tag someone</label>
       <%= select_tag :user_id,
             options_from_collection_for_select(taggable_users, :id, :display_name),
             prompt: "Tag someone",
