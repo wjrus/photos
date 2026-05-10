@@ -114,6 +114,22 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, "Outside grouped place"
   end
 
+  test "place location page renders utf8 place names" do
+    photo = attached_photo(title: "Paris photo")
+    geotag(photo, latitude: 48.8566, longitude: 2.3522)
+    place_name = "Paris, Île-de-France"
+    PhotoLocationPlace.create!(
+      location_id: location_id_for(photo),
+      name: place_name
+    )
+
+    get location_path(PhotoLocation.place_id_for_name(place_name))
+
+    assert_response :success
+    assert_includes response.body, place_name
+    assert_includes response.body, "Paris photo"
+  end
+
   test "locations index does not bulk enqueue missing geocodes" do
     ENV["GOOGLE_MAPS_EMBED_API_KEY"] = "test-key"
     photo = attached_photo(title: "Ungocoded")

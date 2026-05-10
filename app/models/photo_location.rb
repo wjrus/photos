@@ -86,14 +86,14 @@ class PhotoLocation
   end
 
   def self.place_id_for_name(name)
-    "#{PLACE_ID_PREFIX}#{Base64.urlsafe_encode64(name.to_s, padding: false)}"
+    "#{PLACE_ID_PREFIX}#{Base64.urlsafe_encode64(utf8_place_name(name), padding: false)}"
   end
 
   def self.place_name_from_id(id)
     return unless place_id?(id)
 
     encoded = id.to_s.delete_prefix(PLACE_ID_PREFIX)
-    Base64.urlsafe_decode64(encoded)
+    utf8_place_name(Base64.urlsafe_decode64(encoded))
   rescue ArgumentError
     nil
   end
@@ -122,4 +122,9 @@ class PhotoLocation
   def self.format_coordinate(value)
     format("%.4f", value.to_f)
   end
+
+  def self.utf8_place_name(value)
+    value.to_s.dup.force_encoding(Encoding::UTF_8).scrub
+  end
+  private_class_method :utf8_place_name
 end
