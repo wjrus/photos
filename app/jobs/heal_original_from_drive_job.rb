@@ -8,7 +8,7 @@ class HealOriginalFromDriveJob < ApplicationJob
     unless original_file_auto_heal_enabled?
       Rails.logger.warn(
         "Skipping original file heal for check #{file_health_check.id}: " \
-        "#{ORIGINAL_FILE_HEALTH_AUTO_HEAL_ENV} is disabled"
+        "original file auto-heal is disabled"
       )
       return
     end

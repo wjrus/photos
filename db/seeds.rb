@@ -7,3 +7,7 @@
 #   ["Action", "Comedy", "Drama", "Horror"].each do |genre_name|
 #     MovieGenre.find_or_create_by!(name: genre_name)
 #   end
+
+AppSetting.find_or_create_by!(key: AppSetting::ORIGINAL_FILE_AUTO_HEAL) do |setting|
+  setting.value = "false"
+end

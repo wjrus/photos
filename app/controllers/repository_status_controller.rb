@@ -1,4 +1,15 @@
 class RepositoryStatusController < ApplicationController
+  MANAGED_QUEUE_NAMES = %w[
+    solid_queue_recurring
+    import
+    archive
+    maintenance
+    analysis
+    video_previews
+    derivatives
+    default
+  ].freeze
+
   owner_access_message "Only the owner can see repository status."
 
   before_action :require_owner!
@@ -22,6 +33,7 @@ class RepositoryStatusController < ApplicationController
     @health_timeline = health_timeline
     @recent_checks = latest_checks.includes(:photo).latest_first.limit(12)
     @recent_attention = latest_checks.needs_attention.includes(:photo).latest_first.limit(8)
+    @controls = controls
   end
 
   def create
@@ -32,6 +44,18 @@ class RepositoryStatusController < ApplicationController
     else
       OriginalFileHealthPatrolJob.perform_later(batch_size: patrol_batch_size)
       redirect_to repository_status_path, notice: "Repository patrol queued."
+    end
+  end
+
+  def update
+    case params[:control].presence
+    when "original_file_auto_heal"
+      AppSetting.set_boolean!(AppSetting::ORIGINAL_FILE_AUTO_HEAL, params[:enabled])
+      redirect_to repository_status_path, notice: "Original file auto-heal #{params[:enabled] == 'true' ? 'enabled' : 'disabled'}."
+    when "queue"
+      update_queue_control
+    else
+      redirect_to repository_status_path, alert: "Unknown repository control."
     end
   end
 
@@ -196,7 +220,8 @@ class RepositoryStatusController < ApplicationController
       configured_path_exists: configured_path_exists,
       root_exists: root_exists,
       path_attention: path_attention,
-      auto_heal: original_file_auto_heal_enabled?
+      auto_heal: original_file_auto_heal_enabled?,
+      auto_heal_source: app_setting_present?(AppSetting::ORIGINAL_FILE_AUTO_HEAL) ? "repository setting" : "app default"
     }
   end
 
@@ -208,6 +233,49 @@ class RepositoryStatusController < ApplicationController
   end
 
   def original_file_auto_heal_enabled?
-    ActiveModel::Type::Boolean.new.cast(ENV.fetch(ApplicationJob::ORIGINAL_FILE_HEALTH_AUTO_HEAL_ENV, "false"))
+    AppSetting.boolean(AppSetting::ORIGINAL_FILE_AUTO_HEAL, default: false)
+  end
+
+  def app_setting_present?(key)
+    AppSetting.exists?(key: key)
+  end
+
+  def controls
+    paused_queue_names = @pauses.map { |pause| pause.fetch("queue_name") }
+    queue_rows = @queues.index_by { |queue| queue.fetch(:name) }
+
+    {
+      auto_heal: {
+        enabled: original_file_auto_heal_enabled?,
+        source: app_setting_present?(AppSetting::ORIGINAL_FILE_AUTO_HEAL) ? "repository setting" : "app default"
+      },
+      queues: MANAGED_QUEUE_NAMES.map do |queue_name|
+        row = queue_rows[queue_name]
+        {
+          name: queue_name,
+          paused: paused_queue_names.include?(queue_name),
+          ready: row&.dig(:counts, :ready).to_i,
+          claimed: row&.dig(:counts, :claimed).to_i,
+          total: row&.fetch(:total).to_i
+        }
+      end
+    }
+  end
+
+  def update_queue_control
+    queue_name = params[:queue_name].to_s
+    return redirect_to repository_status_path, alert: "Unknown queue." unless queue_name.in?(MANAGED_QUEUE_NAMES)
+
+    snapshot = QueueStatusSnapshot.build
+    case params[:queue_action].presence
+    when "pause"
+      snapshot.pause_queue(queue_name)
+      redirect_to repository_status_path, notice: "#{queue_name} paused."
+    when "resume"
+      snapshot.resume_queue(queue_name)
+      redirect_to repository_status_path, notice: "#{queue_name} resumed."
+    else
+      redirect_to repository_status_path, alert: "Unknown queue action."
+    end
   end
 end

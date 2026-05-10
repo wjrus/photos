@@ -123,6 +123,20 @@ class QueueStatusSnapshot
     pause_names
   end
 
+  def pause_queue(queue_name)
+    return false unless available?
+
+    SolidQueue::Queue.find_by_name(queue_name).pause
+    true
+  end
+
+  def resume_queue(queue_name)
+    return false unless available?
+
+    SolidQueue::Queue.find_by_name(queue_name).resume
+    true
+  end
+
   def finished_counts
     return { last_hour: 0, last_day: 0 } unless available?
 

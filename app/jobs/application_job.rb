@@ -1,7 +1,5 @@
 class ApplicationJob < ActiveJob::Base
   ORIGINAL_FILE_LOCK_NAMESPACE = 54_214
-  ORIGINAL_FILE_HEALTH_AUTO_HEAL_ENV = "ORIGINAL_FILE_HEALTH_AUTO_HEAL".freeze
-
   # Automatically retry jobs that encountered a deadlock
   # retry_on ActiveRecord::Deadlocked
 
@@ -32,6 +30,10 @@ class ApplicationJob < ActiveJob::Base
   end
 
   def original_file_auto_heal_enabled?
-    ActiveModel::Type::Boolean.new.cast(ENV.fetch(ORIGINAL_FILE_HEALTH_AUTO_HEAL_ENV, "false"))
+    return false unless defined?(AppSetting)
+
+    AppSetting.boolean(AppSetting::ORIGINAL_FILE_AUTO_HEAL, default: false)
+  rescue ActiveRecord::StatementInvalid, ActiveRecord::NoDatabaseError
+    false
   end
 end

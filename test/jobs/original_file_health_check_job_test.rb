@@ -73,11 +73,15 @@ class OriginalFileHealthCheckJobTest < ActiveJob::TestCase
   private
 
   def with_auto_heal_enabled
-    previous = ENV["ORIGINAL_FILE_HEALTH_AUTO_HEAL"]
-    ENV["ORIGINAL_FILE_HEALTH_AUTO_HEAL"] = "true"
+    previous = AppSetting.find_by(key: AppSetting::ORIGINAL_FILE_AUTO_HEAL)&.value
+    AppSetting.set_boolean!(AppSetting::ORIGINAL_FILE_AUTO_HEAL, true)
     yield
   ensure
-    ENV["ORIGINAL_FILE_HEALTH_AUTO_HEAL"] = previous
+    if previous.nil?
+      AppSetting.where(key: AppSetting::ORIGINAL_FILE_AUTO_HEAL).delete_all
+    else
+      AppSetting.set_boolean!(AppSetting::ORIGINAL_FILE_AUTO_HEAL, previous)
+    end
   end
 
   def attached_photo

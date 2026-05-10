@@ -62,6 +62,40 @@ class RepositoryStatusControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Baseline repository scan queued.", flash[:notice]
   end
 
+  test "owner can enable original file auto heal from repository status" do
+    patch repository_status_path, params: { control: "original_file_auto_heal", enabled: "true" }
+
+    assert_redirected_to repository_status_path
+    assert_equal "Original file auto-heal enabled.", flash[:notice]
+    assert_equal true, AppSetting.boolean(AppSetting::ORIGINAL_FILE_AUTO_HEAL, default: false)
+  end
+
+  test "owner can pause a managed queue from repository status" do
+    snapshot = Class.new do
+      def pause_queue(_queue_name)
+        true
+      end
+    end.new
+    original_build = QueueStatusSnapshot.method(:build)
+    QueueStatusSnapshot.define_singleton_method(:build) { snapshot }
+
+    patch repository_status_path, params: { control: "queue", queue_name: "maintenance", queue_action: "pause" }
+
+    assert_redirected_to repository_status_path
+    assert_equal "maintenance paused.", flash[:notice]
+  ensure
+    QueueStatusSnapshot.define_singleton_method(:build, original_build)
+  end
+
+  test "non owner cannot update repository controls" do
+    delete sign_out_path
+    sign_in_as(users(:two))
+
+    patch repository_status_path, params: { control: "original_file_auto_heal", enabled: "true" }
+
+    assert_redirected_to root_path
+  end
+
   private
 
   def sign_in_as(user)

@@ -89,6 +89,88 @@
       </div>
     <% end %>
 
+    <section class="mt-6">
+      <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 class="<%= section_title_class %>">Controls</h2>
+          <p class="mt-1 text-sm text-zinc-600">Runtime switches for repository maintenance. Defaults stay conservative unless changed here.</p>
+        </div>
+      </div>
+      <div class="mt-3 grid gap-3 xl:grid-cols-[24rem_1fr]">
+        <div class="<%= card_class %>">
+          <% auto_heal = @controls.fetch(:auto_heal) %>
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <h3 class="text-sm font-semibold text-zinc-950">Original file auto-heal</h3>
+              <p class="mt-1 text-xs leading-5 text-zinc-500">When enabled, failed health checks can enqueue Drive restore jobs for archived originals.</p>
+              <p class="mt-2 text-xs text-zinc-500">Source: <%= auto_heal.fetch(:source) %></p>
+            </div>
+            <span class="rounded-lg border px-2 py-1 text-xs font-semibold <%= auto_heal.fetch(:enabled) ? "border-teal-200 bg-teal-50 text-teal-900" : "border-zinc-200 bg-white text-zinc-700" %>">
+              <%= auto_heal.fetch(:enabled) ? "enabled" : "disabled" %>
+            </span>
+          </div>
+          <div class="mt-4 flex flex-wrap gap-2">
+            <% if auto_heal.fetch(:enabled) %>
+              <%= button_to "Disable auto-heal",
+                    repository_status_path,
+                    method: :patch,
+                    params: { control: "original_file_auto_heal", enabled: "false" },
+                    class: "inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+            <% else %>
+              <%= button_to "Enable auto-heal",
+                    repository_status_path,
+                    method: :patch,
+                    params: { control: "original_file_auto_heal", enabled: "true" },
+                    class: "inline-flex items-center justify-center rounded-lg bg-zinc-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700" %>
+            <% end %>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto rounded-lg border border-zinc-200 bg-white shadow-sm">
+          <table class="min-w-[42rem] w-full text-left text-sm">
+            <thead class="border-b border-zinc-200 bg-stone-50 text-xs uppercase tracking-[0.14em] text-zinc-500">
+              <tr>
+                <th class="px-4 py-3">Queue</th>
+                <th class="px-4 py-3 text-right">Ready</th>
+                <th class="px-4 py-3 text-right">Running</th>
+                <th class="px-4 py-3 text-right">Status</th>
+                <th class="px-4 py-3 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-100">
+              <% @controls.fetch(:queues).each do |queue| %>
+                <tr>
+                  <td class="px-4 py-3 font-medium text-zinc-950"><%= queue.fetch(:name) %></td>
+                  <td class="px-4 py-3 text-right text-zinc-700"><%= number_with_delimiter(queue.fetch(:ready)) %></td>
+                  <td class="px-4 py-3 text-right text-zinc-700"><%= number_with_delimiter(queue.fetch(:claimed)) %></td>
+                  <td class="px-4 py-3 text-right">
+                    <span class="rounded-lg border px-2 py-1 text-xs font-semibold <%= queue.fetch(:paused) ? "border-amber-200 bg-amber-50 text-amber-900" : "border-teal-200 bg-teal-50 text-teal-900" %>">
+                      <%= queue.fetch(:paused) ? "paused" : "active" %>
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 text-right">
+                    <% if queue.fetch(:paused) %>
+                      <%= button_to "Resume",
+                            repository_status_path,
+                            method: :patch,
+                            params: { control: "queue", queue_name: queue.fetch(:name), queue_action: "resume" },
+                            class: "inline-flex items-center justify-center rounded-lg bg-zinc-950 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-teal-700" %>
+                    <% else %>
+                      <%= button_to "Pause",
+                            repository_status_path,
+                            method: :patch,
+                            params: { control: "queue", queue_name: queue.fetch(:name), queue_action: "pause" },
+                            class: "inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+                    <% end %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <div class="mt-8 grid gap-6 xl:grid-cols-[1fr_28rem]">
       <div class="space-y-8">
         <section>
@@ -265,7 +347,10 @@
               </div>
               <div class="flex items-start justify-between gap-3">
                 <dt class="font-medium text-zinc-700">Auto-heal</dt>
-                <dd class="font-semibold <%= @storage.fetch(:auto_heal) ? "text-teal-800" : "text-zinc-950" %>"><%= @storage.fetch(:auto_heal) ? "enabled" : "disabled" %></dd>
+                <dd class="text-right font-semibold <%= @storage.fetch(:auto_heal) ? "text-teal-800" : "text-zinc-950" %>">
+                  <%= @storage.fetch(:auto_heal) ? "enabled" : "disabled" %>
+                  <span class="block text-xs font-normal text-zinc-500"><%= @storage.fetch(:auto_heal_source) %></span>
+                </dd>
               </div>
             </dl>
           </div>

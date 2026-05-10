@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_09_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_10_153000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -57,6 +57,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_09_150000) do
     t.index ["status"], name: "index_album_downloads_on_status"
     t.index ["user_id", "created_at"], name: "index_album_downloads_on_user_id_and_created_at"
     t.index ["user_id"], name: "index_album_downloads_on_user_id"
+  end
+
+  create_table "app_settings", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "key", null: false
+    t.datetime "updated_at", null: false
+    t.text "value"
+    t.index ["key"], name: "index_app_settings_on_key", unique: true
   end
 
   create_table "drive_archive_objects", force: :cascade do |t|

@@ -28,6 +28,7 @@ Rails.application.routes.draw do
   resources :imports, only: %i[index create]
   get "/repository_status", to: "repository_status#show", as: :repository_status
   post "/repository_status", to: "repository_status#create"
+  patch "/repository_status", to: "repository_status#update"
   get "/queues", to: "queue_status#show", as: :queue_status
   delete "/queues/failures", to: "queue_status#destroy_failures", as: :queue_failures
   delete "/queues/pauses", to: "queue_status#resume_pauses", as: :queue_pauses
