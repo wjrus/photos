@@ -29,6 +29,7 @@ Rails.application.routes.draw do
   get "/repository_status", to: "repository_status#show", as: :repository_status
   get "/queues", to: "queue_status#show", as: :queue_status
   delete "/queues/failures", to: "queue_status#destroy_failures", as: :queue_failures
+  delete "/queues/pauses", to: "queue_status#resume_pauses", as: :queue_pauses
   get "/repository_health", to: "repository_health#show", as: :repository_health
   post "/repository_health", to: "repository_health#create"
   get "/private", to: "restricted_photos#index", as: :restricted_photos

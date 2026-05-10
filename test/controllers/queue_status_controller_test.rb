@@ -58,6 +58,28 @@ class QueueStatusControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to root_path
   end
 
+  test "owner can resume paused queue executions" do
+    snapshot = Struct.new(:resume_paused_queues).new(%w[archive maintenance])
+    original_build = QueueStatusSnapshot.method(:build)
+    QueueStatusSnapshot.define_singleton_method(:build) { snapshot }
+
+    delete queue_pauses_path
+
+    assert_redirected_to queue_status_path
+    assert_equal "Resumed archive and maintenance.", flash[:notice]
+  ensure
+    QueueStatusSnapshot.define_singleton_method(:build, original_build)
+  end
+
+  test "non owner cannot resume paused queue executions" do
+    delete sign_out_path
+    sign_in_as(users(:two))
+
+    delete queue_pauses_path
+
+    assert_redirected_to root_path
+  end
+
   private
 
   def sign_in_as(user)

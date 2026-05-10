@@ -19,4 +19,15 @@ class QueueStatusController < ApplicationController
 
     redirect_to queue_status_path, notice: "Cleared #{cleared_count} failed #{'job'.pluralize(cleared_count)}."
   end
+
+  def resume_pauses
+    resumed_queues = QueueStatusSnapshot.build.resume_paused_queues
+    message = if resumed_queues.any?
+      "Resumed #{resumed_queues.to_sentence}."
+    else
+      "No queues were paused."
+    end
+
+    redirect_to queue_status_path, notice: message
+  end
 end

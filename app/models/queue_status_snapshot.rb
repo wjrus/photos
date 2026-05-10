@@ -117,6 +117,12 @@ class QueueStatusSnapshot
     SQL
   end
 
+  def resume_paused_queues
+    pause_names = pauses.map { |pause| pause.fetch("queue_name") }
+    pause_names.each { |queue_name| SolidQueue::Queue.find_by_name(queue_name).resume }
+    pause_names
+  end
+
   def finished_counts
     return { last_hour: 0, last_day: 0 } unless available?
 
