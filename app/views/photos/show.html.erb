@@ -1,5 +1,8 @@
 <% content_for :title, @photo.title %>
 <% content_for :body_class, "photo-detail-page" %>
+<% content_for :head do %>
+  <%= photo_stream_neighbor_prefetch_tags(@previous_photo, @next_photo) %>
+<% end %>
 <% if @photo.public? && @photo.image? %>
   <% content_for :head do %>
   <meta property="og:site_name" content="Photos">

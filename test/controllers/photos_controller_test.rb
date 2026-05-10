@@ -928,6 +928,39 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-info-panel-shiftable]", false
   end
 
+  test "photo viewer prefetches stream neighbor pages and preview images" do
+    newer = attached_photo(title: "Newer neighbor")
+    photo = attached_photo(title: "Current photo")
+    older = attached_photo(title: "Older neighbor")
+    set_stream_time(newer, 2.hours.ago)
+    set_stream_time(photo, 3.hours.ago)
+    set_stream_time(older, 4.hours.ago)
+    GeneratePhotoDerivativesJob.perform_now(newer)
+    GeneratePhotoDerivativesJob.perform_now(older)
+
+    get photo_path(photo)
+
+    assert_response :success
+    assert_select "link[rel='prefetch'][as='document'][href='#{photo_path(newer)}']"
+    assert_select "link[rel='prefetch'][as='document'][href='#{photo_path(older)}']"
+    assert_select "link[rel='prefetch'][as='image']", 2
+  end
+
+  test "photo viewer prefetches video poster but not video display bytes" do
+    photo = attached_photo(title: "Current photo")
+    video = attached_video
+    set_stream_time(photo, 3.hours.ago)
+    set_stream_time(video, 4.hours.ago)
+    attach_video_derivatives(video)
+
+    get photo_path(photo)
+
+    assert_response :success
+    assert_select "link[rel='prefetch'][as='document'][href='#{photo_path(video)}']"
+    assert_select "link[rel='prefetch'][as='image']", 1
+    assert_select "link[href='#{video_photo_path(video)}']", false
+  end
+
   test "trusted signed-in viewer sees public photo location without archive access" do
     ENV["PHOTOS_TRUSTED_VIEWER_EMAILS"] = users(:two).email
     photo = attached_photo

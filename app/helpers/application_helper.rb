@@ -83,6 +83,20 @@ module ApplicationHelper
     end
   end
 
+  def photo_stream_neighbor_prefetch_tags(*photos)
+    photos.compact.uniq(&:id).flat_map do |photo|
+      tags = [
+        tag.link(rel: "prefetch", href: photo_path(photo), as: "document")
+      ]
+
+      if (media_path = photo_neighbor_prefetch_media_path(photo))
+        tags << tag.link(rel: "prefetch", href: media_path, as: "image")
+      end
+
+      tags
+    end.join("\n").html_safe
+  end
+
   def photo_dimensions(metadata)
     return "unknown" unless metadata&.width.present? && metadata&.height.present?
 
@@ -172,6 +186,17 @@ module ApplicationHelper
     end
   rescue ActiveStorage::FileNotFoundError, Errno::ENOENT
     false
+  end
+
+  def photo_neighbor_prefetch_media_path(photo)
+    if photo.video?
+      return url_for(photo.video_preview) if attached_blob_available?(photo.video_preview)
+
+      return
+    end
+
+    detail_variant = photo.processed_original_variant_record(:display) || photo.processed_original_variant_record(:stream)
+    url_for(detail_variant.image) if attached_blob_available?(detail_variant&.image)
   end
 
   def photo_stream_day(photo)
