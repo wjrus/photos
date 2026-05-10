@@ -24,6 +24,17 @@ class RepositoryStatusController < ApplicationController
     @recent_attention = latest_checks.needs_attention.includes(:photo).latest_first.limit(8)
   end
 
+  def create
+    case params[:scan_type].presence
+    when "baseline"
+      OriginalFileHealthPatrolJob.perform_later(batch_size: baseline_batch_size, stale_after: 100.years)
+      redirect_to repository_status_path, notice: "Baseline repository scan queued."
+    else
+      OriginalFileHealthPatrolJob.perform_later(batch_size: patrol_batch_size)
+      redirect_to repository_status_path, notice: "Repository patrol queued."
+    end
+  end
+
   private
 
   def original_file_totals
@@ -113,6 +124,22 @@ class RepositoryStatusController < ApplicationController
     FileHealthCheck
       .select("DISTINCT ON (photo_id) id")
       .order("photo_id, checked_at DESC, id DESC")
+  end
+
+  def never_checked_count
+    original_photos.left_outer_joins(:file_health_checks).where(file_health_checks: { id: nil }).count
+  end
+
+  def patrol_batch_size
+    Integer(params[:batch_size].presence || OriginalFileHealthPatrolJob::DEFAULT_BATCH_SIZE).clamp(1, 1_000)
+  rescue ArgumentError
+    OriginalFileHealthPatrolJob::DEFAULT_BATCH_SIZE
+  end
+
+  def baseline_batch_size
+    Integer(params[:batch_size].presence || never_checked_count).clamp(1, 50_000)
+  rescue ArgumentError
+    never_checked_count.clamp(1, 50_000)
   end
 
   def health_timeline

@@ -21,6 +21,10 @@ class RepositoryStatusControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Derivative coverage"
     assert_includes response.body, "File health timeline"
     assert_includes response.body, "Checksums and Drive"
+    assert_includes response.body, "Queue patrol"
+    assert_includes response.body, "Queue baseline scan"
+    assert_includes response.body, queue_status_path
+    assert_includes response.body, repository_health_path
   end
 
   test "owner account menu links to repository status" do
@@ -38,6 +42,24 @@ class RepositoryStatusControllerTest < ActionDispatch::IntegrationTest
     get repository_status_path
 
     assert_redirected_to root_path
+  end
+
+  test "owner can queue patrol from repository status" do
+    assert_enqueued_with(job: OriginalFileHealthPatrolJob) do
+      post repository_status_path
+    end
+
+    assert_redirected_to repository_status_path
+    assert_equal "Repository patrol queued.", flash[:notice]
+  end
+
+  test "owner can queue baseline scan from repository status" do
+    assert_enqueued_with(job: OriginalFileHealthPatrolJob) do
+      post repository_status_path, params: { scan_type: "baseline" }
+    end
+
+    assert_redirected_to repository_status_path
+    assert_equal "Baseline repository scan queued.", flash[:notice]
   end
 
   private

@@ -22,14 +22,20 @@
         <%= link_to "Refresh",
               repository_status_path,
               class: "inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
-        <%= link_to "Queues",
-              queue_status_path,
-              class: "inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
-        <%= link_to "Health",
-              repository_health_path,
-              class: "inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+        <%= button_to "Queue patrol",
+              repository_status_path,
+              method: :post,
+              params: { scan_type: "patrol", batch_size: OriginalFileHealthPatrolJob::DEFAULT_BATCH_SIZE },
+              class: "inline-flex items-center justify-center rounded-lg bg-zinc-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700" %>
+        <%= button_to "Queue baseline scan",
+              repository_status_path,
+              method: :post,
+              params: { scan_type: "baseline" },
+              class: "inline-flex items-center justify-center rounded-lg border border-teal-700 bg-teal-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950" %>
       </div>
     </div>
+
+    <%= render "shared/repository_nav" %>
 
     <% unless @snapshot.available? %>
       <div class="mt-6 rounded-lg border border-rose-200 bg-rose-50 p-5 text-sm leading-6 text-rose-950">
