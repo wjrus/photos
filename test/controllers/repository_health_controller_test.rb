@@ -22,12 +22,12 @@ class RepositoryHealthControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Health jobs"
   end
 
-  test "owner account menu links to repository health" do
-    get root_path
+  test "repository section links back to status overview" do
+    get repository_health_path
 
     assert_response :success
-    assert_includes response.body, repository_health_path
-    assert_includes response.body, "Repository health"
+    assert_includes response.body, repository_status_path
+    assert_includes response.body, "Overview"
   end
 
   test "non owner cannot view repository health page" do

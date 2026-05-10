@@ -19,12 +19,12 @@ class QueueStatusControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Queue status"
   end
 
-  test "owner account menu links to queues" do
-    get root_path
+  test "repository section links back to status overview" do
+    get queue_status_path
 
     assert_response :success
-    assert_includes response.body, queue_status_path
-    assert_includes response.body, "Queues"
+    assert_includes response.body, repository_status_path
+    assert_includes response.body, "Overview"
   end
 
   test "non owner cannot view queue status page" do
