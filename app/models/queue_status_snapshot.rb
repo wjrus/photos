@@ -13,6 +13,7 @@ class QueueStatusSnapshot
     "solid_queue_failed_executions" => "SELECT COUNT(*) FROM solid_queue_failed_executions",
     "solid_queue_blocked_executions" => "SELECT COUNT(*) FROM solid_queue_blocked_executions"
   }.freeze
+  PROCESS_PRUNED_EXCEPTION_CLASS = "SolidQueue::Processes::ProcessPrunedError".freeze
 
   attr_reader :generated_at
 
@@ -95,6 +96,16 @@ class QueueStatusSnapshot
     return 0 unless available? && table_exists?("solid_queue_failed_executions")
 
     SolidQueue::FailedExecution.delete_all
+  end
+
+  def pruned_failure_count
+    pruned_failures.count
+  end
+
+  def retry_pruned_failures
+    failures = pruned_failures.includes(:job).to_a
+    failures.each(&:retry)
+    failures.size
   end
 
   def processes
@@ -219,6 +230,12 @@ class QueueStatusSnapshot
 
   def select_all(sql)
     connection.select_all(sql).to_a
+  end
+
+  def pruned_failures
+    return SolidQueue::FailedExecution.none unless available? && table_exists?("solid_queue_failed_executions")
+
+    SolidQueue::FailedExecution.where("error ->> 'exception_class' = ?", PROCESS_PRUNED_EXCEPTION_CLASS)
   end
 
   def table_exists?(table)

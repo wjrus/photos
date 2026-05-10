@@ -30,6 +30,7 @@ Rails.application.routes.draw do
   post "/repository_status", to: "repository_status#create"
   patch "/repository_status", to: "repository_status#update"
   get "/queues", to: "queue_status#show", as: :queue_status
+  patch "/queues/failures/pruned", to: "queue_status#retry_pruned_failures", as: :retry_pruned_queue_failures
   delete "/queues/failures", to: "queue_status#destroy_failures", as: :queue_failures
   delete "/queues/pauses", to: "queue_status#resume_pauses", as: :queue_pauses
   get "/repository_health", to: "repository_health#show", as: :repository_health

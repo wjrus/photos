@@ -49,11 +49,33 @@ class QueueStatusControllerTest < ActionDispatch::IntegrationTest
     QueueStatusSnapshot.define_singleton_method(:build, original_build)
   end
 
+  test "owner can retry pruned queue failures" do
+    snapshot = Struct.new(:retry_pruned_failures).new(2)
+    original_build = QueueStatusSnapshot.method(:build)
+    QueueStatusSnapshot.define_singleton_method(:build) { snapshot }
+
+    patch retry_pruned_queue_failures_path
+
+    assert_redirected_to queue_status_path
+    assert_equal "Retried 2 pruned jobs.", flash[:notice]
+  ensure
+    QueueStatusSnapshot.define_singleton_method(:build, original_build)
+  end
+
   test "non owner cannot clear failed queue executions" do
     delete sign_out_path
     sign_in_as(users(:two))
 
     delete queue_failures_path
+
+    assert_redirected_to root_path
+  end
+
+  test "non owner cannot retry pruned queue failures" do
+    delete sign_out_path
+    sign_in_as(users(:two))
+
+    patch retry_pruned_queue_failures_path
 
     assert_redirected_to root_path
   end

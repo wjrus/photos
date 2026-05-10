@@ -9,6 +9,7 @@ class QueueStatusController < ApplicationController
     @queues = @snapshot.queues
     @job_classes = @snapshot.job_classes
     @recent_failures = @snapshot.recent_failures
+    @pruned_failure_count = @snapshot.pruned_failure_count
     @processes = @snapshot.processes
     @pauses = @snapshot.pauses
     @finished_counts = @snapshot.finished_counts
@@ -18,6 +19,12 @@ class QueueStatusController < ApplicationController
     cleared_count = QueueStatusSnapshot.build.clear_failures
 
     redirect_to queue_status_path, notice: "Cleared #{cleared_count} failed #{'job'.pluralize(cleared_count)}."
+  end
+
+  def retry_pruned_failures
+    retried_count = QueueStatusSnapshot.build.retry_pruned_failures
+
+    redirect_to queue_status_path, notice: "Retried #{retried_count} pruned #{'job'.pluralize(retried_count)}."
   end
 
   def resume_pauses
