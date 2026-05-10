@@ -144,7 +144,7 @@
 
               <section class="border-t border-zinc-200 pt-5">
                 <% if @album.public? %>
-                  <%= button_to "Make private",
+                  <%= button_to "Unpublish",
                         unpublish_album_path(@album),
                         method: :patch,
                         class: "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>

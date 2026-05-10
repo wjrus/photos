@@ -19,7 +19,7 @@ class PhotoBulkActionsController < ApplicationController
       count = photos.size
       return_path = bulk_return_path(photos, removing_from_stream: public_return_path?)
       photos.each(&:unpublish!)
-      redirect_to return_path, notice: "Made #{count} #{'photo'.pluralize(count)} private."
+      redirect_to return_path, notice: "Unpublished #{count} #{'photo'.pluralize(count)}."
     when "archive"
       count = photos.size
       return_path = bulk_return_path(photos, removing_from_stream: true)

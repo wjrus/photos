@@ -238,6 +238,24 @@ class PhotoTest < ActiveSupport::TestCase
     assert_nil photo.published_at
   end
 
+  test "restricts and unrestricts" do
+    photo = attached_photo
+    photo.publish!
+    photo.archive!
+
+    photo.restrict!
+    assert_predicate photo, :restricted?
+    assert_predicate photo, :private?
+    assert_nil photo.published_at
+    refute_predicate photo, :archived?
+
+    photo.unrestrict!
+    refute_predicate photo, :restricted?
+    assert_predicate photo, :private?
+    assert_nil photo.published_at
+    refute_predicate photo, :archived?
+  end
+
   private
 
   def attached_photo(**attributes)

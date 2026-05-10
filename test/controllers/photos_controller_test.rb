@@ -6,13 +6,16 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     @owner = users(:one)
     @trusted_viewer_emails = ENV["PHOTOS_TRUSTED_VIEWER_EMAILS"]
     @google_maps_api_key = ENV["GOOGLE_MAPS_EMBED_API_KEY"]
+    @locked_folder_password = ENV["PHOTOS_LOCKED_FOLDER_PASSWORD"]
     ENV["GOOGLE_MAPS_EMBED_API_KEY"] = "test-google-maps-key"
+    ENV["PHOTOS_LOCKED_FOLDER_PASSWORD"] = "open-sesame"
     sign_in_as(@owner)
   end
 
   teardown do
     ENV["PHOTOS_TRUSTED_VIEWER_EMAILS"] = @trusted_viewer_emails
     ENV["GOOGLE_MAPS_EMBED_API_KEY"] = @google_maps_api_key
+    ENV["PHOTOS_LOCKED_FOLDER_PASSWORD"] = @locked_folder_password
     OmniAuth.config.mock_auth[:google_oauth2] = nil
     OmniAuth.config.test_mode = false
   end
@@ -150,6 +153,17 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_predicate photo.reload, :private?
   end
 
+  test "owner sees unpublish language for public photos" do
+    photo = attached_photo
+    photo.publish!
+
+    get photo_path(photo)
+
+    assert_response :success
+    assert_select "form[action='#{unpublish_photo_path(photo)}'][method='post']", text: "Unpublish"
+    refute_includes response.body, "Make private"
+  end
+
   test "owner can publish and stay on the photo detail" do
     photo = attached_photo
 
@@ -266,6 +280,37 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to archived_photos_path
     refute_predicate photo.reload, :archived?
+  end
+
+  test "owner can move a photo to Private from detail" do
+    album = @owner.photo_albums.create!(title: "Trip", source: "manual")
+    target = attached_photo(title: "Lock candidate")
+    anchor = attached_photo(title: "Lock anchor")
+    album.photos << [ target, anchor ]
+    target.publish!
+    set_stream_time(target, 2.days.ago)
+    set_stream_time(anchor, 1.day.ago)
+
+    patch restrict_photo_path(target), params: { return_to: album_path(album, photo_id: target.id) }
+
+    assert_redirected_to album_path(album, photo_id: anchor.id)
+    assert_predicate target.reload, :restricted?
+    assert_predicate target, :private?
+    assert_nil target.published_at
+    refute_predicate target, :archived?
+  end
+
+  test "owner can move a Private photo back to the stream" do
+    photo = attached_photo(title: "Locked item")
+    photo.restrict!
+
+    post unlock_restricted_photos_path, params: { password: "open-sesame" }
+    patch unrestrict_photo_path(photo), params: { return_to: restricted_photos_path(photo_id: photo.id) }
+
+    assert_redirected_to restricted_photos_path(photo_id: photo.id)
+    refute_predicate photo.reload, :restricted?
+    assert_predicate photo, :private?
+    assert_nil photo.published_at
   end
 
   test "owner can save an optional caption" do
@@ -421,9 +466,26 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, photo.original_filename
     assert_includes response.body, "Download original"
     assert_includes response.body, "Remove photo?"
-    assert_select "[data-controller='confirm-modal']"
+    assert_includes response.body, "Move to Private?"
+    assert_select "[data-controller='confirm-modal']", minimum: 1
     assert_select "form[action='#{archive_photo_path(photo)}'][method='post']", text: "Archive"
+    assert_select "form[action='#{restrict_photo_path(photo)}'][method='post']", text: "Move"
     assert_select "[data-turbo-confirm]", false
+  end
+
+  test "locked photo detail offers move to stream instead of publish actions" do
+    photo = attached_photo(title: "Locked detail")
+    photo.restrict!
+
+    post unlock_restricted_photos_path, params: { password: "open-sesame" }
+    get photo_path(photo, return_to: restricted_photos_path)
+    follow_redirect!
+
+    assert_response :success
+    assert_select "form[action='#{unrestrict_photo_path(photo)}'][method='post']", text: "Move to stream"
+    assert_select "form[action='#{publish_photo_path(photo)}']", false
+    assert_select "form[action='#{archive_photo_path(photo)}']", false
+    assert_select "form[action='#{restrict_photo_path(photo)}']", false
   end
 
   test "detail view return link follows the currently viewed photo in the stream" do

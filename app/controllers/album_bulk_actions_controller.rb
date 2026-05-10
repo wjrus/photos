@@ -13,7 +13,7 @@ class AlbumBulkActionsController < ApplicationController
       redirect_to albums_path, notice: "Published #{albums.size} #{'album'.pluralize(albums.size)}."
     when "unpublish"
       albums.find_each(&:unpublish!)
-      redirect_to albums_path, notice: "Made #{albums.size} #{'album'.pluralize(albums.size)} private."
+      redirect_to albums_path, notice: "Unpublished #{albums.size} #{'album'.pluralize(albums.size)}."
     when "delete"
       count = albums.size
       albums.destroy_all

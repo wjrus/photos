@@ -71,6 +71,8 @@ Rails.application.routes.draw do
     patch :unpublish, on: :member
     patch :archive, on: :member
     patch :restore, on: :member
+    patch :restrict, on: :member
+    patch :unrestrict, on: :member
     post :retry_archive, on: :member
     resource :file_health_check, only: :create, controller: :photo_file_health_checks
     resources :photo_album_memberships, only: :create, shallow: true

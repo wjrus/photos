@@ -73,7 +73,7 @@ class AlbumsController < ApplicationController
 
   def unpublish
     @album.unpublish!
-    redirect_to album_path(@album), notice: "Album returned to private."
+    redirect_to album_path(@album), notice: "Album unpublished."
   end
 
   def destroy

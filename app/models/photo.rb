@@ -208,6 +208,10 @@ class Photo < ApplicationRecord
     update!(visibility: "private", published_at: nil, archived_at: nil, restricted: true)
   end
 
+  def unrestrict!
+    update!(visibility: "private", published_at: nil, archived_at: nil, restricted: false)
+  end
+
   def checksum_complete?
     checksum_status == "complete"
   end
