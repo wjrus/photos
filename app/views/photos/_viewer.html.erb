@@ -78,7 +78,7 @@
               class: "ui-tooltip flex size-11 items-center justify-center rounded-lg border border-white/25 bg-black/55 text-white backdrop-blur transition hover:bg-white hover:text-zinc-950",
               aria: { label: "Previous item in stream" },
               title: "Previous item in stream",
-              data: { turbo_action: "replace", tooltip: "Previous item" } do %>
+              data: { turbo_action: "replace", tooltip: "Previous item", action: "stream-navigation#previous" } do %>
           <%= app_icon(:chevron_up, classes: "size-7") %>
           <span class="sr-only">Previous item in stream</span>
         <% end %>
@@ -88,7 +88,7 @@
               class: "ui-tooltip flex size-11 items-center justify-center rounded-lg border border-white/25 bg-black/55 text-white backdrop-blur transition hover:bg-white hover:text-zinc-950",
               aria: { label: "Next item in stream" },
               title: "Next item in stream",
-              data: { turbo_action: "replace", tooltip: "Next item" } do %>
+              data: { turbo_action: "replace", tooltip: "Next item", action: "stream-navigation#next" } do %>
           <%= app_icon(:chevron_down, classes: "size-7") %>
           <span class="sr-only">Next item in stream</span>
         <% end %>

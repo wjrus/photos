@@ -305,6 +305,40 @@ body.photo-detail-page {
   pointer-events: none;
 }
 
+@media (max-width: 767px) and (prefers-reduced-motion: no-preference) {
+  .photo-viewer-shell {
+    transition:
+      opacity 170ms ease,
+      transform 170ms ease;
+    will-change: opacity, transform;
+  }
+
+  .photo-viewer-shell--exit-next {
+    opacity: 0;
+    transform: translateY(-2rem);
+  }
+
+  .photo-viewer-shell--exit-previous {
+    opacity: 0;
+    transform: translateY(2rem);
+  }
+
+  .photo-viewer-shell--enter-next {
+    opacity: 0;
+    transform: translateY(2rem);
+  }
+
+  .photo-viewer-shell--enter-previous {
+    opacity: 0;
+    transform: translateY(-2rem);
+  }
+
+  .photo-viewer-shell--entered {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (min-width: 1024px) {
   .photo-viewer-shell.info-panel-open {
     padding-right: calc(390px + 1.5rem);
