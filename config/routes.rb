@@ -26,6 +26,7 @@ Rails.application.routes.draw do
   get "/map", to: "maps#show", as: :map
   get "/map/markers", to: "maps#markers", as: :map_markers
   resources :imports, only: %i[index create]
+  get "/repository_status", to: "repository_status#show", as: :repository_status
   get "/queues", to: "queue_status#show", as: :queue_status
   delete "/queues/failures", to: "queue_status#destroy_failures", as: :queue_failures
   get "/repository_health", to: "repository_health#show", as: :repository_health
