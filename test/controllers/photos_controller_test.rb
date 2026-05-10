@@ -510,7 +510,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, %(data-stream-navigation-back-url-value="#{album_path(album, photo_id: photo.id)}")
     assert_select "form[action='#{album_cover_path(album, photo)}'][method='post']", text: "Set album cover"
     assert_select "form[action='#{photo_path(photo)}'][method='post'] input[name='return_to'][value='#{album_path(album, photo_id: photo.id)}']"
-    assert_select "form[action='#{publish_photo_path(photo)}'][method='post'] input[name='return_to'][value='#{album_path(album, photo_id: photo.id)}']"
+    assert_select "form[action='#{publish_photo_path(photo)}'][method='post'] input[name='return_to'][value='#{photo_path(photo)}']"
     assert_select "form[action='#{photo_photo_album_memberships_path(photo)}'][method='post'] input[name='return_to'][value='#{album_path(album, photo_id: photo.id)}']"
     assert_select "form[action='#{photo_album_membership_path(album.photo_album_memberships.find_by!(photo: photo))}'][method='post'] input[name='return_to'][value='#{album_path(album, photo_id: photo.id)}']"
   end
