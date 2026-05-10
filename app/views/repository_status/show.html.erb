@@ -253,8 +253,8 @@
               </div>
               <div class="flex items-start justify-between gap-3">
                 <dt class="font-medium text-zinc-700">Path check</dt>
-                <dd class="<%= @storage.fetch(:root_exists) == false || @storage.fetch(:configured_path_exists) == false ? "text-rose-800" : "text-zinc-950" %> font-semibold">
-                  <%= @storage.fetch(:root_exists) == false || @storage.fetch(:configured_path_exists) == false ? "attention" : "ok" %>
+                <dd class="<%= @storage.fetch(:path_attention) ? "text-rose-800" : "text-zinc-950" %> font-semibold">
+                  <%= @storage.fetch(:path_attention) ? "attention" : "ok" %>
                 </dd>
               </div>
               <div class="flex items-start justify-between gap-3">

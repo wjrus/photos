@@ -185,15 +185,26 @@ class RepositoryStatusController < ApplicationController
     service = ActiveStorage::Blob.service
     configured_path = ENV.fetch("PHOTOS_STORAGE_PATH", nil)
     service_root = service.respond_to?(:root) ? service.root.to_s : nil
+    root_exists = service_root.present? ? File.directory?(service_root) : nil
+    configured_path_exists = configured_path_exists_in_container(configured_path, service_root)
+    path_attention = root_exists == false || configured_path_exists == false
 
     {
       service: Rails.application.config.active_storage.service,
       root: service_root,
       configured_path: configured_path,
-      configured_path_exists: configured_path.present? ? File.directory?(configured_path) : nil,
-      root_exists: service_root.present? ? File.directory?(service_root) : nil,
+      configured_path_exists: configured_path_exists,
+      root_exists: root_exists,
+      path_attention: path_attention,
       auto_heal: original_file_auto_heal_enabled?
     }
+  end
+
+  def configured_path_exists_in_container(configured_path, service_root)
+    return nil if configured_path.blank?
+    return File.directory?(configured_path) if configured_path == service_root
+
+    nil
   end
 
   def original_file_auto_heal_enabled?
