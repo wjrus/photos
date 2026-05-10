@@ -18,6 +18,7 @@ The app is intentionally closer to a personal Google Photos/Flickr hybrid than a
 - Supports invited users, Google login, password login, remember-me sessions, avatars, and owner-managed users.
 - Lets the owner tag people in photos. Tagged users can see those photos even when the photo is otherwise private.
 - Imports Google Takeout ZIP archives while preserving album memberships and sidecar metadata.
+- Provides an owner-only repository status dashboard for queues, file health, derivative coverage, storage checks, and runtime controls.
 - Keeps a separate owner-only private route for sensitive material.
 
 ## Privacy Model
@@ -41,6 +42,8 @@ The owner can upload, import, publish, unpublish, archive, restore, tag people, 
 - **People tags**: owner-managed user tags shown in the photo info panel as avatars. Tags also grant that user access.
 - **Drive archive**: Google Drive mirror of originals. It is an archive copy, not the only source of truth.
 - **Takeout imports**: Google Photos Takeout ZIP imports for backfilling the library and imported albums.
+- **Repository health**: owner-only patrol jobs that read originals, verify size/checksums, report problems, and can optionally heal from Drive.
+- **App settings**: runtime toggles stored in the database and managed from Repository Status. Environment files are for secrets and deploy wiring, not feature switches.
 
 ## Development
 
@@ -125,6 +128,33 @@ Nginx Proxy Manager terminates TLS for `photos.wjr.us` and proxies HTTP to the V
 
 See [docs/deploy.md](docs/deploy.md) for VM setup, environment files, storage mounts, and backup notes.
 
+## Repository Operations
+
+The owner dashboard at `/repository_status` is the main operational page. It combines:
+
+- queue totals, job classes, workers, and paused queues
+- derivative coverage for image and video display assets
+- original storage path checks
+- latest file health checks and hash fingerprints
+- Drive archive/checksum status
+- runtime controls for repository maintenance
+
+Runtime controls live in the database via `AppSetting` and are managed from Repository Status. The default seed keeps original file auto-heal disabled:
+
+```sh
+docker compose exec web bin/rails db:seed
+```
+
+Use the UI to enable auto-heal only when you want failed health checks to enqueue Drive restore jobs. The app intentionally does not use environment variables for this toggle.
+
+Queue a baseline repository scan from `/repository_status` with `Queue baseline scan`, or from the VM:
+
+```sh
+docker compose exec web bin/rails runner 'OriginalFileHealthPatrolJob.perform_later(batch_size: 50000, stale_after: 100.years)'
+```
+
+Routine patrols are scheduled through Solid Queue recurring jobs. The worker config includes a dedicated `solid_queue_recurring` worker plus bounded queues for imports, archive work, maintenance, analysis, video previews, derivatives, and default jobs.
+
 ## Useful Production Commands
 
 Deploy on the VM:
@@ -145,6 +175,12 @@ Open a Rails console:
 
 ```sh
 docker compose exec web bin/rails console
+```
+
+Apply idempotent default app settings:
+
+```sh
+docker compose exec web bin/rails db:seed
 ```
 
 Check import, metadata, derivative, archive, and queue status:
@@ -199,6 +235,8 @@ JOB_PROCESSES=1
 
 If the VM shows memory pressure or swap activity, reduce `DERIVATIVE_JOB_THREADS` first.
 
+Queues can be paused and resumed from `/repository_status` for operational control. Worker thread/process counts still come from environment variables because they affect container process shape and require a restart.
+
 ## Important Environment Values
 
 Production values live in `.env.production`:
@@ -223,3 +261,5 @@ PHOTOS_LOCKED_FOLDER_PASSWORD=
 ```
 
 `REDIS_URL` is supplied internally by Compose. If it is absent, production falls back to Solid Cache.
+
+Runtime repository controls, such as original file auto-heal, are stored in the app settings table and controlled from `/repository_status`.
