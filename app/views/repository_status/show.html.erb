@@ -93,7 +93,7 @@
       <div class="space-y-8">
         <section>
           <h2 class="<%= section_title_class %>">Queue pressure</h2>
-          <div class="mt-3 grid gap-3 lg:grid-cols-2">
+          <div class="mt-3 grid gap-3 2xl:grid-cols-[minmax(18rem,0.85fr)_minmax(34rem,1.15fr)]">
             <div class="<%= card_class %>">
               <div class="flex items-center justify-between gap-3 text-sm">
                 <span class="font-medium text-zinc-700">Finished last hour</span>
@@ -119,8 +119,14 @@
               </div>
             </div>
 
-            <div class="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
-              <table class="w-full text-left text-sm">
+            <div class="overflow-x-auto rounded-lg border border-zinc-200 bg-white shadow-sm">
+              <table class="min-w-[34rem] w-full table-fixed text-left text-sm">
+                <colgroup>
+                  <col class="w-[58%]">
+                  <col class="w-[14%]">
+                  <col class="w-[14%]">
+                  <col class="w-[14%]">
+                </colgroup>
                 <thead class="border-b border-zinc-200 bg-stone-50 text-xs uppercase tracking-[0.14em] text-zinc-500">
                   <tr>
                     <th class="px-4 py-3">Class</th>
@@ -133,7 +139,7 @@
                   <% @job_classes.each do |job_class| %>
                     <% counts = job_class.fetch(:counts) %>
                     <tr>
-                      <td class="max-w-[16rem] truncate px-4 py-3 font-medium text-zinc-950" title="<%= job_class.fetch(:name) %>"><%= job_class.fetch(:name) %></td>
+                      <td class="truncate px-4 py-3 font-medium text-zinc-950" title="<%= job_class.fetch(:name) %>"><%= job_class.fetch(:name) %></td>
                       <td class="px-4 py-3 text-right text-zinc-700"><%= number_with_delimiter(counts.fetch(:ready)) %></td>
                       <td class="px-4 py-3 text-right text-zinc-700"><%= number_with_delimiter(counts.fetch(:claimed)) %></td>
                       <td class="px-4 py-3 text-right <%= counts.fetch(:failed).positive? ? "text-rose-800" : "text-zinc-700" %>"><%= number_with_delimiter(counts.fetch(:failed)) %></td>
