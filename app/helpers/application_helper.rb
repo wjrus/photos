@@ -238,7 +238,6 @@ module ApplicationHelper
     options = {
       type: type,
       disabled: disabled,
-      title: label,
       aria: { label: label },
       data: data,
       class: danger ? BULK_DANGER_BUTTON_CLASSES : BULK_ACTION_BUTTON_CLASSES

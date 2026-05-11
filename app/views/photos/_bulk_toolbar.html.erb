@@ -43,7 +43,6 @@
       <% unless local_assigns[:archive_context] %>
         <details class="relative" data-controller="menu" data-bulk-selection-target="action">
           <summary class="ui-tooltip flex size-10 cursor-pointer list-none items-center justify-center rounded-lg text-zinc-800 transition hover:bg-zinc-100"
-                   title="Add selected photos to an album"
                    aria-label="Add selected photos to an album"
                    data-tooltip="Add to album"
                    data-action="click->bulk-selection#guard">
@@ -77,7 +76,6 @@
                       name="bulk_action"
                       value="add_to_album"
                       disabled
-                      title="Add selected photos"
                       aria-label="Add selected photos"
                       data-bulk-selection-target="action"
                       class="w-full rounded-lg bg-zinc-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-zinc-300">
@@ -89,7 +87,6 @@
 
         <details class="relative" data-controller="menu" data-bulk-selection-target="action">
           <summary class="ui-tooltip flex size-10 cursor-pointer list-none items-center justify-center rounded-lg text-zinc-800 transition hover:bg-zinc-100"
-                   title="Set selected photo location"
                    aria-label="Set selected photo location"
                    data-tooltip="Set location"
                    data-action="click->bulk-selection#guard">
@@ -111,7 +108,6 @@
                       name="bulk_action"
                       value="set_location"
                       disabled
-                      title="Set selected photo location"
                       aria-label="Set selected photo location"
                       data-bulk-selection-target="action"
                       class="w-full rounded-lg bg-zinc-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-zinc-300">
