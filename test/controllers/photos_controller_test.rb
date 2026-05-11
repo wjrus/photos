@@ -456,7 +456,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Archive"
     assert_select "section[data-controller~='info-panel']"
     assert_select "section[data-controller~='history-back']", false
-    assert_select "section[data-controller~='info-panel'] > a.fixed[href='#{root_path(photo_id: photo.id)}'][aria-label='Return to stream'][title='Return to stream']"
+    assert_select "section[data-controller~='info-panel'] > a.fixed[href='#{root_path(photo_id: photo.id)}'][aria-label='Return to stream'][data-tooltip='Return to stream']"
     assert_select "main a[aria-label='Return to stream']", false
     assert_select "aside#photo-info-panel a", { text: "Back to stream", count: 0 }
     assert_select "body.photo-detail-page"
@@ -715,8 +715,8 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "main[data-controller~='stream-navigation']"
-    assert_select "a[href='#{photo_path(newer)}'][data-turbo-action='replace'][aria-label='Previous item in stream'][title='Previous item in stream']"
-    assert_select "a[href='#{photo_path(older)}'][data-turbo-action='replace'][aria-label='Next item in stream'][title='Next item in stream']"
+    assert_select "a[href='#{photo_path(newer)}'][data-turbo-action='replace'][aria-label='Previous item in stream'][data-tooltip='Previous item']"
+    assert_select "a[href='#{photo_path(older)}'][data-turbo-action='replace'][aria-label='Next item in stream'][data-tooltip='Next item']"
     assert_includes response.body, "wheel->stream-navigation#wheel"
     assert_includes response.body, %(data-stream-navigation-back-url-value="#{map_path}")
     assert_includes response.body, %(data-stream-navigation-previous-url-value="#{photo_path(newer)}")
