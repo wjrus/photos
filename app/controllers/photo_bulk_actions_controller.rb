@@ -148,7 +148,9 @@ class PhotoBulkActionsController < ApplicationController
       removed_photo_ids << membership.photo_id
       membership.destroy!
     end
-    album.update!(cover_photo: nil) if removed_photo_ids.include?(album.cover_photo_id)
+    if removed_photo_ids.include?(album.cover_photo_id)
+      album.update!(cover_photo: album.replacement_cover(excluding_photo_ids: removed_photo_ids))
+    end
     removed_photo_ids.size
   end
 end

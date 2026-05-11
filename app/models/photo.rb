@@ -25,6 +25,7 @@ class Photo < ApplicationRecord
   has_many :file_health_checks, dependent: :destroy
   has_many :photo_album_memberships, dependent: :destroy
   has_many :photo_albums, through: :photo_album_memberships
+  has_many :covered_photo_albums, class_name: "PhotoAlbum", foreign_key: :cover_photo_id, inverse_of: :cover_photo
   has_many :photo_location_covers, foreign_key: :cover_photo_id, dependent: :destroy, inverse_of: :cover_photo
   has_many :photo_people_tags, dependent: :destroy
   has_many :google_takeout_imports, dependent: :nullify, inverse_of: :photo
@@ -45,6 +46,7 @@ class Photo < ApplicationRecord
 
   before_validation :copy_original_blob_attributes, if: -> { original.attached? }
   before_validation :set_title_from_original, if: -> { title.blank? && original_filename.present? }
+  before_destroy :replace_album_cover_references
   after_save :normalize_original_blob_content_type, if: -> { original.attached? }
   after_create_commit :enqueue_checksum, unless: :checksum_complete?
   after_create_commit :enqueue_drive_archive, if: :checksum_complete?
@@ -202,6 +204,12 @@ class Photo < ApplicationRecord
 
   def restore!
     update!(archived_at: nil)
+  end
+
+  def replace_album_cover_references
+    covered_photo_albums.find_each do |album|
+      album.update!(cover_photo: album.replacement_cover(excluding_photo_ids: id))
+    end
   end
 
   def restrict!

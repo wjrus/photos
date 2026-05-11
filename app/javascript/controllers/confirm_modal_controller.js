@@ -5,20 +5,35 @@ export default class extends Controller {
 
   connect() {
     this.restoreFocusTo = null
+    this.dialog = this.dialogTarget
+    this.panel = this.panelTarget
+    this.placeholder = document.createComment("confirm-modal")
     this.close()
+  }
+
+  disconnect() {
+    this.close()
+
+    if (this.dialog.parentNode === document.body) {
+      this.dialog.remove()
+    } else if (this.placeholder.parentNode && this.dialog.parentNode !== this.element) {
+      this.placeholder.replaceWith(this.dialog)
+    }
   }
 
   open(event) {
     this.restoreFocusTo = event?.currentTarget || document.activeElement
-    this.dialogTarget.classList.remove("hidden")
-    this.dialogTarget.classList.add("flex")
+    this.prepareSubmitButtons()
+    this.moveDialogToBody()
+    this.dialog.classList.remove("hidden")
+    this.dialog.classList.add("flex")
     document.body.classList.add("overflow-hidden")
     this.focusFirstControl()
   }
 
   close() {
-    this.dialogTarget.classList.add("hidden")
-    this.dialogTarget.classList.remove("flex")
+    this.dialog.classList.add("hidden")
+    this.dialog.classList.remove("flex")
     document.body.classList.remove("overflow-hidden")
 
     if (this.restoreFocusTo?.isConnected) {
@@ -27,13 +42,13 @@ export default class extends Controller {
   }
 
   backdrop(event) {
-    if (!this.panelTarget.contains(event.target)) {
+    if (!this.panel.contains(event.target)) {
       this.close()
     }
   }
 
   keydown(event) {
-    if (this.dialogTarget.classList.contains("hidden")) return
+    if (this.dialog.classList.contains("hidden")) return
 
     if (event.key === "Escape") {
       event.preventDefault()
@@ -53,7 +68,7 @@ export default class extends Controller {
     const focusable = this.focusableElements()
     if (focusable.length === 0) {
       event.preventDefault()
-      this.panelTarget.focus()
+      this.panel.focus()
       return
     }
 
@@ -71,9 +86,25 @@ export default class extends Controller {
 
   focusableElements() {
     return Array.from(
-      this.panelTarget.querySelectorAll(
+      this.panel.querySelectorAll(
         'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
       )
     ).filter((element) => element.offsetParent !== null)
+  }
+
+  moveDialogToBody() {
+    if (this.dialog.parentNode === document.body) return
+
+    this.dialog.replaceWith(this.placeholder)
+    document.body.appendChild(this.dialog)
+  }
+
+  prepareSubmitButtons() {
+    const form = this.element.closest("form")
+    if (!form?.id) return
+
+    this.dialog.querySelectorAll("button[type='submit']:not([form])").forEach((button) => {
+      button.setAttribute("form", form.id)
+    })
   }
 }

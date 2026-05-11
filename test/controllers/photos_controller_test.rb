@@ -353,6 +353,22 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_nil import.reload.photo_id
   end
 
+  test "destroying an album cover chooses another cover from the album" do
+    album = @owner.photo_albums.create!(title: "Cover swap", source: "manual")
+    cover = attached_photo(title: "Old cover")
+    replacement = attached_photo(title: "New cover")
+    album.photos << cover
+    album.photos << replacement
+    album.update!(cover_photo: cover)
+
+    assert_difference "Photo.count", -1 do
+      delete photo_path(cover)
+    end
+
+    assert_redirected_to root_path(photo_id: replacement.id)
+    assert_equal replacement, album.reload.cover_photo
+  end
+
   test "owner can destroy a photo from album detail and return near album position" do
     album = @owner.photo_albums.create!(title: "Trip", source: "manual")
     newer = attached_photo(title: "Newer album item")

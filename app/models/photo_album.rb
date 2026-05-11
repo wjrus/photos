@@ -48,4 +48,12 @@ class PhotoAlbum < ApplicationRecord
   def unpublish!
     update!(visibility: "private", published_at: nil)
   end
+
+  def replacement_cover(excluding_photo_ids: [])
+    photos
+      .where(restricted: false, archived_at: nil)
+      .where.not(id: Array(excluding_photo_ids).compact)
+      .order(Arel.sql("RANDOM()"))
+      .first
+  end
 end

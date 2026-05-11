@@ -208,6 +208,27 @@ class PhotoBulkActionsControllerTest < ActionDispatch::IntegrationTest
     assert_nil album.cover_photo
   end
 
+  test "bulk remove from album chooses another cover when removing the cover photo" do
+    album = @owner.photo_albums.create!(title: "Cover trip", source: "manual")
+    cover = attached_photo(title: "Album cover")
+    replacement = attached_photo(title: "Album replacement")
+    album.photos << cover
+    album.photos << replacement
+    album.update!(cover_photo: cover)
+
+    assert_difference "PhotoAlbumMembership.count", -1 do
+      post photo_bulk_actions_path, params: {
+        bulk_action: "remove_from_album",
+        context_album_id: album.id,
+        photo_ids: [ cover.id ],
+        return_to: album_path(album)
+      }
+    end
+
+    assert_redirected_to album_path(album, photo_id: replacement.id)
+    assert_equal replacement, album.reload.cover_photo
+  end
+
   test "bulk remove from album returns near album stream position" do
     album = @owner.photo_albums.create!(title: "Trip", source: "manual")
     first = attached_photo(title: "Album remove first")
@@ -290,6 +311,26 @@ class PhotoBulkActionsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_redirected_to root_path
+  end
+
+  test "bulk delete chooses another album cover before removing photos" do
+    album = @owner.photo_albums.create!(title: "Delete cover trip", source: "manual")
+    cover = attached_photo(title: "Bulk delete cover")
+    replacement = attached_photo(title: "Bulk delete replacement")
+    album.photos << cover
+    album.photos << replacement
+    album.update!(cover_photo: cover)
+
+    assert_difference "Photo.count", -1 do
+      post photo_bulk_actions_path, params: {
+        bulk_action: "delete",
+        photo_ids: [ cover.id ],
+        return_to: album_path(album)
+      }
+    end
+
+    assert_redirected_to album_path(album, photo_id: replacement.id)
+    assert_equal replacement, album.reload.cover_photo
   end
 
   test "owner can bulk archive and restore photos" do

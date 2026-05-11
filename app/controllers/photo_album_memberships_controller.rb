@@ -29,7 +29,9 @@ class PhotoAlbumMembershipsController < ApplicationController
     photo = membership.photo
     return_path = photo_stream_return_path_after_removing([ photo ], return_path: safe_return_path(default: album_path(album)))
     membership.destroy!
-    album.update!(cover_photo: nil) if album.cover_photo_id == membership.photo_id
+    if album.cover_photo_id == membership.photo_id
+      album.update!(cover_photo: album.replacement_cover(excluding_photo_ids: membership.photo_id))
+    end
 
     redirect_to return_path, notice: "Photo removed from album."
   end
