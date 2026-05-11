@@ -31,8 +31,8 @@ module ApplicationHelper
   def photo_stream_media(photo, **options)
     if photo.video?
       if photo.video_preview.attached?
-        image_tag photo.video_preview,
-          { alt: photo.title, class: "size-full object-cover", loading: "lazy", decoding: "async" }.merge(options)
+        image_tag stream_photo_path(photo),
+          { alt: photo.title, class: "size-full object-cover", loading: "eager", decoding: "auto" }.merge(options)
       else
         photo_stream_placeholder("Video processing")
       end
@@ -40,8 +40,8 @@ module ApplicationHelper
       stream_variant = photo.processed_original_variant_record(:stream)
       return photo_stream_placeholder("Processing") unless attached_blob_available?(stream_variant&.image)
 
-      image_tag stream_variant.image,
-        { alt: photo.title, class: "size-full object-cover", loading: "lazy", decoding: "async" }.merge(options)
+      image_tag stream_photo_path(photo),
+        { alt: photo.title, class: "size-full object-cover", loading: "eager", decoding: "auto" }.merge(options)
     end
   end
 

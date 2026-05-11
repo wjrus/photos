@@ -18,7 +18,8 @@ class ApplicationHelperTest < ActionView::TestCase
     html = photo_stream_media(photo)
 
     assert_includes html, "<img"
-    assert_includes html, "clip-preview.jpg"
+    assert_includes html, stream_photo_path(photo)
+    assert_not_includes html, "clip-preview.jpg"
     assert_not_includes html, media_photo_path(photo)
     assert_not_includes html, "<video"
   end
@@ -54,6 +55,7 @@ class ApplicationHelperTest < ActionView::TestCase
 
     assert_includes html, "Processing"
     assert_not_includes html, display_photo_path(photo)
+    assert_not_includes html, stream_photo_path(photo)
   end
 
   test "stream image waits when preprocessed thumbnail file is missing" do
@@ -66,6 +68,7 @@ class ApplicationHelperTest < ActionView::TestCase
 
     assert_includes html, "Processing"
     assert_not_includes html, variant.image.blob.key
+    assert_not_includes html, stream_photo_path(photo)
   end
 
   test "detail image falls back to on-demand display route" do

@@ -62,6 +62,7 @@ Rails.application.routes.draw do
   end
   resources :photos, only: %i[show create destroy] do
     post :retry_failed_archives, on: :collection
+    get :stream, on: :member
     get :display, on: :member
     get :video, on: :member
     get :media, on: :member

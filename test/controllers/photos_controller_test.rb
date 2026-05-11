@@ -669,6 +669,38 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_equal "image/png", response.media_type
   end
 
+  test "owner can access stable stream thumbnail route" do
+    photo = attached_photo
+    photo.original.variant(:stream).processed
+
+    get stream_photo_path(photo)
+
+    assert_response :success
+    assert_equal "image/jpeg", response.media_type
+  end
+
+  test "public viewer can access stable stream thumbnail for public photo" do
+    photo = attached_photo
+    photo.original.variant(:stream).processed
+    photo.publish!
+    delete sign_out_path
+
+    get stream_photo_path(photo)
+
+    assert_response :success
+    assert_equal "image/jpeg", response.media_type
+  end
+
+  test "public viewer cannot access stable stream thumbnail for private photo" do
+    photo = attached_photo
+    photo.original.variant(:stream).processed
+    delete sign_out_path
+
+    get stream_photo_path(photo)
+
+    assert_response :not_found
+  end
+
   test "detail view exposes stream neighbors for keyboard and swipe navigation" do
     newer = attached_photo(title: "Newer")
     photo = attached_photo(title: "Current")

@@ -3,8 +3,8 @@ class PhotosController < ApplicationController
 
   owner_access_message "Only the owner can manage photos."
 
-  before_action :require_owner!, except: %i[show display video]
-  before_action :set_visible_photo, only: %i[show display video]
+  before_action :require_owner!, except: %i[show stream display video]
+  before_action :set_visible_photo, only: %i[show stream display video]
   before_action :set_photo, only: %i[media caption manual_location publish unpublish archive restore restrict unrestrict retry_archive destroy]
 
   def show
@@ -31,6 +31,20 @@ class PhotosController < ApplicationController
       type: "image/jpeg",
       disposition: "inline",
       filename: public_filename(@photo, ".jpg")
+  end
+
+  def stream
+    if @photo.video?
+      return head :not_found unless @photo.video_preview.attached?
+
+      redirect_to rails_blob_path(@photo.video_preview, disposition: "inline")
+    else
+      variant = @photo.original.variant(:stream).processed
+      send_data variant.download,
+        type: "image/jpeg",
+        disposition: "inline",
+        filename: public_filename(@photo, ".jpg")
+    end
   end
 
   def video
