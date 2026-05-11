@@ -307,34 +307,27 @@ body.photo-detail-page {
 
 @media (max-width: 767px) and (prefers-reduced-motion: no-preference) {
   .photo-viewer-shell {
-    transition:
-      opacity 170ms ease,
-      transform 170ms ease;
-    will-change: opacity, transform;
+    transition: transform 170ms ease;
+    will-change: transform;
   }
 
   .photo-viewer-shell--exit-next {
-    opacity: 0;
     transform: translateY(-2rem);
   }
 
   .photo-viewer-shell--exit-previous {
-    opacity: 0;
     transform: translateY(2rem);
   }
 
   .photo-viewer-shell--enter-next {
-    opacity: 0;
     transform: translateY(2rem);
   }
 
   .photo-viewer-shell--enter-previous {
-    opacity: 0;
     transform: translateY(-2rem);
   }
 
   .photo-viewer-shell--entered {
-    opacity: 1;
     transform: translateY(0);
   }
 }
