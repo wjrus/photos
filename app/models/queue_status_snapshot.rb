@@ -235,7 +235,7 @@ class QueueStatusSnapshot
   def pruned_failures
     return SolidQueue::FailedExecution.none unless available? && table_exists?("solid_queue_failed_executions")
 
-    SolidQueue::FailedExecution.where("error ->> 'exception_class' = ?", PROCESS_PRUNED_EXCEPTION_CLASS)
+    SolidQueue::FailedExecution.where("(error::jsonb ->> 'exception_class') = ?", PROCESS_PRUNED_EXCEPTION_CLASS)
   end
 
   def table_exists?(table)
