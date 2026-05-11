@@ -4,7 +4,9 @@
       data-info-panel-target="viewer"
       data-stream-navigation-back-url-value="<%= return_to %>"
       data-stream-navigation-previous-url-value="<%= photo_path(previous_photo) if previous_photo %>"
-      data-stream-navigation-next-url-value="<%= photo_path(next_photo) if next_photo %>">
+      data-stream-navigation-next-url-value="<%= photo_path(next_photo) if next_photo %>"
+      data-stream-navigation-previous-media-url-value="<%= photo_neighbor_prefetch_media_path(previous_photo) if previous_photo %>"
+      data-stream-navigation-next-media-url-value="<%= photo_neighbor_prefetch_media_path(next_photo) if next_photo %>">
   <button type="button"
           class="fixed right-4 top-4 z-20 flex size-11 items-center justify-center rounded-lg border border-white/25 bg-black/55 font-serif text-lg font-semibold italic text-white backdrop-blur transition hover:bg-white hover:text-zinc-950"
           aria-label="Show photo information"

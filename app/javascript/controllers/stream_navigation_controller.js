@@ -4,14 +4,16 @@ export default class extends Controller {
   static values = {
     backUrl: String,
     nextUrl: String,
-    previousUrl: String
+    nextMediaUrl: String,
+    previousUrl: String,
+    previousMediaUrl: String
   }
 
   connect() {
     this.startY = null
     this.lastWheelAt = 0
     this.animating = false
-    this.animateEntry()
+    this.prefetchNeighbors()
   }
 
   keydown(event) {
@@ -118,7 +120,6 @@ export default class extends Controller {
     }
 
     this.animating = true
-    this.storeDirection(direction)
     this.element.classList.add(`photo-viewer-shell--exit-${direction}`)
 
     window.setTimeout(() => {
@@ -126,42 +127,38 @@ export default class extends Controller {
     }, 170)
   }
 
-  animateEntry() {
-    const direction = this.takeStoredDirection()
-    if (!direction || !this.shouldAnimate()) return
-
-    this.element.classList.add(`photo-viewer-shell--enter-${direction}`)
-    this.element.getBoundingClientRect()
-
-    requestAnimationFrame(() => {
-      this.element.classList.add("photo-viewer-shell--entered")
-      window.setTimeout(() => {
-        this.element.classList.remove(`photo-viewer-shell--enter-${direction}`, "photo-viewer-shell--entered")
-      }, 220)
-    })
-  }
-
   shouldAnimate() {
     return window.matchMedia("(max-width: 767px)").matches &&
       !window.matchMedia("(prefers-reduced-motion: reduce)").matches
   }
 
-  storeDirection(direction) {
-    try {
-      window.sessionStorage.setItem("photoViewerNavigationDirection", direction)
-    } catch (_error) {
-      // Ignore private browsing/storage failures; navigation still works.
-    }
+  prefetchNeighbors() {
+    this.prefetchDocument(this.previousUrlValue)
+    this.prefetchDocument(this.nextUrlValue)
+    this.prefetchImage(this.previousMediaUrlValue)
+    this.prefetchImage(this.nextMediaUrlValue)
   }
 
-  takeStoredDirection() {
-    try {
-      const direction = window.sessionStorage.getItem("photoViewerNavigationDirection")
-      window.sessionStorage.removeItem("photoViewerNavigationDirection")
-      return ["next", "previous"].includes(direction) ? direction : null
-    } catch (_error) {
-      return null
-    }
+  prefetchDocument(url) {
+    if (!url || !window.fetch) return
+
+    window.fetch(url, {
+      credentials: "same-origin",
+      headers: {
+        Accept: "text/html, application/xhtml+xml",
+        "Turbo-Prefetch": "true"
+      }
+    }).catch(() => {
+      // Navigation still works if the browser decides not to warm this page.
+    })
+  }
+
+  prefetchImage(url) {
+    if (!url) return
+
+    const image = new Image()
+    image.decoding = "async"
+    image.src = url
   }
 
   editingText(event) {

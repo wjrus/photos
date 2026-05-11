@@ -90,7 +90,7 @@ module ApplicationHelper
       ]
 
       if (media_path = photo_neighbor_prefetch_media_path(photo))
-        tags << tag.link(rel: "prefetch", href: media_path, as: "image")
+        tags << tag.link(rel: "preload", href: media_path, as: "image")
       end
 
       tags

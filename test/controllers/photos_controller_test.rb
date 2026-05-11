@@ -673,6 +673,8 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, %(data-stream-navigation-back-url-value="#{map_path}")
     assert_includes response.body, %(data-stream-navigation-previous-url-value="#{photo_path(newer)}")
     assert_includes response.body, %(data-stream-navigation-next-url-value="#{photo_path(older)}")
+    assert_includes response.body, "data-stream-navigation-previous-media-url-value"
+    assert_includes response.body, "data-stream-navigation-next-media-url-value"
   end
 
   test "album detail navigation stays inside the album stream" do
@@ -1005,7 +1007,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "link[rel='prefetch'][as='document'][href='#{photo_path(newer)}']"
     assert_select "link[rel='prefetch'][as='document'][href='#{photo_path(older)}']"
-    assert_select "link[rel='prefetch'][as='image']", 2
+    assert_select "link[rel='preload'][as='image']", 2
   end
 
   test "photo viewer prefetches video poster but not video display bytes" do
@@ -1019,7 +1021,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "link[rel='prefetch'][as='document'][href='#{photo_path(video)}']"
-    assert_select "link[rel='prefetch'][as='image']", 1
+    assert_select "link[rel='preload'][as='image']", 1
     assert_select "link[href='#{video_photo_path(video)}']", false
   end
 
