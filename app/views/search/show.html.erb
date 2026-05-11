@@ -17,58 +17,62 @@
       <p class="mt-1 text-sm text-zinc-600">Find photos by name, place, person, camera, or lens.</p>
     </div>
 
+    <% advanced_filters_visible = privileged_metadata_viewer? %>
+
     <%= form_with url: search_path,
           method: :get,
-          class: "mt-6 grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm lg:grid-cols-6",
+          class: "mt-6 grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm #{advanced_filters_visible ? "lg:grid-cols-6" : "lg:grid-cols-3"}",
           data: { controller: "stream-state-reset", action: "submit->stream-state-reset#clear", turbo: false } do %>
       <div class="lg:col-span-2">
         <label for="q" class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Text</label>
-        <input id="q" name="q" value="<%= @search_params[:q] %>" placeholder="Names, places, filenames..."
+        <input id="q" name="q" value="<%= @search_params[:q] %>" placeholder="<%= advanced_filters_visible ? "Names, places, filenames..." : "Search public photo titles..." %>"
                class="mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15">
       </div>
 
-      <div>
-        <label for="person_id" class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Person</label>
-        <select id="person_id" name="person_id" class="mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15">
-          <option value="">Any person</option>
-          <% @filter_options[:people].each do |person| %>
-            <option value="<%= person.id %>" <%= "selected" if @search_params[:person_id].to_s == person.id.to_s %>><%= person.name %></option>
-          <% end %>
-        </select>
-      </div>
+      <% if advanced_filters_visible %>
+        <div>
+          <label for="person_id" class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Person</label>
+          <select id="person_id" name="person_id" class="mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15">
+            <option value="">Any person</option>
+            <% @filter_options[:people].each do |person| %>
+              <option value="<%= person.id %>" <%= "selected" if @search_params[:person_id].to_s == person.id.to_s %>><%= person.name %></option>
+            <% end %>
+          </select>
+        </div>
 
-      <div>
-        <label for="place_id" class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Place</label>
-        <select id="place_id" name="place_id" class="mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15">
-          <option value="">Any place</option>
-          <% @filter_options[:places].each do |place| %>
-            <% place_id = PhotoLocation.place_id_for_name(place.name) %>
-            <option value="<%= place_id %>" <%= "selected" if @search_params[:place_id].to_s == place_id %>><%= place.name %></option>
-          <% end %>
-        </select>
-      </div>
+        <div>
+          <label for="place_id" class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Place</label>
+          <select id="place_id" name="place_id" class="mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15">
+            <option value="">Any place</option>
+            <% @filter_options[:places].each do |place| %>
+              <% place_id = PhotoLocation.place_id_for_name(place.name) %>
+              <option value="<%= place_id %>" <%= "selected" if @search_params[:place_id].to_s == place_id %>><%= place.name %></option>
+            <% end %>
+          </select>
+        </div>
 
-      <div>
-        <label for="camera_model" class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Camera</label>
-        <select id="camera_model" name="camera_model" class="mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15">
-          <option value="">Any camera</option>
-          <% @filter_options[:camera_models].each do |camera_model| %>
-            <option value="<%= camera_model %>" <%= "selected" if @search_params[:camera_model] == camera_model %>><%= camera_model %></option>
-          <% end %>
-        </select>
-      </div>
+        <div>
+          <label for="camera_model" class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Camera</label>
+          <select id="camera_model" name="camera_model" class="mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15">
+            <option value="">Any camera</option>
+            <% @filter_options[:camera_models].each do |camera_model| %>
+              <option value="<%= camera_model %>" <%= "selected" if @search_params[:camera_model] == camera_model %>><%= camera_model %></option>
+            <% end %>
+          </select>
+        </div>
 
-      <div>
-        <label for="lens_model" class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Lens</label>
-        <select id="lens_model" name="lens_model" class="mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15">
-          <option value="">Any lens</option>
-          <% @filter_options[:lenses].each do |lens| %>
-            <option value="<%= lens %>" <%= "selected" if @search_params[:lens_model] == lens %>><%= lens %></option>
-          <% end %>
-        </select>
-      </div>
+        <div>
+          <label for="lens_model" class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Lens</label>
+          <select id="lens_model" name="lens_model" class="mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15">
+            <option value="">Any lens</option>
+            <% @filter_options[:lenses].each do |lens| %>
+              <option value="<%= lens %>" <%= "selected" if @search_params[:lens_model] == lens %>><%= lens %></option>
+            <% end %>
+          </select>
+        </div>
+      <% end %>
 
-      <div class="flex items-end gap-2 lg:col-span-6">
+      <div class="flex items-end gap-2 <%= advanced_filters_visible ? "lg:col-span-6" : "lg:col-span-1" %>">
         <button type="submit" class="rounded-lg bg-zinc-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800">Search</button>
         <%= link_to "Clear", search_path, class: "rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
       </div>

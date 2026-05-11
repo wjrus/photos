@@ -111,6 +111,74 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, "Elsewhere lunch"
   end
 
+  test "anonymous search does not expose advanced metadata filter options" do
+    public_photo = attached_photo(title: "Public meadow")
+    public_photo.publish!
+    public_photo.create_metadata!(
+      extraction_status: "complete",
+      camera_make: "Secret Camera Co",
+      camera_model: "SecretCam 9000",
+      lens_model: "Secret Lens 50",
+      latitude: 44.7622,
+      longitude: -85.5980,
+      raw: {}
+    )
+    public_photo.photo_people_tags.create!(user: users(:two), tagged_by: @owner)
+    PhotoLocationPlace.create!(
+      location_id: PhotoLocation.id_for_coordinates(44.7622, -85.5980),
+      name: "Hidden Hamlet"
+    )
+
+    delete sign_out_path
+    get search_path
+
+    assert_response :success
+    assert_select "select#person_id", false
+    assert_select "select#place_id", false
+    assert_select "select#camera_model", false
+    assert_select "select#lens_model", false
+    refute_includes response.body, users(:two).name
+    refute_includes response.body, "SecretCam 9000"
+    refute_includes response.body, "Secret Lens 50"
+    refute_includes response.body, "Hidden Hamlet"
+  end
+
+  test "anonymous search ignores metadata and person query fields" do
+    public_photo = attached_photo(title: "Public meadow")
+    public_photo.publish!
+    public_photo.create_metadata!(
+      extraction_status: "complete",
+      camera_model: "SecretCam 9000",
+      lens_model: "Secret Lens 50",
+      latitude: 44.7622,
+      longitude: -85.5980,
+      raw: {}
+    )
+    public_photo.photo_people_tags.create!(user: users(:two), tagged_by: @owner)
+    PhotoLocationPlace.create!(
+      location_id: PhotoLocation.id_for_coordinates(44.7622, -85.5980),
+      name: "Hidden Hamlet"
+    )
+
+    delete sign_out_path
+
+    get search_path(q: "SecretCam")
+    assert_response :success
+    refute_includes response.body, "Public meadow"
+
+    get search_path(
+      camera_model: "SecretCam 9000",
+      lens_model: "Secret Lens 50",
+      person_id: users(:two).id,
+      place_id: PhotoLocation.place_id_for_name("Hidden Hamlet")
+    )
+    assert_response :success
+    assert_includes response.body, "Public meadow"
+    refute_includes response.body, "SecretCam 9000"
+    refute_includes response.body, "Secret Lens 50"
+    refute_includes response.body, "Hidden Hamlet"
+  end
+
   private
 
   def attached_photo(title:)

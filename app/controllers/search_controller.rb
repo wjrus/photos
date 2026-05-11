@@ -21,7 +21,8 @@ class SearchController < ApplicationController
   private
 
   def search_params
-    params.permit(*PhotoSearch::FILTER_PARAMS, :cursor, :stream_page).to_h.symbolize_keys.slice(*PhotoSearch::FILTER_PARAMS)
+    allowed_filters = PhotoSearch.filter_params_for(current_user)
+    params.permit(*allowed_filters, :cursor, :stream_page).to_h.symbolize_keys.slice(*allowed_filters)
   end
 
   def search_stream(results)
@@ -33,6 +34,8 @@ class SearchController < ApplicationController
   end
 
   def filter_options
+    return empty_filter_options unless privileged_metadata_viewer?
+
     metadata = PhotoMetadata
       .joins(:photo)
       .merge(Photo.visible_to(current_user))
@@ -46,7 +49,27 @@ class SearchController < ApplicationController
         .merge(PhotoPeopleTag.joins(:photo).merge(Photo.visible_to(current_user)))
         .distinct
         .order(:name),
-      places: PhotoLocationPlace.select(:name).distinct.order(:name)
+      places: place_filter_options(metadata)
     }
+  end
+
+  def empty_filter_options
+    {
+      camera_makes: [],
+      camera_models: [],
+      lenses: [],
+      people: [],
+      places: []
+    }
+  end
+
+  def place_filter_options(metadata)
+    location_ids = metadata
+      .where.not(latitude: nil, longitude: nil)
+      .pluck(:latitude, :longitude)
+      .map { |latitude, longitude| PhotoLocation.id_for_coordinates(latitude, longitude) }
+      .uniq
+
+    PhotoLocationPlace.where(location_id: location_ids).select(:name).distinct.order(:name)
   end
 end

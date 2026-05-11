@@ -1,10 +1,15 @@
 class PhotoSearch
   FILTER_PARAMS = %i[q camera_make camera_model lens_model person_id place_id].freeze
+  PUBLIC_FILTER_PARAMS = %i[q].freeze
+
+  def self.filter_params_for(user)
+    user.present? ? FILTER_PARAMS : PUBLIC_FILTER_PARAMS
+  end
 
   attr_reader :params, :user
 
   def initialize(params:, user:)
-    @params = params
+    @params = params.symbolize_keys.slice(*self.class.filter_params_for(user))
     @user = user
   end
 
@@ -23,7 +28,7 @@ class PhotoSearch
   end
 
   def active?
-    FILTER_PARAMS.any? { |key| params[key].present? }
+    self.class.filter_params_for(user).any? { |key| params[key].present? }
   end
 
   private
@@ -32,6 +37,8 @@ class PhotoSearch
     return scope if params[:q].blank?
 
     query = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q].to_s.strip)}%"
+    return scope.where("photos.title ILIKE ?", query) if user.blank?
+
     album_ids = PhotoAlbum.visible_to(user).where("photo_albums.title ILIKE ?", query).pluck(:id)
     tagged_user_ids = User.where("users.name ILIKE :query OR users.email ILIKE :query", query: query).pluck(:id)
     location_ids = PhotoLocationPlace.matching_name(query).pluck(:location_id)
