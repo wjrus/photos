@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_10_153000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_11_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -280,6 +280,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_10_153000) do
     t.index ["updated_at"], name: "index_photos_on_updated_at"
     t.index ["upload_batch_id"], name: "index_photos_on_upload_batch_id"
     t.index ["visibility"], name: "index_photos_on_visibility"
+  end
+
+  create_table "repository_events", force: :cascade do |t|
+    t.string "category", null: false
+    t.datetime "created_at", null: false
+    t.jsonb "data", default: {}, null: false
+    t.string "event_type", null: false
+    t.string "message", null: false
+    t.datetime "occurred_at", null: false
+    t.datetime "read_at"
+    t.string "severity", null: false
+    t.bigint "subject_id"
+    t.string "subject_type"
+    t.datetime "updated_at", null: false
+    t.index ["category", "event_type", "occurred_at"], name: "index_repository_events_on_category_type_occurred_at"
+    t.index ["read_at", "occurred_at"], name: "index_repository_events_on_read_at_and_occurred_at"
+    t.index ["severity", "occurred_at"], name: "index_repository_events_on_severity_and_occurred_at"
+    t.index ["subject_type", "subject_id"], name: "index_repository_events_on_subject"
   end
 
   create_table "upload_batches", force: :cascade do |t|

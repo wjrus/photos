@@ -9,7 +9,7 @@ class ApplicationController < ActionController::Base
   # Changes to the importmap will invalidate the etag for HTML responses
   stale_when_importmap_changes
 
-  helper_method :current_user, :signed_in?, :privileged_metadata_viewer?
+  helper_method :current_user, :signed_in?, :privileged_metadata_viewer?, :repository_unread_event_count
 
   private
 
@@ -29,6 +29,12 @@ class ApplicationController < ActionController::Base
 
   def privileged_metadata_viewer?
     current_user&.trusted_viewer?
+  end
+
+  def repository_unread_event_count
+    return 0 unless current_user&.owner?
+
+    @repository_unread_event_count ||= RepositoryEvent.unread.count
   end
 
   def require_owner!

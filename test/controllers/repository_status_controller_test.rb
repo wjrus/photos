@@ -21,6 +21,7 @@ class RepositoryStatusControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Derivative coverage"
     assert_includes response.body, "File health timeline"
     assert_includes response.body, "Checksums and Drive"
+    assert_includes response.body, "Repository activity"
     assert_includes response.body, "Queue patrol"
     assert_includes response.body, "Queue baseline scan"
     assert_includes response.body, queue_status_path
@@ -33,6 +34,21 @@ class RepositoryStatusControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, repository_status_path
     assert_includes response.body, "Repository status"
+  end
+
+  test "owner account menu shows unread repository event count" do
+    RepositoryEvent.record!(
+      category: "file_health",
+      event_type: "missing",
+      severity: "warning",
+      message: "A file is missing."
+    )
+
+    get root_path
+
+    assert_response :success
+    assert_includes response.body, "Repository status"
+    assert_includes response.body, ">1</span>"
   end
 
   test "non owner cannot view repository status page" do
@@ -85,6 +101,21 @@ class RepositoryStatusControllerTest < ActionDispatch::IntegrationTest
     assert_equal "maintenance paused.", flash[:notice]
   ensure
     QueueStatusSnapshot.define_singleton_method(:build, original_build)
+  end
+
+  test "owner can mark repository notifications read" do
+    event = RepositoryEvent.record!(
+      category: "file_health",
+      event_type: "missing",
+      severity: "warning",
+      message: "A file is missing."
+    )
+
+    patch repository_status_path, params: { control: "repository_events" }
+
+    assert_redirected_to repository_status_path
+    assert_equal "Repository notifications marked read.", flash[:notice]
+    assert event.reload.read?
   end
 
   test "non owner cannot update repository controls" do

@@ -27,14 +27,17 @@ class HealOriginalFromDriveJobTest < ActiveJob::TestCase
       original_new = GoogleDriveArchiveClient.method(:new)
       GoogleDriveArchiveClient.define_singleton_method(:new) { |_user| fake_client }
 
-      assert_enqueued_jobs 2 do
-        HealOriginalFromDriveJob.perform_now(check)
+      assert_difference "RepositoryEvent.where(event_type: 'healed').count", 1 do
+        assert_enqueued_jobs 2 do
+          HealOriginalFromDriveJob.perform_now(check)
+        end
       end
 
       assert_equal File.binread(source_path), File.binread(storage_path(photo))
       assert_equal "healed", check.reload.status
       assert_not_nil check.healed_at
       assert_not_nil photo.drive_archive_object.reload.verified_at
+      assert_includes RepositoryEvent.latest_first.first.message, "healed from Drive"
     end
   ensure
     GoogleDriveArchiveClient.define_singleton_method(:new, original_new) if original_new

@@ -33,6 +33,8 @@ class RepositoryStatusController < ApplicationController
     @health_timeline = health_timeline
     @recent_checks = latest_checks.includes(:photo).latest_first.limit(12)
     @recent_attention = latest_checks.needs_attention.includes(:photo).latest_first.limit(8)
+    @repository_events = RepositoryEvent.latest_first.limit(12)
+    @unread_repository_events = RepositoryEvent.unread.count
     @controls = controls
   end
 
@@ -54,6 +56,9 @@ class RepositoryStatusController < ApplicationController
       redirect_to repository_status_path, notice: "Original file auto-heal #{params[:enabled] == 'true' ? 'enabled' : 'disabled'}."
     when "queue"
       update_queue_control
+    when "repository_events"
+      RepositoryEvent.unread.update_all(read_at: Time.current, updated_at: Time.current)
+      redirect_to repository_status_path, notice: "Repository notifications marked read."
     else
       redirect_to repository_status_path, alert: "Unknown repository control."
     end

@@ -24,13 +24,17 @@ class OriginalFileHealthCheckJobTest < ActiveJob::TestCase
       )
       File.write(storage_path(photo), "wrong bytes", mode: "wb")
 
-      assert_enqueued_with(job: HealOriginalFromDriveJob) do
-        check = OriginalFileHealthCheckJob.perform_now(photo)
+      assert_difference "RepositoryEvent.where(severity: 'warning').unread.count", 1 do
+        assert_enqueued_with(job: HealOriginalFromDriveJob) do
+          check = OriginalFileHealthCheckJob.perform_now(photo)
 
-        assert_equal "mismatch", check.status
-        assert_includes check.error, "bytes"
-        assert_equal "wrong bytes".bytesize, check.actual_byte_size
+          assert_equal "mismatch", check.status
+          assert_includes check.error, "bytes"
+          assert_equal "wrong bytes".bytesize, check.actual_byte_size
+        end
       end
+
+      assert_includes RepositoryEvent.latest_first.first.message, "failed checksum"
     end
   end
 
@@ -44,11 +48,13 @@ class OriginalFileHealthCheckJobTest < ActiveJob::TestCase
       )
       File.delete(storage_path(photo))
 
-      assert_enqueued_with(job: HealOriginalFromDriveJob) do
-        check = OriginalFileHealthCheckJob.perform_now(photo)
+      assert_difference "RepositoryEvent.where(severity: 'warning').unread.count", 1 do
+        assert_enqueued_with(job: HealOriginalFromDriveJob) do
+          check = OriginalFileHealthCheckJob.perform_now(photo)
 
-        assert_equal "missing", check.status
-        assert check.error.present?
+          assert_equal "missing", check.status
+          assert check.error.present?
+        end
       end
     end
   end
