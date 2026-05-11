@@ -138,8 +138,27 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     get albums_path
 
     assert_response :success
+    assert_select "select#sort option[selected][value='letters']", text: "letters"
     assert_operator response.body.index("Apple trip"), :<, response.body.index("middle trip")
     assert_operator response.body.index("middle trip"), :<, response.body.index("zebra trip")
+  end
+
+  test "album index can sort by visible photo quantity" do
+    large_album = @owner.photo_albums.create!(title: "Large trip", source: "manual")
+    small_album = @owner.photo_albums.create!(title: "Small trip", source: "manual")
+    empty_album = @owner.photo_albums.create!(title: "Empty trip", source: "manual")
+
+    large_album.photos << attached_photo(title: "Large first")
+    large_album.photos << attached_photo(title: "Large second")
+    large_album.photos << attached_video(title: "Large motion")
+    small_album.photos << attached_photo(title: "Small first")
+
+    get albums_path(sort: "photos")
+
+    assert_response :success
+    assert_select "select#sort option[selected][value='photos']", text: "photos"
+    assert_operator response.body.index("Large trip"), :<, response.body.index("Small trip")
+    assert_operator response.body.index("Small trip"), :<, response.body.index("Empty trip")
   end
 
   test "owner can publish and unpublish an album" do

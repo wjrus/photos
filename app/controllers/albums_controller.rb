@@ -2,11 +2,18 @@ class AlbumsController < ApplicationController
   include PhotoStreamPagination
   owner_access_message "Only the owner can manage albums."
 
+  ALBUM_SORT_OPTIONS = {
+    "letters" => "letters",
+    "photos" => "photos"
+  }.freeze
+
   before_action :require_owner!, except: %i[index show]
   before_action :set_visible_album, only: %i[show]
   before_action :set_album, only: %i[update publish unpublish destroy]
 
   def index
+    @album_sort_options = ALBUM_SORT_OPTIONS
+    @album_sort = album_sort_param
     @albums = PhotoAlbum.visible_to(current_user)
       .includes(:cover_photo)
       .display_order
@@ -17,6 +24,7 @@ class AlbumsController < ApplicationController
     @private_album_count = album_payload.fetch(:private_album_count)
     @visible_media_counts = album_payload.fetch(:visible_media_counts)
     @album_covers = album_covers_from_ids(album_payload.fetch(:cover_photo_ids))
+    @albums = sorted_albums(@albums, @visible_media_counts)
   end
 
   def show
@@ -85,6 +93,24 @@ class AlbumsController < ApplicationController
 
   def album_params
     params.require(:photo_album).permit(:title, :visibility)
+  end
+
+  def album_sort_param
+    sort = params[:sort].to_s
+    ALBUM_SORT_OPTIONS.key?(sort) ? sort : "letters"
+  end
+
+  def sorted_albums(albums, media_counts)
+    case @album_sort
+    when "photos"
+      albums.sort_by do |album|
+        counts = media_counts.fetch(album.id, { photos: 0, videos: 0 })
+        total_visible_media = counts.fetch(:photos, 0).to_i + counts.fetch(:videos, 0).to_i
+        [ -total_visible_media, album.title.to_s.downcase, album.id ]
+      end
+    else
+      albums
+    end
   end
 
   def set_visible_album
