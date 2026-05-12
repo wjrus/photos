@@ -157,6 +157,27 @@ class PhotoTest < ActiveSupport::TestCase
     assert_equal [ newest ], scope.after_stream_cursor(middle.stream_cursor).reverse_stream_order.to_a
   end
 
+  test "chronological cursor pages from older captured dates toward newer dates" do
+    oldest = attached_photo(captured_at: 1.week.ago)
+    middle = attached_photo(captured_at: 1.day.ago)
+    newest = attached_photo(captured_at: 1.hour.ago)
+    unknown = attached_photo(created_at: Time.current)
+    scope = Photo.where(id: [ newest.id, middle.id, oldest.id, unknown.id ])
+
+    assert_equal [ middle, newest, unknown ], scope.after_chronological_cursor(oldest.stream_cursor).chronological_order.to_a
+    assert_equal [ newest, unknown ], scope.after_chronological_cursor(middle.stream_cursor).chronological_order.to_a
+  end
+
+  test "chronological cursor can page back toward older captured dates" do
+    oldest = attached_photo(captured_at: 1.week.ago)
+    middle = attached_photo(captured_at: 1.day.ago)
+    newest = attached_photo(captured_at: 1.hour.ago)
+    scope = Photo.where(id: [ newest.id, middle.id, oldest.id ])
+
+    assert_equal [ middle, oldest ], scope.before_chronological_cursor(newest.stream_cursor).reverse_chronological_order.to_a
+    assert_equal [ oldest ], scope.before_chronological_cursor(middle.stream_cursor).reverse_chronological_order.to_a
+  end
+
   test "finds stream neighbors without loading the whole stream" do
     newest = attached_photo(captured_at: 1.hour.ago)
     current = attached_photo(captured_at: 1.day.ago)
@@ -165,6 +186,15 @@ class PhotoTest < ActiveSupport::TestCase
 
     assert_equal newest, scope.stream_before(current)
     assert_equal oldest, scope.stream_after(current)
+  end
+
+  test "finds chronological previous neighbor without loading the whole stream" do
+    oldest = attached_photo(captured_at: 1.week.ago)
+    current = attached_photo(captured_at: 1.day.ago)
+    newest = attached_photo(captured_at: 1.hour.ago)
+    scope = Photo.where(id: [ newest.id, current.id, oldest.id ]).chronological_order
+
+    assert_equal oldest, scope.chronological_before(current)
   end
 
   test "finds stream neighbors from an already ordered stream" do

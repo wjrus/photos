@@ -209,8 +209,13 @@ class PhotosController < ApplicationController
 
   def set_stream_neighbors
     stream = navigation_stream
-    @previous_photo = stream.stream_before(@photo)
-    @next_photo = stream.stream_after(@photo)
+    if navigation_stream_order == :chronological
+      @previous_photo = stream.chronological_before(@photo)
+      @next_photo = stream.after_chronological_cursor(@photo.stream_cursor).chronological_order.first
+    else
+      @previous_photo = stream.stream_before(@photo)
+      @next_photo = stream.stream_after(@photo)
+    end
   end
 
   def navigation_stream
@@ -222,6 +227,13 @@ class PhotosController < ApplicationController
     photo_stream_return_scope(uri)
   rescue URI::InvalidURIError
     nil
+  end
+
+  def navigation_stream_order
+    uri = URI.parse(safe_return_path)
+    photo_stream_return_order(uri)
+  rescue URI::InvalidURIError
+    :stream
   end
 
   def visible_photo_scope

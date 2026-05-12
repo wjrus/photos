@@ -80,6 +80,12 @@ class Photo < ApplicationRecord
   scope :reverse_stream_order, -> {
     reorder(Arel.sql(stream_tuple_order(direction: "ASC", nulls: "FIRST")))
   }
+  scope :chronological_order, -> {
+    reorder(Arel.sql("photos.captured_at ASC NULLS LAST, photos.created_at ASC, photos.id ASC"))
+  }
+  scope :reverse_chronological_order, -> {
+    reorder(Arel.sql("photos.captured_at DESC NULLS FIRST, photos.created_at DESC, photos.id DESC"))
+  }
   scope :with_original_variant_records, -> {
     with_attached_video_preview
       .with_attached_video_display
@@ -147,12 +153,66 @@ class Photo < ApplicationRecord
     )
   end
 
+  def self.after_chronological_cursor(cursor)
+    captured_at, created_at, id = decode_stream_cursor(cursor)
+    return all unless created_at && id
+
+    if captured_at
+      where(
+        "photos.captured_at > :captured_at OR
+          (photos.captured_at = :captured_at AND photos.created_at > :created_at) OR
+          (photos.captured_at = :captured_at AND photos.created_at = :created_at AND photos.id > :id) OR
+          photos.captured_at IS NULL",
+        captured_at: captured_at,
+        created_at: created_at,
+        id: id
+      )
+    else
+      where(
+        "photos.captured_at IS NULL AND
+          (photos.created_at > :created_at OR
+            (photos.created_at = :created_at AND photos.id > :id))",
+        created_at: created_at,
+        id: id
+      )
+    end
+  end
+
+  def self.before_chronological_cursor(cursor)
+    captured_at, created_at, id = decode_stream_cursor(cursor)
+    return none unless created_at && id
+
+    if captured_at
+      where(
+        "photos.captured_at < :captured_at OR
+          (photos.captured_at = :captured_at AND photos.created_at < :created_at) OR
+          (photos.captured_at = :captured_at AND photos.created_at = :created_at AND photos.id < :id)",
+        captured_at: captured_at,
+        created_at: created_at,
+        id: id
+      )
+    else
+      where(
+        "photos.captured_at IS NOT NULL OR
+          (photos.captured_at IS NULL AND
+            (photos.created_at < :created_at OR
+              (photos.created_at = :created_at AND photos.id < :id)))",
+        created_at: created_at,
+        id: id
+      )
+    end
+  end
+
   def self.stream_before(photo)
     stream_tuple_greater_than(photo).reorder(Arel.sql(stream_tuple_order(direction: "ASC", nulls: "FIRST"))).first
   end
 
   def self.stream_after(photo)
     stream_tuple_less_than(photo).reorder(Arel.sql(stream_tuple_order(direction: "DESC", nulls: "LAST"))).first
+  end
+
+  def self.chronological_before(photo)
+    before_chronological_cursor(photo.stream_cursor).reverse_chronological_order.first
   end
 
   def self.decode_stream_cursor(cursor)
@@ -171,6 +231,14 @@ class Photo < ApplicationRecord
       captured_at.utc.iso8601(6),
       Time.utc(9999, 12, 31, 23, 59, 59).iso8601(6),
       9_999_999_999
+    ].join("_")
+  end
+
+  def self.stream_cursor_after(captured_at)
+    [
+      captured_at.utc.iso8601(6),
+      Time.utc(1, 1, 1).iso8601(6),
+      0
     ].join("_")
   end
 

@@ -35,11 +35,13 @@ module PhotoStreamReturnPaths
     stream = photo_stream_return_scope(uri)
     return unless stream
 
-    ordered_selected = stream.where(id: selected_ids).stream_order.to_a
+    order = photo_stream_return_order(uri)
+    ordered_selected = photo_stream_ordered_scope(stream.where(id: selected_ids), order).to_a
     return if ordered_selected.empty?
 
-    remaining_stream = stream.where.not(id: selected_ids).stream_order
-    remaining_stream.stream_after(ordered_selected.last) || remaining_stream.stream_before(ordered_selected.first)
+    remaining_stream = photo_stream_ordered_scope(stream.where.not(id: selected_ids), order)
+    photo_stream_after(remaining_stream, ordered_selected.last, order) ||
+      photo_stream_before(remaining_stream, ordered_selected.first, order)
   end
 
   def photo_stream_return_path?(path)
@@ -73,7 +75,7 @@ module PhotoStreamReturnPaths
     album_id = uri.path.match(%r{\A/albums/(\d+)\z})&.[](1)
     return unless album_id
 
-    PhotoAlbum.visible_to(current_user).find_by(id: album_id)&.photos&.visible_to(current_user)&.stream_order
+    PhotoAlbum.visible_to(current_user).find_by(id: album_id)&.photos&.visible_to(current_user)&.chronological_order
   end
 
   def photo_stream_location_scope(uri)
@@ -98,5 +100,29 @@ module PhotoStreamReturnPaths
       .visible_to(current_user)
       .joins(:metadata)
       .where.not(photo_metadata: { latitude: nil, longitude: nil })
+  end
+
+  def photo_stream_return_order(uri)
+    uri.path.match?(%r{\A/albums/\d+\z}) ? :chronological : :stream
+  end
+
+  def photo_stream_ordered_scope(scope, order)
+    order == :chronological ? scope.chronological_order : scope.stream_order
+  end
+
+  def photo_stream_after(scope, photo, order)
+    if order == :chronological
+      scope.after_chronological_cursor(photo.stream_cursor).chronological_order.first
+    else
+      scope.stream_after(photo)
+    end
+  end
+
+  def photo_stream_before(scope, photo, order)
+    if order == :chronological
+      scope.chronological_before(photo)
+    else
+      scope.stream_before(photo)
+    end
   end
 end

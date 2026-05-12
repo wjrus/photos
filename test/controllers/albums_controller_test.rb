@@ -311,6 +311,23 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-stream-date-group-key]", false
   end
 
+  test "album photo grid is chronological from oldest to newest" do
+    album = @owner.photo_albums.create!(title: "Story album", source: "manual")
+    newest = attached_photo(title: "Story newest")
+    oldest = attached_photo(title: "Story oldest")
+    middle = attached_photo(title: "Story middle")
+    album.photos << [ newest, oldest, middle ]
+    set_stream_time(oldest, Time.zone.local(1999, 1, 1))
+    set_stream_time(middle, Time.zone.local(1999, 1, 2))
+    set_stream_time(newest, Time.zone.local(1999, 1, 3))
+
+    get album_path(album)
+
+    assert_response :success
+    assert_operator response.body.index("Story oldest"), :<, response.body.index("Story middle")
+    assert_operator response.body.index("Story middle"), :<, response.body.index("Story newest")
+  end
+
   test "album page can focus around a returned photo" do
     album = @owner.photo_albums.create!(title: "Concert", source: "manual")
     newer = attached_photo(title: "Newer album photo")
@@ -326,7 +343,7 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "[data-stream-state-target-photo-id-value='#{target.id}']"
     assert_select "[data-photo-id='#{target.id}']"
-    assert_select "[data-photo-id='#{older.id}']"
+    assert_select "[data-photo-id='#{newer.id}']"
   end
 
   test "album infinite scroll pages do not render date groups" do
@@ -360,11 +377,11 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     assert_select "button[aria-label*='Jump to February 2020'][data-stream-timeline-page-url-value^='#{album_path(album)}']"
     refute_includes response.body, "February 2018"
 
-    get album_path(album, cursor: Photo.stream_cursor_before(Time.zone.local(2021, 1, 1)), stream_page: 1, timeline_page: 1)
+    get album_path(album, cursor: Photo.stream_cursor_after(Time.zone.local(2020, 2, 1)), stream_page: 1, timeline_page: 1)
 
     assert_response :success
     assert_includes response.body, album_older.title
-    refute_includes response.body, album_newer.title
+    assert_operator response.body.index(album_older.title), :<, response.body.index(album_newer.title)
     refute_includes response.body, outside.title
   end
 
@@ -384,6 +401,7 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     assert_select "button[aria-label*='Jump to September 10, 1999'][data-stream-timeline-period-key-value='1999-09-10']"
     assert_select "button span", text: "Sep 12"
     assert_select "button span", text: "Sep 10"
+    assert_operator response.body.index("Sep 10"), :<, response.body.index("Sep 12")
   end
 
   test "album timeline uses hour markers for same day spans" do
@@ -435,7 +453,7 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
       end
     end
 
-    assert_redirected_to album_path(album, photo_id: older.id)
+    assert_redirected_to album_path(album, photo_id: newer.id)
   end
 
   test "owner can set an album cover" do

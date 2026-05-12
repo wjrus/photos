@@ -23,10 +23,40 @@ module PhotoStreamPagination
     end
   end
 
+  def paginate_chronological_photo_stream_with_focus(scope)
+    focused_photo = focused_stream_photo(scope)
+
+    if focused_photo
+      @stream_target_photo_id = focused_photo.id
+      paginate_chronological_photo_stream_focused(scope, focused_photo)
+    else
+      paginate_chronological_photo_stream(scope)
+    end
+  end
+
   def paginate_photo_stream_focused(scope, photo)
     previous_photo = scope.stream_before(photo)
     page_scope = previous_photo ? scope.before_stream_cursor(previous_photo.stream_cursor) : scope
     photos = page_scope.limit(Photo::STREAM_PAGE_SIZE + 1).to_a
+    next_photo = photos[Photo::STREAM_PAGE_SIZE]
+    page = photos.first(Photo::STREAM_PAGE_SIZE)
+
+    [ page, next_photo&.stream_cursor, (page.first&.stream_cursor if previous_photo) ]
+  end
+
+  def paginate_chronological_photo_stream(scope)
+    return paginate_previous_chronological_photo_stream(scope) if params[:newer_cursor].present?
+
+    photos = scope.after_chronological_cursor(params[:cursor]).chronological_order.limit(Photo::STREAM_PAGE_SIZE + 1).to_a
+    next_photo = photos[Photo::STREAM_PAGE_SIZE]
+
+    [ photos.first(Photo::STREAM_PAGE_SIZE), next_photo&.stream_cursor, nil ]
+  end
+
+  def paginate_chronological_photo_stream_focused(scope, photo)
+    previous_photo = scope.chronological_before(photo)
+    page_scope = previous_photo ? scope.after_chronological_cursor(previous_photo.stream_cursor) : scope
+    photos = page_scope.chronological_order.limit(Photo::STREAM_PAGE_SIZE + 1).to_a
     next_photo = photos[Photo::STREAM_PAGE_SIZE]
     page = photos.first(Photo::STREAM_PAGE_SIZE)
 
@@ -40,7 +70,7 @@ module PhotoStreamPagination
     true
   end
 
-  def stream_timeline_periods(scope, cache_key:)
+  def stream_timeline_periods(scope, cache_key:, order: :stream)
     Rails.cache.fetch(cache_key, expires_in: 30.minutes, race_condition_ttl: 10.seconds) do
       timeline_scope = scope.except(:order).where.not(captured_at: nil)
       oldest_at, newest_at = timeline_scope.pluck(
@@ -54,7 +84,7 @@ module PhotoStreamPagination
 
       timeline_scope
         .group(period_sql)
-        .order(stream_timeline_period_order_sql(precision))
+        .order(stream_timeline_period_order_sql(precision, order: order))
         .count
         .map do |period, count|
           period = stream_timeline_period_start(period, precision)
@@ -67,7 +97,7 @@ module PhotoStreamPagination
             year: period.year,
             month: period.month,
             key: stream_timeline_key(period, precision),
-            cursor: Photo.stream_cursor_before(stream_timeline_next_period(period, precision))
+            cursor: stream_timeline_cursor(period, precision, order: order)
           }
         end
     end
@@ -78,6 +108,13 @@ module PhotoStreamPagination
     return unless cursor
 
     cursor if scope.after_stream_cursor(cursor).exists?
+  end
+
+  def chronological_timeline_previous_cursor(scope)
+    cursor = @photos.first&.stream_cursor
+    return unless cursor
+
+    cursor if scope.before_chronological_cursor(cursor).exists?
   end
 
   def photo_page_locals(return_to:, next_page_path:, bulk_form_id:, feature_first: false, owner_controls: current_user&.owner?, newer_cursor: @newer_cursor, **extras)
@@ -104,6 +141,19 @@ module PhotoStreamPagination
     photos = scope
       .after_stream_cursor(params[:newer_cursor])
       .reverse_stream_order
+      .limit(Photo::STREAM_PAGE_SIZE + 1)
+      .to_a
+
+    has_more = photos.size > Photo::STREAM_PAGE_SIZE
+    page = photos.first(Photo::STREAM_PAGE_SIZE).reverse
+
+    [ page, nil, (page.first.stream_cursor if has_more && page.any?) ]
+  end
+
+  def paginate_previous_chronological_photo_stream(scope)
+    photos = scope
+      .before_chronological_cursor(params[:newer_cursor])
+      .reverse_chronological_order
       .limit(Photo::STREAM_PAGE_SIZE + 1)
       .to_a
 
@@ -147,11 +197,21 @@ module PhotoStreamPagination
     end
   end
 
-  def stream_timeline_period_order_sql(precision)
+  def stream_timeline_period_order_sql(precision, order: :stream)
+    direction = order == :chronological ? "ASC" : "DESC"
+
     case precision
-    when "hour" then Arel.sql("DATE_TRUNC('hour', photos.captured_at) DESC")
-    when "day" then Arel.sql("DATE_TRUNC('day', photos.captured_at) DESC")
-    else Arel.sql("DATE_TRUNC('month', photos.captured_at) DESC")
+    when "hour" then Arel.sql("DATE_TRUNC('hour', photos.captured_at) #{direction}")
+    when "day" then Arel.sql("DATE_TRUNC('day', photos.captured_at) #{direction}")
+    else Arel.sql("DATE_TRUNC('month', photos.captured_at) #{direction}")
+    end
+  end
+
+  def stream_timeline_cursor(period, precision, order:)
+    if order == :chronological
+      Photo.stream_cursor_after(period)
+    else
+      Photo.stream_cursor_before(stream_timeline_next_period(period, precision))
     end
   end
 

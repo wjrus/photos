@@ -383,7 +383,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
       delete photo_path(target), params: { return_to: album_path(album, photo_id: target.id) }
     end
 
-    assert_redirected_to album_path(album, photo_id: older.id)
+    assert_redirected_to album_path(album, photo_id: newer.id)
   end
 
   test "non owner cannot destroy a photo" do
@@ -742,10 +742,10 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     follow_redirect!
 
     assert_response :success
-    assert_select "a[href='#{photo_path(album_newer)}'][aria-label='Previous item in stream']"
-    assert_select "a[href='#{photo_path(album_older)}'][aria-label='Next item in stream']"
-    assert_includes response.body, %(data-stream-navigation-previous-url-value="#{photo_path(album_newer)}")
-    assert_includes response.body, %(data-stream-navigation-next-url-value="#{photo_path(album_older)}")
+    assert_select "a[href='#{photo_path(album_older)}'][aria-label='Previous item in stream']"
+    assert_select "a[href='#{photo_path(album_newer)}'][aria-label='Next item in stream']"
+    assert_includes response.body, %(data-stream-navigation-previous-url-value="#{photo_path(album_older)}")
+    assert_includes response.body, %(data-stream-navigation-next-url-value="#{photo_path(album_newer)}")
     refute_includes response.body, photo_path(outside)
   end
 

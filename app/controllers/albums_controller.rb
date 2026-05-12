@@ -31,10 +31,10 @@ class AlbumsController < ApplicationController
     visible_photos = @album.photos
       .with_original_variant_records
       .visible_to(current_user)
-      .stream_order
+      .chronological_order
 
-    @photos, @next_cursor, @newer_cursor = paginate_photo_stream_with_focus(visible_photos)
-    @newer_cursor ||= timeline_newer_cursor(visible_photos) if params[:timeline_page].present?
+    @photos, @next_cursor, @newer_cursor = paginate_chronological_photo_stream_with_focus(visible_photos)
+    @newer_cursor ||= chronological_timeline_previous_cursor(visible_photos) if params[:timeline_page].present?
 
     return if render_photo_page_if_requested(
       return_to: album_path(@album),
@@ -51,7 +51,11 @@ class AlbumsController < ApplicationController
       @album_shares = @album.photo_album_shares.joins(:user).includes(:user).order(Arel.sql("LOWER(users.email) ASC"))
       @shareable_users = shareable_users_for(@album)
     end
-    @timeline_periods = stream_timeline_periods(visible_photos, cache_key: album_timeline_cache_key(@album, visible_photos)) unless params[:cursor].present?
+    @timeline_periods = stream_timeline_periods(
+      visible_photos,
+      cache_key: album_timeline_cache_key(@album, visible_photos),
+      order: :chronological
+    ) unless params[:cursor].present?
   end
 
   def create
@@ -168,7 +172,7 @@ class AlbumsController < ApplicationController
 
   def album_timeline_cache_key(album, visible_photos)
     [
-      "album-timeline/v3",
+      "album-timeline/v4",
       cache_audience_key,
       album.id,
       album.updated_at&.utc&.to_i,
