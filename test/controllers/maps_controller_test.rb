@@ -148,6 +148,21 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert_equal map_path(location_id: location_id), marker.fetch("return_to")
   end
 
+  test "map location filter is alphabetical" do
+    zed = attached_photo(title: "Zed place")
+    alpha = attached_photo(title: "Alpha place")
+    geotag(zed, latitude: 45.0, longitude: -86.0)
+    geotag(alpha, latitude: 44.7622, longitude: -85.5980)
+    PhotoLocationPlace.create!(location_id: location_id_for(zed), name: "Zed Point")
+    PhotoLocationPlace.create!(location_id: location_id_for(alpha), name: "Alpha Bay")
+
+    get map_path
+
+    assert_response :success
+    location_options = css_select("select#location_id option").map(&:text)
+    assert_equal [ "All locations", "Alpha Bay", "Zed Point" ], location_options
+  end
+
   test "map can combine album and location filters" do
     album = @owner.photo_albums.create!(title: "Location album", source: "manual")
     inside_album = attached_photo(title: "Inside album location")

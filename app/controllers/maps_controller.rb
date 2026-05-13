@@ -309,7 +309,7 @@ class MapsController < ApplicationController
       groups[group_id].add(row)
     end
 
-    groups.values.sort_by { |location| [ -location.photo_count.to_i, -(location.newest_at&.to_i || 0) ] }
+    groups.values.sort_by { |location| location.title.to_s.downcase }
   end
 
   def bounded_float(value, min, max)
