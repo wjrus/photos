@@ -15,9 +15,15 @@ Rails.application.routes.draw do
   get "/sign_in", to: "sessions#new", as: :sign_in
   post "/sign_in", to: "sessions#password", as: :password_sign_in
   delete "/sign_out", to: "sessions#destroy", as: :sign_out
+  resource :password_reset, only: %i[new create], path: "password_reset"
+  get "/password_reset/:token", to: "password_resets#edit", as: :edit_password_reset
+  patch "/password_reset/:token", to: "password_resets#update", as: :update_password_reset
   get "/invitations/:token", to: "invitations#show", as: :invitation
   patch "/invitations/:token", to: "invitations#update", as: :accept_invitation
-  resources :users, only: %i[index create destroy]
+  resources :users, only: %i[index create destroy] do
+    post :send_invitation, on: :member
+    post :send_password_reset, on: :member
+  end
   get "/archive", to: "archived_photos#index", as: :archived_photos
   get "/public", to: "public_photos#index", as: :public_photos
   resources :locations, only: %i[index show]

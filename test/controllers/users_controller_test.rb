@@ -3,6 +3,7 @@ require "test_helper"
 class UsersControllerTest < ActionDispatch::IntegrationTest
   setup do
     OmniAuth.config.test_mode = true
+    MailgunClient.clear_deliveries
     @owner = users(:one)
     sign_in_as(@owner)
   end
@@ -12,7 +13,7 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     OmniAuth.config.test_mode = false
   end
 
-  test "owner can invite a user and copy an invitation link" do
+  test "owner can invite a user and send an invitation email" do
     assert_difference "User.count", 1 do
       post users_path, params: {
         user: {
@@ -27,10 +28,46 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Ada Lovelace", invited.name
     assert_predicate invited, :invited_pending?
     assert_equal @owner, invited.invited_by
+    assert_equal 1, MailgunClient.deliveries.size
+    assert_equal "ada@example.com", MailgunClient.deliveries.last.to
+    assert_includes MailgunClient.deliveries.last.text, invitation_path(invited.invitation_url_token)
 
     follow_redirect!
     assert_response :success
     assert_includes response.body, invitation_url(invited.invitation_url_token)
+  end
+
+  test "owner can resend invitation and send password reset" do
+    user = User.invite!(email: "links@example.com", name: "Links", invited_by: @owner)
+
+    assert_difference "MailgunClient.deliveries.size", 1 do
+      post send_invitation_user_path(user)
+    end
+    assert_redirected_to users_path
+    assert_includes MailgunClient.deliveries.last.text, invitation_path(user.invitation_url_token)
+
+    assert_difference "MailgunClient.deliveries.size", 1 do
+      post send_password_reset_user_path(user)
+    end
+    assert_redirected_to users_path
+    assert_predicate user.reload, :password_reset_valid?
+    token = MailgunClient.deliveries.last.text[%r{/password_reset/([^ \s]+)}, 1]
+    assert_predicate User.find_by_password_reset_token(token), :present?
+    assert_includes MailgunClient.deliveries.last.text, edit_password_reset_path(token)
+  end
+
+  test "users page is paginated and lists shared albums" do
+    album = @owner.photo_albums.create!(title: "Shared Trip", source: "manual")
+    viewer = users(:two)
+    album.photo_album_shares.create!(user: viewer, shared_by: @owner)
+    15.times { |index| User.invite!(email: "viewer#{index}@example.com", invited_by: @owner) }
+
+    get users_path
+
+    assert_response :success
+    assert_includes response.body, "Page 1 of"
+    assert_includes response.body, "Shared Trip"
+    assert_select "tbody tr", count: 12
   end
 
   test "non owner cannot invite users" do

@@ -10,7 +10,7 @@ Production is a small Docker Compose stack:
 
 The Postgres volume is mounted at `/var/lib/postgresql`, which is the expected layout for the official PostgreSQL 18+ Docker image.
 
-Nginx Proxy Manager should terminate TLS for `photos.wjr.us` and proxy to:
+A reverse proxy should terminate TLS for your configured `PHOTOS_HOST` and proxy to:
 
 ```text
 http://<vm-ip>:3000
@@ -36,7 +36,7 @@ PHOTOS_STORAGE_PATH=/mnt/photos/app_storage
 Required Google OAuth redirect URI:
 
 ```text
-https://photos.wjr.us/auth/google_oauth2/callback
+https://photos.example.com/auth/google_oauth2/callback
 ```
 
 Build and start:
@@ -89,7 +89,7 @@ The database contains users, photo records, metadata, jobs, and Drive archive st
 
 Use a Proxy Host:
 
-- Domain: `photos.wjr.us`
+- Domain: your configured `PHOTOS_HOST`
 - Forward Hostname/IP: VM IP
 - Forward Port: `3000`
 - Scheme: `http`

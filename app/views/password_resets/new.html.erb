@@ -1,0 +1,21 @@
+<% content_for :title, "Reset password" %>
+
+<section class="min-h-screen bg-stone-50 text-zinc-950">
+  <%= render "shared/site_header" %>
+
+  <main class="mx-auto flex min-h-[calc(100vh-5rem)] max-w-lg items-center px-4 py-10 sm:px-6">
+    <div class="w-full rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Account</p>
+      <h1 class="mt-2 text-2xl font-semibold text-zinc-950">Reset password</h1>
+      <p class="mt-2 text-sm leading-6 text-zinc-600">Enter your email and a reset link will be sent if the account exists.</p>
+
+      <%= form_with url: password_reset_path, class: "mt-6 space-y-4" do |form| %>
+        <div>
+          <%= form.label :email, "Email", class: "text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500" %>
+          <%= form.email_field :email, autocomplete: "username", required: true, class: "mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15" %>
+        </div>
+        <%= form.submit "Send reset link", class: "w-full rounded-lg bg-zinc-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-teal-800" %>
+      <% end %>
+    </div>
+  </main>
+</section>

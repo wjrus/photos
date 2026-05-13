@@ -27,6 +27,8 @@ class User < ApplicationRecord
   validates :role, inclusion: { in: ROLES }
   validates :password, length: { minimum: 10 }, allow_blank: true
 
+  PASSWORD_RESET_TTL = 2.hours
+
   def self.from_omniauth(auth)
     user = find_by(provider: auth.provider, uid: auth.uid) || find_or_initialize_by(email: auth.info.email)
     user.provider = auth.provider
@@ -66,6 +68,15 @@ class User < ApplicationRecord
     user
   end
 
+  def self.find_by_password_reset_token(token)
+    return if token.blank?
+
+    user = find_by(password_reset_token_digest: digest(token))
+    return unless user&.password_reset_valid?
+
+    user
+  end
+
   def google_drive_authorized?
     google_refresh_token.present? || google_access_token.present?
   end
@@ -96,6 +107,32 @@ class User < ApplicationRecord
 
   def invitation_url_token
     signed_id(purpose: :invitation)
+  end
+
+  def generate_password_reset_token!
+    token = SecureRandom.urlsafe_base64(32)
+    update!(
+      password_reset_token_digest: self.class.digest(token),
+      password_reset_sent_at: Time.current
+    )
+    token
+  end
+
+  def password_reset_valid?
+    password_reset_token_digest.present? &&
+      password_reset_sent_at.present? &&
+      password_reset_sent_at >= PASSWORD_RESET_TTL.ago
+  end
+
+  def reset_password!(attributes)
+    self.password = attributes[:password]
+    self.password_confirmation = attributes[:password_confirmation]
+    self.password_reset_token_digest = nil
+    self.password_reset_sent_at = nil
+    self.invite_accepted_at ||= Time.current if invited?
+    self.provider ||= "password"
+    self.uid ||= email
+    save!
   end
 
   def accept_invitation!(password: nil, password_confirmation: nil)

@@ -18,6 +18,7 @@ The app is intentionally closer to a personal Google Photos/Flickr hybrid than a
 - Supports invited users, Google login, password login, remember-me sessions, avatars, and owner-managed users.
 - Lets the owner tag people in photos. Tagged users can see those photos even when the photo is otherwise private.
 - Lets the owner share private albums with invited users without publishing them publicly.
+- Sends invitation and password-reset links through Mailgun.
 - Imports Google Takeout ZIP archives while preserving album memberships and sidecar metadata.
 - Provides an owner-only repository status dashboard for queues, file health, derivative coverage, storage checks, runtime controls, and repository activity notifications.
 - Keeps a separate owner-only locked private route for sensitive material.
@@ -72,6 +73,9 @@ GOOGLE_MAPS_EMBED_API_KEY=
 GOOGLE_MAPS_GEOCODING_API_KEY=
 PHOTOS_OWNER_EMAIL=owner@example.com
 PHOTOS_TRUSTED_VIEWER_EMAILS=
+MAILGUN_API_KEY=
+MAILGUN_DOMAIN=modes.club
+MAILGUN_FROM=wjrphotos@modes.club
 ```
 
 `GOOGLE_MAPS_EMBED_API_KEY` is used in the browser for the map. Reverse geocoding
@@ -269,9 +273,14 @@ GOOGLE_MAPS_EMBED_API_KEY=
 GOOGLE_MAPS_GEOCODING_API_KEY=
 PHOTOS_OWNER_EMAIL=owner@example.com
 PHOTOS_TRUSTED_VIEWER_EMAILS=
+MAILGUN_API_KEY=
+MAILGUN_DOMAIN=modes.club
+MAILGUN_FROM=wjrphotos@modes.club
 PHOTOS_LOCKED_FOLDER_PASSWORD=
 ```
 
 `REDIS_URL` is supplied internally by Compose. If it is absent, production falls back to Solid Cache.
+
+Mailgun is used for invitations and password resets. `MAILGUN_API_BASE` is optional and defaults to `https://api.mailgun.net`.
 
 Runtime repository controls, such as original file auto-heal, are stored in the app settings table and controlled from `/repository_status`.

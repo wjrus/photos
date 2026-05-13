@@ -3,11 +3,16 @@
 <section class="min-h-screen bg-stone-50 text-zinc-950">
   <%= render "shared/site_header" %>
 
-  <main class="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
+  <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
     <div class="flex flex-col gap-4 border-b border-zinc-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Users</p>
-        <h1 class="mt-2 text-3xl font-semibold text-zinc-950">Users</h1>
+        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Owner</p>
+        <h1 class="mt-2 text-3xl font-semibold text-zinc-950">Users and sharing</h1>
+        <p class="mt-2 text-sm text-zinc-600">Invite viewers, send account links, and see private album access at a glance.</p>
+      </div>
+      <div class="text-sm text-zinc-600">
+        <span class="font-semibold text-zinc-950"><%= number_with_delimiter(@user_count) %></span>
+        <%= "user".pluralize(@user_count) %>
       </div>
     </div>
 
@@ -30,88 +35,143 @@
       <% end %>
     </section>
 
-    <section class="mt-6 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
-      <table class="w-full text-left text-sm">
+    <section class="mt-6 overflow-x-auto rounded-lg border border-zinc-200 bg-white shadow-sm">
+      <table class="min-w-[62rem] w-full text-left text-sm">
         <thead class="border-b border-zinc-200 bg-stone-50 text-xs uppercase tracking-[0.14em] text-zinc-500">
           <tr>
             <th class="px-4 py-3">User</th>
             <th class="px-4 py-3">Status</th>
-            <th class="px-4 py-3">Invite link</th>
+            <th class="px-4 py-3">Shared albums</th>
+            <th class="px-4 py-3">Account links</th>
             <th class="px-4 py-3 text-right">Actions</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-zinc-100">
           <% @users.each do |user| %>
+            <% shared_albums = user.shared_photo_albums.display_order.to_a %>
             <tr>
-              <td class="px-4 py-3">
+              <td class="px-4 py-4 align-top">
                 <div class="flex items-center gap-3">
                   <%= user_avatar(user) %>
-                  <div>
+                  <div class="min-w-0">
                     <p class="font-semibold text-zinc-950"><%= user.display_name %></p>
-                    <p class="text-zinc-500"><%= user.email %></p>
+                    <p class="truncate text-zinc-500"><%= user.email %></p>
                   </div>
                 </div>
               </td>
-              <td class="px-4 py-3 text-zinc-700">
-                <%= user.owner? ? "owner" : (user.invite_accepted? ? "active" : "invited") %>
-              </td>
-              <td class="px-4 py-3">
-                <% if user.invited_pending? %>
-                  <% invite_url = invitation_url(user.invitation_url_token) %>
-                  <input type="text"
-                         readonly
-                         value="<%= invite_url %>"
-                         aria-label="Invitation link for <%= user.display_name %>"
-                         data-controller="select-text"
-                         data-action="focus->select-text#select click->select-text#select"
-                         class="w-full rounded-lg border border-zinc-300 bg-stone-50 px-3 py-2 text-xs text-zinc-700">
-                <% else %>
-                  <span class="text-zinc-600">-</span>
+              <td class="px-4 py-4 align-top text-zinc-700">
+                <span class="rounded-lg border px-2 py-1 text-xs font-semibold <%= user.owner? ? "border-zinc-300 bg-zinc-950 text-white" : user.invite_accepted? ? "border-teal-200 bg-teal-50 text-teal-900" : "border-amber-200 bg-amber-50 text-amber-900" %>">
+                  <%= user.owner? ? "owner" : (user.invite_accepted? ? "active" : "invited") %>
+                </span>
+                <% if user.last_signed_in_at.present? %>
+                  <p class="mt-2 text-xs text-zinc-500">Signed in <%= time_ago_in_words(user.last_signed_in_at) %> ago</p>
                 <% end %>
               </td>
-              <td class="px-4 py-3 text-right">
-                <% if user.owner? || user == current_user %>
-                  <span class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-600">Protected</span>
+              <td class="px-4 py-4 align-top">
+                <% if shared_albums.any? %>
+                  <div class="flex max-w-md flex-wrap gap-2">
+                    <% shared_albums.first(8).each do |album| %>
+                      <%= link_to album.title,
+                            album_path(album),
+                            class: "rounded-lg border border-zinc-200 bg-stone-50 px-2 py-1 text-xs font-semibold text-zinc-700 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+                    <% end %>
+                    <% if shared_albums.size > 8 %>
+                      <span class="rounded-lg border border-zinc-200 px-2 py-1 text-xs font-semibold text-zinc-500">+<%= shared_albums.size - 8 %></span>
+                    <% end %>
+                  </div>
                 <% else %>
-                  <div class="inline-block" data-controller="confirm-modal" data-action="keydown@window->confirm-modal#keydown">
-                    <button type="button"
-                            class="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold uppercase text-rose-800 transition hover:bg-rose-800 hover:text-white"
-                            data-action="confirm-modal#open">
-                      Remove
-                    </button>
+                  <span class="text-zinc-500">No shared albums.</span>
+                <% end %>
+              </td>
+              <td class="px-4 py-4 align-top">
+                <div class="space-y-2">
+                  <% if user.invited_pending? %>
+                    <% invite_url = invitation_url(user.invitation_url_token) %>
+                    <input type="text"
+                           readonly
+                           value="<%= invite_url %>"
+                           aria-label="Invitation link for <%= user.display_name %>"
+                           data-controller="select-text"
+                           data-action="focus->select-text#select click->select-text#select"
+                           class="w-full rounded-lg border border-zinc-300 bg-stone-50 px-3 py-2 text-xs text-zinc-700">
+                  <% end %>
+                  <% if user.password_reset_valid? %>
+                    <span class="text-xs text-zinc-500">Reset sent <%= time_ago_in_words(user.password_reset_sent_at) %> ago</span>
+                  <% else %>
+                    <span class="text-xs text-zinc-500">No active reset link.</span>
+                  <% end %>
+                </div>
+              </td>
+              <td class="px-4 py-4 text-right align-top">
+                <div class="flex flex-col items-end gap-2">
+                  <% if user.invited_pending? %>
+                    <%= button_to "Send invite",
+                          send_invitation_user_path(user, page: @page),
+                          method: :post,
+                          class: "rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold uppercase text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+                  <% end %>
+                  <%= button_to "Send reset",
+                        send_password_reset_user_path(user, page: @page),
+                        method: :post,
+                        class: "rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold uppercase text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
 
-                    <div class="fixed inset-0 z-50 hidden items-center justify-center bg-zinc-950/65 p-4 text-left backdrop-blur-sm"
-                         role="dialog"
-                         aria-modal="true"
-                         aria-labelledby="remove-user-<%= user.id %>-title"
-                         data-confirm-modal-target="dialog"
-                         data-action="click->confirm-modal#backdrop">
-                      <div class="w-full max-w-sm rounded-lg border border-rose-200 bg-white p-5 shadow-2xl"
-                           data-confirm-modal-target="panel">
-                        <h3 id="remove-user-<%= user.id %>-title" class="text-lg font-semibold text-zinc-950">Remove user?</h3>
-                        <p class="mt-3 text-sm leading-6 text-zinc-600">
-                          This removes <%= user.display_name %> and their access to private photos. Tags for this user will also be removed.
-                        </p>
-                        <div class="mt-5 grid grid-cols-2 gap-3">
-                          <button type="button"
-                                  class="rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold uppercase text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white"
-                                  data-action="confirm-modal#close">
-                            Cancel
-                          </button>
-                          <%= button_to "Remove",
-                                user_path(user),
-                                method: :delete,
-                                class: "w-full rounded-lg bg-rose-800 px-3 py-2 text-xs font-semibold uppercase text-white transition hover:bg-rose-950" %>
+                  <% if user.owner? || user == current_user %>
+                    <span class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-600">Protected</span>
+                  <% else %>
+                    <div class="inline-block" data-controller="confirm-modal" data-action="keydown@window->confirm-modal#keydown">
+                      <button type="button"
+                              class="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold uppercase text-rose-800 transition hover:bg-rose-800 hover:text-white"
+                              data-action="confirm-modal#open">
+                        Remove
+                      </button>
+
+                      <div class="fixed inset-0 z-50 hidden items-center justify-center bg-zinc-950/65 p-4 text-left backdrop-blur-sm"
+                           role="dialog"
+                           aria-modal="true"
+                           aria-labelledby="remove-user-<%= user.id %>-title"
+                           data-confirm-modal-target="dialog"
+                           data-action="click->confirm-modal#backdrop">
+                        <div class="w-full max-w-sm rounded-lg border border-rose-200 bg-white p-5 shadow-2xl"
+                             data-confirm-modal-target="panel">
+                          <h3 id="remove-user-<%= user.id %>-title" class="text-lg font-semibold text-zinc-950">Remove user?</h3>
+                          <p class="mt-3 text-sm leading-6 text-zinc-600">
+                            This removes <%= user.display_name %> and their access to private photos. Tags for this user will also be removed.
+                          </p>
+                          <div class="mt-5 grid grid-cols-2 gap-3">
+                            <button type="button"
+                                    class="rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold uppercase text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white"
+                                    data-action="confirm-modal#close">
+                              Cancel
+                            </button>
+                            <%= button_to "Remove",
+                                  user_path(user),
+                                  method: :delete,
+                                  class: "w-full rounded-lg bg-rose-800 px-3 py-2 text-xs font-semibold uppercase text-white transition hover:bg-rose-950" %>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                <% end %>
+                  <% end %>
+                </div>
               </td>
             </tr>
           <% end %>
         </tbody>
       </table>
     </section>
+
+    <% if @page_count > 1 %>
+      <nav class="mt-5 flex items-center justify-between gap-3" aria-label="Users pagination">
+        <%= link_to "Previous",
+              users_path(page: @page - 1),
+              class: "rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white #{'pointer-events-none opacity-40' if @page <= 1}",
+              aria: { disabled: @page <= 1 } %>
+        <p class="text-sm text-zinc-600">Page <%= @page %> of <%= @page_count %></p>
+        <%= link_to "Next",
+              users_path(page: @page + 1),
+              class: "rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white #{'pointer-events-none opacity-40' if @page >= @page_count}",
+              aria: { disabled: @page >= @page_count } %>
+      </nav>
+    <% end %>
   </main>
 </section>
