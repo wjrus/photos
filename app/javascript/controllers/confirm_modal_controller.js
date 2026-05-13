@@ -8,11 +8,14 @@ export default class extends Controller {
     this.dialog = this.dialogTarget
     this.panel = this.panelTarget
     this.placeholder = document.createComment("confirm-modal")
+    this.boundDialogClick = this.dialogClick.bind(this)
+    this.dialog.addEventListener("click", this.boundDialogClick)
     this.close()
   }
 
   disconnect() {
     this.close()
+    this.dialog.removeEventListener("click", this.boundDialogClick)
 
     if (this.dialog.parentNode === document.body) {
       this.dialog.remove()
@@ -42,6 +45,19 @@ export default class extends Controller {
   }
 
   backdrop(event) {
+    if (!this.panel.contains(event.target)) {
+      this.close()
+    }
+  }
+
+  dialogClick(event) {
+    const closeButton = event.target.closest("[data-action~='confirm-modal#close']")
+    if (closeButton && this.dialog.contains(closeButton)) {
+      event.preventDefault()
+      this.close()
+      return
+    }
+
     if (!this.panel.contains(event.target)) {
       this.close()
     }
