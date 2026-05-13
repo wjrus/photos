@@ -30,7 +30,7 @@ export default class extends Controller {
       window[callbackName] = resolve
 
       const script = document.createElement("script")
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(this.apiKeyValue)}&callback=${callbackName}`
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(this.apiKeyValue)}&callback=${callbackName}&loading=async`
       script.async = true
       script.defer = true
       script.onerror = reject
@@ -133,10 +133,11 @@ export default class extends Controller {
       map: this.map,
       position,
       title: marker.title,
-      content: marker.type === "location" ? this.locationPin(marker.count).element : undefined
+      gmpClickable: true,
+      content: marker.type === "location" ? this.locationPin(marker.count) : undefined
     })
 
-    mapMarker.addListener("click", () => {
+    const openMarker = () => {
       this.ignoreMapIdleOnce()
 
       if (marker.type === "location") {
@@ -148,7 +149,13 @@ export default class extends Controller {
 
       this.infoWindow.setContent(this.infoWindowContent(marker))
       this.infoWindow.open({ anchor: mapMarker, map: this.map })
-    })
+    }
+
+    if (mapMarker.addEventListener) {
+      mapMarker.addEventListener("gmp-click", openMarker)
+    } else {
+      mapMarker.addListener("click", openMarker)
+    }
 
     return mapMarker
   }
@@ -184,11 +191,22 @@ export default class extends Controller {
   }
 
   locationPin(count) {
-    return new this.PinElement({
-      glyph: count > 999 ? "999+" : count.toString(),
+    const pin = new this.PinElement({
+      glyphText: this.markerCountText(count),
       glyphColor: "#fff",
-      scale: count > 999 ? 1.25 : 1
+      scale: count > 99 ? 0.8 : 0.76
     })
+
+    pin.style.font = "700 10px/1 system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    pin.style.letterSpacing = "0"
+
+    return pin
+  }
+
+  markerCountText(count) {
+    if (count > 999) return `${Math.floor(count / 1000)}k+`
+
+    return count.toString()
   }
 
   infoWindowContent(marker) {
