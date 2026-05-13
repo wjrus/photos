@@ -70,6 +70,25 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     assert_select "tbody tr", count: 12
   end
 
+  test "owner can remove an album share from the users page" do
+    album = @owner.photo_albums.create!(title: "Shared Trip", source: "manual")
+    viewer = users(:two)
+    share = album.photo_album_shares.create!(user: viewer, shared_by: @owner)
+
+    get users_path
+
+    assert_response :success
+    assert_select "button[aria-label=?]", "Stop sharing Shared Trip with #{viewer.display_name}"
+    assert_select "div[role='dialog'][aria-labelledby='remove-share-#{share.id}-title']"
+
+    assert_difference "PhotoAlbumShare.count", -1 do
+      delete album_share_path(share), params: { return_to: users_path }
+    end
+
+    assert_redirected_to users_path
+    assert_nil PhotoAlbumShare.find_by(id: share.id)
+  end
+
   test "non owner cannot invite users" do
     sign_in_as(users(:two))
 

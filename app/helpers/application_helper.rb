@@ -253,6 +253,7 @@ module ApplicationHelper
   def app_icon(name, classes: "size-5")
     paths = {
       check_circle: '<path d="M9 12.75 11.25 15 15.5 9.5"/><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>',
+      circle_x: '<circle cx="12" cy="12" r="9"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>',
       archive: '<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',
       chevron_down: '<path d="m6 9 6 6 6-6"/>',
       chevron_left: '<path d="m15 18-6-6 6-6"/>',

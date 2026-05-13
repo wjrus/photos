@@ -23,7 +23,7 @@ class AlbumSharesController < ApplicationController
     user = share.user
     share.destroy!
 
-    redirect_to album_path(album), notice: "Stopped sharing with #{user.display_name}."
+    redirect_to safe_return_path(default: album_path(album)), notice: "Stopped sharing with #{user.display_name}."
   end
 
   private
