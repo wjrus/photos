@@ -2,7 +2,7 @@ class OriginalFileHealthPatrolJob < ApplicationJob
   queue_as :maintenance
 
   DEFAULT_BATCH_SIZE = 100
-  DEFAULT_STALE_AFTER = 30.days
+  DEFAULT_STALE_AFTER = 1.day
 
   def perform(batch_size: DEFAULT_BATCH_SIZE, stale_after: DEFAULT_STALE_AFTER)
     due_photos(batch_size: batch_size, stale_after: stale_after).each do |photo|
@@ -21,7 +21,7 @@ class OriginalFileHealthPatrolJob < ApplicationJob
       .joins(:original_attachment)
       .joins("LEFT JOIN (#{latest_checks.to_sql}) latest_file_health_checks ON latest_file_health_checks.photo_id = photos.id")
       .where("latest_file_health_checks.id IS NULL OR latest_file_health_checks.checked_at < ?", stale_after.ago)
-      .reorder(Arel.sql("photos.byte_size ASC NULLS LAST, photos.id ASC"))
+      .reorder(Arel.sql("latest_file_health_checks.checked_at ASC NULLS FIRST, photos.byte_size ASC NULLS LAST, photos.id ASC"))
       .limit(batch_size)
   end
 end
