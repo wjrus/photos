@@ -160,8 +160,8 @@ class LocationsController < ApplicationController
     north = row.north.to_f
     west = row.west.to_f
     east = row.east.to_f
-    latitude_padding = [ (north - south).abs * 0.15, 0.005 ].max
-    longitude_padding = [ (east - west).abs * 0.15, 0.005 ].max
+    latitude_padding = [ (north - south).abs * 0.5, 0.04 ].max
+    longitude_padding = [ (east - west).abs * 0.5, 0.04 ].max
 
     {
       south: (south - latitude_padding).clamp(-90.0, 90.0),
