@@ -148,6 +148,9 @@ class LocationsController < ApplicationController
   end
 
   def location_bounds(scope)
+    cached_bounds = PhotoLocationBound.find_by(location_id: @location_id)
+    return cached_bounds.padded_bounds if cached_bounds && current_user&.owner?
+
     row = scope.reselect(
       "MIN(photo_metadata.latitude) AS south",
       "MAX(photo_metadata.latitude) AS north",

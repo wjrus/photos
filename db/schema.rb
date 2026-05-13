@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_12_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_12_193000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -179,6 +179,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_12_090000) do
     t.index ["published_at"], name: "index_photo_albums_on_published_at"
     t.index ["updated_at"], name: "index_photo_albums_on_updated_at"
     t.index ["visibility"], name: "index_photo_albums_on_visibility"
+  end
+
+  create_table "photo_location_bounds", force: :cascade do |t|
+    t.datetime "calculated_at", null: false
+    t.datetime "created_at", null: false
+    t.decimal "east", precision: 10, scale: 6, null: false
+    t.string "location_id", null: false
+    t.decimal "north", precision: 10, scale: 6, null: false
+    t.integer "photo_count", default: 0, null: false
+    t.decimal "south", precision: 10, scale: 6, null: false
+    t.datetime "updated_at", null: false
+    t.decimal "west", precision: 10, scale: 6, null: false
+    t.index ["calculated_at"], name: "index_photo_location_bounds_on_calculated_at"
+    t.index ["location_id"], name: "index_photo_location_bounds_on_location_id", unique: true
   end
 
   create_table "photo_location_covers", force: :cascade do |t|

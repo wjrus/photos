@@ -122,6 +122,25 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert_equal map_path(album_id: trip.id), marker.fetch("return_to")
   end
 
+  test "selected album initializes map around its photos" do
+    trip = @owner.photo_albums.create!(title: "River trip", source: "manual")
+    first = attached_photo(title: "Trip south")
+    second = attached_photo(title: "Trip north")
+    other = attached_photo(title: "Other map photo")
+    geotag(first, latitude: 36.895894, longitude: -111.526942)
+    geotag(second, latitude: 36.921856, longitude: -111.495014)
+    geotag(other, latitude: 45.0, longitude: -86.0)
+    trip.photos << [ first, second ]
+
+    get map_path(album_id: trip.id)
+
+    assert_response :success
+    assert_select "[data-controller='google-map'][data-google-map-initial-north-value='36.961856']"
+    assert_select "[data-controller='google-map'][data-google-map-initial-south-value='36.855894']"
+    assert_select "[data-controller='google-map'][data-google-map-initial-east-value='-111.455014']"
+    assert_select "[data-controller='google-map'][data-google-map-initial-west-value='-111.566942']"
+  end
+
   test "map accepts initial bounds" do
     photo = attached_photo(title: "Bounded overlook")
     geotag(photo, latitude: 44.7622, longitude: -85.5980)
@@ -129,10 +148,10 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     get map_path(north: 45, south: 44, east: -85, west: -86)
 
     assert_response :success
-    assert_select "[data-controller='google-map'][data-google-map-initial-north-value='45.0']"
-    assert_select "[data-google-map-initial-south-value='44.0']"
-    assert_select "[data-google-map-initial-east-value='-85.0']"
-    assert_select "[data-google-map-initial-west-value='-86.0']"
+    assert_select "[data-controller='google-map'][data-google-map-initial-north-value='45.000000']"
+    assert_select "[data-google-map-initial-south-value='44.000000']"
+    assert_select "[data-google-map-initial-east-value='-85.000000']"
+    assert_select "[data-google-map-initial-west-value='-86.000000']"
   end
 
   test "map falls back to demo map id" do

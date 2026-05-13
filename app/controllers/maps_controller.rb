@@ -17,7 +17,7 @@ class MapsController < ApplicationController
     @google_maps_api_key = ENV["GOOGLE_MAPS_EMBED_API_KEY"]
     @google_maps_map_id = ENV["GOOGLE_MAPS_MAP_ID"].presence || "DEMO_MAP_ID"
     @geotagged_photo_count = geotagged_photos.count
-    @initial_bounds = map_bounds if map_bounds.values_at(:north, :south, :east, :west).all?
+    @initial_bounds = initial_map_bounds&.transform_values { |value| format("%.6f", value) }
   end
 
   def markers
@@ -167,6 +167,38 @@ class MapsController < ApplicationController
       east: bounded_float(params[:east], -180, 180),
       west: bounded_float(params[:west], -180, 180)
     }.compact
+  end
+
+  def initial_map_bounds
+    explicit_bounds = map_bounds
+    return explicit_bounds if explicit_bounds.values_at(:north, :south, :east, :west).all?
+    return unless @selected_album
+
+    bounds_for(geotagged_photos)
+  end
+
+  def bounds_for(scope)
+    row = scope.reselect(
+      "MIN(photo_metadata.latitude) AS south",
+      "MAX(photo_metadata.latitude) AS north",
+      "MIN(photo_metadata.longitude) AS west",
+      "MAX(photo_metadata.longitude) AS east"
+    ).take
+    return unless row&.south && row&.north && row&.west && row&.east
+
+    south = row.south.to_f
+    north = row.north.to_f
+    west = row.west.to_f
+    east = row.east.to_f
+    latitude_padding = [ (north - south).abs * 0.5, 0.04 ].max
+    longitude_padding = [ (east - west).abs * 0.5, 0.04 ].max
+
+    {
+      south: (south - latitude_padding).clamp(-90.0, 90.0),
+      north: (north + latitude_padding).clamp(-90.0, 90.0),
+      west: (west - longitude_padding).clamp(-180.0, 180.0),
+      east: (east + longitude_padding).clamp(-180.0, 180.0)
+    }
   end
 
   def map_markers_cache_key

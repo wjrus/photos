@@ -185,6 +185,26 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href='#{photo_path(inside)}'][data-photo-return-to='#{location_path(location_id_for(inside))}']"
   end
 
+  test "location page prefers cached owner map bounds" do
+    inside = attached_photo(title: "Cached bounds location")
+    geotag(inside, latitude: 44.7622, longitude: -85.5980)
+    location_id = location_id_for(inside)
+    PhotoLocationBound.create!(
+      location_id: location_id,
+      south: 36.895894,
+      north: 36.921856,
+      west: -111.526942,
+      east: -111.495014,
+      photo_count: 199,
+      calculated_at: 1.hour.ago
+    )
+
+    get location_path(location_id)
+
+    assert_response :success
+    assert_select "a[href*='#{map_path}'][href*='north=36.961856'][href*='south=36.855894'][href*='east=-111.455014'][href*='west=-111.566942']", text: "Map"
+  end
+
   test "location page renders as a flat grid without date groups" do
     inside = attached_photo(title: "Inside location")
     geotag(inside, latitude: 44.7622, longitude: -85.5980)
