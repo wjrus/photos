@@ -14,6 +14,7 @@ class ArchivedPhotosControllerTest < ActionDispatch::IntegrationTest
 
   test "owner sees archived photos" do
     archived = attached_photo(title: "Screenshot")
+    archived.original.variant(:stream).processed
     archived.archive!
     active = attached_photo(title: "Vacation")
 
@@ -23,8 +24,14 @@ class ArchivedPhotosControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Archive"
     assert_includes response.body, archived.title
     refute_includes response.body, active.title
+    assert_includes response.body, stream_photo_path(archived)
+    assert_includes response.body, "return_to=%2Farchive"
     assert_select "form#archive-photo-bulk-form"
     assert_select "button[value='restore'][aria-label='Restore selected photos to stream']"
+
+    get stream_photo_path(archived, return_to: archived_photos_path)
+
+    assert_response :success
   end
 
   test "non owner cannot open archive" do

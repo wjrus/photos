@@ -24,7 +24,7 @@
         data: link_data do %>
     <span class="sr-only">View <%= photo.title %></span>
   <% end %>
-  <%= photo_stream_media(photo) %>
+  <%= photo_stream_media(photo, return_to: return_to) %>
   <% if photo.video? %>
     <div class="absolute right-3 top-3 rounded-lg bg-black/55 px-2 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white backdrop-blur">Video</div>
   <% end %>
