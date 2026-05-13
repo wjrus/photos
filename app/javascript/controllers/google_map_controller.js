@@ -194,10 +194,10 @@ export default class extends Controller {
     const pin = new this.PinElement({
       glyphText: this.markerCountText(count),
       glyphColor: "#fff",
-      scale: count > 99 ? 0.8 : 0.76
+      scale: count > 99 ? 1.02 : 0.96
     })
 
-    pin.style.font = "700 10px/1 system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    pin.style.font = "700 9px/1 system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
     pin.style.letterSpacing = "0"
 
     return pin
