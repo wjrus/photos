@@ -1,0 +1,31 @@
+<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+  <% locations.each do |location| %>
+    <% cover = @location_covers[location.id] %>
+    <article class="group overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition hover:border-zinc-950">
+      <%= link_to location_path(location.id), class: "block" do %>
+        <div class="aspect-[4/3] bg-zinc-900">
+          <% if cover %>
+            <%= photo_stream_media(cover) %>
+          <% else %>
+            <div class="flex size-full items-center justify-center text-xs font-semibold uppercase tracking-[0.18em] text-white/70">Location</div>
+          <% end %>
+        </div>
+        <div class="p-4">
+          <h2 class="truncate text-lg font-semibold text-zinc-950"><%= location.title %></h2>
+          <p class="mt-1 text-sm text-zinc-600"><%= media_count_label(photo_count: location.image_count.to_i, video_count: location.video_count.to_i) %></p>
+          <p class="mt-3 text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+            <%= photo_stream_day_label(location.oldest_at.to_date) %> - <%= photo_stream_day_label(location.newest_at.to_date) %>
+          </p>
+        </div>
+      <% end %>
+    </article>
+  <% end %>
+</div>
+
+<% if @next_location_page.present? %>
+  <div class="py-6 text-center text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500"
+       data-infinite-scroll-target="sentinel"
+       data-next-url="<%= locations_path(page: @next_location_page) %>">
+    Loading more locations...
+  </div>
+<% end %>

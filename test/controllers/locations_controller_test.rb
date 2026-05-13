@@ -71,6 +71,28 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_select "article", text: /Traverse City, Michigan.*1 photo, 1 video/m
   end
 
+  test "locations index lazily loads additional location cards" do
+    13.times do |index|
+      photo = attached_photo(title: "Location #{index}")
+      geotag(photo, latitude: 20 + index, longitude: -80 - index)
+    end
+
+    get locations_path
+
+    assert_response :success
+    assert_includes response.body, "13 photo locations"
+    assert_select "article", count: 12
+    assert_select "[data-controller='infinite-scroll']"
+    assert_select "[data-infinite-scroll-target='sentinel'][data-next-url='#{locations_path(page: 2)}']"
+
+    get locations_path(page: 2)
+
+    assert_response :success
+    assert_select "main", false
+    assert_select "article", count: 1
+    assert_select "[data-infinite-scroll-target='sentinel']", false
+  end
+
   test "locations index uses explicit location covers" do
     fallback = attached_photo(title: "Fallback cover")
     geotag(fallback, latitude: 44.7622, longitude: -85.5980)

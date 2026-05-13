@@ -161,6 +161,26 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     assert_operator response.body.index("Small trip"), :<, response.body.index("Empty trip")
   end
 
+  test "album index lazily loads additional album cards" do
+    13.times do |index|
+      @owner.photo_albums.create!(title: "Trip #{index.to_s.rjust(2, "0")}", source: "manual")
+    end
+
+    get albums_path
+
+    assert_response :success
+    assert_select "article", count: 12
+    assert_select "[data-controller='infinite-scroll']"
+    assert_select "[data-infinite-scroll-target='sentinel'][data-next-url='#{albums_path(sort: "letters", page: 2)}']"
+
+    get albums_path(page: 2)
+
+    assert_response :success
+    assert_select "main", false
+    assert_select "article", count: 1
+    assert_select "[data-infinite-scroll-target='sentinel']", false
+  end
+
   test "owner can publish and unpublish an album" do
     album = @owner.photo_albums.create!(title: "Trip", source: "manual")
 

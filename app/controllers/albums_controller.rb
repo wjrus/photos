@@ -6,6 +6,7 @@ class AlbumsController < ApplicationController
     "letters" => "letters",
     "photos" => "photos"
   }.freeze
+  ALBUM_PAGE_SIZE = 12
 
   before_action :require_owner!, except: %i[index show]
   before_action :set_visible_album, only: %i[show]
@@ -23,8 +24,14 @@ class AlbumsController < ApplicationController
     @public_album_count = album_payload.fetch(:public_album_count)
     @private_album_count = album_payload.fetch(:private_album_count)
     @visible_media_counts = album_payload.fetch(:visible_media_counts)
-    @album_covers = album_covers_from_ids(album_payload.fetch(:cover_photo_ids))
-    @albums = sorted_albums(@albums, @visible_media_counts)
+    sorted_albums = sorted_albums(@albums, @visible_media_counts)
+    @album_count = sorted_albums.size
+    @album_page = [ params[:page].to_i, 1 ].max
+    @albums = sorted_albums.slice((@album_page - 1) * ALBUM_PAGE_SIZE, ALBUM_PAGE_SIZE) || []
+    @next_album_page = @album_page + 1 if @album_page * ALBUM_PAGE_SIZE < @album_count
+    @album_covers = album_covers_from_ids(album_payload.fetch(:cover_photo_ids).slice(*@albums.map(&:id)))
+
+    render partial: "albums/page", locals: { albums: @albums }, layout: false if @album_page > 1
   end
 
   def show

@@ -1,14 +1,22 @@
 class LocationsController < ApplicationController
   include PhotoStreamPagination
 
+  LOCATION_PAGE_SIZE = 12
+
   before_action :require_privileged_metadata_viewer!
   before_action :set_location, only: :show
 
   def index
     location_rows = cached_location_rows
     @location_places = location_places(location_rows)
-    @locations = grouped_location_rows(location_rows, @location_places)
+    locations = grouped_location_rows(location_rows, @location_places)
+    @location_count = locations.size
+    @location_page = [ params[:page].to_i, 1 ].max
+    @locations = locations.slice((@location_page - 1) * LOCATION_PAGE_SIZE, LOCATION_PAGE_SIZE) || []
+    @next_location_page = @location_page + 1 if @location_page * LOCATION_PAGE_SIZE < @location_count
     @location_covers = location_covers(@locations)
+
+    render partial: "locations/page", locals: { locations: @locations }, layout: false if @location_page > 1
   end
 
   def show
