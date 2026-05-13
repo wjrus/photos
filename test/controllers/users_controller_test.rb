@@ -40,7 +40,7 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
 
     follow_redirect!
     assert_response :success
-    assert_includes response.body, invitation_url(invited.invitation_url_token)
+    refute_includes response.body, invitation_url(invited.invitation_url_token)
   end
 
   test "owner can resend invitation and send password reset" do
@@ -73,6 +73,8 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "Page 1 of"
     assert_includes response.body, "Shared Trip"
+    refute_includes response.body, "Account links"
+    refute_includes response.body, "No active reset link."
     assert_select "tbody tr", count: 12
   end
 

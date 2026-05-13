@@ -8,7 +8,7 @@
       <div>
         <p class="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Owner</p>
         <h1 class="mt-2 text-3xl font-semibold text-zinc-950">Users and sharing</h1>
-        <p class="mt-2 text-sm text-zinc-600">Invite viewers, send account links, and see private album access at a glance.</p>
+        <p class="mt-2 text-sm text-zinc-600">Invite viewers, manage access, and see private album sharing at a glance.</p>
       </div>
       <div class="text-sm text-zinc-600">
         <span class="font-semibold text-zinc-950"><%= number_with_delimiter(@user_count) %></span>
@@ -36,13 +36,12 @@
     </section>
 
     <section class="mt-6 overflow-x-auto rounded-lg border border-zinc-200 bg-white shadow-sm">
-      <table class="min-w-[62rem] w-full text-left text-sm">
+      <table class="min-w-[54rem] w-full text-left text-sm">
         <thead class="border-b border-zinc-200 bg-stone-50 text-xs uppercase tracking-[0.14em] text-zinc-500">
           <tr>
             <th class="px-4 py-3">User</th>
             <th class="px-4 py-3">Status</th>
             <th class="px-4 py-3">Shared albums</th>
-            <th class="px-4 py-3">Account links</th>
             <th class="px-4 py-3 text-right">Actions</th>
           </tr>
         </thead>
@@ -69,7 +68,7 @@
               </td>
               <td class="px-4 py-4 align-top">
                 <% if album_shares.any? %>
-                  <div class="flex max-w-md flex-wrap gap-2">
+                  <div class="flex max-w-2xl flex-wrap gap-2">
                     <% album_shares.first(8).each do |share| %>
                       <% album = share.photo_album %>
                       <div class="inline-flex overflow-hidden rounded-lg border border-zinc-200 bg-stone-50 text-xs font-semibold text-zinc-700">
@@ -122,44 +121,25 @@
                   <span class="text-zinc-500">No shared albums.</span>
                 <% end %>
               </td>
-              <td class="px-4 py-4 align-top">
-                <div class="space-y-2">
-                  <% if user.invited_pending? %>
-                    <% invite_url = invitation_url(user.invitation_url_token) %>
-                    <input type="text"
-                           readonly
-                           value="<%= invite_url %>"
-                           aria-label="Invitation link for <%= user.display_name %>"
-                           data-controller="select-text"
-                           data-action="focus->select-text#select click->select-text#select"
-                           class="w-full rounded-lg border border-zinc-300 bg-stone-50 px-3 py-2 text-xs text-zinc-700">
-                  <% end %>
-                  <% if user.password_reset_valid? %>
-                    <span class="text-xs text-zinc-500">Reset sent <%= time_ago_in_words(user.password_reset_sent_at) %> ago</span>
-                  <% else %>
-                    <span class="text-xs text-zinc-500">No active reset link.</span>
-                  <% end %>
-                </div>
-              </td>
               <td class="px-4 py-4 text-right align-top">
                 <div class="flex flex-col items-end gap-2">
                   <% if user.invited_pending? %>
                     <%= button_to "Send invite",
                           send_invitation_user_path(user, page: @page),
                           method: :post,
-                          class: "rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold uppercase text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+                          class: "min-w-28 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
                   <% end %>
                   <%= button_to "Send reset",
                         send_password_reset_user_path(user, page: @page),
                         method: :post,
-                        class: "rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold uppercase text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+                        class: "min-w-28 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
 
                   <% if user.owner? || user == current_user %>
-                    <span class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-600">Protected</span>
+                    <span class="min-w-28 rounded-lg border border-zinc-200 bg-stone-50 px-3 py-2 text-center text-xs font-semibold uppercase tracking-[0.14em] text-zinc-600">Protected</span>
                   <% else %>
                     <div class="inline-block" data-controller="confirm-modal" data-action="keydown@window->confirm-modal#keydown">
                       <button type="button"
-                              class="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold uppercase text-rose-800 transition hover:bg-rose-800 hover:text-white"
+                              class="min-w-28 rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-800 transition hover:bg-rose-800 hover:text-white"
                               data-action="confirm-modal#open">
                         Remove
                       </button>
