@@ -34,7 +34,7 @@ class UserNotificationMailer
       <<~TEXT
         Hi #{user.display_name},
 
-        William shared private photo galleries with you.
+        You have been invited to sign in and view private photo galleries William Rockwood has shared with you.
 
         View the photos:
         #{url}
@@ -53,7 +53,7 @@ class UserNotificationMailer
         <html>
           <body style="margin:0;background:#f8f7f4;color:#18181b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
             <div style="display:none;max-height:0;overflow:hidden;color:transparent;">
-              William shared private photo galleries with you.
+              You have been invited to sign in and view private photo galleries William Rockwood has shared with you.
             </div>
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8f7f4;padding:32px 16px;">
               <tr>
@@ -69,7 +69,7 @@ class UserNotificationMailer
                     <tr>
                       <td style="padding:12px 28px 4px;">
                         <p style="margin:0;font-size:16px;line-height:1.6;color:#3f3f46;">Hi #{escaped_name},</p>
-                        <p style="margin:14px 0 0;font-size:16px;line-height:1.6;color:#3f3f46;">Sign in to view the private photo galleries William shared with you.</p>
+                        <p style="margin:14px 0 0;font-size:16px;line-height:1.6;color:#3f3f46;">You have been invited to sign in and view private photo galleries William Rockwood has shared with you.</p>
                       </td>
                     </tr>
                     <tr>
