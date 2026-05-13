@@ -15,6 +15,7 @@ class MapsController < ApplicationController
 
   def show
     @google_maps_api_key = ENV["GOOGLE_MAPS_EMBED_API_KEY"]
+    @google_maps_map_id = ENV["GOOGLE_MAPS_MAP_ID"].presence || "DEMO_MAP_ID"
     @geotagged_photo_count = geotagged_photos.count
     @initial_bounds = map_bounds if map_bounds.values_at(:north, :south, :east, :west).all?
   end

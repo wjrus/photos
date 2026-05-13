@@ -71,6 +71,7 @@ GOOGLE_CLIENT_SECRET=
 GOOGLE_DRIVE_ARCHIVE_FOLDER_ID=
 GOOGLE_MAPS_EMBED_API_KEY=
 GOOGLE_MAPS_GEOCODING_API_KEY=
+GOOGLE_MAPS_MAP_ID=
 PHOTOS_OWNER_EMAIL=owner@example.com
 PHOTOS_TRUSTED_VIEWER_EMAILS=
 MAILGUN_API_KEY=
@@ -82,7 +83,8 @@ MAILGUN_FROM_NAME=wjr photos
 `GOOGLE_MAPS_EMBED_API_KEY` is used in the browser for the map. Reverse geocoding
 location names can use a separate server-side `GOOGLE_MAPS_GEOCODING_API_KEY`
 with the Google Geocoding API enabled; if it is absent the app falls back to the
-embed key.
+embed key. `GOOGLE_MAPS_MAP_ID` enables Google Maps advanced markers; if it is
+absent the app uses Google's demo map id.
 
 Then run:
 
@@ -272,6 +274,7 @@ GOOGLE_CLIENT_SECRET=
 GOOGLE_DRIVE_ARCHIVE_FOLDER_ID=
 GOOGLE_MAPS_EMBED_API_KEY=
 GOOGLE_MAPS_GEOCODING_API_KEY=
+GOOGLE_MAPS_MAP_ID=
 PHOTOS_OWNER_EMAIL=owner@example.com
 PHOTOS_TRUSTED_VIEWER_EMAILS=
 MAILGUN_API_KEY=

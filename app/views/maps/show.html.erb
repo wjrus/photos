@@ -47,6 +47,7 @@
         <div class="h-[calc(100vh-12rem)] min-h-[520px] w-full"
              data-controller="google-map"
              data-google-map-api-key-value="<%= @google_maps_api_key %>"
+             data-google-map-map-id-value="<%= @google_maps_map_id %>"
              data-google-map-markers-url-value="<%= map_markers_path(album_id: @selected_album&.id) %>"
              <% if @initial_bounds.present? %>
                data-google-map-initial-north-value="<%= @initial_bounds[:north] %>"

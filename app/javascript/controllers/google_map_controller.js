@@ -3,6 +3,7 @@ import { Controller } from "@hotwired/stimulus"
 export default class extends Controller {
   static values = {
     apiKey: String,
+    mapId: String,
     markersUrl: String,
     initialNorth: Number,
     initialSouth: Number,
@@ -17,6 +18,7 @@ export default class extends Controller {
 
   disconnect() {
     clearTimeout(this.ignoreNextIdleTimeout)
+    this.mapMarkers?.forEach((marker) => marker.map = null)
     window.google?.maps?.event?.clearInstanceListeners(this.map)
   }
 
@@ -38,7 +40,10 @@ export default class extends Controller {
     return window.photosGoogleMapsLoaded
   }
 
-  renderMap() {
+  async renderMap() {
+    const { AdvancedMarkerElement, PinElement } = await window.google.maps.importLibrary("marker")
+    this.AdvancedMarkerElement = AdvancedMarkerElement
+    this.PinElement = PinElement
     this.bounds = new window.google.maps.LatLngBounds()
     this.map = new window.google.maps.Map(this.element, {
       clickableIcons: false,
@@ -46,6 +51,7 @@ export default class extends Controller {
       mapTypeControl: false,
       streetViewControl: false,
       center: { lat: 39.5, lng: -98.35 },
+      mapId: this.mapIdValue,
       zoom: 4
     })
     if (this.hasInitialBounds()) this.map.fitBounds(this.initialBounds())
@@ -117,17 +123,17 @@ export default class extends Controller {
   }
 
   replaceMarkers(markers) {
-    this.mapMarkers.forEach((marker) => marker.setMap(null))
+    this.mapMarkers.forEach((marker) => marker.map = null)
     this.mapMarkers = markers.map((marker) => this.buildMarker(marker))
   }
 
   buildMarker(marker) {
     const position = { lat: marker.latitude, lng: marker.longitude }
-    const mapMarker = new window.google.maps.Marker({
+    const mapMarker = new this.AdvancedMarkerElement({
       map: this.map,
       position,
       title: marker.title,
-      label: marker.type === "location" ? this.locationLabel(marker.count) : undefined
+      content: marker.type === "location" ? this.locationPin(marker.count).element : undefined
     })
 
     mapMarker.addListener("click", () => {
@@ -177,13 +183,12 @@ export default class extends Controller {
     return payload.limited ? `Showing ${visible} locations for ${total} visible ${noun}. Zoom in for more.` : `Showing ${visible} locations for ${total} visible ${noun}.`
   }
 
-  locationLabel(count) {
-    return {
-      text: count > 999 ? "999+" : count.toString(),
-      color: "#fff",
-      fontSize: "12px",
-      fontWeight: "700"
-    }
+  locationPin(count) {
+    return new this.PinElement({
+      glyph: count > 999 ? "999+" : count.toString(),
+      glyphColor: "#fff",
+      scale: count > 999 ? 1.25 : 1
+    })
   }
 
   infoWindowContent(marker) {

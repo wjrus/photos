@@ -6,13 +6,16 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     @owner = users(:one)
     @trusted_viewer_emails = ENV["PHOTOS_TRUSTED_VIEWER_EMAILS"]
     @google_maps_api_key = ENV["GOOGLE_MAPS_EMBED_API_KEY"]
+    @google_maps_map_id = ENV["GOOGLE_MAPS_MAP_ID"]
     ENV["GOOGLE_MAPS_EMBED_API_KEY"] = "test-google-maps-key"
+    ENV["GOOGLE_MAPS_MAP_ID"] = "test-map-id"
     sign_in_as(@owner)
   end
 
   teardown do
     ENV["PHOTOS_TRUSTED_VIEWER_EMAILS"] = @trusted_viewer_emails
     ENV["GOOGLE_MAPS_EMBED_API_KEY"] = @google_maps_api_key
+    ENV["GOOGLE_MAPS_MAP_ID"] = @google_maps_map_id
     OmniAuth.config.mock_auth[:google_oauth2] = nil
     OmniAuth.config.test_mode = false
   end
@@ -32,6 +35,7 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "North"
     assert_includes response.body, "test-google-maps-key"
     assert_select "[data-controller='google-map']"
+    assert_select "[data-google-map-map-id-value='test-map-id']"
     assert_select "[data-google-map-markers-url-value='#{map_markers_path}']"
 
     get map_markers_path(north: 46, south: 44, east: -84, west: -87)
@@ -129,6 +133,17 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-google-map-initial-south-value='44.0']"
     assert_select "[data-google-map-initial-east-value='-85.0']"
     assert_select "[data-google-map-initial-west-value='-86.0']"
+  end
+
+  test "map falls back to demo map id" do
+    ENV["GOOGLE_MAPS_MAP_ID"] = nil
+    photo = attached_photo(title: "Demo map id overlook")
+    geotag(photo, latitude: 44.7622, longitude: -85.5980)
+
+    get map_path
+
+    assert_response :success
+    assert_select "[data-controller='google-map'][data-google-map-map-id-value='DEMO_MAP_ID']"
   end
 
   test "invited viewer sees shared private geotagged photos but not unshared or locked photos" do
