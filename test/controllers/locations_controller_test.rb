@@ -180,6 +180,7 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Traverse City, Michigan"
     assert_includes response.body, "Inside location"
     refute_includes response.body, "Outside location"
+    assert_select "a[href*='#{map_path}'][href*='north=44.767200'][href*='south=44.757200'][href*='east=-85.593000'][href*='west=-85.603000']", text: "Map"
     assert_select "[data-controller~='stream-state']"
     assert_select "a[href='#{photo_path(inside)}'][data-photo-return-to='#{location_path(location_id_for(inside))}']"
   end

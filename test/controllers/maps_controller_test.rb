@@ -118,6 +118,19 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert_equal map_path(album_id: trip.id), marker.fetch("return_to")
   end
 
+  test "map accepts initial bounds" do
+    photo = attached_photo(title: "Bounded overlook")
+    geotag(photo, latitude: 44.7622, longitude: -85.5980)
+
+    get map_path(north: 45, south: 44, east: -85, west: -86)
+
+    assert_response :success
+    assert_select "[data-controller='google-map'][data-google-map-initial-north-value='45.0']"
+    assert_select "[data-google-map-initial-south-value='44.0']"
+    assert_select "[data-google-map-initial-east-value='-85.0']"
+    assert_select "[data-google-map-initial-west-value='-86.0']"
+  end
+
   test "invited viewer sees shared private geotagged photos but not unshared or locked photos" do
     album = @owner.photo_albums.create!(title: "Shared map", source: "manual")
     public_photo = attached_photo(title: "Public overlook")

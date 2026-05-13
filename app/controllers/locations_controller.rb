@@ -36,6 +36,7 @@ class LocationsController < ApplicationController
     )
 
     @location_media_count = media_counts_for(scoped_photos)
+    @location_map_path = map_path(location_map_bounds_params(scoped_photos))
     @albums = current_user.photo_albums.display_order if current_user&.owner?
     @timeline_periods = stream_timeline_periods(scoped_photos, cache_key: location_timeline_cache_key(scoped_photos)) unless params[:cursor].present?
   end
@@ -137,6 +138,37 @@ class LocationsController < ApplicationController
       .take
 
     { photos: counts.image_count.to_i, videos: counts.video_count.to_i }
+  end
+
+  def location_map_bounds_params(scope)
+    bounds = location_bounds(scope)
+    return {} unless bounds
+
+    bounds.transform_values { |value| format("%.6f", value) }
+  end
+
+  def location_bounds(scope)
+    row = scope.reselect(
+      "MIN(photo_metadata.latitude) AS south",
+      "MAX(photo_metadata.latitude) AS north",
+      "MIN(photo_metadata.longitude) AS west",
+      "MAX(photo_metadata.longitude) AS east"
+    ).take
+    return unless row&.south && row&.north && row&.west && row&.east
+
+    south = row.south.to_f
+    north = row.north.to_f
+    west = row.west.to_f
+    east = row.east.to_f
+    latitude_padding = [ (north - south).abs * 0.15, 0.005 ].max
+    longitude_padding = [ (east - west).abs * 0.15, 0.005 ].max
+
+    {
+      south: (south - latitude_padding).clamp(-90.0, 90.0),
+      north: (north + latitude_padding).clamp(-90.0, 90.0),
+      west: (west - longitude_padding).clamp(-180.0, 180.0),
+      east: (east + longitude_padding).clamp(-180.0, 180.0)
+    }
   end
 
   def location_places(locations)

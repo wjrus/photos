@@ -3,7 +3,11 @@ import { Controller } from "@hotwired/stimulus"
 export default class extends Controller {
   static values = {
     apiKey: String,
-    markersUrl: String
+    markersUrl: String,
+    initialNorth: Number,
+    initialSouth: Number,
+    initialEast: Number,
+    initialWest: Number
   }
 
   connect() {
@@ -44,12 +48,29 @@ export default class extends Controller {
       center: { lat: 39.5, lng: -98.35 },
       zoom: 4
     })
+    if (this.hasInitialBounds()) this.map.fitBounds(this.initialBounds())
     this.infoWindow = new window.google.maps.InfoWindow()
     this.infoWindow.addListener("domready", () => this.bindInfoWindow())
     this.statusElement = this.status()
 
     this.map.addListener("idle", () => this.loadVisibleMarkersAfterIdle())
     this.map.addListener("click", () => this.infoWindow.close())
+  }
+
+  hasInitialBounds() {
+    return this.hasInitialNorthValue &&
+      this.hasInitialSouthValue &&
+      this.hasInitialEastValue &&
+      this.hasInitialWestValue
+  }
+
+  initialBounds() {
+    return {
+      north: this.initialNorthValue,
+      south: this.initialSouthValue,
+      east: this.initialEastValue,
+      west: this.initialWestValue
+    }
   }
 
   loadVisibleMarkersAfterIdle() {

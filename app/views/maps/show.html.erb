@@ -47,7 +47,13 @@
         <div class="h-[calc(100vh-12rem)] min-h-[520px] w-full"
              data-controller="google-map"
              data-google-map-api-key-value="<%= @google_maps_api_key %>"
-             data-google-map-markers-url-value="<%= map_markers_path(album_id: @selected_album&.id) %>"></div>
+             data-google-map-markers-url-value="<%= map_markers_path(album_id: @selected_album&.id) %>"
+             <% if @initial_bounds.present? %>
+               data-google-map-initial-north-value="<%= @initial_bounds[:north] %>"
+               data-google-map-initial-south-value="<%= @initial_bounds[:south] %>"
+               data-google-map-initial-east-value="<%= @initial_bounds[:east] %>"
+               data-google-map-initial-west-value="<%= @initial_bounds[:west] %>"
+             <% end %>></div>
       </div>
     <% end %>
   </main>
