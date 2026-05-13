@@ -80,7 +80,7 @@ wait_for_http() {
   local app_host
 
   app_host="$(env_value PHOTOS_HOST .env.production)"
-  app_host="${app_host:-photos.wjr.us}"
+  app_host="${app_host:-photos.example.com}"
 
   while (( elapsed < timeout_seconds )); do
     if curl -fsSI -H "Host: ${app_host}" "http://127.0.0.1:3000/up" >/dev/null; then

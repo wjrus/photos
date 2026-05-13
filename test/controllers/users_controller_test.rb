@@ -31,8 +31,8 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, MailgunClient.deliveries.size
     assert_equal "ada@example.com", MailgunClient.deliveries.last.to
     assert_equal "William shared photos with you", MailgunClient.deliveries.last.subject
-    assert_equal "\"wjr photos\" <wjrphotos@modes.club>", MailgunClient.deliveries.last.from
-    assert_equal "wjrphotos@modes.club", MailgunClient.deliveries.last.headers.fetch("Reply-To")
+    assert_equal "\"Photos\" <photos@example.com>", MailgunClient.deliveries.last.from
+    assert_equal "photos@example.com", MailgunClient.deliveries.last.headers.fetch("Reply-To")
     assert_includes MailgunClient.deliveries.last.text, invitation_path(invited.invitation_url_token)
     assert_includes MailgunClient.deliveries.last.text, "private photo galleries William Rockwood has shared with you"
     assert_includes MailgunClient.deliveries.last.html, "View photos"

@@ -75,9 +75,9 @@ GOOGLE_MAPS_MAP_ID=
 PHOTOS_OWNER_EMAIL=owner@example.com
 PHOTOS_TRUSTED_VIEWER_EMAILS=
 MAILGUN_API_KEY=
-MAILGUN_DOMAIN=modes.club
-MAILGUN_FROM=wjrphotos@modes.club
-MAILGUN_FROM_NAME=wjr photos
+MAILGUN_DOMAIN=mg.example.com
+MAILGUN_FROM=photos@example.com
+MAILGUN_FROM_NAME=Photos
 ```
 
 `GOOGLE_MAPS_EMBED_API_KEY` is used in the browser for the map. Reverse geocoding
@@ -278,9 +278,9 @@ GOOGLE_MAPS_MAP_ID=
 PHOTOS_OWNER_EMAIL=owner@example.com
 PHOTOS_TRUSTED_VIEWER_EMAILS=
 MAILGUN_API_KEY=
-MAILGUN_DOMAIN=modes.club
-MAILGUN_FROM=wjrphotos@modes.club
-MAILGUN_FROM_NAME=wjr photos
+MAILGUN_DOMAIN=mg.example.com
+MAILGUN_FROM=photos@example.com
+MAILGUN_FROM_NAME=Photos
 PHOTOS_LOCKED_FOLDER_PASSWORD=
 ```
 

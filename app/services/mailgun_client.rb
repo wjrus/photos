@@ -38,10 +38,10 @@ class MailgunClient
     end
 
     def default_from
-      address = ENV.fetch("MAILGUN_FROM", "wjrphotos@modes.club")
+      address = ENV.fetch("MAILGUN_FROM", "photos@example.com")
       return address if address.include?("<")
 
-      %("#{ENV.fetch('MAILGUN_FROM_NAME', 'wjr photos')}" <#{address}>)
+      %("#{ENV.fetch('MAILGUN_FROM_NAME', 'Photos')}" <#{address}>)
     end
 
     private
@@ -77,7 +77,7 @@ class MailgunClient
     end
 
     def domain
-      ENV.fetch("MAILGUN_DOMAIN", "modes.club")
+      ENV["MAILGUN_DOMAIN"].to_s
     end
 
     def api_base
@@ -86,7 +86,7 @@ class MailgunClient
 
     def default_headers
       {
-        "Reply-To" => ENV.fetch("MAILGUN_REPLY_TO", ENV.fetch("MAILGUN_FROM", "wjrphotos@modes.club")),
+        "Reply-To" => ENV.fetch("MAILGUN_REPLY_TO", ENV.fetch("MAILGUN_FROM", "photos@example.com")),
         "Auto-Submitted" => "auto-generated",
         "X-Auto-Response-Suppress" => "All"
       }
