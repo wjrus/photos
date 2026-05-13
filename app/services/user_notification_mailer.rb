@@ -4,7 +4,7 @@ class UserNotificationMailer
       url = routes.invitation_url(user.invitation_url_token, url_options)
       MailgunClient.deliver(
         to: user.email,
-        subject: "You are invited to view wjr's photos",
+        subject: "William shared photos with you",
         text: invitation_text(user, url),
         html: invitation_html(user, url)
       )
@@ -34,9 +34,9 @@ class UserNotificationMailer
       <<~TEXT
         Hi #{user.display_name},
 
-        You have been invited to view wjr's photos.
+        William shared private photo galleries with you.
 
-        View wjr's photos:
+        View the photos:
         #{url}
 
         If you were not expecting this invitation, you can ignore this message.
@@ -53,7 +53,7 @@ class UserNotificationMailer
         <html>
           <body style="margin:0;background:#f8f7f4;color:#18181b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
             <div style="display:none;max-height:0;overflow:hidden;color:transparent;">
-              You have been invited to view wjr's photos.
+              William shared private photo galleries with you.
             </div>
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8f7f4;padding:32px 16px;">
               <tr>
@@ -63,18 +63,18 @@ class UserNotificationMailer
                       <td style="padding:28px 28px 8px;text-align:center;">
                         <img src="#{icon_url}" width="56" height="56" alt="" style="display:inline-block;width:56px;height:56px;border-radius:12px;border:1px solid #e4e4e7;box-shadow:0 1px 3px rgba(24,24,27,0.15);">
                         <p style="margin:18px 0 0;font-size:12px;font-weight:700;letter-spacing:0.22em;text-transform:uppercase;color:#0f766e;">wjr photos</p>
-                        <h1 style="margin:10px 0 0;font-size:28px;line-height:1.15;font-weight:700;color:#09090b;">View wjr's photos</h1>
+                        <h1 style="margin:10px 0 0;font-size:28px;line-height:1.15;font-weight:700;color:#09090b;">William shared photos with you</h1>
                       </td>
                     </tr>
                     <tr>
                       <td style="padding:12px 28px 4px;">
                         <p style="margin:0;font-size:16px;line-height:1.6;color:#3f3f46;">Hi #{escaped_name},</p>
-                        <p style="margin:14px 0 0;font-size:16px;line-height:1.6;color:#3f3f46;">You have been invited to sign in and view private photo galleries shared with you.</p>
+                        <p style="margin:14px 0 0;font-size:16px;line-height:1.6;color:#3f3f46;">Sign in to view the private photo galleries William shared with you.</p>
                       </td>
                     </tr>
                     <tr>
                       <td align="center" style="padding:24px 28px;">
-                        <a href="#{escaped_url}" style="display:inline-block;border-radius:10px;background:#09090b;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;padding:13px 20px;">View wjr's photos!</a>
+                        <a href="#{escaped_url}" style="display:inline-block;border-radius:10px;background:#09090b;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;padding:13px 20px;">View photos</a>
                       </td>
                     </tr>
                     <tr>

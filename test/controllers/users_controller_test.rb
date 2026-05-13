@@ -30,10 +30,12 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     assert_equal @owner, invited.invited_by
     assert_equal 1, MailgunClient.deliveries.size
     assert_equal "ada@example.com", MailgunClient.deliveries.last.to
-    assert_equal "You are invited to view wjr's photos", MailgunClient.deliveries.last.subject
+    assert_equal "William shared photos with you", MailgunClient.deliveries.last.subject
+    assert_equal "\"wjr photos\" <wjrphotos@modes.club>", MailgunClient.deliveries.last.from
+    assert_equal "wjrphotos@modes.club", MailgunClient.deliveries.last.headers.fetch("Reply-To")
     assert_includes MailgunClient.deliveries.last.text, invitation_path(invited.invitation_url_token)
-    assert_includes MailgunClient.deliveries.last.text, "View wjr's photos"
-    assert_includes MailgunClient.deliveries.last.html, "View wjr's photos!"
+    assert_includes MailgunClient.deliveries.last.text, "William shared private photo galleries with you."
+    assert_includes MailgunClient.deliveries.last.html, "View photos"
     assert_includes MailgunClient.deliveries.last.html, "/icon.png"
 
     follow_redirect!

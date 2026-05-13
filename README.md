@@ -76,6 +76,7 @@ PHOTOS_TRUSTED_VIEWER_EMAILS=
 MAILGUN_API_KEY=
 MAILGUN_DOMAIN=modes.club
 MAILGUN_FROM=wjrphotos@modes.club
+MAILGUN_FROM_NAME=wjr photos
 ```
 
 `GOOGLE_MAPS_EMBED_API_KEY` is used in the browser for the map. Reverse geocoding
@@ -276,11 +277,12 @@ PHOTOS_TRUSTED_VIEWER_EMAILS=
 MAILGUN_API_KEY=
 MAILGUN_DOMAIN=modes.club
 MAILGUN_FROM=wjrphotos@modes.club
+MAILGUN_FROM_NAME=wjr photos
 PHOTOS_LOCKED_FOLDER_PASSWORD=
 ```
 
 `REDIS_URL` is supplied internally by Compose. If it is absent, production falls back to Solid Cache.
 
-Mailgun is used for invitations and password resets. `MAILGUN_API_BASE` is optional and defaults to `https://api.mailgun.net`.
+Mailgun is used for invitations and password resets. `MAILGUN_FROM_NAME` is used as the sender display name when `MAILGUN_FROM` is a bare address. `MAILGUN_REPLY_TO` and `MAILGUN_API_BASE` are optional.
 
 Runtime repository controls, such as original file auto-heal, are stored in the app settings table and controlled from `/repository_status`.

@@ -3,7 +3,7 @@ require "net/http"
 class MailgunClient
   class DeliveryError < StandardError; end
 
-  Message = Data.define(:to, :subject, :text, :html, :from)
+  Message = Data.define(:to, :subject, :text, :html, :from, :headers)
 
   class << self
     def deliveries
@@ -14,8 +14,15 @@ class MailgunClient
       deliveries.clear
     end
 
-    def deliver(to:, subject:, text:, html: nil, from: default_from)
-      message = Message.new(to: to, subject: subject, text: text, html: html, from: from)
+    def deliver(to:, subject:, text:, html: nil, from: default_from, headers: {})
+      message = Message.new(
+        to: to,
+        subject: subject,
+        text: text,
+        html: html,
+        from: from,
+        headers: default_headers.merge(headers)
+      )
 
       if Rails.env.test?
         deliveries << message
@@ -31,7 +38,10 @@ class MailgunClient
     end
 
     def default_from
-      ENV.fetch("MAILGUN_FROM", "wjrphotos@modes.club")
+      address = ENV.fetch("MAILGUN_FROM", "wjrphotos@modes.club")
+      return address if address.include?("<")
+
+      %("#{ENV.fetch('MAILGUN_FROM_NAME', 'wjr photos')}" <#{address}>)
     end
 
     private
@@ -49,7 +59,7 @@ class MailgunClient
           "subject" => message.subject,
           "text" => message.text,
           "html" => message.html
-        }.compact,
+        }.compact.merge(mailgun_headers(message.headers)),
         "multipart/form-data"
       )
 
@@ -72,6 +82,18 @@ class MailgunClient
 
     def api_base
       ENV.fetch("MAILGUN_API_BASE", "https://api.mailgun.net")
+    end
+
+    def default_headers
+      {
+        "Reply-To" => ENV.fetch("MAILGUN_REPLY_TO", ENV.fetch("MAILGUN_FROM", "wjrphotos@modes.club")),
+        "Auto-Submitted" => "auto-generated",
+        "X-Auto-Response-Suppress" => "All"
+      }
+    end
+
+    def mailgun_headers(headers)
+      headers.compact_blank.transform_keys { |key| "h:#{key}" }
     end
   end
 end
