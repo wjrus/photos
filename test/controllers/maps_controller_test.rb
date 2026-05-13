@@ -32,6 +32,7 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Back to stream"
     assert_includes response.body, "1 geotagged photo"
     assert_includes response.body, "All photos"
+    assert_includes response.body, "All locations"
     assert_includes response.body, "North"
     assert_includes response.body, "test-google-maps-key"
     assert_select "[data-controller='google-map']"
@@ -120,6 +121,52 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     marker = payload.fetch("markers").find { |candidate| candidate.fetch("title") == "Trip overlook" }
     assert_equal photo_path(trip_photo), marker.fetch("photo_url")
     assert_equal map_path(album_id: trip.id), marker.fetch("return_to")
+  end
+
+  test "owner can focus map on a location and return to it" do
+    inside = attached_photo(title: "Location map inside")
+    outside = attached_photo(title: "Location map outside")
+    geotag(inside, latitude: 44.7622, longitude: -85.5980)
+    geotag(outside, latitude: 45.0, longitude: -86.0)
+    location_id = location_id_for(inside)
+
+    get map_path(location_id: location_id)
+
+    assert_response :success
+    assert_select "a[href='#{location_path(location_id)}']", text: /Back to/
+    assert_select "option[selected][value='#{location_id}']"
+    assert_select "[data-google-map-markers-url-value='#{map_markers_path(location_id: location_id)}']"
+
+    get map_markers_path(location_id: location_id, north: 46, south: 44, east: -84, west: -87)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    marker_titles = payload.fetch("markers").map { |marker| marker.fetch("title") }
+    assert_includes marker_titles, "Location map inside"
+    refute_includes marker_titles, "Location map outside"
+    marker = payload.fetch("markers").find { |candidate| candidate.fetch("title") == "Location map inside" }
+    assert_equal map_path(location_id: location_id), marker.fetch("return_to")
+  end
+
+  test "map can combine album and location filters" do
+    album = @owner.photo_albums.create!(title: "Location album", source: "manual")
+    inside_album = attached_photo(title: "Inside album location")
+    outside_album = attached_photo(title: "Outside album location")
+    inside_other = attached_photo(title: "Inside other album")
+    geotag(inside_album, latitude: 44.7622, longitude: -85.5980)
+    geotag(outside_album, latitude: 45.0, longitude: -86.0)
+    geotag(inside_other, latitude: 44.7623, longitude: -85.5981)
+    album.photos << [ inside_album, outside_album ]
+    location_id = location_id_for(inside_album)
+
+    get map_markers_path(album_id: album.id, location_id: location_id, north: 46, south: 44, east: -84, west: -87)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    marker_titles = payload.fetch("markers").map { |marker| marker.fetch("title") }
+    assert_includes marker_titles, "Inside album location"
+    refute_includes marker_titles, "Outside album location"
+    refute_includes marker_titles, "Inside other album"
   end
 
   test "selected album initializes map around its photos" do

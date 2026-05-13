@@ -1,7 +1,7 @@
 class PhotoLocationGroup
   include ActiveModel::Model
 
-  attr_accessor :id, :title, :photo_count, :image_count, :video_count, :newest_at, :oldest_at, :representative_photo_id, :location_ids
+  attr_accessor :id, :title, :photo_count, :image_count, :video_count, :newest_at, :oldest_at, :representative_photo_id, :location_ids, :bounds
 
   def initialize(...)
     super

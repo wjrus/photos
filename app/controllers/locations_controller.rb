@@ -36,7 +36,7 @@ class LocationsController < ApplicationController
     )
 
     @location_media_count = media_counts_for(scoped_photos)
-    @location_map_path = map_path(location_map_bounds_params(scoped_photos))
+    @location_map_path = map_path(location_map_bounds_params(scoped_photos).merge(location_id: @location_id))
     @albums = current_user.photo_albums.display_order if current_user&.owner?
     @timeline_periods = stream_timeline_periods(scoped_photos, cache_key: location_timeline_cache_key(scoped_photos)) unless params[:cursor].present?
   end

@@ -41,7 +41,17 @@ class MapsController < ApplicationController
   def set_map_context
     @albums = PhotoAlbum.visible_to(current_user).display_order
     @selected_album = @albums.find_by(id: params[:album_id]) if params[:album_id].present?
-    @map_return_path = @selected_album ? map_path(album_id: @selected_album.id) : map_path
+    if request.format.json?
+      @map_locations = []
+      @selected_location = selected_location_from_param
+      @map_return_path = map_path(map_filter_params)
+      return
+    end
+
+    @map_locations = map_location_options
+    @selected_location = @map_locations.find { |location| location.id == params[:location_id].to_s } if params[:location_id].present?
+    @selected_location ||= selected_location_from_param
+    @map_return_path = map_path(map_filter_params)
   end
 
   def geotagged_photos
@@ -51,10 +61,12 @@ class MapsController < ApplicationController
       Photo
     end
 
-    scope
+    scope = scope
       .visible_to(current_user)
       .joins(:metadata)
       .where.not(photo_metadata: { latitude: nil, longitude: nil })
+
+    @selected_location ? PhotoLocation.scope_for(scope, @selected_location.id) : scope
   end
 
   def marker_payload(photo)
@@ -172,6 +184,8 @@ class MapsController < ApplicationController
   def initial_map_bounds
     explicit_bounds = map_bounds
     return explicit_bounds if explicit_bounds.values_at(:north, :south, :east, :west).all?
+    return @selected_location.bounds.padded_bounds if @selected_location&.bounds
+    return bounds_for(geotagged_photos) if @selected_location
     return unless @selected_album
 
     bounds_for(geotagged_photos)
@@ -206,6 +220,7 @@ class MapsController < ApplicationController
       "map-markers/v3",
       cache_audience_key,
       @selected_album&.id || "all",
+      @selected_location&.id || "all",
       Photo.maximum(:updated_at)&.utc&.to_i,
       PhotoAlbumShare.maximum(:updated_at)&.utc&.to_i,
       PhotoAlbumShare.count,
@@ -216,6 +231,85 @@ class MapsController < ApplicationController
 
   def normalized_map_bounds
     map_bounds.sort.to_h.transform_values { |value| value.round(4) }
+  end
+
+  def map_filter_params
+    {}.tap do |filters|
+      filters[:album_id] = @selected_album.id if @selected_album
+      filters[:location_id] = @selected_location.id if @selected_location
+    end
+  end
+
+  def map_location_options
+    rows = PhotoLocation.rows(map_location_options_scope).to_a
+    places = location_places_for_rows(rows)
+    bounds_by_id = PhotoLocationBound.where(location_id: grouped_location_ids(rows, places)).index_by(&:location_id)
+
+    grouped_location_rows(rows, places).map do |location|
+      location.bounds = bounds_by_id[location.id]
+      location
+    end
+  end
+
+  def selected_location_from_param
+    location_id = params[:location_id].to_s
+    return if location_id.blank? || !PhotoLocation.valid_id?(location_id)
+
+    scope = PhotoLocation.scope_for(map_location_options_scope, location_id)
+    return unless scope.exists?
+
+    PhotoLocationGroup.new(
+      id: location_id,
+      title: selected_location_title(location_id, scope),
+      photo_count: scope.count,
+      bounds: PhotoLocationBound.find_by(location_id: location_id)
+    )
+  end
+
+  def selected_location_title(location_id, scope)
+    return PhotoLocation.place_name_from_id(location_id) if PhotoLocation.place_id?(location_id)
+
+    row = PhotoLocation.rows(scope, limit: 1).first
+    return location_id unless row
+
+    PhotoLocation.title_for_row(row, location_places_for_rows([ row ]))
+  end
+
+  def map_location_options_scope
+    scope = @selected_album ? @selected_album.photos : Photo
+    scope
+      .visible_to(current_user)
+      .joins(:metadata)
+      .where.not(photo_metadata: { latitude: nil, longitude: nil })
+  end
+
+  def location_places_for_rows(rows)
+    ids = rows.map { |row| PhotoLocation.id_for(row.latitude_bucket, row.longitude_bucket) }
+    PhotoLocationPlace.where(location_id: ids).index_by(&:location_id)
+  end
+
+  def grouped_location_ids(rows, places)
+    rows.map do |row|
+      location_id = PhotoLocation.id_for(row.latitude_bucket, row.longitude_bucket)
+      place_name = places[location_id]&.name.presence
+      place_name ? PhotoLocation.place_id_for_name(place_name) : location_id
+    end.uniq
+  end
+
+  def grouped_location_rows(rows, places)
+    groups = {}
+
+    rows.each do |row|
+      location_id = PhotoLocation.id_for(row.latitude_bucket, row.longitude_bucket)
+      place_name = places[location_id]&.name.presence
+      group_id = place_name ? PhotoLocation.place_id_for_name(place_name) : location_id
+      title = place_name || PhotoLocation.title_for_row(row, places)
+
+      groups[group_id] ||= PhotoLocationGroup.new(id: group_id, title: title)
+      groups[group_id].add(row)
+    end
+
+    groups.values.sort_by { |location| [ -location.photo_count.to_i, -(location.newest_at&.to_i || 0) ] }
   end
 
   def bounded_float(value, min, max)
