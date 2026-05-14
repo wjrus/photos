@@ -9,11 +9,14 @@ class ApplicationController < ActionController::Base
   # Changes to the importmap will invalidate the etag for HTML responses
   stale_when_importmap_changes
 
+  before_action :record_user_access
+
   helper_method :current_user, :signed_in?, :privileged_metadata_viewer?, :repository_unread_event_count
 
   private
 
   PHOTO_RETURN_TO_COOKIE = :photos_return_to
+  USER_ACCESS_UPDATE_INTERVAL = 5.minutes
 
   def self.owner_access_message(message)
     self.owner_required_message = message
@@ -25,6 +28,16 @@ class ApplicationController < ActionController::Base
 
   def signed_in?
     current_user.present?
+  end
+
+  def record_user_access
+    user = current_user
+    return unless user
+    return if user.last_accessed_at.present? && user.last_accessed_at > USER_ACCESS_UPDATE_INTERVAL.ago
+
+    now = Time.current
+    user.update_column(:last_accessed_at, now)
+    user.last_accessed_at = now
   end
 
   def privileged_metadata_viewer?

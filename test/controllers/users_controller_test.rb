@@ -78,6 +78,30 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     assert_select "tbody tr", count: 12
   end
 
+  test "signed in requests record last access and show it on users page" do
+    @owner.update!(last_accessed_at: 1.day.ago)
+
+    travel_to Time.zone.local(2026, 5, 14, 12, 0, 0) do
+      get users_path
+
+      assert_response :success
+      assert_in_delta Time.current, @owner.reload.last_accessed_at, 1.second
+      assert_includes response.body, "Accessed less than a minute ago"
+    end
+  end
+
+  test "last access writes are throttled" do
+    travel_to Time.zone.local(2026, 5, 14, 12, 0, 0) do
+      recent_access = 1.minute.ago
+      @owner.update!(last_accessed_at: recent_access)
+
+      get users_path
+
+      assert_response :success
+      assert_equal recent_access.to_i, @owner.reload.last_accessed_at.to_i
+    end
+  end
+
   test "owner can remove an album share from the users page" do
     album = @owner.photo_albums.create!(title: "Shared Trip", source: "manual")
     viewer = users(:two)

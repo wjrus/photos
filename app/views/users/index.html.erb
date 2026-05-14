@@ -65,6 +65,9 @@
                 <% if user.last_signed_in_at.present? %>
                   <p class="mt-2 text-xs text-zinc-500">Signed in <%= time_ago_in_words(user.last_signed_in_at) %> ago</p>
                 <% end %>
+                <% if user.last_accessed_at.present? %>
+                  <p class="mt-1 text-xs text-zinc-500">Accessed <%= time_ago_in_words(user.last_accessed_at) %> ago</p>
+                <% end %>
               </td>
               <td class="px-4 py-4 align-top">
                 <% if album_shares.any? %>
