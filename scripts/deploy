@@ -39,6 +39,12 @@ container_state() {
   docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id"
 }
 
+container_id_for() {
+  local service="$1"
+
+  compose ps -q "$service"
+}
+
 wait_for_state() {
   local service="$1"
   local expected="$2"
@@ -74,26 +80,25 @@ env_value() {
   awk -F= -v key="$key" '$1 == key { print substr($0, length(key) + 2); exit }' "$file"
 }
 
-wait_for_http() {
-  local timeout_seconds="$1"
+wait_for_new_container() {
+  local service="$1"
+  local old_container_id="$2"
+  local timeout_seconds="$3"
   local elapsed=0
-  local app_host
-
-  app_host="$(env_value PHOTOS_HOST .env.production)"
-  app_host="${app_host:-photos.example.com}"
+  local container_id
 
   while (( elapsed < timeout_seconds )); do
-    if curl -fsSI -H "Host: ${app_host}" "http://127.0.0.1:3000/up" >/dev/null; then
-      printf "web responded on /up\n"
+    container_id="$(container_id_for "$service")"
+    if [[ -n "$container_id" && "$container_id" != "$old_container_id" ]]; then
+      printf "%s container recreated\n" "$service"
       return 0
     fi
 
-    sleep 3
-    elapsed=$((elapsed + 3))
+    sleep 1
+    elapsed=$((elapsed + 1))
   done
 
-  compose logs --tail=120 web >&2 || true
-  fail "web did not respond on /up within ${timeout_seconds}s"
+  fail "$service container was not recreated within ${timeout_seconds}s"
 }
 
 require_file ".env.production"
@@ -132,17 +137,23 @@ compose pull db
 log "Building application image"
 compose build --pull
 
-log "Starting database"
-compose up -d db --remove-orphans
+log "Starting infrastructure"
+compose up -d db redis --remove-orphans
 wait_for_state db healthy 120
+wait_for_state redis healthy 120
+
+log "Preparing database"
+compose run --rm --no-deps web ./bin/rails db:prepare
 
 log "Starting web"
-compose up -d web --remove-orphans
+old_web_container="$(container_id_for web)"
+SKIP_DB_PREPARE=true compose up -d --no-deps web --remove-orphans
+wait_for_new_container web "$old_web_container" 60
 require_storage_mount web
-wait_for_http 240
+wait_for_state web healthy 240
 
 log "Starting worker"
-compose up -d worker --remove-orphans
+compose up -d --no-deps worker --remove-orphans
 require_storage_mount worker
 wait_for_state worker running 120
 

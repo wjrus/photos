@@ -45,7 +45,7 @@ Build and start:
 ./scripts/deploy
 ```
 
-The `web` container runs `bin/rails db:prepare` on boot. That creates and migrates the primary, cache, queue, and cable databases. Redis is used for the runtime Rails cache when `REDIS_URL` is present; Solid Cache remains available as a fallback.
+The deploy script runs `bin/rails db:prepare` before replacing the web container. That creates and migrates the primary, cache, queue, and cable databases without adding migration time to the web restart window. Redis is used for the runtime Rails cache when `REDIS_URL` is present; Solid Cache remains available as a fallback.
 
 Check status:
 
@@ -66,7 +66,7 @@ docker compose exec web bin/rails console
 ./scripts/deploy
 ```
 
-The deploy script exports `PHOTOS_STORAGE_PATH` from `.env.production` before invoking Docker Compose and verifies that both app containers mount that exact path at `/rails/storage`.
+The deploy script exports `PHOTOS_STORAGE_PATH` from `.env.production` before invoking Docker Compose, verifies that both app containers mount that exact path at `/rails/storage`, and waits for the web container healthcheck to pass before starting the worker.
 
 If you need to run Docker Compose directly, export the storage path first:
 
