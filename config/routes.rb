@@ -15,6 +15,7 @@ Rails.application.routes.draw do
   get "/sign_in", to: "sessions#new", as: :sign_in
   post "/sign_in", to: "sessions#password", as: :password_sign_in
   delete "/sign_out", to: "sessions#destroy", as: :sign_out
+  resource :user_preferences, only: :update, path: "preferences"
   resource :password_reset, only: %i[new create], path: "password_reset"
   get "/password_reset/:token", to: "password_resets#edit", as: :edit_password_reset
   patch "/password_reset/:token", to: "password_resets#update", as: :update_password_reset

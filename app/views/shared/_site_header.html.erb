@@ -71,6 +71,18 @@
               <%= link_to "Users",
                     users_path,
                     class: "block rounded-lg px-3 py-2 text-sm font-semibold text-zinc-800 transition hover:bg-zinc-950 hover:text-white" %>
+              <%= button_to user_preferences_path,
+                    method: :patch,
+                    params: {
+                      return_to: request.fullpath,
+                      user: { show_stream_metadata: !current_user.show_stream_metadata? }
+                    },
+                    class: "flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm font-semibold text-zinc-800 transition hover:bg-zinc-950 hover:text-white" do %>
+                <span>Show metadata</span>
+                <span class="rounded-full border px-2 py-0.5 text-[0.65rem] uppercase tracking-[0.16em] <%= current_user.show_stream_metadata? ? "border-teal-200 bg-teal-50 text-teal-900" : "border-zinc-200 bg-zinc-50 text-zinc-500" %>">
+                  <%= current_user.show_stream_metadata? ? "On" : "Off" %>
+                </span>
+              <% end %>
               <div class="my-2 border-t border-zinc-200"></div>
             <% end %>
             <%= button_to "Sign out", sign_out_path, method: :delete, class: "w-full rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>

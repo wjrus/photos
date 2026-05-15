@@ -854,6 +854,25 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_select "button[name='bulk_action'][value='set_location']", text: "Set location"
   end
 
+  test "owner photo stream metadata badge follows user preference" do
+    photo = attached_photo(title: "Metadata badge")
+    photo.create_metadata!(extraction_status: "complete", width: 4032, height: 3024, raw: {})
+    size_label = ActiveSupport::NumberHelper.number_to_human_size(photo.byte_size)
+
+    get root_path
+
+    assert_response :success
+    refute_includes response.body, size_label
+    refute_includes response.body, "4,032 x 3,024"
+
+    @owner.update!(show_stream_metadata: true)
+    get root_path
+
+    assert_response :success
+    assert_includes response.body, size_label
+    assert_includes response.body, "4,032 x 3,024"
+  end
+
   test "direct photo detail links back to a focused stream" do
     photo = attached_photo(title: "Direct link")
 

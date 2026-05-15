@@ -106,6 +106,10 @@ module ApplicationHelper
     "#{number_with_delimiter(metadata.width)} x #{number_with_delimiter(metadata.height)}"
   end
 
+  def photo_dimensions_present?(metadata)
+    metadata&.width.present? && metadata&.height.present?
+  end
+
   def video_duration(metadata)
     return "unknown" unless metadata&.video_duration.present?
 

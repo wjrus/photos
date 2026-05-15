@@ -90,7 +90,7 @@ class Photo < ApplicationRecord
     with_attached_video_preview
       .with_attached_video_display
       .with_attached_original
-      .includes(original_attachment: { blob: { variant_records: { image_attachment: :blob } } })
+      .includes(:metadata, original_attachment: { blob: { variant_records: { image_attachment: :blob } } })
   }
   scope :in_map_bounds, ->(bounds) {
     north = bounds[:north]
