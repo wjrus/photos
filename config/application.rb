@@ -1,4 +1,5 @@
 require_relative "boot"
+require_relative "../lib/bot_probe_filter"
 
 require "rails/all"
 
@@ -25,5 +26,6 @@ module Photos
     # config.eager_load_paths << Rails.root.join("extras")
     config.active_storage.queues.analysis = :analysis
     config.active_storage.queues.transform = :analysis
+    config.middleware.insert_before ActionDispatch::ShowExceptions, BotProbeFilter
   end
 end
