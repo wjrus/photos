@@ -19,6 +19,21 @@ class BotProbeFilterTest < ActionDispatch::IntegrationTest
     assert_equal "Not found\n", response.body
   end
 
+  test "scanner database and archive variants are suspicious" do
+    [
+      "/archives.tar.xz",
+      "/archives.sql.gz",
+      "/application.zst",
+      "/frontend.zip"
+    ].each do |path|
+      get path
+
+      assert_response :not_found
+      assert_equal "text/plain; charset=utf-8", response.content_type
+      assert_equal "Not found\n", response.body
+    end
+  end
+
   test "repeat scanner probes are rate limited only on suspicious paths" do
     app = BotProbeFilter.new(->(_env) { [ 200, { "Content-Type" => "text/plain" }, [ "ok" ] ] })
     request = Rack::MockRequest.new(app)

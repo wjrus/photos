@@ -8,8 +8,12 @@ class BotProbeFilter
     \A
     (?:
       api\.sql|
-      (?:backup|build|dump|db|database|data|export|site|website|www|app|application|archive|prod|production)
-      \.(?:7z|bak|bz2|gz|rar|sql|tar|tar\.(?:bz2|gz|xz)|tgz|xz|zip)
+      [a-z0-9_-]{2,64}
+      \.
+      (?:
+        7z|bak|bz2|gz|rar|sql|tar|tar\.(?:bz2|gz|xz|zst)|tgz|xz|zip|zst|
+        sql\.(?:bz2|gz|xz|zip|zst)
+      )
     )
     \z
   /ix
