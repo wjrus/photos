@@ -76,7 +76,7 @@ services:
           create_host_path: false
       - type: bind
         source: ./tmp/nginx/active_upstream.conf
-        target: /etc/nginx/conf.d/active_upstream.conf
+        target: /etc/nginx/active_upstream.conf
         read_only: true
         bind:
           create_host_path: false
