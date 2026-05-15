@@ -79,9 +79,9 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "signed in requests record last access and show it on users page" do
-    @owner.update!(last_accessed_at: 1.day.ago)
-
     travel_to Time.zone.local(2026, 5, 14, 12, 0, 0) do
+      @owner.update!(last_accessed_at: 1.day.ago)
+
       get users_path
 
       assert_response :success
