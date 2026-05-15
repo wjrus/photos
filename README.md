@@ -182,6 +182,7 @@ Follow logs:
 ./scripts/logs
 ./scripts/logs web
 ./scripts/logs web worker
+./scripts/logs all
 ```
 
 Open a Rails console:

@@ -281,5 +281,6 @@ Deploy complete.
 Useful follow-ups:
   ./scripts/logs
   ./scripts/logs web
+  ./scripts/logs all
   docker compose exec worker bin/rails console
 MSG

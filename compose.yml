@@ -18,7 +18,7 @@ x-web-service: &web
       condition: service_healthy
   healthcheck:
     test: ["CMD-SHELL", "curl -fsS -H \"Host: $${PHOTOS_HOST:-photos.example.com}\" http://127.0.0.1/up >/dev/null"]
-    interval: 5s
+    interval: 30s
     timeout: 3s
     start_period: 20s
     retries: 12
