@@ -42,7 +42,7 @@ container_state() {
 container_id_for() {
   local service="$1"
 
-  compose ps -q "$service"
+  compose ps -q "$service" 2>/dev/null || true
 }
 
 wait_for_state() {
@@ -101,6 +101,106 @@ wait_for_new_container() {
   fail "$service container was not recreated within ${timeout_seconds}s"
 }
 
+active_upstream_file() {
+  printf "%s\n" "tmp/nginx/active_upstream.conf"
+}
+
+write_active_upstream() {
+  local service="$1"
+  local upstream_file
+
+  upstream_file="$(active_upstream_file)"
+  mkdir -p "$(dirname "$upstream_file")"
+  printf "upstream photos_app { server %s:80; }\n" "$service" > "$upstream_file"
+}
+
+configured_web_service() {
+  local upstream_file
+
+  upstream_file="$(active_upstream_file)"
+  [[ -f "$upstream_file" ]] || {
+    printf "web_blue"
+    return
+  }
+
+  if grep -q "web_green" "$upstream_file"; then
+    printf "web_green"
+  else
+    printf "web_blue"
+  fi
+}
+
+other_web_service() {
+  case "$1" in
+    web_blue) printf "web_green" ;;
+    *) printf "web_blue" ;;
+  esac
+}
+
+healthy_service() {
+  [[ "$(container_state "$1")" == "healthy" ]]
+}
+
+active_web_service() {
+  local configured
+  local other
+
+  configured="$(configured_web_service)"
+  other="$(other_web_service "$configured")"
+
+  if healthy_service "$configured"; then
+    printf "%s" "$configured"
+  elif healthy_service "$other"; then
+    printf "%s" "$other"
+  else
+    printf "%s" "$configured"
+  fi
+}
+
+remove_legacy_web_container() {
+  local legacy_container
+
+  legacy_container="$(docker ps -aq \
+    --filter "label=com.docker.compose.project=photos" \
+    --filter "label=com.docker.compose.service=web" \
+    | head -n 1)"
+  [[ -n "$legacy_container" ]] || return 0
+
+  printf "removing legacy web container %s before binding app_proxy to port 3000\n" "$legacy_container"
+  docker stop "$legacy_container" >/dev/null || true
+  docker rm "$legacy_container" >/dev/null || true
+}
+
+reload_app_proxy() {
+  if [[ "$(container_state app_proxy)" == "running" ]]; then
+    compose exec -T app_proxy nginx -s reload
+  else
+    compose up -d --no-deps app_proxy
+  fi
+}
+
+wait_for_proxy_http() {
+  local timeout_seconds="$1"
+  local elapsed=0
+  local app_host
+
+  app_host="$(env_value PHOTOS_HOST .env.production)"
+  app_host="${app_host:-photos.example.com}"
+
+  while (( elapsed < timeout_seconds )); do
+    if curl -fsSI -H "Host: ${app_host}" "http://127.0.0.1:3000/up" >/dev/null; then
+      printf "app_proxy routed /up successfully\n"
+      return 0
+    fi
+
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+
+  compose logs --tail=120 app_proxy >&2 || true
+  fail "app_proxy did not route /up within ${timeout_seconds}s"
+}
+
 require_file ".env.production"
 require_file ".env.postgres"
 require_clean_tracked_worktree
@@ -109,6 +209,7 @@ storage_path="$(env_value PHOTOS_STORAGE_PATH .env.production)"
 [[ -n "$storage_path" ]] || fail "PHOTOS_STORAGE_PATH must be set in .env.production"
 [[ -d "$storage_path" ]] || fail "PHOTOS_STORAGE_PATH does not exist or is not a directory: $storage_path"
 export PHOTOS_STORAGE_PATH="$storage_path"
+export COMPOSE_PROFILES="${COMPOSE_PROFILES:-bluegreen}"
 
 require_storage_mount() {
   local service="$1"
@@ -131,26 +232,39 @@ git pull --ff-only
 log "Validating compose configuration"
 compose config >/dev/null
 
-log "Pulling database image"
-compose pull db
+log "Pulling base service images"
+compose pull db redis app_proxy
 
 log "Building application image"
-compose build --pull
+compose build --pull web_blue
 
 log "Starting infrastructure"
-compose up -d db redis --remove-orphans
+compose up -d db redis
 wait_for_state db healthy 120
 wait_for_state redis healthy 120
 
 log "Preparing database"
-compose run --rm --no-deps web ./bin/rails db:prepare
+compose run --rm --no-deps web_blue ./bin/rails db:prepare
 
 log "Starting web"
-old_web_container="$(container_id_for web)"
-SKIP_DB_PREPARE=true compose up -d --no-deps web --remove-orphans
-wait_for_new_container web "$old_web_container" 60
-require_storage_mount web
-wait_for_state web healthy 240
+active_web="$(active_web_service)"
+next_web="$(other_web_service "$active_web")"
+old_next_container="$(container_id_for "$next_web")"
+printf "active web: %s; next web: %s\n" "$active_web" "$next_web"
+
+SKIP_DB_PREPARE=true compose up -d --no-deps --force-recreate "$next_web"
+wait_for_new_container "$next_web" "$old_next_container" 60
+require_storage_mount "$next_web"
+wait_for_state "$next_web" healthy 240
+
+write_active_upstream "$next_web"
+remove_legacy_web_container
+reload_app_proxy
+wait_for_proxy_http 60
+
+if [[ "$active_web" != "$next_web" && -n "$(container_id_for "$active_web")" ]]; then
+  compose stop "$active_web"
+fi
 
 log "Starting worker"
 compose up -d --no-deps worker --remove-orphans
@@ -167,5 +281,5 @@ Deploy complete.
 Useful follow-ups:
   ./scripts/logs
   ./scripts/logs web
-  docker compose exec web bin/rails console
+  docker compose exec worker bin/rails console
 MSG

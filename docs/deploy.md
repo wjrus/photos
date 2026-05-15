@@ -2,7 +2,8 @@
 
 Production is a small Docker Compose stack:
 
-- `web`: Rails, Puma, Thruster, HTTP on host port `3000`
+- `app_proxy`: local nginx router on host port `3000`
+- `web_blue` / `web_green`: Rails, Puma, and Thruster app backends
 - `worker`: Solid Queue worker for checksums, EXIF, derivatives, and Drive mirrors
 - `db`: PostgreSQL with persistent data
 - `redis`: Redis cache for hot Rails cache entries
@@ -45,7 +46,17 @@ Build and start:
 ./scripts/deploy
 ```
 
-The deploy script runs `bin/rails db:prepare` before replacing the web container. That creates and migrates the primary, cache, queue, and cable databases without adding migration time to the web restart window. Redis is used for the runtime Rails cache when `REDIS_URL` is present; Solid Cache remains available as a fallback.
+The deploy script runs `bin/rails db:prepare` before switching web traffic. That creates and migrates the primary, cache, queue, and cable databases without adding migration time to the web restart window. Redis is used for the runtime Rails cache when `REDIS_URL` is present; Solid Cache remains available as a fallback.
+
+Deploys use a blue/green app backend behind the local `app_proxy` service:
+
+1. Build the new app image.
+2. Start the inactive app backend, either `web_blue` or `web_green`.
+3. Wait for that backend's `/up` healthcheck to pass.
+4. Reload `app_proxy` so Nginx Proxy Manager continues to hit host port `3000`, but traffic moves to the new backend.
+5. Stop the old backend after the proxy switch.
+
+The first deploy after enabling blue/green removes the old legacy `web` container so `app_proxy` can bind port `3000`; later deploys should only have a short proxy reload blip.
 
 Check status:
 
@@ -57,7 +68,7 @@ docker compose ps
 Open a Rails console:
 
 ```sh
-docker compose exec web bin/rails console
+docker compose exec worker bin/rails console
 ```
 
 ## Updates
@@ -66,7 +77,7 @@ docker compose exec web bin/rails console
 ./scripts/deploy
 ```
 
-The deploy script exports `PHOTOS_STORAGE_PATH` from `.env.production` before invoking Docker Compose, verifies that both app containers mount that exact path at `/rails/storage`, and waits for the web container healthcheck to pass before starting the worker.
+The deploy script exports `PHOTOS_STORAGE_PATH` from `.env.production` before invoking Docker Compose, verifies that app and worker containers mount that exact path at `/rails/storage`, and waits for the new app backend healthcheck to pass before switching `app_proxy`.
 
 If you need to run Docker Compose directly, export the storage path first:
 

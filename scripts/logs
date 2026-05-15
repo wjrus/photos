@@ -17,13 +17,23 @@ Examples:
   ./scripts/logs web
   ./scripts/logs web worker
 
-When no service is given, this follows web and worker logs.
+When no service is given, this follows app proxy, web backend, and worker logs.
+The shorthand service name "web" expands to app_proxy, web_blue, and web_green.
 USAGE
   exit 0
 fi
 
 if (( $# == 0 )); then
-  set -- web worker
+  set -- app_proxy web_blue web_green worker
 fi
 
-docker compose logs -f --tail=200 "$@"
+services=()
+for service in "$@"; do
+  if [[ "$service" == "web" ]]; then
+    services+=(app_proxy web_blue web_green)
+  else
+    services+=("$service")
+  fi
+done
+
+COMPOSE_PROFILES="${COMPOSE_PROFILES:-bluegreen}" docker compose logs -f --tail=200 "${services[@]}"

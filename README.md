@@ -125,14 +125,15 @@ rbenv exec bundle exec rails test:system
 
 Production runs as a Docker Compose stack:
 
-- `web`: Rails, Puma, and Thruster exposed on host port `3000`
+- `app_proxy`: local nginx router exposed on host port `3000`
+- `web_blue` / `web_green`: Rails, Puma, and Thruster app backends used for blue/green deploys
 - `worker`: Solid Queue workers for imports, archive mirrors, metadata, checksums, derivatives, and maintenance
 - `db`: PostgreSQL
 - `redis`: low-latency Rails cache for hot UI/data reads
 - mounted app storage for originals and generated derivatives
 - mounted read-only import storage for Google Takeout ZIPs
 
-A reverse proxy terminates TLS and proxies HTTP to the app host on port `3000`.
+A reverse proxy terminates TLS and proxies HTTP to the app host on port `3000`. The local `app_proxy` service keeps that host port stable while deploys switch between blue/green Rails backends.
 
 See [docs/deploy.md](docs/deploy.md) for VM setup, environment files, storage mounts, and backup notes.
 
@@ -150,7 +151,7 @@ The owner dashboard at `/repository_status` is the main operational page. It com
 Runtime controls live in the database via `AppSetting` and are managed from Repository Status. The default seed keeps original file auto-heal disabled:
 
 ```sh
-docker compose exec web bin/rails db:seed
+docker compose exec worker bin/rails db:seed
 ```
 
 Use the UI to enable auto-heal only when you want failed health checks to enqueue Drive restore jobs. The app intentionally does not use environment variables for this toggle.
@@ -158,7 +159,7 @@ Use the UI to enable auto-heal only when you want failed health checks to enqueu
 Queue a baseline repository scan from `/repository_status` with `Queue baseline scan`, or from the VM:
 
 ```sh
-docker compose exec web bin/rails runner 'OriginalFileHealthPatrolJob.perform_later(batch_size: 50000, stale_after: 100.years)'
+docker compose exec worker bin/rails runner 'OriginalFileHealthPatrolJob.perform_later(batch_size: 50000, stale_after: 100.years)'
 ```
 
 Routine patrols are scheduled through Solid Queue recurring jobs. The worker config includes a dedicated `solid_queue_recurring` worker plus bounded queues for imports, archive work, maintenance, analysis, video previews, derivatives, and default jobs.
@@ -186,13 +187,13 @@ Follow logs:
 Open a Rails console:
 
 ```sh
-docker compose exec web bin/rails console
+docker compose exec worker bin/rails console
 ```
 
 Apply idempotent default app settings:
 
 ```sh
-docker compose exec web bin/rails db:seed
+docker compose exec worker bin/rails db:seed
 ```
 
 Check import, metadata, derivative, archive, and queue status:
@@ -228,7 +229,7 @@ Prune stale jobs after code/queue changes:
 Queue a Google Takeout import from the configured import path:
 
 ```sh
-docker compose exec web bin/rails runner 'GoogleTakeoutImportJob.perform_later(GoogleTakeoutImportRun.create!(owner: User.find_by!(email: ENV.fetch("PHOTOS_OWNER_EMAIL")), path: ENV.fetch("PHOTOS_TAKEOUT_IMPORT_PATH", "/rails/imports/google-takeout")))'
+docker compose exec worker bin/rails runner 'GoogleTakeoutImportJob.perform_later(GoogleTakeoutImportRun.create!(owner: User.find_by!(email: ENV.fetch("PHOTOS_OWNER_EMAIL")), path: ENV.fetch("PHOTOS_TAKEOUT_IMPORT_PATH", "/rails/imports/google-takeout")))'
 ```
 
 Repository Status is the preferred home for repeatable maintenance controls:
