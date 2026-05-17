@@ -34,20 +34,22 @@ class MailgunClient
     end
 
     def configured?
-      api_key.present? && domain.present?
+      api_key.present? && domain.present? && sender_address.present?
     end
 
     def default_from
-      address = ENV.fetch("MAILGUN_FROM", "photos@example.com")
+      address = sender_address!
       return address if address.include?("<")
 
-      %("#{ENV.fetch('MAILGUN_FROM_NAME', 'Photos')}" <#{address}>)
+      %("#{sender_name}" <#{address}>)
     end
 
     private
 
     def deliver_via_api(message)
-      raise DeliveryError, "MAILGUN_API_KEY and MAILGUN_DOMAIN must be configured" unless configured?
+      unless configured?
+        raise DeliveryError, "MAILGUN_API_KEY, MAILGUN_DOMAIN, and MAILGUN_FROM or MAILER_SENDER must be configured"
+      end
 
       uri = URI.join(api_base, "/v3/#{domain}/messages")
       request = Net::HTTP::Post.new(uri)
@@ -81,15 +83,27 @@ class MailgunClient
     end
 
     def api_base
-      ENV.fetch("MAILGUN_API_BASE", "https://api.mailgun.net")
+      ENV["MAILGUN_API_BASE"].presence || ENV["MAILGUN_API_BASE_URL"].presence || "https://api.mailgun.net"
     end
 
     def default_headers
       {
-        "Reply-To" => ENV.fetch("MAILGUN_REPLY_TO", ENV.fetch("MAILGUN_FROM", "photos@example.com")),
+        "Reply-To" => ENV["MAILGUN_REPLY_TO"].presence || sender_address!,
         "Auto-Submitted" => "auto-generated",
         "X-Auto-Response-Suppress" => "All"
       }
+    end
+
+    def sender_address
+      ENV["MAILGUN_FROM"].presence || ENV["MAILER_SENDER"].presence
+    end
+
+    def sender_address!
+      sender_address || raise(DeliveryError, "MAILGUN_FROM or MAILER_SENDER must be configured")
+    end
+
+    def sender_name
+      ENV["MAILGUN_FROM_NAME"].presence || ENV["MAILER_SENDER_NAME"].presence || "Photos"
     end
 
     def mailgun_headers(headers)

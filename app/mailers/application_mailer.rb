@@ -1,4 +1,4 @@
 class ApplicationMailer < ActionMailer::Base
-  default from: "photos@example.com"
+  default from: -> { MailgunClient.default_from }
   layout "mailer"
 end

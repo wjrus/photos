@@ -76,7 +76,7 @@ PHOTOS_OWNER_EMAIL=owner@example.com
 PHOTOS_TRUSTED_VIEWER_EMAILS=
 MAILGUN_API_KEY=
 MAILGUN_DOMAIN=mg.example.com
-MAILGUN_FROM=photos@example.com
+MAILGUN_FROM=photos@example.invalid
 MAILGUN_FROM_NAME=Photos
 ```
 
@@ -281,13 +281,13 @@ PHOTOS_OWNER_EMAIL=owner@example.com
 PHOTOS_TRUSTED_VIEWER_EMAILS=
 MAILGUN_API_KEY=
 MAILGUN_DOMAIN=mg.example.com
-MAILGUN_FROM=photos@example.com
+MAILGUN_FROM=photos@example.invalid
 MAILGUN_FROM_NAME=Photos
 PHOTOS_LOCKED_FOLDER_PASSWORD=
 ```
 
 `REDIS_URL` is supplied internally by Compose. If it is absent, production falls back to Solid Cache.
 
-Mailgun is used for invitations and password resets. `MAILGUN_FROM_NAME` is used as the sender display name when `MAILGUN_FROM` is a bare address. `MAILGUN_REPLY_TO` and `MAILGUN_API_BASE` are optional.
+Mailgun is used for invitations and password resets. `MAILGUN_FROM` is required, with `MAILER_SENDER` supported as a legacy alias. `MAILGUN_FROM_NAME` is used as the sender display name when the sender is a bare address. `MAILGUN_REPLY_TO` is optional, and `MAILGUN_API_BASE_URL` is supported as an alias for `MAILGUN_API_BASE`.
 
 Runtime repository controls, such as original file auto-heal, are stored in the app settings table and controlled from `/repository_status`.

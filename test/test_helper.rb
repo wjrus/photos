@@ -1,4 +1,7 @@
 ENV["RAILS_ENV"] ||= "test"
+ENV["MAILGUN_API_KEY"] ||= "test-mailgun-key"
+ENV["MAILGUN_DOMAIN"] ||= "mg.example.invalid"
+ENV["MAILGUN_FROM"] ||= "photos@example.invalid"
 require_relative "../config/environment"
 require "rails/test_help"
 
