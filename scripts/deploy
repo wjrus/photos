@@ -21,6 +21,15 @@ require_file() {
   [[ -f "$1" ]] || fail "missing $1. Copy the matching .example file and fill it in."
 }
 
+append_compose_profile() {
+  local profile="$1"
+  local profiles=",${COMPOSE_PROFILES:-},"
+
+  if [[ "$profiles" != *",$profile,"* ]]; then
+    COMPOSE_PROFILES="${COMPOSE_PROFILES:+$COMPOSE_PROFILES,}$profile"
+  fi
+}
+
 require_clean_tracked_worktree() {
   git diff --quiet || fail "tracked files have unstaged changes. Commit, stash, or inspect them before deploying."
   git diff --cached --quiet || fail "tracked files have staged changes. Commit, stash, or inspect them before deploying."
@@ -209,7 +218,10 @@ storage_path="$(env_value PHOTOS_STORAGE_PATH .env.production)"
 [[ -n "$storage_path" ]] || fail "PHOTOS_STORAGE_PATH must be set in .env.production"
 [[ -d "$storage_path" ]] || fail "PHOTOS_STORAGE_PATH does not exist or is not a directory: $storage_path"
 export PHOTOS_STORAGE_PATH="$storage_path"
-export COMPOSE_PROFILES="${COMPOSE_PROFILES:-bluegreen}"
+COMPOSE_PROFILES="${COMPOSE_PROFILES:-bluegreen}"
+append_compose_profile bluegreen
+append_compose_profile analysis
+export COMPOSE_PROFILES
 
 require_storage_mount() {
   local service="$1"
@@ -238,10 +250,18 @@ compose pull db redis app_proxy
 log "Building application image"
 compose build --pull web_blue
 
+log "Building local analysis image"
+compose build --pull analysis-local
+
 log "Starting infrastructure"
 compose up -d db redis
 wait_for_state db healthy 120
 wait_for_state redis healthy 120
+
+log "Starting local analysis"
+compose up -d --no-deps analysis-local
+require_storage_mount analysis-local
+wait_for_state analysis-local healthy 600
 
 log "Preparing database"
 compose run --rm --no-deps web_blue ./bin/rails db:prepare
@@ -282,5 +302,6 @@ Useful follow-ups:
   ./scripts/logs
   ./scripts/logs web
   ./scripts/logs all
+  docker compose logs -f analysis-local
   docker compose exec worker bin/rails console
 MSG

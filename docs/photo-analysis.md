@@ -92,8 +92,10 @@ options should be reviewed before enabling broad backfills.
 
 ## Local Sidecar
 
-The Compose stack includes an optional `analysis-local` service behind the
-`analysis` profile:
+The deploy script enables the Compose `analysis` profile automatically, builds
+the `analysis-local` image, starts the sidecar, verifies its storage mount, and
+waits for `/health`. For manual local checks, the service is still available
+behind the `analysis` profile:
 
 ```sh
 docker compose --profile analysis up -d analysis-local

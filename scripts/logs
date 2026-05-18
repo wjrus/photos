@@ -16,11 +16,13 @@ Examples:
   ./scripts/logs
   ./scripts/logs web
   ./scripts/logs web worker
+  ./scripts/logs analysis
   ./scripts/logs all
 
 When no service is given, this follows app proxy and web backend logs.
 The shorthand service name "web" expands to app_proxy, web_blue, and web_green.
-The shorthand service name "all" expands to app_proxy, web_blue, web_green, and worker.
+The shorthand service name "analysis" expands to analysis-local.
+The shorthand service name "all" expands to app_proxy, web_blue, web_green, worker, and analysis-local.
 USAGE
   exit 0
 fi
@@ -33,9 +35,10 @@ services=()
 for service in "$@"; do
   case "$service" in
     web) services+=(app_proxy web_blue web_green) ;;
-    all) services+=(app_proxy web_blue web_green worker) ;;
+    analysis) services+=(analysis-local) ;;
+    all) services+=(app_proxy web_blue web_green worker analysis-local) ;;
     *) services+=("$service") ;;
   esac
 done
 
-COMPOSE_PROFILES="${COMPOSE_PROFILES:-bluegreen}" docker compose logs -f --tail=200 "${services[@]}"
+docker compose logs -f --tail=200 "${services[@]}"

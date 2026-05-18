@@ -124,6 +124,12 @@ services:
     image: photos-analysis-local:latest
     restart: unless-stopped
     profiles: ["analysis"]
+    healthcheck:
+      test: ["CMD-SHELL", "python - <<'PY'\nimport json, urllib.request\nwith urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3) as response:\n    raise SystemExit(0 if json.load(response).get('status') == 'ok' else 1)\nPY"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 12
     environment:
       MODEL_CACHE_DIR: /models
       ANALYSIS_INDEX_DIR: /analysis

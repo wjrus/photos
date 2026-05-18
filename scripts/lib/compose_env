@@ -23,6 +23,11 @@ load_compose_env() {
   }
 
   export PHOTOS_STORAGE_PATH="$storage_path"
+  if [[ -z "${COMPOSE_PROFILES:-}" ]]; then
+    export COMPOSE_PROFILES="bluegreen,analysis"
+  elif [[ ",$COMPOSE_PROFILES," != *",analysis,"* ]]; then
+    export COMPOSE_PROFILES="$COMPOSE_PROFILES,analysis"
+  fi
 
   local import_path
   import_path="$(awk -F= '$1 == "PHOTOS_IMPORT_PATH" { print substr($0, length($1) + 2); exit }' "$env_file")"

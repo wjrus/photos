@@ -5,6 +5,7 @@ Production is a small Docker Compose stack:
 - `app_proxy`: local nginx router on host port `3000`
 - `web_blue` / `web_green`: Rails, Puma, and Thruster app backends
 - `worker`: Solid Queue worker for checksums, EXIF, derivatives, and Drive mirrors
+- `analysis-local`: private local OpenCLIP/YOLO analysis sidecar
 - `db`: PostgreSQL with persistent data
 - `redis`: Redis cache for hot Rails cache entries
 - `app_storage`: persistent Active Storage originals and variants
@@ -48,6 +49,11 @@ Build and start:
 
 The deploy script runs `bin/rails db:prepare` before switching web traffic. That creates and migrates the primary, cache, queue, and cable databases without adding migration time to the web restart window. Redis is used for the runtime Rails cache when `REDIS_URL` is present; Solid Cache remains available as a fallback.
 
+The deploy script also enables the Compose `analysis` profile, builds
+`analysis-local`, starts it before Rails workers, verifies the storage mount, and
+waits for its `/health` check. Provider feature flags still default off in the
+app, so deploying the sidecar does not start broad analysis by itself.
+
 Deploys use a blue/green app backend behind the local `app_proxy` service:
 
 1. Build the new app image.
@@ -77,7 +83,7 @@ docker compose exec worker bin/rails console
 ./scripts/deploy
 ```
 
-The deploy script exports `PHOTOS_STORAGE_PATH` from `.env.production` before invoking Docker Compose, verifies that app and worker containers mount that exact path at `/rails/storage`, and waits for the new app backend healthcheck to pass before switching `app_proxy`.
+The deploy script exports `PHOTOS_STORAGE_PATH` from `.env.production` before invoking Docker Compose, verifies that app, worker, and analysis containers mount that exact path at `/rails/storage`, and waits for the new app backend healthcheck to pass before switching `app_proxy`.
 
 If you need to run Docker Compose directly, export the storage path first:
 
