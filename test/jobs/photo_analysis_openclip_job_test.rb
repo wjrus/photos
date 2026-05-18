@@ -57,6 +57,30 @@ class PhotoAnalysisOpenclipJobTest < ActiveJob::TestCase
     assert_equal photo.video_preview.blob.service.path_for(photo.video_preview.blob.key), client.calls.sole.fetch(:image_path)
   end
 
+  test "updates existing embedding metadata when a photo is analyzed again" do
+    AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENCLIP_ENABLED, true)
+    photo = attached_photo
+    client = FakeOpenclipClient.new(
+      "provider" => "openclip",
+      "model" => "ViT-B-32",
+      "model_version" => "laion2b_s34b_b79k",
+      "dimensions" => 512,
+      "index_key" => "ViT-B-32-laion2b_s34b_b79k/#{photo.id}.npy"
+    )
+
+    with_openclip_client(client) do
+      PhotoAnalysisOpenclipJob.perform_now(photo)
+      assert_difference "PhotoAnalysisRun.count", 1 do
+        assert_no_difference "PhotoEmbedding.count" do
+          PhotoAnalysisOpenclipJob.perform_now(photo)
+        end
+      end
+    end
+
+    assert_equal "complete", photo.analysis_runs.latest_first.first.status
+    assert_equal photo.analysis_runs.latest_first.first, photo.embeddings.sole.photo_analysis_run
+  end
+
   test "does nothing when disabled" do
     AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENCLIP_ENABLED, false)
 

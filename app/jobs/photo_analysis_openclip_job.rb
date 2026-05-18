@@ -24,11 +24,13 @@ class PhotoAnalysisOpenclipJob < ApplicationJob
       source_variant: run.source_variant
     )
 
-    photo.embeddings.create!(
-      photo_analysis_run: run,
+    embedding = photo.embeddings.find_or_initialize_by(
       provider: "openclip",
       model: response.fetch("model"),
-      model_version: response["model_version"],
+      model_version: response["model_version"]
+    )
+    embedding.update!(
+      photo_analysis_run: run,
       dimensions: response.fetch("dimensions"),
       source_variant: run.source_variant,
       index_key: response.fetch("index_key"),
