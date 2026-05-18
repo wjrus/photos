@@ -41,7 +41,7 @@
   <% end %>
   <div class="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent opacity-80"></div>
   <% if photo.description.present? %>
-    <p class="photo-card-caption pointer-events-none absolute inset-x-3 bottom-3 z-20 text-sm font-medium leading-5 text-white drop-shadow-md">
+    <p class="photo-card-caption pointer-events-none absolute inset-x-3 bottom-3 z-20 rounded-md bg-black/55 px-2.5 py-2 text-sm font-medium leading-5 text-white shadow-sm backdrop-blur-[2px]">
       <%= photo.description %>
     </p>
   <% end %>
