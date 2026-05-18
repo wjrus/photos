@@ -246,10 +246,10 @@ class RepositoryStatusController < ApplicationController
 
   def health_timeline
     checks = FileHealthCheck.where("checked_at >= ?", 24.hours.ago).pluck(:checked_at, :status)
-    buckets = 24.downto(0).map { |hours_ago| hours_ago.hours.ago.beginning_of_hour }.uniq.sort.index_with { Hash.new(0) }
+    buckets = 24.downto(0).map { |hours_ago| hours_ago.hours.ago.in_time_zone.beginning_of_hour }.uniq.sort.index_with { Hash.new(0) }
 
     checks.each do |checked_at, status|
-      bucket = checked_at.beginning_of_hour
+      bucket = checked_at.in_time_zone.beginning_of_hour
       buckets[bucket][status] += 1 if buckets.key?(bucket)
     end
 

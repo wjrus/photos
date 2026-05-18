@@ -67,6 +67,18 @@ class RepositoryStatusControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, repository_health_path
   end
 
+  test "file health timeline includes recent checks" do
+    photo = attached_photo
+    record_check(photo, checked_at: 8.minutes.ago)
+
+    get repository_status_path(section: "health")
+
+    assert_response :success
+    assert_includes response.body, "Last check"
+    assert_includes response.body, "1 checks"
+    assert_not_includes response.body, "No file health checks ran in the last 24 hours."
+  end
+
   test "owner can view activity section" do
     get repository_status_path(section: "activity")
 
@@ -215,6 +227,31 @@ class RepositoryStatusControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def attached_photo
+    path = Rails.root.join("public/icon.png")
+    photo = @owner.photos.new(
+      checksum_sha256: Digest::SHA256.file(path).hexdigest,
+      checksum_status: "complete"
+    )
+    photo.original.attach(io: File.open(path, "rb"), filename: "fixture.png", content_type: "image/png")
+    photo.save!
+    photo
+  end
+
+  def record_check(photo, checked_at:)
+    FileHealthCheck.create!(
+      photo: photo,
+      active_storage_blob: photo.original.blob,
+      blob_key: photo.original.blob.key,
+      status: "ok",
+      expected_byte_size: photo.original.blob.byte_size,
+      actual_byte_size: photo.original.blob.byte_size,
+      expected_checksum_md5: photo.original.blob.checksum,
+      actual_checksum_md5: photo.original.blob.checksum,
+      checked_at: checked_at
+    )
+  end
 
   def sign_in_as(user)
     OmniAuth.config.mock_auth[:google_oauth2] = OmniAuth::AuthHash.new(
