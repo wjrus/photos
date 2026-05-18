@@ -15,6 +15,7 @@ class RepositoryStatusController < ApplicationController
   before_action :require_owner!
 
   def show
+    @status_section = status_section
     @snapshot = QueueStatusSnapshot.build
     @queue_totals = @snapshot.totals
     @queues = @snapshot.queues
@@ -43,18 +44,18 @@ class RepositoryStatusController < ApplicationController
     case params[:scan_type].presence
     when "baseline"
       OriginalFileHealthPatrolJob.perform_later(batch_size: baseline_batch_size, stale_after: 100.years)
-      redirect_to repository_status_path, notice: "Baseline repository scan queued."
+      redirect_to repository_status_redirect_path, notice: "Baseline repository scan queued."
     when "analysis"
       providers = analysis_backfill_providers
       if providers.empty?
-        redirect_to repository_status_path, alert: "Enable at least one local analysis provider first."
+        redirect_to repository_status_redirect_path, alert: "Enable at least one local analysis provider first."
       else
         PhotoAnalysisBackfillJob.perform_later(providers: providers, batch_size: analysis_batch_size)
-        redirect_to repository_status_path, notice: "Photo analysis queued for #{providers.join(', ')}."
+        redirect_to repository_status_redirect_path, notice: "Photo analysis queued for #{providers.join(', ')}."
       end
     else
       OriginalFileHealthPatrolJob.perform_later(batch_size: patrol_batch_size)
-      redirect_to repository_status_path, notice: "Repository patrol queued."
+      redirect_to repository_status_redirect_path, notice: "Repository patrol queued."
     end
   end
 
@@ -62,20 +63,29 @@ class RepositoryStatusController < ApplicationController
     case params[:control].presence
     when "original_file_auto_heal"
       AppSetting.set_boolean!(AppSetting::ORIGINAL_FILE_AUTO_HEAL, params[:enabled])
-      redirect_to repository_status_path, notice: "Original file auto-heal #{params[:enabled] == 'true' ? 'enabled' : 'disabled'}."
+      redirect_to repository_status_redirect_path, notice: "Original file auto-heal #{params[:enabled] == 'true' ? 'enabled' : 'disabled'}."
     when "analysis"
       update_analysis_control
     when "queue"
       update_queue_control
     when "repository_events"
       RepositoryEvent.unread.update_all(read_at: Time.current, updated_at: Time.current)
-      redirect_to repository_status_path, notice: "Repository notifications marked read."
+      redirect_to repository_status_redirect_path, notice: "Repository notifications marked read."
     else
-      redirect_to repository_status_path, alert: "Unknown repository control."
+      redirect_to repository_status_redirect_path, alert: "Unknown repository control."
     end
   end
 
   private
+
+  def status_section
+    params[:section].presence_in(%w[overview maintenance analysis queues health activity]) || "overview"
+  end
+
+  def repository_status_redirect_path
+    section = status_section
+    section == "overview" ? repository_status_path : repository_status_path(section: section)
+  end
 
   def original_file_totals
     originals = original_photos
@@ -357,26 +367,26 @@ class RepositoryStatusController < ApplicationController
 
   def update_analysis_control
     key = params[:setting_key].to_s
-    return redirect_to repository_status_path, alert: "Unknown analysis setting." unless key.in?(AppSetting::ANALYSIS_BOOLEAN_SETTINGS.keys)
+    return redirect_to repository_status_redirect_path, alert: "Unknown analysis setting." unless key.in?(AppSetting::ANALYSIS_BOOLEAN_SETTINGS.keys)
 
     AppSetting.set_boolean!(key, params[:enabled])
-    redirect_to repository_status_path, notice: "#{analysis_control_label(key)} #{params[:enabled] == 'true' ? 'enabled' : 'disabled'}."
+    redirect_to repository_status_redirect_path, notice: "#{analysis_control_label(key)} #{params[:enabled] == 'true' ? 'enabled' : 'disabled'}."
   end
 
   def update_queue_control
     queue_name = params[:queue_name].to_s
-    return redirect_to repository_status_path, alert: "Unknown queue." unless queue_name.in?(MANAGED_QUEUE_NAMES)
+    return redirect_to repository_status_redirect_path, alert: "Unknown queue." unless queue_name.in?(MANAGED_QUEUE_NAMES)
 
     snapshot = QueueStatusSnapshot.build
     case params[:queue_action].presence
     when "pause"
       snapshot.pause_queue(queue_name)
-      redirect_to repository_status_path, notice: "#{queue_name} paused."
+      redirect_to repository_status_redirect_path, notice: "#{queue_name} paused."
     when "resume"
       snapshot.resume_queue(queue_name)
-      redirect_to repository_status_path, notice: "#{queue_name} resumed."
+      redirect_to repository_status_redirect_path, notice: "#{queue_name} resumed."
     else
-      redirect_to repository_status_path, alert: "Unknown queue action."
+      redirect_to repository_status_redirect_path, alert: "Unknown queue action."
     end
   end
 end

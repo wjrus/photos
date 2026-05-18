@@ -6,6 +6,16 @@
 <% stat_value_class = "mt-2 text-2xl font-semibold text-zinc-950" %>
 <% max_queue_count = [@queues.map { |queue| queue.fetch(:total) }.max.to_i, 1].max %>
 <% max_health_hour = [@health_timeline.map { |bucket| bucket.fetch(:healthy) + bucket.fetch(:attention) }.max.to_i, 1].max %>
+<% openclip = @analysis_status.fetch(:openclip) %>
+<% section_params = @status_section == "overview" ? {} : { section: @status_section } %>
+<% sections = [
+  [ "overview", "Overview" ],
+  [ "maintenance", "Maintenance" ],
+  [ "analysis", "Photo Analysis" ],
+  [ "queues", "Queues" ],
+  [ "health", "File Health" ],
+  [ "activity", "Activity" ]
+] %>
 
 <section class="min-h-screen bg-stone-50 text-zinc-950">
   <%= render "shared/site_header" %>
@@ -15,673 +25,300 @@
       <div>
         <p class="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Owner</p>
         <h1 class="mt-2 text-3xl font-semibold text-zinc-950">Repository status</h1>
-        <p class="mt-2 text-sm text-zinc-600">Generated <%= time_ago_in_words(@snapshot.generated_at) %> ago. A single board for storage, queues, derivatives, archive coverage, and file health.</p>
+        <p class="mt-2 text-sm text-zinc-600">Generated <%= time_ago_in_words(@snapshot.generated_at) %> ago. Maintenance controls, queue pressure, analysis coverage, storage, and file health are split into focused pages.</p>
       </div>
-
       <div class="flex flex-wrap gap-2">
-        <%= link_to "Refresh",
-              repository_status_path,
-              class: "inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
-        <%= button_to "Queue patrol",
-              repository_status_path,
-              method: :post,
-              params: { scan_type: "patrol", batch_size: OriginalFileHealthPatrolJob::DEFAULT_BATCH_SIZE },
-              class: "inline-flex items-center justify-center rounded-lg bg-zinc-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700" %>
-        <%= button_to "Queue baseline scan",
-              repository_status_path,
-              method: :post,
-              params: { scan_type: "baseline" },
-              class: "inline-flex items-center justify-center rounded-lg border border-teal-700 bg-teal-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950" %>
+        <%= link_to "Refresh", repository_status_path(section: @status_section), class: "inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+        <%= button_to "Queue patrol", repository_status_path, method: :post, params: section_params.merge(scan_type: "patrol", batch_size: OriginalFileHealthPatrolJob::DEFAULT_BATCH_SIZE), class: "inline-flex items-center justify-center rounded-lg bg-zinc-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700" %>
       </div>
     </div>
 
-    <%= render "shared/repository_nav" %>
+    <nav class="mt-5 overflow-x-auto rounded-lg border border-zinc-200 bg-white p-1 shadow-sm" aria-label="Repository status sections">
+      <div class="flex min-w-max gap-1">
+        <% sections.each do |key, label| %>
+          <%= link_to label,
+                repository_status_path(section: key),
+                class: "rounded-md px-3 py-2 text-sm font-semibold transition #{@status_section == key ? "bg-zinc-950 text-white" : "text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950"}" %>
+        <% end %>
+      </div>
+    </nav>
 
     <% unless @snapshot.available? %>
       <div class="mt-6 rounded-lg border border-rose-200 bg-rose-50 p-5 text-sm leading-6 text-rose-950">
-        The Solid Queue tables are not available from this process. Storage and file health stats may still be visible below.
+        The Solid Queue tables are not available from this process. Storage and file health stats may still be visible.
       </div>
     <% end %>
 
-    <div class="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-6">
-      <div class="<%= card_class %>">
-        <p class="<%= stat_label_class %>">Originals</p>
-        <p class="<%= stat_value_class %>"><%= number_with_delimiter(@originals.fetch(:total)) %></p>
-        <p class="mt-1 text-xs text-zinc-500"><%= number_to_human_size(@originals.fetch(:bytes)) %></p>
-      </div>
-      <div class="<%= card_class %>">
-        <p class="<%= stat_label_class %>">Queue ready</p>
-        <p class="<%= stat_value_class %>"><%= number_with_delimiter(@queue_totals.fetch(:ready)) %></p>
-        <p class="mt-1 text-xs text-zinc-500"><%= number_with_delimiter(@queue_totals.fetch(:claimed)) %> running</p>
-      </div>
-      <div class="<%= card_class %>">
-        <p class="<%= stat_label_class %>">Failed jobs</p>
-        <p class="mt-2 text-2xl font-semibold <%= @queue_totals.fetch(:failed).positive? ? "text-rose-800" : "text-zinc-950" %>"><%= number_with_delimiter(@queue_totals.fetch(:failed)) %></p>
-        <p class="mt-1 text-xs text-zinc-500"><%= number_with_delimiter(@queue_totals.fetch(:blocked)) %> blocked</p>
-      </div>
-      <div class="<%= card_class %>">
-        <p class="<%= stat_label_class %>">Health checked</p>
-        <p class="<%= stat_value_class %>"><%= number_with_delimiter(@health.fetch(:checked)) %></p>
-        <p class="mt-1 text-xs text-zinc-500"><%= @health.fetch(:checked_percent) %>% complete</p>
-      </div>
-      <div class="<%= card_class %>">
-        <p class="<%= stat_label_class %>">Attention</p>
-        <p class="mt-2 text-2xl font-semibold <%= @health.fetch(:attention).positive? ? "text-rose-800" : "text-zinc-950" %>"><%= number_with_delimiter(@health.fetch(:attention)) %></p>
-        <p class="mt-1 text-xs text-zinc-500"><%= number_with_delimiter(@health.fetch(:stale)) %> stale</p>
-      </div>
-      <div class="<%= card_class %>">
-        <p class="<%= stat_label_class %>">Drive archived</p>
-        <p class="<%= stat_value_class %>"><%= number_with_delimiter(@drive_archives.fetch("archived", 0)) %></p>
-        <p class="mt-1 text-xs text-zinc-500"><%= number_with_delimiter(@drive_archives.fetch("failed", 0)) %> failed</p>
-      </div>
-    </div>
-
-    <% if @pauses.any? %>
+    <% if @pauses.any? && @status_section != "queues" %>
       <div class="mt-6 flex flex-col gap-4 rounded-lg border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p class="text-sm font-semibold text-amber-950">Paused queues</p>
           <p class="mt-1 text-sm text-amber-900"><%= @pauses.map { |pause| pause.fetch("queue_name") }.join(", ") %></p>
         </div>
-        <%= button_to "Resume paused queues",
-              queue_pauses_path,
-              method: :delete,
-              class: "inline-flex w-fit items-center justify-center rounded-lg border border-amber-200 bg-white px-4 py-2 text-sm font-semibold text-amber-900 shadow-sm transition hover:border-amber-900 hover:bg-amber-900 hover:text-white" %>
+        <%= link_to "Manage queues", repository_status_path(section: "queues"), class: "inline-flex w-fit items-center justify-center rounded-lg border border-amber-200 bg-white px-4 py-2 text-sm font-semibold text-amber-900 shadow-sm transition hover:border-amber-900 hover:bg-amber-900 hover:text-white" %>
       </div>
     <% end %>
 
-    <section class="mt-6">
-      <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 class="<%= section_title_class %>">Controls</h2>
-          <p class="mt-1 text-sm text-zinc-600">Runtime switches for repository maintenance. Defaults stay conservative unless changed here.</p>
-        </div>
+    <% if @status_section == "overview" %>
+      <div class="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-6">
+        <div class="<%= card_class %>"><p class="<%= stat_label_class %>">Originals</p><p class="<%= stat_value_class %>"><%= number_with_delimiter(@originals.fetch(:total)) %></p><p class="mt-1 text-xs text-zinc-500"><%= number_to_human_size(@originals.fetch(:bytes)) %></p></div>
+        <div class="<%= card_class %>"><p class="<%= stat_label_class %>">Queue ready</p><p class="<%= stat_value_class %>"><%= number_with_delimiter(@queue_totals.fetch(:ready)) %></p><p class="mt-1 text-xs text-zinc-500"><%= number_with_delimiter(@queue_totals.fetch(:claimed)) %> running</p></div>
+        <div class="<%= card_class %>"><p class="<%= stat_label_class %>">Failed jobs</p><p class="mt-2 text-2xl font-semibold <%= @queue_totals.fetch(:failed).positive? ? "text-rose-800" : "text-zinc-950" %>"><%= number_with_delimiter(@queue_totals.fetch(:failed)) %></p><p class="mt-1 text-xs text-zinc-500"><%= number_with_delimiter(@queue_totals.fetch(:blocked)) %> blocked</p></div>
+        <div class="<%= card_class %>"><p class="<%= stat_label_class %>">Health checked</p><p class="<%= stat_value_class %>"><%= number_with_delimiter(@health.fetch(:checked)) %></p><p class="mt-1 text-xs text-zinc-500"><%= @health.fetch(:checked_percent) %>% complete</p></div>
+        <div class="<%= card_class %>"><p class="<%= stat_label_class %>">Attention</p><p class="mt-2 text-2xl font-semibold <%= @health.fetch(:attention).positive? ? "text-rose-800" : "text-zinc-950" %>"><%= number_with_delimiter(@health.fetch(:attention)) %></p><p class="mt-1 text-xs text-zinc-500"><%= number_with_delimiter(@health.fetch(:stale)) %> stale</p></div>
+        <div class="<%= card_class %>"><p class="<%= stat_label_class %>">OpenCLIP</p><p class="<%= stat_value_class %>"><%= openclip.fetch(:coverage_percent) %>%</p><p class="mt-1 text-xs text-zinc-500"><%= number_with_delimiter(openclip.fetch(:missing)) %> missing</p></div>
       </div>
-      <div class="mt-3 grid gap-3 xl:grid-cols-[24rem_1fr]">
-        <div class="space-y-3">
-          <div class="<%= card_class %>">
-            <div class="flex items-start justify-between gap-4">
-              <div>
-                <h3 class="text-sm font-semibold text-zinc-950">Google Drive authorization</h3>
-                <p class="mt-1 text-xs leading-5 text-zinc-500">Owner-only Drive access for archive mirrors and heals.</p>
-              </div>
-              <span class="rounded-lg border px-2 py-1 text-xs font-semibold <%= current_user.google_drive_authorized? ? "border-teal-200 bg-teal-50 text-teal-900" : "border-amber-200 bg-amber-50 text-amber-900" %>">
-                <%= current_user.google_drive_authorized? ? "connected" : "missing" %>
-              </span>
-            </div>
-            <div class="mt-4">
-              <%= button_to current_user.google_drive_authorized? ? "Reconnect Drive" : "Connect Drive",
-                    "/auth/google_oauth2",
-                    method: :post,
-                    params: {
-                      access_type: "offline",
-                      include_granted_scopes: "true",
-                      origin: repository_status_path,
-                      prompt: "consent select_account",
-                      scope: "openid,email,profile,#{GoogleDriveArchiveClient::DRIVE_SCOPE}"
-                    },
-                    data: { turbo: false },
-                    class: "inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
-            </div>
-          </div>
 
-          <div class="<%= card_class %>">
+      <div class="mt-6 grid gap-6 xl:grid-cols-3">
+        <section class="<%= card_class %>">
+          <h2 class="<%= section_title_class %>">Run Maintenance</h2>
+          <div class="mt-4 grid gap-2">
+            <%= button_to "Queue patrol", repository_status_path, method: :post, params: section_params.merge(scan_type: "patrol", batch_size: OriginalFileHealthPatrolJob::DEFAULT_BATCH_SIZE), class: "inline-flex w-full items-center justify-center rounded-lg bg-zinc-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700" %>
+            <%= button_to "Queue baseline scan", repository_status_path, method: :post, params: section_params.merge(scan_type: "baseline"), class: "inline-flex w-full items-center justify-center rounded-lg border border-teal-700 bg-teal-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950" %>
+            <%= link_to "Maintenance settings", repository_status_path(section: "maintenance"), class: "inline-flex w-full items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+          </div>
+        </section>
+
+        <section class="<%= card_class %>">
+          <h2 class="<%= section_title_class %>">Photo Analysis</h2>
+          <p class="mt-3 text-sm text-zinc-700"><%= number_with_delimiter(openclip.fetch(:embedded)) %> of <%= number_with_delimiter(openclip.fetch(:eligible)) %> OpenCLIP embeddings are ready.</p>
+          <div class="mt-3 h-2 overflow-hidden rounded-full bg-zinc-100"><div class="h-full rounded-full bg-teal-700" style="width: <%= [openclip.fetch(:coverage_percent), 100].min %>%"></div></div>
+          <div class="mt-4 grid gap-2">
+            <%= button_to "Queue 5,000 OpenCLIP", repository_status_path, method: :post, params: section_params.merge(scan_type: "analysis", providers: [ "openclip" ], batch_size: 5_000), class: "inline-flex w-full items-center justify-center rounded-lg bg-zinc-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700" %>
+            <%= link_to "Analysis settings", repository_status_path(section: "analysis"), class: "inline-flex w-full items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+          </div>
+        </section>
+
+        <section class="<%= card_class %>">
+          <h2 class="<%= section_title_class %>">Attention</h2>
+          <dl class="mt-4 space-y-3 text-sm">
+            <div class="flex justify-between gap-3"><dt class="text-zinc-600">File health issues</dt><dd class="font-semibold <%= @health.fetch(:attention).positive? ? "text-rose-800" : "text-zinc-950" %>"><%= number_with_delimiter(@health.fetch(:attention)) %></dd></div>
+            <div class="flex justify-between gap-3"><dt class="text-zinc-600">Failed queue jobs</dt><dd class="font-semibold <%= @queue_totals.fetch(:failed).positive? ? "text-rose-800" : "text-zinc-950" %>"><%= number_with_delimiter(@queue_totals.fetch(:failed)) %></dd></div>
+            <div class="flex justify-between gap-3"><dt class="text-zinc-600">Drive archive failures</dt><dd class="font-semibold <%= @drive_archives.fetch("failed", 0).positive? ? "text-rose-800" : "text-zinc-950" %>"><%= number_with_delimiter(@drive_archives.fetch("failed", 0)) %></dd></div>
+          </dl>
+          <%= link_to "Review activity", repository_status_path(section: "activity"), class: "mt-4 inline-flex w-full items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+        </section>
+      </div>
+    <% elsif @status_section == "maintenance" %>
+      <div class="mt-6 grid gap-6 xl:grid-cols-[1fr_24rem]">
+        <div class="space-y-6">
+          <section>
+            <h2 class="<%= section_title_class %>">Maintenance Actions</h2>
+            <div class="mt-3 grid gap-3 md:grid-cols-2">
+              <div class="<%= card_class %>">
+                <h3 class="text-sm font-semibold text-zinc-950">File patrol</h3>
+                <p class="mt-1 text-sm text-zinc-600">Checks a normal batch for missing, mismatched, or stale originals.</p>
+                <%= button_to "Queue patrol", repository_status_path, method: :post, params: section_params.merge(scan_type: "patrol", batch_size: OriginalFileHealthPatrolJob::DEFAULT_BATCH_SIZE), class: "mt-4 inline-flex items-center justify-center rounded-lg bg-zinc-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700" %>
+              </div>
+              <div class="<%= card_class %>">
+                <h3 class="text-sm font-semibold text-zinc-950">Baseline scan</h3>
+                <p class="mt-1 text-sm text-zinc-600">Queues a broad first-pass scan for originals that have not been checked.</p>
+                <%= button_to "Queue baseline scan", repository_status_path, method: :post, params: section_params.merge(scan_type: "baseline"), class: "mt-4 inline-flex items-center justify-center rounded-lg border border-teal-700 bg-teal-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950" %>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h2 class="<%= section_title_class %>">Derivative coverage</h2>
+            <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <% [
+                [ "Stream images", @derivatives.fetch(:stream_ready), @derivatives.fetch(:stream_missing), @derivatives.fetch(:image_total) ],
+                [ "Display images", @derivatives.fetch(:display_ready), @derivatives.fetch(:display_missing), @derivatives.fetch(:image_total) ],
+                [ "Video previews", @derivatives.fetch(:video_preview_ready), @derivatives.fetch(:video_preview_missing), @derivatives.fetch(:video_total) ],
+                [ "Video displays", @derivatives.fetch(:video_display_ready), @derivatives.fetch(:video_display_missing), @derivatives.fetch(:video_total) ]
+              ].each do |label, ready, missing, total| %>
+                <% percent = total.positive? ? (ready.to_f / total * 100).round(1) : 100.0 %>
+                <div class="<%= card_class %>">
+                  <p class="<%= stat_label_class %>"><%= label %></p>
+                  <p class="<%= stat_value_class %>"><%= number_with_delimiter(ready) %></p>
+                  <p class="mt-1 text-xs <%= missing.positive? ? "text-rose-800" : "text-zinc-500" %>"><%= number_with_delimiter(missing) %> missing</p>
+                  <div class="mt-3 h-2 overflow-hidden rounded-full bg-zinc-100"><div class="h-full rounded-full <%= missing.positive? ? "bg-amber-500" : "bg-teal-700" %>" style="width: <%= percent %>%"></div></div>
+                </div>
+              <% end %>
+            </div>
+            <p class="mt-3 text-xs text-zinc-500"><%= number_with_delimiter(@derivatives.fetch(:variant_records)) %> Active Storage variant records exist.</p>
+          </section>
+        </div>
+
+        <aside class="space-y-6">
+          <section class="<%= card_class %>">
+            <div class="flex items-start justify-between gap-4">
+              <div><h2 class="text-sm font-semibold text-zinc-950">Google Drive authorization</h2><p class="mt-1 text-xs leading-5 text-zinc-500">Owner-only Drive access for archive mirrors and heals.</p></div>
+              <span class="rounded-lg border px-2 py-1 text-xs font-semibold <%= current_user.google_drive_authorized? ? "border-teal-200 bg-teal-50 text-teal-900" : "border-amber-200 bg-amber-50 text-amber-900" %>"><%= current_user.google_drive_authorized? ? "connected" : "missing" %></span>
+            </div>
+            <%= button_to current_user.google_drive_authorized? ? "Reconnect Drive" : "Connect Drive", "/auth/google_oauth2", method: :post, params: { access_type: "offline", include_granted_scopes: "true", origin: repository_status_path(section: "maintenance"), prompt: "consent select_account", scope: "openid,email,profile,#{GoogleDriveArchiveClient::DRIVE_SCOPE}" }, data: { turbo: false }, class: "mt-4 inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+          </section>
+
+          <section class="<%= card_class %>">
             <% auto_heal = @controls.fetch(:auto_heal) %>
             <div class="flex items-start justify-between gap-4">
-              <div>
-                <h3 class="text-sm font-semibold text-zinc-950">Original file auto-heal</h3>
-                <p class="mt-1 text-xs leading-5 text-zinc-500">When enabled, failed health checks can enqueue Drive restore jobs for archived originals.</p>
-                <p class="mt-2 text-xs text-zinc-500">Source: <%= auto_heal.fetch(:source) %></p>
-              </div>
-              <span class="rounded-lg border px-2 py-1 text-xs font-semibold <%= auto_heal.fetch(:enabled) ? "border-teal-200 bg-teal-50 text-teal-900" : "border-zinc-200 bg-white text-zinc-700" %>">
-                <%= auto_heal.fetch(:enabled) ? "enabled" : "disabled" %>
-              </span>
+              <div><h2 class="text-sm font-semibold text-zinc-950">Original file auto-heal</h2><p class="mt-1 text-xs leading-5 text-zinc-500">Failed health checks can enqueue Drive restore jobs for archived originals.</p><p class="mt-2 text-xs text-zinc-500">Source: <%= auto_heal.fetch(:source) %></p></div>
+              <span class="rounded-lg border px-2 py-1 text-xs font-semibold <%= auto_heal.fetch(:enabled) ? "border-teal-200 bg-teal-50 text-teal-900" : "border-zinc-200 bg-white text-zinc-700" %>"><%= auto_heal.fetch(:enabled) ? "enabled" : "disabled" %></span>
             </div>
-            <div class="mt-4 flex flex-wrap gap-2">
-              <% if auto_heal.fetch(:enabled) %>
-                <%= button_to "Disable auto-heal",
-                      repository_status_path,
-                      method: :patch,
-                      params: { control: "original_file_auto_heal", enabled: "false" },
-                      class: "inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
-              <% else %>
-                <%= button_to "Enable auto-heal",
-                      repository_status_path,
-                      method: :patch,
-                      params: { control: "original_file_auto_heal", enabled: "true" },
-                      class: "inline-flex items-center justify-center rounded-lg bg-zinc-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700" %>
-              <% end %>
-            </div>
-          </div>
+            <%= button_to auto_heal.fetch(:enabled) ? "Disable auto-heal" : "Enable auto-heal", repository_status_path, method: :patch, params: section_params.merge(control: "original_file_auto_heal", enabled: (!auto_heal.fetch(:enabled)).to_s), class: "mt-4 inline-flex items-center justify-center rounded-lg #{auto_heal.fetch(:enabled) ? "border border-zinc-300 bg-white text-zinc-800 hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" : "bg-zinc-950 text-white hover:bg-teal-700"} px-4 py-2 text-sm font-semibold shadow-sm transition" %>
+          </section>
 
-          <div class="<%= card_class %>">
-            <div>
-              <h3 class="text-sm font-semibold text-zinc-950">Photo analysis</h3>
-              <p class="mt-1 text-xs leading-5 text-zinc-500">Provider gates for local and external classification. OpenAI stays disabled until explicitly enabled.</p>
-            </div>
-            <div class="mt-4 grid gap-2">
-              <%= button_to "Queue enabled local analysis",
-                    repository_status_path,
-                    method: :post,
-                    params: { scan_type: "analysis", batch_size: ENV.fetch("ANALYSIS_BACKFILL_BATCH_SIZE", PhotoAnalysisBackfillJob::DEFAULT_BATCH_SIZE) },
-                    class: "inline-flex w-full items-center justify-center rounded-lg bg-zinc-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700" %>
-              <div class="grid grid-cols-2 gap-2">
-                <%= button_to "Queue OpenCLIP",
-                      repository_status_path,
-                      method: :post,
-                      params: { scan_type: "analysis", providers: [ "openclip" ], batch_size: ENV.fetch("ANALYSIS_BACKFILL_BATCH_SIZE", PhotoAnalysisBackfillJob::DEFAULT_BATCH_SIZE) },
-                      class: "inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
-                <%= button_to "Queue YOLO",
-                      repository_status_path,
-                      method: :post,
-                      params: { scan_type: "analysis", providers: [ "yolo" ], batch_size: ENV.fetch("ANALYSIS_BACKFILL_BATCH_SIZE", PhotoAnalysisBackfillJob::DEFAULT_BATCH_SIZE) },
-                      class: "inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
-              </div>
-              <div class="grid grid-cols-2 gap-2">
-                <%= button_to "Queue 1,000 OpenCLIP",
-                      repository_status_path,
-                      method: :post,
-                      params: { scan_type: "analysis", providers: [ "openclip" ], batch_size: 1_000 },
-                      class: "inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
-                <%= button_to "Queue 5,000 OpenCLIP",
-                      repository_status_path,
-                      method: :post,
-                      params: { scan_type: "analysis", providers: [ "openclip" ], batch_size: 5_000 },
-                      class: "inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
-              </div>
-            </div>
-            <% openclip = @analysis_status.fetch(:openclip) %>
-            <div class="mt-4 rounded-lg border border-zinc-200 bg-stone-50 p-3">
-              <div class="flex items-start justify-between gap-3">
-                <div>
-                  <h4 class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">OpenCLIP coverage</h4>
-                  <p class="mt-1 text-sm font-semibold text-zinc-950"><%= number_with_delimiter(openclip.fetch(:embedded)) %> of <%= number_with_delimiter(openclip.fetch(:eligible)) %></p>
-                  <p class="mt-1 text-xs text-zinc-500"><%= openclip.fetch(:model) %> / <%= openclip.fetch(:model_version) %></p>
-                </div>
-                <span class="rounded-lg border border-teal-200 bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-900"><%= openclip.fetch(:coverage_percent) %>%</span>
-              </div>
-              <div class="mt-3 h-2 overflow-hidden rounded-full bg-zinc-200">
-                <div class="h-full rounded-full bg-teal-600" style="width: <%= [ openclip.fetch(:coverage_percent), 100 ].min %>%"></div>
-              </div>
-              <dl class="mt-3 grid grid-cols-3 gap-2 text-xs">
-                <div>
-                  <dt class="text-zinc-500">Missing</dt>
-                  <dd class="mt-1 font-semibold text-zinc-950"><%= number_with_delimiter(openclip.fetch(:missing)) %></dd>
-                </div>
-                <div>
-                  <dt class="text-zinc-500">Running</dt>
-                  <dd class="mt-1 font-semibold text-zinc-950"><%= number_with_delimiter(openclip.fetch(:run_counts).fetch("running")) %></dd>
-                </div>
-                <div>
-                  <dt class="text-zinc-500">Failed</dt>
-                  <dd class="mt-1 font-semibold text-zinc-950"><%= number_with_delimiter(openclip.fetch(:run_counts).fetch("failed")) %></dd>
-                </div>
-              </dl>
-              <% if openclip.fetch(:latest_errors).any? %>
-                <div class="mt-3 border-t border-zinc-200 pt-3">
-                  <p class="text-xs font-semibold text-zinc-700">Latest errors</p>
-                  <ul class="mt-2 space-y-1 text-xs text-zinc-500">
-                    <% openclip.fetch(:latest_errors).each do |run| %>
-                      <li class="truncate">#<%= run.id %> photo <%= run.photo_id %>: <%= run.error %></li>
-                    <% end %>
-                  </ul>
-                </div>
+          <section class="<%= card_class %>">
+            <h2 class="<%= section_title_class %>">Storage</h2>
+            <dl class="mt-3 space-y-3 text-sm">
+              <div class="flex justify-between gap-3"><dt class="font-medium text-zinc-700">Service</dt><dd class="font-semibold text-zinc-950"><%= @storage.fetch(:service) %></dd></div>
+              <div class="flex justify-between gap-3"><dt class="font-medium text-zinc-700">Service root</dt><dd class="max-w-64 break-words text-right text-zinc-700"><%= @storage.fetch(:root).presence || "unknown" %></dd></div>
+              <div class="flex justify-between gap-3"><dt class="font-medium text-zinc-700">Configured path</dt><dd class="max-w-64 break-words text-right text-zinc-700"><%= @storage.fetch(:configured_path).presence || "unset" %></dd></div>
+              <div class="flex justify-between gap-3"><dt class="font-medium text-zinc-700">Path check</dt><dd class="<%= @storage.fetch(:path_attention) ? "text-rose-800" : "text-zinc-950" %> font-semibold"><%= @storage.fetch(:path_attention) ? "attention" : "ok" %></dd></div>
+            </dl>
+          </section>
+
+          <section class="<%= card_class %>">
+            <h2 class="<%= section_title_class %>">Original mix</h2>
+            <dl class="mt-3 space-y-3 text-sm">
+              <% { "Images" => @originals.fetch(:images), "Videos" => @originals.fetch(:videos), "Public" => @originals.fetch(:public), "Private" => @originals.fetch(:private), "Locked" => @originals.fetch(:restricted), "Archived" => @originals.fetch(:archived) }.each do |label, count| %>
+                <div class="flex justify-between gap-3"><dt class="font-medium text-zinc-700"><%= label %></dt><dd class="font-semibold text-zinc-950"><%= number_with_delimiter(count) %></dd></div>
               <% end %>
+            </dl>
+          </section>
+        </aside>
+      </div>
+    <% elsif @status_section == "analysis" %>
+      <div class="mt-6 grid gap-6 xl:grid-cols-[1fr_24rem]">
+        <section class="<%= card_class %>">
+          <div class="flex items-start justify-between gap-3">
+            <div><h2 class="<%= section_title_class %>">OpenCLIP coverage</h2><p class="mt-2 text-sm text-zinc-600"><%= openclip.fetch(:model) %> / <%= openclip.fetch(:model_version) %></p></div>
+            <span class="rounded-lg border border-teal-200 bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-900"><%= openclip.fetch(:coverage_percent) %>%</span>
+          </div>
+          <p class="mt-4 text-3xl font-semibold text-zinc-950"><%= number_with_delimiter(openclip.fetch(:embedded)) %> <span class="text-base font-medium text-zinc-500">of <%= number_with_delimiter(openclip.fetch(:eligible)) %></span></p>
+          <div class="mt-4 h-2 overflow-hidden rounded-full bg-zinc-100"><div class="h-full rounded-full bg-teal-700" style="width: <%= [openclip.fetch(:coverage_percent), 100].min %>%"></div></div>
+          <dl class="mt-4 grid grid-cols-3 gap-3 text-sm">
+            <div><dt class="text-zinc-500">Missing</dt><dd class="mt-1 font-semibold text-zinc-950"><%= number_with_delimiter(openclip.fetch(:missing)) %></dd></div>
+            <div><dt class="text-zinc-500">Running</dt><dd class="mt-1 font-semibold text-zinc-950"><%= number_with_delimiter(openclip.fetch(:run_counts).fetch("running")) %></dd></div>
+            <div><dt class="text-zinc-500">Failed</dt><dd class="mt-1 font-semibold <%= openclip.fetch(:run_counts).fetch("failed").positive? ? "text-rose-800" : "text-zinc-950" %>"><%= number_with_delimiter(openclip.fetch(:run_counts).fetch("failed")) %></dd></div>
+          </dl>
+          <% if openclip.fetch(:latest_errors).any? %>
+            <div class="mt-5 border-t border-zinc-100 pt-4">
+              <h3 class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Latest errors</h3>
+              <ul class="mt-2 space-y-1 text-xs text-zinc-600"><% openclip.fetch(:latest_errors).each do |run| %><li class="truncate">#<%= run.id %> photo <%= run.photo_id %>: <%= run.error %></li><% end %></ul>
             </div>
-            <dl class="mt-4 space-y-3">
+          <% end %>
+        </section>
+
+        <aside class="space-y-6">
+          <section class="<%= card_class %>">
+            <h2 class="<%= section_title_class %>">Analysis Actions</h2>
+            <div class="mt-4 grid gap-2">
+              <%= button_to "Queue enabled local analysis", repository_status_path, method: :post, params: section_params.merge(scan_type: "analysis", batch_size: ENV.fetch("ANALYSIS_BACKFILL_BATCH_SIZE", PhotoAnalysisBackfillJob::DEFAULT_BATCH_SIZE)), class: "inline-flex w-full items-center justify-center rounded-lg bg-zinc-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700" %>
+              <%= button_to "Queue OpenCLIP", repository_status_path, method: :post, params: section_params.merge(scan_type: "analysis", providers: [ "openclip" ], batch_size: ENV.fetch("ANALYSIS_BACKFILL_BATCH_SIZE", PhotoAnalysisBackfillJob::DEFAULT_BATCH_SIZE)), class: "inline-flex w-full items-center justify-center rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+              <div class="grid grid-cols-2 gap-2">
+                <%= button_to "Queue 1,000", repository_status_path, method: :post, params: section_params.merge(scan_type: "analysis", providers: [ "openclip" ], batch_size: 1_000), class: "inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+                <%= button_to "Queue 5,000", repository_status_path, method: :post, params: section_params.merge(scan_type: "analysis", providers: [ "openclip" ], batch_size: 5_000), class: "inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+              </div>
+            </div>
+          </section>
+
+          <section class="<%= card_class %>">
+            <h2 class="<%= section_title_class %>">Feature Flags</h2>
+            <dl class="mt-3 space-y-3">
               <% @controls.fetch(:analysis).each do |setting| %>
                 <div class="flex items-start justify-between gap-3">
-                  <div>
-                    <dt class="text-sm font-medium text-zinc-800"><%= setting.fetch(:label) %></dt>
-                    <dd class="mt-1 text-xs text-zinc-500">Source: <%= setting.fetch(:source) %></dd>
-                  </div>
+                  <div><dt class="text-sm font-medium text-zinc-800"><%= setting.fetch(:label) %></dt><dd class="mt-1 text-xs text-zinc-500">Source: <%= setting.fetch(:source) %></dd></div>
                   <div class="flex shrink-0 items-center gap-2">
-                    <span class="rounded-lg border px-2 py-1 text-xs font-semibold <%= setting.fetch(:enabled) ? "border-teal-200 bg-teal-50 text-teal-900" : "border-zinc-200 bg-white text-zinc-700" %>">
-                      <%= setting.fetch(:enabled) ? "enabled" : "disabled" %>
-                    </span>
-                    <%= button_to setting.fetch(:enabled) ? "Disable" : "Enable",
-                          repository_status_path,
-                          method: :patch,
-                          params: { control: "analysis", setting_key: setting.fetch(:key), enabled: (!setting.fetch(:enabled)).to_s },
-                          class: "inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+                    <span class="rounded-lg border px-2 py-1 text-xs font-semibold <%= setting.fetch(:enabled) ? "border-teal-200 bg-teal-50 text-teal-900" : "border-zinc-200 bg-white text-zinc-700" %>"><%= setting.fetch(:enabled) ? "enabled" : "disabled" %></span>
+                    <%= button_to setting.fetch(:enabled) ? "Disable" : "Enable", repository_status_path, method: :patch, params: section_params.merge(control: "analysis", setting_key: setting.fetch(:key), enabled: (!setting.fetch(:enabled)).to_s), class: "inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
                   </div>
                 </div>
               <% end %>
             </dl>
-          </div>
-        </div>
-
-        <div class="overflow-x-auto rounded-lg border border-zinc-200 bg-white shadow-sm">
-          <table class="min-w-[42rem] w-full text-left text-sm">
-            <thead class="border-b border-zinc-200 bg-stone-50 text-xs uppercase tracking-[0.14em] text-zinc-500">
-              <tr>
-                <th class="px-4 py-3">Queue</th>
-                <th class="px-4 py-3 text-right">Ready</th>
-                <th class="px-4 py-3 text-right">Running</th>
-                <th class="px-4 py-3 text-right">Status</th>
-                <th class="px-4 py-3 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-zinc-100">
-              <% @controls.fetch(:queues).each do |queue| %>
-                <tr>
-                  <td class="px-4 py-3 font-medium text-zinc-950"><%= queue.fetch(:name) %></td>
-                  <td class="px-4 py-3 text-right text-zinc-700"><%= number_with_delimiter(queue.fetch(:ready)) %></td>
-                  <td class="px-4 py-3 text-right text-zinc-700"><%= number_with_delimiter(queue.fetch(:claimed)) %></td>
-                  <td class="px-4 py-3 text-right">
-                    <span class="rounded-lg border px-2 py-1 text-xs font-semibold <%= queue.fetch(:paused) ? "border-amber-200 bg-amber-50 text-amber-900" : "border-teal-200 bg-teal-50 text-teal-900" %>">
-                      <%= queue.fetch(:paused) ? "paused" : "active" %>
-                    </span>
-                  </td>
-                  <td class="px-4 py-3 text-right">
-                    <% if queue.fetch(:paused) %>
-                      <%= button_to "Resume",
-                            repository_status_path,
-                            method: :patch,
-                            params: { control: "queue", queue_name: queue.fetch(:name), queue_action: "resume" },
-                            class: "inline-flex items-center justify-center rounded-lg bg-zinc-950 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-teal-700" %>
-                    <% else %>
-                      <%= button_to "Pause",
-                            repository_status_path,
-                            method: :patch,
-                            params: { control: "queue", queue_name: queue.fetch(:name), queue_action: "pause" },
-                            class: "inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
-                    <% end %>
-                  </td>
-                </tr>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
+          </section>
+        </aside>
       </div>
-    </section>
-
-    <section class="mt-8">
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 class="<%= section_title_class %>">Repository activity</h2>
-          <p class="mt-1 text-sm text-zinc-600">Important file health and healing events. Unread events show in the owner menu.</p>
-        </div>
-        <% if @unread_repository_events.positive? %>
-          <%= button_to "Mark all read",
-                repository_status_path,
-                method: :patch,
-                params: { control: "repository_events" },
-                class: "inline-flex w-fit items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
-        <% end %>
-      </div>
-
-      <div class="mt-3 <%= card_class %>">
-        <% if @repository_events.any? %>
-          <ul class="divide-y divide-zinc-100">
-            <% @repository_events.each do |event| %>
-              <% severity_class = case event.severity
-                 when "critical", "error" then "border-rose-200 bg-rose-50 text-rose-900"
-                 when "warning" then "border-amber-200 bg-amber-50 text-amber-900"
-                 else "border-teal-200 bg-teal-50 text-teal-900"
-                 end %>
-              <li class="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:justify-between">
-                <div class="min-w-0">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <span class="rounded-lg border px-2 py-1 text-xs font-semibold <%= severity_class %>"><%= event.severity %></span>
-                    <% unless event.read? %>
-                      <span class="rounded-lg border border-rose-200 bg-white px-2 py-1 text-xs font-semibold text-rose-800">unread</span>
-                    <% end %>
-                  </div>
-                  <p class="mt-2 text-sm font-medium text-zinc-950"><%= event.message %></p>
-                  <% if event.data["error"].present? %>
-                    <p class="mt-1 break-words text-xs leading-5 text-rose-800"><%= event.data["error"] %></p>
-                  <% end %>
-                  <% if event.data["photo_id"].present? %>
-                    <%= link_to "Open photo",
-                          photo_path(event.data["photo_id"]),
-                          class: "mt-2 inline-block text-xs font-semibold text-zinc-700 underline decoration-zinc-300 underline-offset-4 hover:text-zinc-950 hover:decoration-zinc-950" %>
-                  <% end %>
-                </div>
-                <p class="shrink-0 text-xs text-zinc-500"><%= time_ago_in_words(event.occurred_at) %> ago</p>
-              </li>
-            <% end %>
-          </ul>
-        <% else %>
-          <p class="text-sm text-zinc-600">No repository events yet.</p>
-        <% end %>
-      </div>
-    </section>
-
-    <div class="mt-8 grid gap-6 xl:grid-cols-[1fr_28rem]">
-      <div class="space-y-8">
-        <section>
-          <h2 class="<%= section_title_class %>">Queue pressure</h2>
-          <div class="mt-3 grid gap-3 2xl:grid-cols-[minmax(18rem,0.85fr)_minmax(34rem,1.15fr)]">
-            <div class="<%= card_class %>">
-              <div class="flex items-center justify-between gap-3 text-sm">
-                <span class="font-medium text-zinc-700">Finished last hour</span>
-                <span class="font-semibold text-zinc-950"><%= number_with_delimiter(@finished_counts.fetch(:last_hour)) %></span>
-              </div>
-              <div class="mt-3 flex items-center justify-between gap-3 text-sm">
-                <span class="font-medium text-zinc-700">Finished last 24h</span>
-                <span class="font-semibold text-zinc-950"><%= number_with_delimiter(@finished_counts.fetch(:last_day)) %></span>
-              </div>
-              <div class="mt-5 space-y-3">
-                <% @queues.each do |queue| %>
-                  <% width = (queue.fetch(:total).to_f / max_queue_count * 100).round(1) %>
-                  <div>
-                    <div class="flex items-center justify-between gap-3 text-xs">
-                      <span class="font-semibold text-zinc-700"><%= queue.fetch(:name) %></span>
-                      <span class="text-zinc-500"><%= number_with_delimiter(queue.fetch(:total)) %></span>
-                    </div>
-                    <div class="mt-1 h-2 overflow-hidden rounded-full bg-zinc-100">
-                      <div class="h-full rounded-full bg-teal-700" style="width: <%= width %>%"></div>
-                    </div>
-                  </div>
-                <% end %>
-              </div>
-            </div>
-
-            <div class="overflow-x-auto rounded-lg border border-zinc-200 bg-white shadow-sm">
-              <table class="min-w-[34rem] w-full table-fixed text-left text-sm">
-                <colgroup>
-                  <col class="w-[58%]">
-                  <col class="w-[14%]">
-                  <col class="w-[14%]">
-                  <col class="w-[14%]">
-                </colgroup>
-                <thead class="border-b border-zinc-200 bg-stone-50 text-xs uppercase tracking-[0.14em] text-zinc-500">
-                  <tr>
-                    <th class="px-4 py-3">Class</th>
-                    <th class="px-4 py-3 text-right">Ready</th>
-                    <th class="px-4 py-3 text-right">Running</th>
-                    <th class="px-4 py-3 text-right">Failed</th>
-                  </tr>
-                </thead>
+    <% elsif @status_section == "queues" %>
+      <div class="mt-6 grid gap-6 xl:grid-cols-[1fr_24rem]">
+        <div class="space-y-6">
+          <section>
+            <h2 class="<%= section_title_class %>">Queue Controls</h2>
+            <div class="mt-3 overflow-x-auto rounded-lg border border-zinc-200 bg-white shadow-sm">
+              <table class="min-w-[42rem] w-full text-left text-sm">
+                <thead class="border-b border-zinc-200 bg-stone-50 text-xs uppercase tracking-[0.14em] text-zinc-500"><tr><th class="px-4 py-3">Queue</th><th class="px-4 py-3 text-right">Ready</th><th class="px-4 py-3 text-right">Running</th><th class="px-4 py-3 text-right">Status</th><th class="px-4 py-3 text-right">Action</th></tr></thead>
                 <tbody class="divide-y divide-zinc-100">
-                  <% @job_classes.each do |job_class| %>
-                    <% counts = job_class.fetch(:counts) %>
+                  <% @controls.fetch(:queues).each do |queue| %>
                     <tr>
-                      <td class="truncate px-4 py-3 font-medium text-zinc-950" title="<%= job_class.fetch(:name) %>"><%= job_class.fetch(:name) %></td>
-                      <td class="px-4 py-3 text-right text-zinc-700"><%= number_with_delimiter(counts.fetch(:ready)) %></td>
-                      <td class="px-4 py-3 text-right text-zinc-700"><%= number_with_delimiter(counts.fetch(:claimed)) %></td>
-                      <td class="px-4 py-3 text-right <%= counts.fetch(:failed).positive? ? "text-rose-800" : "text-zinc-700" %>"><%= number_with_delimiter(counts.fetch(:failed)) %></td>
+                      <td class="px-4 py-3 font-medium text-zinc-950"><%= queue.fetch(:name) %></td>
+                      <td class="px-4 py-3 text-right text-zinc-700"><%= number_with_delimiter(queue.fetch(:ready)) %></td>
+                      <td class="px-4 py-3 text-right text-zinc-700"><%= number_with_delimiter(queue.fetch(:claimed)) %></td>
+                      <td class="px-4 py-3 text-right"><span class="rounded-lg border px-2 py-1 text-xs font-semibold <%= queue.fetch(:paused) ? "border-amber-200 bg-amber-50 text-amber-900" : "border-teal-200 bg-teal-50 text-teal-900" %>"><%= queue.fetch(:paused) ? "paused" : "active" %></span></td>
+                      <td class="px-4 py-3 text-right"><%= button_to queue.fetch(:paused) ? "Resume" : "Pause", repository_status_path, method: :patch, params: section_params.merge(control: "queue", queue_name: queue.fetch(:name), queue_action: queue.fetch(:paused) ? "resume" : "pause"), class: "inline-flex items-center justify-center rounded-lg #{queue.fetch(:paused) ? "bg-zinc-950 text-white hover:bg-teal-700" : "border border-zinc-300 bg-white text-zinc-800 hover:border-zinc-950 hover:bg-zinc-950 hover:text-white"} px-3 py-2 text-xs font-semibold shadow-sm transition" %></td>
                     </tr>
                   <% end %>
                 </tbody>
               </table>
             </div>
-          </div>
-        </section>
+          </section>
 
-        <section>
-          <h2 class="<%= section_title_class %>">Derivative coverage</h2>
-          <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <% [
-              [ "Stream images", @derivatives.fetch(:stream_ready), @derivatives.fetch(:stream_missing), @derivatives.fetch(:image_total) ],
-              [ "Display images", @derivatives.fetch(:display_ready), @derivatives.fetch(:display_missing), @derivatives.fetch(:image_total) ],
-              [ "Video previews", @derivatives.fetch(:video_preview_ready), @derivatives.fetch(:video_preview_missing), @derivatives.fetch(:video_total) ],
-              [ "Video displays", @derivatives.fetch(:video_display_ready), @derivatives.fetch(:video_display_missing), @derivatives.fetch(:video_total) ]
-            ].each do |label, ready, missing, total| %>
-              <% percent = total.positive? ? (ready.to_f / total * 100).round(1) : 100.0 %>
+          <section>
+            <h2 class="<%= section_title_class %>">Queue Pressure</h2>
+            <div class="mt-3 grid gap-3 2xl:grid-cols-[minmax(18rem,0.85fr)_minmax(34rem,1.15fr)]">
               <div class="<%= card_class %>">
-                <p class="<%= stat_label_class %>"><%= label %></p>
-                <p class="<%= stat_value_class %>"><%= number_with_delimiter(ready) %></p>
-                <p class="mt-1 text-xs <%= missing.positive? ? "text-rose-800" : "text-zinc-500" %>"><%= number_with_delimiter(missing) %> missing</p>
-                <div class="mt-3 h-2 overflow-hidden rounded-full bg-zinc-100">
-                  <div class="h-full rounded-full <%= missing.positive? ? "bg-amber-500" : "bg-teal-700" %>" style="width: <%= percent %>%"></div>
-                </div>
+                <div class="flex justify-between gap-3 text-sm"><span class="font-medium text-zinc-700">Finished last hour</span><span class="font-semibold text-zinc-950"><%= number_with_delimiter(@finished_counts.fetch(:last_hour)) %></span></div>
+                <div class="mt-3 flex justify-between gap-3 text-sm"><span class="font-medium text-zinc-700">Finished last 24h</span><span class="font-semibold text-zinc-950"><%= number_with_delimiter(@finished_counts.fetch(:last_day)) %></span></div>
+                <div class="mt-5 space-y-3"><% @queues.each do |queue| %><% width = (queue.fetch(:total).to_f / max_queue_count * 100).round(1) %><div><div class="flex justify-between gap-3 text-xs"><span class="font-semibold text-zinc-700"><%= queue.fetch(:name) %></span><span class="text-zinc-500"><%= number_with_delimiter(queue.fetch(:total)) %></span></div><div class="mt-1 h-2 overflow-hidden rounded-full bg-zinc-100"><div class="h-full rounded-full bg-teal-700" style="width: <%= width %>%"></div></div></div><% end %></div>
               </div>
-            <% end %>
-          </div>
-          <p class="mt-3 text-xs text-zinc-500"><%= number_with_delimiter(@derivatives.fetch(:variant_records)) %> Active Storage variant records exist.</p>
-        </section>
-
-        <section>
-          <h2 class="<%= section_title_class %>">File health timeline</h2>
-          <div class="mt-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
-            <div class="flex h-36 items-end gap-1" aria-label="File health checks in the last 24 hours">
-              <% @health_timeline.each do |bucket| %>
-                <% total = bucket.fetch(:healthy) + bucket.fetch(:attention) %>
-                <% height = total.positive? ? [(total.to_f / max_health_hour * 100).round, 6].max : 2 %>
-                <div class="flex min-w-0 flex-1 flex-col items-center justify-end gap-1">
-                  <div class="w-full overflow-hidden rounded-t bg-zinc-100" style="height: <%= height %>%">
-                    <% attention_percent = total.positive? ? (bucket.fetch(:attention).to_f / total * 100).round : 0 %>
-                    <div class="bg-rose-500" style="height: <%= attention_percent %>%"></div>
-                    <div class="bg-teal-700" style="height: <%= 100 - attention_percent %>%"></div>
-                  </div>
-                </div>
-              <% end %>
+              <div class="overflow-x-auto rounded-lg border border-zinc-200 bg-white shadow-sm">
+                <table class="min-w-[34rem] w-full table-fixed text-left text-sm">
+                  <thead class="border-b border-zinc-200 bg-stone-50 text-xs uppercase tracking-[0.14em] text-zinc-500"><tr><th class="px-4 py-3">Class</th><th class="px-4 py-3 text-right">Ready</th><th class="px-4 py-3 text-right">Running</th><th class="px-4 py-3 text-right">Failed</th></tr></thead>
+                  <tbody class="divide-y divide-zinc-100"><% @job_classes.each do |job_class| %><% counts = job_class.fetch(:counts) %><tr><td class="truncate px-4 py-3 font-medium text-zinc-950" title="<%= job_class.fetch(:name) %>"><%= job_class.fetch(:name) %></td><td class="px-4 py-3 text-right text-zinc-700"><%= number_with_delimiter(counts.fetch(:ready)) %></td><td class="px-4 py-3 text-right text-zinc-700"><%= number_with_delimiter(counts.fetch(:claimed)) %></td><td class="px-4 py-3 text-right <%= counts.fetch(:failed).positive? ? "text-rose-800" : "text-zinc-700" %>"><%= number_with_delimiter(counts.fetch(:failed)) %></td></tr><% end %></tbody>
+                </table>
+              </div>
             </div>
-            <div class="mt-3 flex items-center justify-between gap-2 text-xs text-zinc-500">
-              <span>24h ago</span>
-              <span>now</span>
-            </div>
-          </div>
-        </section>
-
-        <section>
-          <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-            <h2 class="<%= section_title_class %>">Recent checks</h2>
-            <p class="text-xs text-zinc-500">Showing latest <%= @recent_checks.size %> of <%= number_with_delimiter(@health.fetch(:checked)) %>.</p>
-          </div>
-          <%= render "repository_health/check_table", checks: @recent_checks, empty: "No file health checks have run yet." %>
-        </section>
-
-        <section>
-          <h2 class="<%= section_title_class %>">Recent hash fingerprints</h2>
-          <div class="mt-3 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
-            <% if @recent_checks.any? %>
-              <table class="w-full text-left text-sm">
-                <thead class="border-b border-zinc-200 bg-stone-50 text-xs uppercase tracking-[0.14em] text-zinc-500">
-                  <tr>
-                    <th class="px-4 py-3">Photo</th>
-                    <th class="px-4 py-3">Blob key</th>
-                    <th class="px-4 py-3">MD5</th>
-                    <th class="px-4 py-3">SHA-256</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-zinc-100">
-                  <% @recent_checks.each do |check| %>
-                    <tr>
-                      <td class="max-w-[14rem] truncate px-4 py-3 font-medium text-zinc-950" title="<%= check.photo.original_filename %>"><%= check.photo.original_filename %></td>
-                      <td class="max-w-[12rem] truncate px-4 py-3 font-mono text-xs text-zinc-600" title="<%= check.blob_key %>"><%= check.blob_key %></td>
-                      <td class="max-w-[12rem] truncate px-4 py-3 font-mono text-xs <%= check.expected_checksum_md5.present? && check.actual_checksum_md5.present? && check.expected_checksum_md5 != check.actual_checksum_md5 ? "text-rose-800" : "text-zinc-600" %>" title="<%= check.actual_checksum_md5.presence || check.expected_checksum_md5 %>">
-                        <%= check.actual_checksum_md5.presence || check.expected_checksum_md5.presence || "unknown" %>
-                      </td>
-                      <td class="max-w-[16rem] truncate px-4 py-3 font-mono text-xs <%= check.expected_checksum_sha256.present? && check.actual_checksum_sha256.present? && check.expected_checksum_sha256 != check.actual_checksum_sha256 ? "text-rose-800" : "text-zinc-600" %>" title="<%= check.actual_checksum_sha256.presence || check.expected_checksum_sha256 %>">
-                        <%= check.actual_checksum_sha256.presence || check.expected_checksum_sha256.presence || "unknown" %>
-                      </td>
-                    </tr>
-                  <% end %>
-                </tbody>
-              </table>
-            <% else %>
-              <div class="p-6 text-sm text-zinc-600">No hash checks have run yet.</div>
-            <% end %>
-          </div>
-        </section>
+          </section>
+        </div>
+        <aside class="space-y-6">
+          <section class="<%= card_class %>"><h2 class="<%= section_title_class %>">Workers</h2><% if @processes.any? %><ul class="mt-3 space-y-4"><% @processes.first(8).each do |process| %><li class="text-sm"><div class="flex items-start justify-between gap-3"><p class="min-w-0 truncate font-medium text-zinc-950" title="<%= process.fetch("name") %>"><%= process.fetch("name") %></p><span class="shrink-0 rounded-lg border border-zinc-200 bg-stone-50 px-2 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-zinc-600"><%= process.fetch("kind") %></span></div><p class="mt-1 text-xs text-zinc-500">Heartbeat <%= time_ago_in_words(process.fetch("last_heartbeat_at")) %> ago</p></li><% end %></ul><% else %><p class="mt-3 text-sm text-zinc-600">No queue workers are registered.</p><% end %></section>
+          <section class="<%= card_class %>"><h2 class="<%= section_title_class %>">Recent failures</h2><% if @recent_failures.any? %><ul class="mt-3 space-y-4"><% @recent_failures.each do |failure| %><li class="text-sm"><div class="flex items-start justify-between gap-3"><p class="min-w-0 truncate font-medium text-zinc-950" title="<%= failure.fetch("class_name") %>"><%= failure.fetch("class_name") %></p><span class="shrink-0 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-900"><%= failure.fetch("queue_name") %></span></div><p class="mt-2 break-words text-xs leading-5 text-rose-800"><%= failure.fetch("error").to_s.lines.first(2).join.strip %></p><p class="mt-2 text-xs text-zinc-500"><%= time_ago_in_words(failure.fetch("failed_at")) %> ago</p></li><% end %></ul><% else %><p class="mt-3 text-sm text-zinc-600">No failed jobs.</p><% end %><%= link_to "Open full queue dashboard", queue_status_path, class: "mt-4 inline-flex w-full items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %></section>
+        </aside>
       </div>
-
-      <aside class="space-y-6">
-        <section>
-          <h2 class="<%= section_title_class %>">Storage</h2>
-          <div class="mt-3 <%= card_class %>">
-            <dl class="space-y-3 text-sm">
-              <div class="flex items-start justify-between gap-3">
-                <dt class="font-medium text-zinc-700">Service</dt>
-                <dd class="font-semibold text-zinc-950"><%= @storage.fetch(:service) %></dd>
-              </div>
-              <div class="flex items-start justify-between gap-3">
-                <dt class="font-medium text-zinc-700">Service root</dt>
-                <dd class="max-w-64 break-words text-right text-zinc-700"><%= @storage.fetch(:root).presence || "unknown" %></dd>
-              </div>
-              <div class="flex items-start justify-between gap-3">
-                <dt class="font-medium text-zinc-700">Configured path</dt>
-                <dd class="max-w-64 break-words text-right text-zinc-700"><%= @storage.fetch(:configured_path).presence || "unset" %></dd>
-              </div>
-              <div class="flex items-start justify-between gap-3">
-                <dt class="font-medium text-zinc-700">Path check</dt>
-                <dd class="<%= @storage.fetch(:path_attention) ? "text-rose-800" : "text-zinc-950" %> font-semibold">
-                  <%= @storage.fetch(:path_attention) ? "attention" : "ok" %>
-                </dd>
-              </div>
-              <div class="flex items-start justify-between gap-3">
-                <dt class="font-medium text-zinc-700">Auto-heal</dt>
-                <dd class="text-right font-semibold <%= @storage.fetch(:auto_heal) ? "text-teal-800" : "text-zinc-950" %>">
-                  <%= @storage.fetch(:auto_heal) ? "enabled" : "disabled" %>
-                  <span class="block text-xs font-normal text-zinc-500"><%= @storage.fetch(:auto_heal_source) %></span>
-                </dd>
-              </div>
-            </dl>
-          </div>
-        </section>
-
-        <section>
-          <h2 class="<%= section_title_class %>">Original mix</h2>
-          <div class="mt-3 <%= card_class %>">
-            <dl class="space-y-3 text-sm">
-              <% {
-                "Images" => @originals.fetch(:images),
-                "Videos" => @originals.fetch(:videos),
-                "Public" => @originals.fetch(:public),
-                "Private" => @originals.fetch(:private),
-                "Locked" => @originals.fetch(:restricted),
-                "Archived" => @originals.fetch(:archived)
-              }.each do |label, count| %>
-                <div class="flex items-center justify-between gap-3">
-                  <dt class="font-medium text-zinc-700"><%= label %></dt>
-                  <dd class="font-semibold text-zinc-950"><%= number_with_delimiter(count) %></dd>
-                </div>
-              <% end %>
-            </dl>
-          </div>
-        </section>
-
-        <section>
-          <h2 class="<%= section_title_class %>">Checksums and Drive</h2>
-          <div class="mt-3 grid gap-3">
-            <div class="<%= card_class %>">
-              <h3 class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">SHA-256</h3>
-              <dl class="mt-3 space-y-3 text-sm">
-                <% Photo::CHECKSUM_STATUSES.each do |status| %>
-                  <div class="flex items-center justify-between gap-3">
-                    <dt class="font-medium text-zinc-700"><%= status.humanize %></dt>
-                    <dd class="<%= status == "failed" && @checksums.fetch(status, 0).positive? ? "text-rose-800" : "text-zinc-950" %> font-semibold"><%= number_with_delimiter(@checksums.fetch(status, 0)) %></dd>
+    <% elsif @status_section == "health" %>
+      <div class="mt-6 grid gap-6 xl:grid-cols-[1fr_24rem]">
+        <div class="space-y-6">
+          <section>
+            <h2 class="<%= section_title_class %>">File health timeline</h2>
+            <div class="mt-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+              <div class="flex h-36 items-end gap-1" aria-label="File health checks in the last 24 hours"><% @health_timeline.each do |bucket| %><% total = bucket.fetch(:healthy) + bucket.fetch(:attention) %><% height = total.positive? ? [(total.to_f / max_health_hour * 100).round, 6].max : 2 %><div class="flex min-w-0 flex-1 flex-col items-center justify-end gap-1"><div class="w-full overflow-hidden rounded-t bg-zinc-100" style="height: <%= height %>%"><% attention_percent = total.positive? ? (bucket.fetch(:attention).to_f / total * 100).round : 0 %><div class="bg-rose-500" style="height: <%= attention_percent %>%"></div><div class="bg-teal-700" style="height: <%= 100 - attention_percent %>%"></div></div></div><% end %></div>
+              <div class="mt-3 flex items-center justify-between gap-2 text-xs text-zinc-500"><span>24h ago</span><span>now</span></div>
+            </div>
+          </section>
+          <section><div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between"><h2 class="<%= section_title_class %>">Recent checks</h2><p class="text-xs text-zinc-500">Showing latest <%= @recent_checks.size %> of <%= number_with_delimiter(@health.fetch(:checked)) %>.</p></div><%= render "repository_health/check_table", checks: @recent_checks, empty: "No file health checks have run yet." %></section>
+          <section><h2 class="<%= section_title_class %>">Recent hash fingerprints</h2><div class="mt-3 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm"><% if @recent_checks.any? %><table class="w-full text-left text-sm"><thead class="border-b border-zinc-200 bg-stone-50 text-xs uppercase tracking-[0.14em] text-zinc-500"><tr><th class="px-4 py-3">Photo</th><th class="px-4 py-3">Blob key</th><th class="px-4 py-3">MD5</th><th class="px-4 py-3">SHA-256</th></tr></thead><tbody class="divide-y divide-zinc-100"><% @recent_checks.each do |check| %><tr><td class="max-w-[14rem] truncate px-4 py-3 font-medium text-zinc-950" title="<%= check.photo.original_filename %>"><%= check.photo.original_filename %></td><td class="max-w-[12rem] truncate px-4 py-3 font-mono text-xs text-zinc-600" title="<%= check.blob_key %>"><%= check.blob_key %></td><td class="max-w-[12rem] truncate px-4 py-3 font-mono text-xs text-zinc-600"><%= check.actual_checksum_md5.presence || check.expected_checksum_md5.presence || "unknown" %></td><td class="max-w-[16rem] truncate px-4 py-3 font-mono text-xs text-zinc-600"><%= check.actual_checksum_sha256.presence || check.expected_checksum_sha256.presence || "unknown" %></td></tr><% end %></tbody></table><% else %><div class="p-6 text-sm text-zinc-600">No hash checks have run yet.</div><% end %></div></section>
+        </div>
+        <aside class="space-y-6">
+          <section class="<%= card_class %>"><h2 class="<%= section_title_class %>">File health status</h2><dl class="mt-3 space-y-3 text-sm"><% FileHealthCheck::STATUSES.each do |status| %><% count = @health.fetch(:status_counts).fetch(status, 0) %><div class="flex justify-between gap-3"><dt class="font-medium text-zinc-700"><%= status.humanize %></dt><dd class="<%= FileHealthCheck::ATTENTION_STATUSES.include?(status) && count.positive? ? "text-rose-800" : "text-zinc-950" %> font-semibold"><%= number_with_delimiter(count) %></dd></div><% end %></dl><div class="mt-4 border-t border-zinc-100 pt-4"><dl class="space-y-3 text-sm"><div class="flex justify-between gap-3"><dt class="font-medium text-zinc-700">Health queued</dt><dd class="font-semibold text-zinc-950"><%= number_with_delimiter(@health.fetch(:jobs).fetch(:ready)) %></dd></div><div class="flex justify-between gap-3"><dt class="font-medium text-zinc-700">Health running</dt><dd class="font-semibold text-zinc-950"><%= number_with_delimiter(@health.fetch(:jobs).fetch(:claimed)) %></dd></div><div class="flex justify-between gap-3"><dt class="font-medium text-zinc-700">Health failed</dt><dd class="<%= @health.fetch(:jobs).fetch(:failed).positive? ? "text-rose-800" : "text-zinc-950" %> font-semibold"><%= number_with_delimiter(@health.fetch(:jobs).fetch(:failed)) %></dd></div></dl></div></section>
+          <section class="<%= card_class %>"><h2 class="<%= section_title_class %>">Needs attention</h2><% if @recent_attention.any? %><ul class="mt-3 space-y-4"><% @recent_attention.each do |check| %><li class="text-sm"><div class="flex items-start justify-between gap-3"><%= link_to check.photo.original_filename, photo_path(check.photo), class: "min-w-0 truncate font-medium text-zinc-950 underline decoration-zinc-300 underline-offset-4 hover:decoration-zinc-950", title: check.photo.original_filename %><span class="shrink-0 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-900"><%= check.status %></span></div><% if check.error.present? %><p class="mt-2 break-words text-xs leading-5 text-rose-800"><%= check.error %></p><% end %><p class="mt-2 text-xs text-zinc-500"><%= time_ago_in_words(check.checked_at) %> ago</p></li><% end %></ul><% else %><p class="mt-3 text-sm text-zinc-600">Nothing needs attention.</p><% end %><%= link_to "Open full health log", repository_health_path, class: "mt-4 inline-flex w-full items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %></section>
+        </aside>
+      </div>
+    <% elsif @status_section == "activity" %>
+      <section class="mt-6">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div><h2 class="<%= section_title_class %>">Repository activity</h2><p class="mt-1 text-sm text-zinc-600">Important file health and healing events. Unread events show in the owner menu.</p></div>
+          <% if @unread_repository_events.positive? %><%= button_to "Mark all read", repository_status_path, method: :patch, params: section_params.merge(control: "repository_events"), class: "inline-flex w-fit items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %><% end %>
+        </div>
+        <div class="mt-3 <%= card_class %>">
+          <% if @repository_events.any? %>
+            <ul class="divide-y divide-zinc-100">
+              <% @repository_events.each do |event| %>
+                <% severity_class = case event.severity when "critical", "error" then "border-rose-200 bg-rose-50 text-rose-900" when "warning" then "border-amber-200 bg-amber-50 text-amber-900" else "border-teal-200 bg-teal-50 text-teal-900" end %>
+                <li class="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:justify-between">
+                  <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2"><span class="rounded-lg border px-2 py-1 text-xs font-semibold <%= severity_class %>"><%= event.severity %></span><% unless event.read? %><span class="rounded-lg border border-rose-200 bg-white px-2 py-1 text-xs font-semibold text-rose-800">unread</span><% end %></div>
+                    <p class="mt-2 text-sm font-medium text-zinc-950"><%= event.message %></p>
+                    <% if event.data["error"].present? %><p class="mt-1 break-words text-xs leading-5 text-rose-800"><%= event.data["error"] %></p><% end %>
+                    <% if event.data["photo_id"].present? %><%= link_to "Open photo", photo_path(event.data["photo_id"]), class: "mt-2 inline-block text-xs font-semibold text-zinc-700 underline decoration-zinc-300 underline-offset-4 hover:text-zinc-950 hover:decoration-zinc-950" %><% end %>
                   </div>
-                <% end %>
-              </dl>
-            </div>
-            <div class="<%= card_class %>">
-              <h3 class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Drive archive</h3>
-              <dl class="mt-3 space-y-3 text-sm">
-                <% DriveArchiveObject::STATUSES.each do |status| %>
-                  <div class="flex items-center justify-between gap-3">
-                    <dt class="font-medium text-zinc-700"><%= status.humanize %></dt>
-                    <dd class="<%= status == "failed" && @drive_archives.fetch(status, 0).positive? ? "text-rose-800" : "text-zinc-950" %> font-semibold"><%= number_with_delimiter(@drive_archives.fetch(status, 0)) %></dd>
-                  </div>
-                <% end %>
-              </dl>
-            </div>
-          </div>
-        </section>
-
-        <section>
-          <h2 class="<%= section_title_class %>">File health status</h2>
-          <div class="mt-3 <%= card_class %>">
-            <dl class="space-y-3 text-sm">
-              <% FileHealthCheck::STATUSES.each do |status| %>
-                <% count = @health.fetch(:status_counts).fetch(status, 0) %>
-                <div class="flex items-center justify-between gap-3">
-                  <dt class="font-medium text-zinc-700"><%= status.humanize %></dt>
-                  <dd class="<%= FileHealthCheck::ATTENTION_STATUSES.include?(status) && count.positive? ? "text-rose-800" : "text-zinc-950" %> font-semibold"><%= number_with_delimiter(count) %></dd>
-                </div>
+                  <p class="shrink-0 text-xs text-zinc-500"><%= time_ago_in_words(event.occurred_at) %> ago</p>
+                </li>
               <% end %>
-            </dl>
-            <div class="mt-4 border-t border-zinc-100 pt-4">
-              <dl class="space-y-3 text-sm">
-                <div class="flex items-center justify-between gap-3">
-                  <dt class="font-medium text-zinc-700">Health queued</dt>
-                  <dd class="font-semibold text-zinc-950"><%= number_with_delimiter(@health.fetch(:jobs).fetch(:ready)) %></dd>
-                </div>
-                <div class="flex items-center justify-between gap-3">
-                  <dt class="font-medium text-zinc-700">Health running</dt>
-                  <dd class="font-semibold text-zinc-950"><%= number_with_delimiter(@health.fetch(:jobs).fetch(:claimed)) %></dd>
-                </div>
-                <div class="flex items-center justify-between gap-3">
-                  <dt class="font-medium text-zinc-700">Health failed</dt>
-                  <dd class="<%= @health.fetch(:jobs).fetch(:failed).positive? ? "text-rose-800" : "text-zinc-950" %> font-semibold"><%= number_with_delimiter(@health.fetch(:jobs).fetch(:failed)) %></dd>
-                </div>
-              </dl>
-            </div>
-          </div>
-        </section>
-
-        <section>
-          <h2 class="<%= section_title_class %>">Needs attention</h2>
-          <div class="mt-3 <%= card_class %>">
-            <% if @recent_attention.any? %>
-              <ul class="space-y-4">
-                <% @recent_attention.each do |check| %>
-                  <li class="text-sm">
-                    <div class="flex items-start justify-between gap-3">
-                      <%= link_to check.photo.original_filename,
-                            photo_path(check.photo),
-                            class: "min-w-0 truncate font-medium text-zinc-950 underline decoration-zinc-300 underline-offset-4 hover:decoration-zinc-950",
-                            title: check.photo.original_filename %>
-                      <span class="shrink-0 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-900"><%= check.status %></span>
-                    </div>
-                    <% if check.error.present? %>
-                      <p class="mt-2 break-words text-xs leading-5 text-rose-800"><%= check.error %></p>
-                    <% end %>
-                    <p class="mt-2 text-xs text-zinc-500"><%= time_ago_in_words(check.checked_at) %> ago</p>
-                  </li>
-                <% end %>
-              </ul>
-            <% else %>
-              <p class="text-sm text-zinc-600">Nothing needs attention.</p>
-            <% end %>
-          </div>
-        </section>
-
-        <section>
-          <h2 class="<%= section_title_class %>">Recent failures</h2>
-          <div class="mt-3 <%= card_class %>">
-            <% if @recent_failures.any? %>
-              <ul class="space-y-4">
-                <% @recent_failures.each do |failure| %>
-                  <li class="text-sm">
-                    <div class="flex items-start justify-between gap-3">
-                      <p class="min-w-0 truncate font-medium text-zinc-950" title="<%= failure.fetch("class_name") %>"><%= failure.fetch("class_name") %></p>
-                      <span class="shrink-0 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-900"><%= failure.fetch("queue_name") %></span>
-                    </div>
-                    <p class="mt-2 break-words text-xs leading-5 text-rose-800"><%= failure.fetch("error").to_s.lines.first(2).join.strip %></p>
-                    <p class="mt-2 text-xs text-zinc-500"><%= time_ago_in_words(failure.fetch("failed_at")) %> ago</p>
-                  </li>
-                <% end %>
-              </ul>
-            <% else %>
-              <p class="text-sm text-zinc-600">No failed jobs.</p>
-            <% end %>
-          </div>
-        </section>
-
-        <section>
-          <h2 class="<%= section_title_class %>">Workers</h2>
-          <div class="mt-3 <%= card_class %>">
-            <% if @processes.any? %>
-              <ul class="space-y-4">
-                <% @processes.first(8).each do |process| %>
-                  <li class="text-sm">
-                    <div class="flex items-start justify-between gap-3">
-                      <p class="min-w-0 truncate font-medium text-zinc-950" title="<%= process.fetch("name") %>"><%= process.fetch("name") %></p>
-                      <span class="shrink-0 rounded-lg border border-zinc-200 bg-stone-50 px-2 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-zinc-600"><%= process.fetch("kind") %></span>
-                    </div>
-                    <p class="mt-1 text-xs text-zinc-500">Heartbeat <%= time_ago_in_words(process.fetch("last_heartbeat_at")) %> ago</p>
-                  </li>
-                <% end %>
-              </ul>
-            <% else %>
-              <p class="text-sm text-zinc-600">No queue workers are registered.</p>
-            <% end %>
-          </div>
-        </section>
-      </aside>
-    </div>
+            </ul>
+          <% else %>
+            <p class="text-sm text-zinc-600">No repository events yet.</p>
+          <% end %>
+        </div>
+      </section>
+    <% end %>
   </main>
 </section>

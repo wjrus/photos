@@ -17,19 +17,62 @@ class RepositoryStatusControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "Repository status"
-    assert_includes response.body, "Queue pressure"
-    assert_includes response.body, "Derivative coverage"
-    assert_includes response.body, "File health timeline"
-    assert_includes response.body, "Checksums and Drive"
-    assert_includes response.body, "Repository activity"
+    assert_includes response.body, "Maintenance"
+    assert_includes response.body, "Photo Analysis"
+    assert_includes response.body, "File Health"
     assert_includes response.body, "Queue patrol"
     assert_includes response.body, "Queue baseline scan"
+  end
+
+  test "owner can view maintenance section" do
+    get repository_status_path(section: "maintenance")
+
+    assert_response :success
+    assert_includes response.body, "Maintenance Actions"
+    assert_includes response.body, "Derivative coverage"
     assert_includes response.body, "Google Drive authorization"
-    assert_includes response.body, "OpenCLIP coverage"
-    assert_includes response.body, "Queue 5,000 OpenCLIP"
     assert_includes response.body, GoogleDriveArchiveClient::DRIVE_SCOPE
+    assert_includes response.body, "Original file auto-heal"
+  end
+
+  test "owner can view analysis section" do
+    get repository_status_path(section: "analysis")
+
+    assert_response :success
+    assert_includes response.body, "OpenCLIP coverage"
+    assert_includes response.body, "Analysis Actions"
+    assert_includes response.body, "Queue 5,000"
+    assert_includes response.body, "Feature Flags"
+  end
+
+  test "owner can view queues section" do
+    get repository_status_path(section: "queues")
+
+    assert_response :success
+    assert_includes response.body, "Queue Controls"
+    assert_includes response.body, "Queue Pressure"
+    assert_includes response.body, "Workers"
+    assert_includes response.body, "Recent failures"
     assert_includes response.body, queue_status_path
+  end
+
+  test "owner can view file health section" do
+    get repository_status_path(section: "health")
+
+    assert_response :success
+    assert_includes response.body, "File health timeline"
+    assert_includes response.body, "Recent checks"
+    assert_includes response.body, "Recent hash fingerprints"
+    assert_includes response.body, "File health status"
     assert_includes response.body, repository_health_path
+  end
+
+  test "owner can view activity section" do
+    get repository_status_path(section: "activity")
+
+    assert_response :success
+    assert_includes response.body, "Repository activity"
+    assert_includes response.body, "No repository events yet"
   end
 
   test "owner account menu links to repository status" do
@@ -152,6 +195,14 @@ class RepositoryStatusControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to repository_status_path
     assert_equal "Repository notifications marked read.", flash[:notice]
     assert event.reload.read?
+  end
+
+  test "owner actions return to the current repository status section" do
+    assert_enqueued_with(job: OriginalFileHealthPatrolJob) do
+      post repository_status_path, params: { section: "maintenance", scan_type: "patrol" }
+    end
+
+    assert_redirected_to repository_status_path(section: "maintenance")
   end
 
   test "non owner cannot update repository controls" do
