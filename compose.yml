@@ -127,6 +127,8 @@ services:
     environment:
       MODEL_CACHE_DIR: /models
       ANALYSIS_INDEX_DIR: /analysis
+      OPENCLIP_MODEL: ${OPENCLIP_MODEL:-ViT-B-32}
+      OPENCLIP_PRETRAINED: ${OPENCLIP_PRETRAINED:-laion2b_s34b_b79k}
     volumes:
       - ${PHOTOS_STORAGE_PATH:?Set PHOTOS_STORAGE_PATH to the production Active Storage path before running docker compose. Use ./scripts/deploy or export PHOTOS_STORAGE_PATH=/mnt/photos/app_storage.}:/rails/storage:ro
       - analysis_model_cache:/models

@@ -1,18 +1,35 @@
 require "test_helper"
 
 class PhotoAnalysisOpenclipJobTest < ActiveJob::TestCase
-  test "records skipped run while processor implementation is pending" do
+  test "records completed run and embedding metadata" do
     AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENCLIP_ENABLED, true)
     photo = attached_photo
+    client = FakeOpenclipClient.new(
+      "provider" => "openclip",
+      "model" => "ViT-B-32",
+      "model_version" => "laion2b_s34b_b79k",
+      "dimensions" => 512,
+      "index_key" => "ViT-B-32-laion2b_s34b_b79k/#{photo.id}.npy"
+    )
 
-    assert_difference "PhotoAnalysisRun.count", 1 do
-      PhotoAnalysisOpenclipJob.perform_now(photo)
+    with_openclip_client(client) do
+      assert_difference [ "PhotoAnalysisRun.count", "PhotoEmbedding.count" ], 1 do
+        PhotoAnalysisOpenclipJob.perform_now(photo)
+      end
     end
 
     run = photo.analysis_runs.sole
     assert_equal "openclip", run.provider
-    assert_equal "skipped", run.status
-    assert_includes run.error, "not implemented"
+    assert_equal "complete", run.status
+    assert_equal "ViT-B-32", run.model
+    assert_equal "laion2b_s34b_b79k", run.model_version
+
+    embedding = photo.embeddings.sole
+    assert_equal run, embedding.photo_analysis_run
+    assert_equal 512, embedding.dimensions
+    assert_equal "ViT-B-32-laion2b_s34b_b79k/#{photo.id}.npy", embedding.index_key
+    assert_equal photo.id, client.calls.sole.fetch(:photo_id)
+    assert File.exist?(client.calls.sole.fetch(:image_path))
   end
 
   test "does nothing when disabled" do
@@ -24,6 +41,25 @@ class PhotoAnalysisOpenclipJobTest < ActiveJob::TestCase
   end
 
   private
+
+  FakeOpenclipClient = Struct.new(:response, :calls, keyword_init: true) do
+    def initialize(response)
+      super(response: response, calls: [])
+    end
+
+    def openclip_embed(photo_id:, image_path:, source_variant:)
+      calls << { photo_id: photo_id, image_path: image_path, source_variant: source_variant }
+      response
+    end
+  end
+
+  def with_openclip_client(client)
+    original_new = PhotoAnalysisLocalClient.method(:new)
+    PhotoAnalysisLocalClient.define_singleton_method(:new) { client }
+    yield
+  ensure
+    PhotoAnalysisLocalClient.define_singleton_method(:new, original_new)
+  end
 
   def attached_photo
     photo = users(:one).photos.new(title: "OpenCLIP candidate")

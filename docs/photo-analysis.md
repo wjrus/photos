@@ -99,6 +99,7 @@ The Compose stack includes an optional `analysis-local` service behind the
 docker compose --profile analysis up -d analysis-local
 ```
 
-The initial sidecar exposes stable endpoint shapes and a health check. OpenCLIP
-and YOLO endpoints intentionally return `501` until their model dependencies and
-inference code are added.
+The sidecar exposes a health check plus OpenCLIP embedding/search endpoints.
+Embeddings are written under the `analysis_index` Docker volume. YOLO endpoints
+intentionally return `501` until their model dependencies and inference code are
+added.
