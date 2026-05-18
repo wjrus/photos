@@ -7,9 +7,11 @@ class PhotoAnalysisBackfillJob < ApplicationJob
     providers = Array(providers).map(&:to_s) & PhotoAnalysisRun::PROVIDERS
     return if providers.empty?
 
-    due_photos(batch_size: batch_size).each do |photo|
-      PhotoAnalysisOpenclipJob.perform_later(photo) if providers.include?("openclip")
-      PhotoAnalysisYoloJob.perform_later(photo) if providers.include?("yolo")
+    providers.each do |provider|
+      due_photos(provider: provider, batch_size: batch_size).each do |photo|
+        PhotoAnalysisOpenclipJob.perform_later(photo) if provider == "openclip"
+        PhotoAnalysisYoloJob.perform_later(photo) if provider == "yolo"
+      end
     end
   end
 
@@ -22,11 +24,26 @@ class PhotoAnalysisBackfillJob < ApplicationJob
     providers
   end
 
-  def due_photos(batch_size:)
-    Photo
+  def due_photos(provider:, batch_size:)
+    scope = Photo
       .joins(:original_attachment)
       .where(restricted: false)
       .reorder(Arel.sql("photos.captured_at DESC NULLS LAST, photos.created_at DESC, photos.id DESC"))
-      .limit(Integer(batch_size).clamp(1, 1_000))
+
+    scope = without_current_openclip_embedding(scope) if provider == "openclip"
+
+    scope.limit(Integer(batch_size).clamp(1, 1_000))
+  end
+
+  def without_current_openclip_embedding(scope)
+    scope.where.not(
+      id: PhotoEmbedding
+        .where(
+          provider: "openclip",
+          model: ENV.fetch("OPENCLIP_MODEL", "ViT-B-32"),
+          model_version: ENV.fetch("OPENCLIP_PRETRAINED", "laion2b_s34b_b79k")
+        )
+        .select(:photo_id)
+    )
   end
 end
