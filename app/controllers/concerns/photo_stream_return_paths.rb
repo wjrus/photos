@@ -87,7 +87,7 @@ module PhotoStreamReturnPaths
 
   def photo_stream_search_scope(uri)
     query = Rack::Utils.parse_nested_query(uri.query).symbolize_keys.slice(*PhotoSearch::FILTER_PARAMS)
-    search = PhotoSearch.new(params: query, user: current_user)
+    search = PhotoSearch.new(params: query, user: current_user, semantic: false)
 
     Photo
       .visible_to(current_user)

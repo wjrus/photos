@@ -9,7 +9,7 @@
          data-stream-timeline-day-key="<%= stream_time.strftime("%Y-%m-%d") %>"
          data-stream-timeline-hour-key="<%= stream_time.strftime("%Y-%m-%dT%H") %>">
   <% if owner_controls %>
-    <label class="selection-control absolute left-3 top-3 z-20 cursor-pointer"
+    <label class="selection-control absolute left-3 top-3 z-40 cursor-pointer"
            title="Select"
            data-action="change->bulk-selection#update">
       <%= check_box_tag "photo_ids[]", photo.id, false, form: bulk_form_id, aria: { label: "Select #{photo.title}" } %>
@@ -21,7 +21,7 @@
   <% link_data[:action] = "click->bulk-selection#toggleCard" if owner_controls %>
 
   <%= link_to photo_path(photo),
-        class: "absolute inset-0 z-10",
+        class: "absolute inset-0 z-30",
         aria: { label: "View #{photo.title}" },
         data: link_data do %>
     <span class="sr-only">View <%= photo.title %></span>

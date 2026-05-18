@@ -42,6 +42,25 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "OpenCLIP visual search enabled"
   end
 
+  test "opening a semantic search result does not rerun openclip for navigation" do
+    match = attached_photo(title: "Parking lot")
+    create_openclip_embedding(match)
+    AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENCLIP_ENABLED, true)
+    client = FakeOpenclipSearchClient.new([{ "photo_id" => match.id, "score" => 0.92 }])
+
+    with_openclip_client(client) do
+      get search_path(q: "car")
+      assert_response :success
+
+      get photo_path(match, return_to: search_path(q: "car"))
+      assert_redirected_to photo_path(match)
+      follow_redirect!
+    end
+
+    assert_response :success
+    assert_equal 1, client.calls
+  end
+
   test "search filters by camera and lens metadata" do
     match = attached_photo(title: "Fuji frame")
     match.create_metadata!(
@@ -198,8 +217,13 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
 
   private
 
-  FakeOpenclipSearchClient = Struct.new(:results) do
+  FakeOpenclipSearchClient = Struct.new(:results, :calls) do
+    def initialize(results)
+      super(results, 0)
+    end
+
     def openclip_search(query:, limit:)
+      self.calls += 1
       { "results" => results.first(limit) }
     end
   end

@@ -27,11 +27,26 @@ class PhotoOpenclipSearchTest < ActiveSupport::TestCase
     refute PhotoOpenclipSearch.available_for?(viewer)
   end
 
+  test "returns no semantic matches when local search times out" do
+    owner = users(:one)
+    create_openclip_embedding(attached_photo(owner, title: "Garage"))
+    AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENCLIP_ENABLED, true)
+    client = TimeoutOpenclipSearchClient.new
+
+    assert_equal [], PhotoOpenclipSearch.new(query: "car", user: owner, client: client).search_ids
+  end
+
   private
 
   FakeOpenclipSearchClient = Struct.new(:results) do
     def openclip_search(query:, limit:)
       { "results" => results.first(limit) }
+    end
+  end
+
+  class TimeoutOpenclipSearchClient
+    def openclip_search(query:, limit:)
+      raise Net::ReadTimeout
     end
   end
 

@@ -34,7 +34,7 @@ class PhotoOpenclipSearch
         .pluck(:id)
     )
     ranked_ids.select { |photo_id| visible_current_ids.include?(photo_id) }
-  rescue PhotoAnalysisLocalClient::Error => error
+  rescue PhotoAnalysisLocalClient::Error, Net::OpenTimeout, Net::ReadTimeout, Errno::ECONNREFUSED => error
     Rails.logger.warn("OpenCLIP semantic search failed: #{error.message}")
     []
   end

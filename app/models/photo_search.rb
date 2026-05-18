@@ -8,9 +8,10 @@ class PhotoSearch
 
   attr_reader :params, :user
 
-  def initialize(params:, user:)
+  def initialize(params:, user:, semantic: true)
     @params = params.symbolize_keys.slice(*self.class.filter_params_for(user))
     @user = user
+    @semantic = semantic
   end
 
   def results
@@ -46,7 +47,7 @@ class PhotoSearch
     album_ids = PhotoAlbum.visible_to(user).where("photo_albums.title ILIKE ?", query).pluck(:id)
     tagged_user_ids = User.where("users.name ILIKE :query OR users.email ILIKE :query", query: query).pluck(:id)
     location_ids = PhotoLocationPlace.matching_name(query).pluck(:location_id)
-    semantic_photo_ids = PhotoOpenclipSearch.search_ids(query: params[:q], user: user)
+    semantic_photo_ids = semantic_enabled? ? PhotoOpenclipSearch.search_ids(query: params[:q], user: user) : []
 
     scope
       .left_outer_joins(:photo_albums, photo_people_tags: :user)
@@ -81,6 +82,10 @@ class PhotoSearch
     end
 
     conditions.join(" OR ")
+  end
+
+  def semantic_enabled?
+    @semantic
   end
 
   def sanitize_location_condition(latitude_bucket, longitude_bucket, index)
