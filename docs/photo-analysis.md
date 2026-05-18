@@ -92,10 +92,12 @@ options should be reviewed before enabling broad backfills.
 
 ## Local Sidecar
 
-The deploy script enables the Compose `analysis` profile automatically, builds
-the `analysis-local` image, starts the sidecar, verifies its storage mount, and
-waits for `/health`. For manual local checks, the service is still available
-behind the `analysis` profile:
+The deploy script enables the Compose `analysis` profile automatically, starts
+the sidecar, verifies its storage mount, and waits for `/health`. It reuses the
+existing `photos-analysis-local:latest` image after the first build; use
+`REBUILD_ANALYSIS=true ./scripts/deploy` after sidecar code or dependency
+changes. For manual local checks, the service is still available behind the
+`analysis` profile:
 
 ```sh
 docker compose --profile analysis up -d analysis-local

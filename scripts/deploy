@@ -17,6 +17,13 @@ compose() {
   docker compose "$@"
 }
 
+truthy() {
+  case "${1:-}" in
+    1|true|TRUE|yes|YES|y|Y|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 require_file() {
   [[ -f "$1" ]] || fail "missing $1. Copy the matching .example file and fill it in."
 }
@@ -210,6 +217,24 @@ wait_for_proxy_http() {
   fail "app_proxy did not route /up within ${timeout_seconds}s"
 }
 
+analysis_image_exists() {
+  docker image inspect photos-analysis-local:latest >/dev/null 2>&1
+}
+
+analysis_image_needs_build() {
+  truthy "${REBUILD_ANALYSIS:-}" || ! analysis_image_exists
+}
+
+build_analysis_image_if_needed() {
+  if analysis_image_needs_build; then
+    log "Building local analysis image"
+    compose build --pull analysis-local
+  else
+    log "Reusing local analysis image"
+    printf "photos-analysis-local:latest already exists. Set REBUILD_ANALYSIS=true to rebuild it.\n"
+  fi
+}
+
 require_file ".env.production"
 require_file ".env.postgres"
 require_clean_tracked_worktree
@@ -250,8 +275,7 @@ compose pull db redis app_proxy
 log "Building application image"
 compose build --pull web_blue
 
-log "Building local analysis image"
-compose build --pull analysis-local
+build_analysis_image_if_needed
 
 log "Starting infrastructure"
 compose up -d db redis

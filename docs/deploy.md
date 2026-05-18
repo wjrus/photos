@@ -49,10 +49,18 @@ Build and start:
 
 The deploy script runs `bin/rails db:prepare` before switching web traffic. That creates and migrates the primary, cache, queue, and cable databases without adding migration time to the web restart window. Redis is used for the runtime Rails cache when `REDIS_URL` is present; Solid Cache remains available as a fallback.
 
-The deploy script also enables the Compose `analysis` profile, builds
-`analysis-local`, starts it before Rails workers, verifies the storage mount, and
-waits for its `/health` check. Provider feature flags still default off in the
-app, so deploying the sidecar does not start broad analysis by itself.
+The deploy script also enables the Compose `analysis` profile, starts
+`analysis-local` before Rails workers, verifies the storage mount, and waits for
+its `/health` check. Provider feature flags still default off in the app, so
+deploying the sidecar does not start broad analysis by itself.
+
+The local analysis image is intentionally large because it can use GPU-capable
+PyTorch builds. Deploy reuses `photos-analysis-local:latest` after the first
+build. Rebuild it explicitly after sidecar dependency/code changes with:
+
+```sh
+REBUILD_ANALYSIS=true ./scripts/deploy
+```
 
 Deploys use a blue/green app backend behind the local `app_proxy` service:
 
