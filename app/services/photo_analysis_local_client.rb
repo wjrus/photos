@@ -47,12 +47,28 @@ class PhotoAnalysisLocalClient
       http.request(request)
     end
 
-    body = response.body.present? ? JSON.parse(response.body) : {}
+    body = parse_body(response)
     return body if response.is_a?(Net::HTTPSuccess)
 
-    raise Error, body.fetch("detail", "Local analysis request failed with HTTP #{response.code}")
+    raise Error, error_message(response, body)
   rescue JSON::ParserError => error
     raise Error, "Local analysis returned invalid JSON: #{error.message}"
+  end
+
+  def parse_body(response)
+    return {} if response.body.blank?
+
+    JSON.parse(response.body)
+  rescue JSON::ParserError
+    return { "_raw_body" => response.body } unless response.is_a?(Net::HTTPSuccess)
+
+    raise
+  end
+
+  def error_message(response, body)
+    detail = body["detail"].presence || body["_raw_body"].presence
+    detail = detail.truncate(500) if detail.respond_to?(:truncate)
+    "Local analysis request failed with HTTP #{response.code}: #{detail.presence || response.message}"
   end
 
   def uri_for(path)

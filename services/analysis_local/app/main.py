@@ -1,13 +1,25 @@
 import os
+import logging
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 
 app = FastAPI(title="Photos Local Analysis", version="0.1.0")
+logger = logging.getLogger("photos.analysis_local")
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(_request: Request, exc: Exception) -> JSONResponse:
+    logger.exception("Unhandled local analysis error")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"{exc.__class__.__name__}: {exc}"},
+    )
 
 
 class ImagePathRequest(BaseModel):
