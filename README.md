@@ -21,6 +21,7 @@ The app is intentionally closer to a personal Google Photos/Flickr hybrid than a
 - Sends invitation and password-reset links through Mailgun.
 - Imports Google Takeout ZIP archives while preserving album memberships and sidecar metadata.
 - Provides an owner-only repository status dashboard for queues, file health, derivative coverage, storage checks, runtime controls, and repository activity notifications.
+- Provides the foundation for opt-in photo analysis with local OpenCLIP semantic search, local YOLO object detection, and later OpenAI vision enrichment.
 - Keeps a separate owner-only locked private route for sensitive material.
 
 ## Privacy Model
@@ -45,6 +46,7 @@ The owner can upload, import, publish, unpublish, archive, restore, tag people, 
 - **Drive archive**: Google Drive mirror of originals. It is an archive copy, not the only source of truth.
 - **Takeout imports**: Google Photos Takeout ZIP imports for backfilling the library and imported albums.
 - **Repository health**: owner-only patrol jobs that read originals, verify size/checksums, report problems, record important activity, and can optionally heal from Drive.
+- **Photo analysis**: opt-in provider pipelines for local embeddings, object detection, and later external vision enrichment. See [Photo Analysis Plan](docs/photo-analysis.md).
 - **App settings**: runtime toggles stored in the database and managed from Repository Status. Environment files are for secrets and deploy wiring, not feature switches.
 
 ## Development

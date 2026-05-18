@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_15_103000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_17_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -179,6 +179,84 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_103000) do
     t.index ["published_at"], name: "index_photo_albums_on_published_at"
     t.index ["updated_at"], name: "index_photo_albums_on_updated_at"
     t.index ["visibility"], name: "index_photo_albums_on_visibility"
+  end
+
+  create_table "photo_analysis_objects", force: :cascade do |t|
+    t.decimal "confidence", precision: 6, scale: 5
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.bigint "photo_analysis_run_id", null: false
+    t.bigint "photo_id", null: false
+    t.string "provider", null: false
+    t.jsonb "raw", default: {}, null: false
+    t.datetime "updated_at", null: false
+    t.decimal "x_max", precision: 8, scale: 5
+    t.decimal "x_min", precision: 8, scale: 5
+    t.decimal "y_max", precision: 8, scale: 5
+    t.decimal "y_min", precision: 8, scale: 5
+    t.index ["name", "confidence"], name: "index_photo_analysis_objects_on_name_and_confidence"
+    t.index ["photo_analysis_run_id"], name: "index_photo_analysis_objects_on_photo_analysis_run_id"
+    t.index ["photo_id", "provider", "name"], name: "index_photo_analysis_objects_on_photo_id_and_provider_and_name"
+    t.index ["photo_id"], name: "index_photo_analysis_objects_on_photo_id"
+  end
+
+  create_table "photo_analysis_runs", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "error"
+    t.datetime "finished_at"
+    t.string "model", null: false
+    t.string "model_version"
+    t.bigint "photo_id", null: false
+    t.string "provider", null: false
+    t.jsonb "raw", default: {}, null: false
+    t.string "source_checksum_sha256"
+    t.string "source_variant", default: "display", null: false
+    t.datetime "started_at"
+    t.string "status", default: "pending", null: false
+    t.text "summary"
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_photo_analysis_runs_on_created_at"
+    t.index ["photo_id", "provider", "model", "model_version"], name: "index_photo_analysis_runs_on_photo_provider_model"
+    t.index ["photo_id"], name: "index_photo_analysis_runs_on_photo_id"
+    t.index ["provider", "status"], name: "index_photo_analysis_runs_on_provider_and_status"
+  end
+
+  create_table "photo_analysis_tags", force: :cascade do |t|
+    t.string "category"
+    t.decimal "confidence", precision: 6, scale: 5
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.bigint "photo_analysis_run_id", null: false
+    t.bigint "photo_id", null: false
+    t.string "provider", null: false
+    t.jsonb "raw", default: {}, null: false
+    t.datetime "updated_at", null: false
+    t.index ["category"], name: "index_photo_analysis_tags_on_category"
+    t.index ["name", "confidence"], name: "index_photo_analysis_tags_on_name_and_confidence"
+    t.index ["photo_analysis_run_id"], name: "index_photo_analysis_tags_on_photo_analysis_run_id"
+    t.index ["photo_id", "provider", "name"], name: "index_photo_analysis_tags_on_photo_id_and_provider_and_name", unique: true
+    t.index ["photo_id"], name: "index_photo_analysis_tags_on_photo_id"
+  end
+
+  create_table "photo_embeddings", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "dimensions", null: false
+    t.datetime "embedded_at", null: false
+    t.string "index_key", null: false
+    t.string "model", null: false
+    t.string "model_version"
+    t.bigint "photo_analysis_run_id"
+    t.bigint "photo_id", null: false
+    t.string "provider", null: false
+    t.jsonb "raw", default: {}, null: false
+    t.string "source_checksum_sha256"
+    t.string "source_variant", default: "display", null: false
+    t.datetime "updated_at", null: false
+    t.index ["index_key"], name: "index_photo_embeddings_on_index_key", unique: true
+    t.index ["photo_analysis_run_id"], name: "index_photo_embeddings_on_photo_analysis_run_id"
+    t.index ["photo_id", "provider", "model", "model_version"], name: "index_photo_embeddings_on_photo_provider_model", unique: true
+    t.index ["photo_id"], name: "index_photo_embeddings_on_photo_id"
+    t.index ["provider", "model"], name: "index_photo_embeddings_on_provider_and_model"
   end
 
   create_table "photo_location_bounds", force: :cascade do |t|
@@ -371,6 +449,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_103000) do
   add_foreign_key "photo_album_shares", "users", column: "shared_by_id"
   add_foreign_key "photo_albums", "photos", column: "cover_photo_id"
   add_foreign_key "photo_albums", "users", column: "owner_id"
+  add_foreign_key "photo_analysis_objects", "photo_analysis_runs"
+  add_foreign_key "photo_analysis_objects", "photos"
+  add_foreign_key "photo_analysis_runs", "photos"
+  add_foreign_key "photo_analysis_tags", "photo_analysis_runs"
+  add_foreign_key "photo_analysis_tags", "photos"
+  add_foreign_key "photo_embeddings", "photo_analysis_runs"
+  add_foreign_key "photo_embeddings", "photos"
   add_foreign_key "photo_location_covers", "photos", column: "cover_photo_id"
   add_foreign_key "photo_location_covers", "users", column: "owner_id"
   add_foreign_key "photo_metadata", "photos"

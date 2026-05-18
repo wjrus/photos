@@ -23,6 +23,10 @@ class Photo < ApplicationRecord
   has_one :metadata, class_name: "PhotoMetadata", dependent: :destroy, inverse_of: :photo
   has_one :drive_archive_object, dependent: :destroy
   has_many :file_health_checks, dependent: :destroy
+  has_many :analysis_runs, class_name: "PhotoAnalysisRun", dependent: :destroy
+  has_many :analysis_tags, class_name: "PhotoAnalysisTag", dependent: :destroy
+  has_many :analysis_objects, class_name: "PhotoAnalysisObject", dependent: :destroy
+  has_many :embeddings, class_name: "PhotoEmbedding", dependent: :destroy
   has_many :photo_album_memberships, dependent: :destroy
   has_many :photo_albums, through: :photo_album_memberships
   has_many :covered_photo_albums, class_name: "PhotoAlbum", foreign_key: :cover_photo_id, inverse_of: :cover_photo

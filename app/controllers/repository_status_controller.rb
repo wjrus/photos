@@ -54,6 +54,8 @@ class RepositoryStatusController < ApplicationController
     when "original_file_auto_heal"
       AppSetting.set_boolean!(AppSetting::ORIGINAL_FILE_AUTO_HEAL, params[:enabled])
       redirect_to repository_status_path, notice: "Original file auto-heal #{params[:enabled] == 'true' ? 'enabled' : 'disabled'}."
+    when "analysis"
+      update_analysis_control
     when "queue"
       update_queue_control
     when "repository_events"
@@ -207,6 +209,10 @@ class RepositoryStatusController < ApplicationController
       OriginalFileHealthPatrolJob
       OriginalFileHealthCheckJob
       HealOriginalFromDriveJob
+      PhotoAnalysisBackfillJob
+      PhotoAnalysisOpenclipJob
+      PhotoAnalysisYoloJob
+      PhotoAnalysisOpenaiJob
     ]
   end
 
@@ -254,6 +260,7 @@ class RepositoryStatusController < ApplicationController
         enabled: original_file_auto_heal_enabled?,
         source: app_setting_present?(AppSetting::ORIGINAL_FILE_AUTO_HEAL) ? "repository setting" : "app default"
       },
+      analysis: analysis_controls,
       queues: MANAGED_QUEUE_NAMES.map do |queue_name|
         row = queue_rows[queue_name]
         {
@@ -265,6 +272,35 @@ class RepositoryStatusController < ApplicationController
         }
       end
     }
+  end
+
+  def analysis_controls
+    AppSetting::ANALYSIS_BOOLEAN_SETTINGS.map do |key, default|
+      {
+        key: key,
+        label: analysis_control_label(key),
+        enabled: AppSetting.boolean(key, default: default),
+        source: app_setting_present?(key) ? "repository setting" : "app default"
+      }
+    end
+  end
+
+  def analysis_control_label(key)
+    {
+      AppSetting::ANALYSIS_OPENCLIP_ENABLED => "OpenCLIP semantic search",
+      AppSetting::ANALYSIS_YOLO_ENABLED => "YOLO object detection",
+      AppSetting::ANALYSIS_OPENAI_ENABLED => "OpenAI vision enrichment",
+      AppSetting::ANALYSIS_OPENAI_PUBLIC_ONLY => "OpenAI public photos only",
+      AppSetting::ANALYSIS_OPENAI_REQUIRE_OWNER_CONFIRM => "OpenAI requires owner confirmation"
+    }.fetch(key)
+  end
+
+  def update_analysis_control
+    key = params[:setting_key].to_s
+    return redirect_to repository_status_path, alert: "Unknown analysis setting." unless key.in?(AppSetting::ANALYSIS_BOOLEAN_SETTINGS.keys)
+
+    AppSetting.set_boolean!(key, params[:enabled])
+    redirect_to repository_status_path, notice: "#{analysis_control_label(key)} #{params[:enabled] == 'true' ? 'enabled' : 'disabled'}."
   end
 
   def update_queue_control
