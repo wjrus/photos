@@ -43,6 +43,14 @@ class RepositoryStatusController < ApplicationController
     when "baseline"
       OriginalFileHealthPatrolJob.perform_later(batch_size: baseline_batch_size, stale_after: 100.years)
       redirect_to repository_status_path, notice: "Baseline repository scan queued."
+    when "analysis"
+      providers = analysis_backfill_providers
+      if providers.empty?
+        redirect_to repository_status_path, alert: "Enable at least one local analysis provider first."
+      else
+        PhotoAnalysisBackfillJob.perform_later(providers: providers, batch_size: analysis_batch_size)
+        redirect_to repository_status_path, notice: "Photo analysis queued for #{providers.join(', ')}."
+      end
     else
       OriginalFileHealthPatrolJob.perform_later(batch_size: patrol_batch_size)
       redirect_to repository_status_path, notice: "Repository patrol queued."
@@ -171,6 +179,34 @@ class RepositoryStatusController < ApplicationController
     Integer(params[:batch_size].presence || never_checked_count).clamp(1, 50_000)
   rescue ArgumentError
     never_checked_count.clamp(1, 50_000)
+  end
+
+  def analysis_batch_size
+    Integer(params[:batch_size].presence || ENV.fetch("ANALYSIS_BACKFILL_BATCH_SIZE", PhotoAnalysisBackfillJob::DEFAULT_BATCH_SIZE)).clamp(1, 1_000)
+  rescue ArgumentError
+    PhotoAnalysisBackfillJob::DEFAULT_BATCH_SIZE
+  end
+
+  def analysis_backfill_providers
+    requested = Array(params[:providers]).compact_blank.map(&:to_s)
+    requested = local_analysis_providers if requested.empty?
+
+    requested & enabled_local_analysis_providers
+  end
+
+  def local_analysis_providers
+    %w[openclip yolo]
+  end
+
+  def enabled_local_analysis_providers
+    local_analysis_providers.select do |provider|
+      case provider
+      when "openclip"
+        AppSetting.boolean(AppSetting::ANALYSIS_OPENCLIP_ENABLED, default: false)
+      when "yolo"
+        AppSetting.boolean(AppSetting::ANALYSIS_YOLO_ENABLED, default: false)
+      end
+    end
   end
 
   def health_timeline

@@ -80,6 +80,28 @@ class RepositoryStatusControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Baseline repository scan queued.", flash[:notice]
   end
 
+  test "owner can queue enabled local photo analysis" do
+    AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENCLIP_ENABLED, true)
+
+    assert_enqueued_with(job: PhotoAnalysisBackfillJob, args: [ { providers: [ "openclip" ], batch_size: 25 } ]) do
+      post repository_status_path, params: { scan_type: "analysis", providers: [ "openclip" ], batch_size: 25 }
+    end
+
+    assert_redirected_to repository_status_path
+    assert_equal "Photo analysis queued for openclip.", flash[:notice]
+  end
+
+  test "owner cannot queue disabled photo analysis provider" do
+    AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENCLIP_ENABLED, false)
+
+    assert_no_enqueued_jobs only: PhotoAnalysisBackfillJob do
+      post repository_status_path, params: { scan_type: "analysis", providers: [ "openclip" ], batch_size: 25 }
+    end
+
+    assert_redirected_to repository_status_path
+    assert_equal "Enable at least one local analysis provider first.", flash[:alert]
+  end
+
   test "owner can enable original file auto heal from repository status" do
     patch repository_status_path, params: { control: "original_file_auto_heal", enabled: "true" }
 
