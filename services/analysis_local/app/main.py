@@ -1,5 +1,6 @@
 import os
 import logging
+import threading
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -56,6 +57,10 @@ class OpenclipRuntime:
         self.tokenizer = open_clip.get_tokenizer(self.model_name)
         self.index_dir = Path(os.getenv("ANALYSIS_INDEX_DIR", "/analysis")) / "openclip" / self.model_key
         self.index_dir.mkdir(parents=True, exist_ok=True)
+        self.index_lock = threading.Lock()
+        self.index_photo_ids: list[int] = []
+        self.index_matrix: Any | None = None
+        self.index_signature: tuple[tuple[str, int, int], ...] = ()
 
     @property
     def model_key(self) -> str:
@@ -83,17 +88,77 @@ class OpenclipRuntime:
         index_key = f"{self.model_key}/{photo_id}.npy"
         path = self.index_dir / f"{photo_id}.npy"
         self.np.save(path, self.np.array(embedding, dtype="float32"))
+        self.update_memory_index(photo_id, embedding)
         return index_key
 
     def search(self, query: str, limit: int) -> list[dict[str, Any]]:
         text_embedding = self.embed_text(query)
-        results = []
-        for path in self.index_dir.glob("*.npy"):
-            image_embedding = self.np.load(path)
-            score = float(image_embedding @ text_embedding)
-            results.append({"photo_id": int(path.stem), "score": score})
-        results.sort(key=lambda row: row["score"], reverse=True)
-        return results[:limit]
+        photo_ids, matrix = self.memory_index()
+        if matrix is None or not photo_ids:
+            return []
+
+        scores = matrix @ text_embedding
+        top_count = min(limit, len(photo_ids))
+        if top_count <= 0:
+            return []
+
+        top_indexes = self.np.argpartition(scores, -top_count)[-top_count:]
+        top_indexes = top_indexes[self.np.argsort(scores[top_indexes])[::-1]]
+        return [
+            {"photo_id": photo_ids[index], "score": float(scores[index])}
+            for index in top_indexes
+        ]
+
+    def memory_index(self) -> tuple[list[int], Any | None]:
+        signature = self.index_file_signature()
+        with self.index_lock:
+            if signature != self.index_signature:
+                self.load_memory_index(signature)
+
+            return list(self.index_photo_ids), self.index_matrix
+
+    def index_file_signature(self) -> tuple[tuple[str, int, int], ...]:
+        return tuple(
+            sorted(
+                (path.name, path.stat().st_mtime_ns, path.stat().st_size)
+                for path in self.index_dir.glob("*.npy")
+            )
+        )
+
+    def load_memory_index(self, signature: tuple[tuple[str, int, int], ...]) -> None:
+        photo_ids = []
+        embeddings = []
+        for filename, _mtime, _size in signature:
+            path = self.index_dir / filename
+            try:
+                embedding = self.np.load(path).astype("float32")
+            except Exception:
+                logger.exception("Could not load OpenCLIP embedding %s", path)
+                continue
+
+            photo_ids.append(int(path.stem))
+            embeddings.append(embedding)
+
+        self.index_photo_ids = photo_ids
+        self.index_matrix = self.np.vstack(embeddings) if embeddings else None
+        self.index_signature = signature
+
+    def update_memory_index(self, photo_id: int, embedding: list[float]) -> None:
+        with self.index_lock:
+            if self.index_matrix is None:
+                self.index_photo_ids = [photo_id]
+                self.index_matrix = self.np.array([embedding], dtype="float32")
+            elif photo_id in self.index_photo_ids:
+                index = self.index_photo_ids.index(photo_id)
+                self.index_matrix[index] = self.np.array(embedding, dtype="float32")
+            else:
+                self.index_photo_ids.append(photo_id)
+                self.index_matrix = self.np.vstack([
+                    self.index_matrix,
+                    self.np.array([embedding], dtype="float32"),
+                ])
+
+            self.index_signature = self.index_file_signature()
 
 
 @lru_cache(maxsize=1)
