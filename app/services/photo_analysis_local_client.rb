@@ -18,8 +18,10 @@ class PhotoAnalysisLocalClient
     post_json("/openclip/embed", photo_id: photo_id, image_path: image_path, source_variant: source_variant)
   end
 
-  def openclip_search(query:, limit: 25)
-    post_json("/openclip/search", query: query, limit: limit)
+  def openclip_search(query:, limit: 25, timeout: ENV.fetch("OPENCLIP_SEARCH_TIMEOUT", 8).to_i)
+    with_timeout(timeout) do
+      post_json("/openclip/search", query: query, limit: limit)
+    end
   end
 
   def yolo_detect(photo_id:, image_path:, source_variant:)
@@ -29,6 +31,14 @@ class PhotoAnalysisLocalClient
   private
 
   attr_reader :base_uri, :timeout
+
+  def with_timeout(temporary_timeout)
+    original_timeout = @timeout
+    @timeout = temporary_timeout
+    yield
+  ensure
+    @timeout = original_timeout
+  end
 
   def get_json(path)
     request = Net::HTTP::Get.new(uri_for(path))

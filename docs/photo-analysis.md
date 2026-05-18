@@ -111,3 +111,9 @@ The sidecar exposes a health check plus OpenCLIP embedding/search endpoints.
 Embeddings are written under the `analysis_index` Docker volume. YOLO endpoints
 intentionally return `501` until their model dependencies and inference code are
 added.
+
+OpenCLIP search keeps the vector matrix in the sidecar process memory. The
+sidecar warms that index in the background on startup by default; set
+`OPENCLIP_WARM_ON_START=false` to disable warmup. Rails also caches semantic
+query results briefly so returning to the same search does not call the sidecar
+again.

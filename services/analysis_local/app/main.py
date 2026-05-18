@@ -60,7 +60,7 @@ class OpenclipRuntime:
         self.index_lock = threading.Lock()
         self.index_photo_ids: list[int] = []
         self.index_matrix: Any | None = None
-        self.index_signature: tuple[tuple[str, int, int], ...] = ()
+        self.index_loaded = False
 
     @property
     def model_key(self) -> str:
@@ -110,26 +110,16 @@ class OpenclipRuntime:
         ]
 
     def memory_index(self) -> tuple[list[int], Any | None]:
-        signature = self.index_file_signature()
         with self.index_lock:
-            if signature != self.index_signature:
-                self.load_memory_index(signature)
+            if not self.index_loaded:
+                self.load_memory_index()
 
             return list(self.index_photo_ids), self.index_matrix
 
-    def index_file_signature(self) -> tuple[tuple[str, int, int], ...]:
-        return tuple(
-            sorted(
-                (path.name, path.stat().st_mtime_ns, path.stat().st_size)
-                for path in self.index_dir.glob("*.npy")
-            )
-        )
-
-    def load_memory_index(self, signature: tuple[tuple[str, int, int], ...]) -> None:
+    def load_memory_index(self) -> None:
         photo_ids = []
         embeddings = []
-        for filename, _mtime, _size in signature:
-            path = self.index_dir / filename
+        for path in sorted(self.index_dir.glob("*.npy")):
             try:
                 embedding = self.np.load(path).astype("float32")
             except Exception:
@@ -141,7 +131,8 @@ class OpenclipRuntime:
 
         self.index_photo_ids = photo_ids
         self.index_matrix = self.np.vstack(embeddings) if embeddings else None
-        self.index_signature = signature
+        self.index_loaded = True
+        logger.info("Loaded %d OpenCLIP embeddings into memory", len(photo_ids))
 
     def update_memory_index(self, photo_id: int, embedding: list[float]) -> None:
         with self.index_lock:
@@ -158,12 +149,26 @@ class OpenclipRuntime:
                     self.np.array([embedding], dtype="float32"),
                 ])
 
-            self.index_signature = self.index_file_signature()
+            self.index_loaded = True
 
 
 @lru_cache(maxsize=1)
 def openclip_runtime() -> OpenclipRuntime:
     return OpenclipRuntime()
+
+
+def warm_openclip_runtime() -> None:
+    try:
+        runtime = openclip_runtime()
+        runtime.memory_index()
+    except Exception:
+        logger.exception("Could not warm OpenCLIP runtime")
+
+
+@app.on_event("startup")
+def start_openclip_warmup() -> None:
+    if os.getenv("OPENCLIP_WARM_ON_START", "true").lower() in {"1", "true", "yes"}:
+        threading.Thread(target=warm_openclip_runtime, daemon=True).start()
 
 
 @app.get("/health")
