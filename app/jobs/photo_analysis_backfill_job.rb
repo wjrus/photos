@@ -2,6 +2,7 @@ class PhotoAnalysisBackfillJob < ApplicationJob
   queue_as :analysis
 
   DEFAULT_BATCH_SIZE = 100
+  MAX_BATCH_SIZE = 10_000
 
   def perform(providers: enabled_providers, batch_size: DEFAULT_BATCH_SIZE)
     providers = Array(providers).map(&:to_s) & PhotoAnalysisRun::PROVIDERS
@@ -32,7 +33,7 @@ class PhotoAnalysisBackfillJob < ApplicationJob
 
     scope = without_current_openclip_embedding(scope) if provider == "openclip"
 
-    scope.limit(Integer(batch_size).clamp(1, 1_000))
+    scope.limit(Integer(batch_size).clamp(1, MAX_BATCH_SIZE))
   end
 
   def without_current_openclip_embedding(scope)
@@ -40,10 +41,18 @@ class PhotoAnalysisBackfillJob < ApplicationJob
       id: PhotoEmbedding
         .where(
           provider: "openclip",
-          model: ENV.fetch("OPENCLIP_MODEL", "ViT-B-32"),
-          model_version: ENV.fetch("OPENCLIP_PRETRAINED", "laion2b_s34b_b79k")
+          model: openclip_model,
+          model_version: openclip_model_version
         )
         .select(:photo_id)
     )
+  end
+
+  def openclip_model
+    ENV.fetch("OPENCLIP_MODEL", "ViT-B-32")
+  end
+
+  def openclip_model_version
+    ENV.fetch("OPENCLIP_PRETRAINED", "laion2b_s34b_b79k")
   end
 end

@@ -25,6 +25,8 @@ class RepositoryStatusControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Queue patrol"
     assert_includes response.body, "Queue baseline scan"
     assert_includes response.body, "Google Drive authorization"
+    assert_includes response.body, "OpenCLIP coverage"
+    assert_includes response.body, "Queue 5,000 OpenCLIP"
     assert_includes response.body, GoogleDriveArchiveClient::DRIVE_SCOPE
     assert_includes response.body, queue_status_path
     assert_includes response.body, repository_health_path
@@ -89,6 +91,16 @@ class RepositoryStatusControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to repository_status_path
     assert_equal "Photo analysis queued for openclip.", flash[:notice]
+  end
+
+  test "owner can queue a larger openclip batch" do
+    AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENCLIP_ENABLED, true)
+
+    assert_enqueued_with(job: PhotoAnalysisBackfillJob, args: [ { providers: [ "openclip" ], batch_size: 5_000 } ]) do
+      post repository_status_path, params: { scan_type: "analysis", providers: [ "openclip" ], batch_size: 5_000 }
+    end
+
+    assert_redirected_to repository_status_path
   end
 
   test "owner cannot queue disabled photo analysis provider" do

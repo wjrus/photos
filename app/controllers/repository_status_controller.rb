@@ -29,6 +29,7 @@ class RepositoryStatusController < ApplicationController
     @checksums = Photo.group(:checksum_status).count
     @drive_archives = DriveArchiveObject.group(:status).count
     @derivatives = derivative_totals
+    @analysis_status = analysis_status
     @health = health_totals
     @health_timeline = health_timeline
     @recent_checks = latest_checks.includes(:photo).latest_first.limit(12)
@@ -182,9 +183,32 @@ class RepositoryStatusController < ApplicationController
   end
 
   def analysis_batch_size
-    Integer(params[:batch_size].presence || ENV.fetch("ANALYSIS_BACKFILL_BATCH_SIZE", PhotoAnalysisBackfillJob::DEFAULT_BATCH_SIZE)).clamp(1, 1_000)
+    Integer(params[:batch_size].presence || ENV.fetch("ANALYSIS_BACKFILL_BATCH_SIZE", PhotoAnalysisBackfillJob::DEFAULT_BATCH_SIZE)).clamp(1, PhotoAnalysisBackfillJob::MAX_BATCH_SIZE)
   rescue ArgumentError
     PhotoAnalysisBackfillJob::DEFAULT_BATCH_SIZE
+  end
+
+  def analysis_status
+    openclip_model = ENV.fetch("OPENCLIP_MODEL", "ViT-B-32")
+    openclip_model_version = ENV.fetch("OPENCLIP_PRETRAINED", "laion2b_s34b_b79k")
+    eligible_photos = original_photos.where(restricted: false)
+    current_embeddings = PhotoEmbedding.where(provider: "openclip", model: openclip_model, model_version: openclip_model_version)
+    run_scope = PhotoAnalysisRun.where(provider: "openclip", model: openclip_model, model_version: openclip_model_version)
+    embedded_count = eligible_photos.where(id: current_embeddings.select(:photo_id)).distinct.count
+    eligible_count = eligible_photos.distinct.count
+
+    {
+      openclip: {
+        model: openclip_model,
+        model_version: openclip_model_version,
+        eligible: eligible_count,
+        embedded: embedded_count,
+        missing: [ eligible_count - embedded_count, 0 ].max,
+        coverage_percent: eligible_count.positive? ? (embedded_count.to_f / eligible_count * 100).round(1) : 100.0,
+        run_counts: PhotoAnalysisRun::STATUSES.index_with { |status| run_scope.where(status: status).count },
+        latest_errors: PhotoAnalysisRun.where(provider: "openclip").where.not(error: [ nil, "" ]).latest_first.limit(5)
+      }
+    }
   end
 
   def analysis_backfill_providers
