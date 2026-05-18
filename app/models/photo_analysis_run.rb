@@ -1,7 +1,7 @@
 class PhotoAnalysisRun < ApplicationRecord
   PROVIDERS = %w[openclip yolo openai].freeze
   STATUSES = %w[pending running complete failed skipped].freeze
-  SOURCE_VARIANTS = %w[stream display original].freeze
+  SOURCE_VARIANTS = %w[stream display original video_preview].freeze
 
   belongs_to :photo
   has_many :tags, class_name: "PhotoAnalysisTag", dependent: :destroy
