@@ -33,6 +33,7 @@ class RepositoryStatusController < ApplicationController
     @analysis_status = analysis_status
     @health = health_totals
     @health_timeline = health_timeline
+    @last_health_check_at = FileHealthCheck.maximum(:checked_at)
     @recent_checks = latest_checks.includes(:photo).latest_first.limit(12)
     @recent_attention = latest_checks.needs_attention.includes(:photo).latest_first.limit(8)
     @repository_events = RepositoryEvent.latest_first.limit(12)
