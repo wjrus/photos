@@ -991,9 +991,9 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, locked_photo.title
   end
 
-  test "public viewer sees public display without privileged metadata" do
+  test "public viewer sees public caption without privileged metadata" do
     photo = attached_photo
-    photo.update!(description: "Private travel note.")
+    photo.update!(description: "Public travel note.")
     photo.create_metadata!(extraction_status: "complete", camera_make: "Fuji", camera_model: "X100", raw: {})
     photo.publish!
     delete sign_out_path
@@ -1002,13 +1002,25 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, photo.title
-    refute_includes response.body, "Private travel note."
-    refute_includes response.body, "Caption"
+    assert_includes response.body, "Public travel note."
+    assert_includes response.body, "Caption"
     refute_includes response.body, "Archive"
     refute_includes response.body, "Fuji X100"
     refute_includes response.body, "Photo location map"
     refute_includes response.body, photo.original_filename
     refute_includes response.body, "Download original"
+  end
+
+  test "public stream includes captions for public photos" do
+    photo = attached_photo(title: "Captioned public stream")
+    photo.update!(description: "Sunset over the breakwall.")
+    photo.publish!
+    delete sign_out_path
+
+    get root_path
+
+    assert_response :success
+    assert_select "article[data-photo-id='#{photo.id}'] .photo-card-caption", text: "Sunset over the breakwall."
   end
 
   test "public image detail exposes open graph preview tags" do
@@ -1021,7 +1033,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "meta[property='og:title'][content='Lake picnic']"
-    assert_select "meta[property='og:description'][content='Lake picnic']"
+    assert_select "meta[property='og:description'][content='A quiet afternoon.']"
     assert_select "meta[property='og:url'][content='http://www.example.com/photos/#{photo.id}']"
     assert_select "meta[property='og:image'][content='http://www.example.com/photos/#{photo.id}/preview.jpg']"
     assert_select "meta[property='og:image:type'][content='image/jpeg']"

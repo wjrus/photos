@@ -24,6 +24,8 @@ class RepositoryStatusControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Repository activity"
     assert_includes response.body, "Queue patrol"
     assert_includes response.body, "Queue baseline scan"
+    assert_includes response.body, "Google Drive authorization"
+    assert_includes response.body, GoogleDriveArchiveClient::DRIVE_SCOPE
     assert_includes response.body, queue_status_path
     assert_includes response.body, repository_health_path
   end

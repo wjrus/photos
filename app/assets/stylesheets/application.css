@@ -223,6 +223,13 @@
   padding-block: 0.5rem;
 }
 
+.photo-card-caption {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
 @media (min-width: 640px) {
   .photo-day-group {
     flex: 0 1 var(--day-group-width);

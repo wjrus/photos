@@ -106,6 +106,10 @@ Google OAuth redirect URI for local development:
 http://127.0.0.1:3000/auth/google_oauth2/callback
 ```
 
+Default Google sign-in requests only OpenID/email/profile scopes. The owner can
+connect or refresh Drive access from `/repository_status`; that flow requests the
+Drive scope used for archive mirrors and heals.
+
 ## Tests And Checks
 
 ```sh

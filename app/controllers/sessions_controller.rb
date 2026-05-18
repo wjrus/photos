@@ -5,7 +5,7 @@ class SessionsController < ApplicationController
   def create
     user = User.from_omniauth(request.env.fetch("omniauth.auth"))
     sign_in(user)
-    redirect_to root_path, notice: "Signed in as #{user.display_name}."
+    redirect_to omniauth_return_path, notice: "Signed in as #{user.display_name}."
   end
 
   def password
@@ -26,5 +26,19 @@ class SessionsController < ApplicationController
 
   def failure
     redirect_to root_path, alert: "Google sign-in was not completed."
+  end
+
+  private
+
+  def omniauth_return_path
+    origin = request.env["omniauth.origin"].presence
+    return root_path if origin.blank?
+
+    uri = URI.parse(origin)
+    return origin if uri.relative?
+
+    root_path
+  rescue URI::InvalidURIError
+    root_path
   end
 end

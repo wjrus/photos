@@ -36,12 +36,12 @@ class User < ApplicationRecord
     user.email = auth.info.email
     user.name = auth.info.name.presence || auth.info.email
     user.avatar_url = auth.info.image
-    if auth.credentials.present?
+    user.role = role_for(auth.info.email) if user.new_record?
+    if store_google_drive_credentials?(user, auth)
       user.google_access_token = auth.credentials.token
       user.google_refresh_token = auth.credentials.refresh_token.presence || user.google_refresh_token
       user.google_token_expires_at = Time.zone.at(auth.credentials.expires_at) if auth.credentials.expires_at.present?
     end
-    user.role = role_for(auth.info.email) if user.new_record?
     user.last_signed_in_at = Time.current
     user.invite_accepted_at ||= Time.current if user.invited?
     user.save!
@@ -175,5 +175,16 @@ class User < ApplicationRecord
   def self.role_for(email)
     email.to_s.casecmp?(ENV["PHOTOS_OWNER_EMAIL"].to_s) ? "owner" : "viewer"
   end
+
+  def self.store_google_drive_credentials?(user, auth)
+    user.owner? &&
+      auth.credentials.present? &&
+      google_drive_scope_granted?(auth.credentials)
+  end
+
+  def self.google_drive_scope_granted?(credentials)
+    credentials.fetch("scope", credentials[:scope]).to_s.split.include?(GoogleDriveArchiveClient::DRIVE_SCOPE)
+  end
   private_class_method :role_for
+  private_class_method :store_google_drive_credentials?, :google_drive_scope_granted?
 end

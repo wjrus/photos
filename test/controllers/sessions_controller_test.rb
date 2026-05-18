@@ -53,4 +53,22 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Signed out."
     assert_includes response.body, "Sign in"
   end
+
+  test "returns to omniauth origin after google callback" do
+    user = users(:one)
+    OmniAuth.config.mock_auth[:google_oauth2] = OmniAuth::AuthHash.new(
+      provider: user.provider,
+      uid: user.uid,
+      info: {
+        email: user.email,
+        name: user.name,
+        image: user.avatar_url
+      }
+    )
+
+    post "/auth/google_oauth2", params: { origin: repository_status_path }
+    follow_redirect!
+
+    assert_redirected_to repository_status_path
+  end
 end
