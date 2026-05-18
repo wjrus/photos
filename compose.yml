@@ -119,6 +119,23 @@ services:
       - ${PHOTOS_STORAGE_PATH:?Set PHOTOS_STORAGE_PATH to the production Active Storage path before running docker compose. Use ./scripts/deploy or export PHOTOS_STORAGE_PATH=/mnt/photos/app_storage.}:/rails/storage
       - ${PHOTOS_IMPORT_PATH:-/mnt/photos/imports}:/rails/imports:ro
 
+  analysis-local:
+    build: ./services/analysis_local
+    image: photos-analysis-local:latest
+    restart: unless-stopped
+    profiles: ["analysis"]
+    environment:
+      MODEL_CACHE_DIR: /models
+      ANALYSIS_INDEX_DIR: /analysis
+    volumes:
+      - ${PHOTOS_STORAGE_PATH:?Set PHOTOS_STORAGE_PATH to the production Active Storage path before running docker compose. Use ./scripts/deploy or export PHOTOS_STORAGE_PATH=/mnt/photos/app_storage.}:/rails/storage:ro
+      - analysis_model_cache:/models
+      - analysis_index:/analysis
+    expose:
+      - "8000"
+
 volumes:
   postgres_data:
   redis_data:
+  analysis_model_cache:
+  analysis_index:

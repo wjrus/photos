@@ -170,6 +170,10 @@ docker compose exec worker bin/rails runner 'OriginalFileHealthPatrolJob.perform
 
 Routine patrols are scheduled through Solid Queue recurring jobs. The worker config includes a dedicated `solid_queue_recurring` worker plus bounded queues for imports, archive work, maintenance, analysis, video previews, derivatives, and default jobs.
 
+Photo analysis uses optional provider flags and a local sidecar for OpenCLIP and
+YOLO. See [docs/photo-analysis.md](docs/photo-analysis.md) for the development
+and production rollout plan.
+
 ## Useful Production Commands
 
 Most routine owner operations should be available from `/repository_status`.
