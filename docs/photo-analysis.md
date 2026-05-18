@@ -22,8 +22,11 @@ first; external APIs stay off until the owner explicitly enables them.
 - Rails flag: `analysis_openclip_enabled`.
 - Output: image embeddings stored in a local vector index, with metadata in
   `photo_embeddings`.
-- First implementation target: generate embeddings for display derivatives and
-  search by text query.
+- Search exposure: owner text search calls the local `/openclip/search`
+  endpoint when OpenCLIP is enabled, filters matches through normal visibility
+  rules, and merges those matches into stream-ordered results.
+- Detail exposure: owner photo details show OpenCLIP embedding status,
+  model/version, source derivative, and latest analysis errors.
 
 ### YOLO
 
@@ -69,7 +72,8 @@ options should be reviewed before enabling broad backfills.
 4. Add Rails client classes for the sidecar.
 5. Add `PhotoAnalysisBackfillJob` to enqueue provider-specific jobs.
 6. Add `PhotoAnalysisOpenclipJob` and persist vector index metadata.
-7. Add semantic search integration.
+7. Add semantic search integration. Done for owner search; results are merged
+   into stream order rather than ranked by similarity.
 8. Add `PhotoAnalysisYoloJob` and normalize detections into tags.
 9. Add owner UI for analysis status, tags, and detections.
 10. Add OpenAI only after local systems are useful and privacy settings are

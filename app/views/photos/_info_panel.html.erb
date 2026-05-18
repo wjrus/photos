@@ -40,6 +40,7 @@
   <% end %>
 
   <% if privileged_metadata_viewer? %>
+    <%= render "photos/info_panel_analysis", photo: photo %>
     <%= render "photos/info_panel_metadata", photo: photo, return_to: return_to %>
   <% end %>
 </aside>

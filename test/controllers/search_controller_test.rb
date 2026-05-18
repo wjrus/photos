@@ -25,6 +25,23 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
     assert_select "form[data-controller='stream-state-reset'][data-action='submit->stream-state-reset#clear']"
   end
 
+  test "owner search includes openclip visual matches" do
+    match = attached_photo(title: "Parking lot")
+    other = attached_photo(title: "Office note")
+    create_openclip_embedding(match)
+    AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENCLIP_ENABLED, true)
+    client = FakeOpenclipSearchClient.new([{ "photo_id" => match.id, "score" => 0.92 }])
+
+    with_openclip_client(client) do
+      get search_path(q: "car")
+    end
+
+    assert_response :success
+    assert_includes response.body, "Parking lot"
+    refute_includes response.body, "Office note"
+    assert_includes response.body, "OpenCLIP visual search enabled"
+  end
+
   test "search filters by camera and lens metadata" do
     match = attached_photo(title: "Fuji frame")
     match.create_metadata!(
@@ -181,6 +198,20 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
 
   private
 
+  FakeOpenclipSearchClient = Struct.new(:results) do
+    def openclip_search(query:, limit:)
+      { "results" => results.first(limit) }
+    end
+  end
+
+  def with_openclip_client(client)
+    original_new = PhotoAnalysisLocalClient.method(:new)
+    PhotoAnalysisLocalClient.define_singleton_method(:new) { client }
+    yield
+  ensure
+    PhotoAnalysisLocalClient.define_singleton_method(:new, original_new)
+  end
+
   def attached_photo(title:)
     photo = @owner.photos.new(title: title)
     photo.original.attach(
@@ -190,6 +221,27 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
     )
     photo.save!
     photo
+  end
+
+  def create_openclip_embedding(photo, model: "ViT-B-32", model_version: "laion2b_s34b_b79k")
+    run = photo.analysis_runs.create!(
+      provider: "openclip",
+      model: model,
+      model_version: model_version,
+      status: "complete",
+      raw: { "provider" => "openclip" }
+    )
+    photo.embeddings.create!(
+      photo_analysis_run: run,
+      provider: "openclip",
+      model: model,
+      model_version: model_version,
+      dimensions: 512,
+      source_variant: "display",
+      index_key: "#{model}-#{model_version}/#{photo.id}.npy",
+      embedded_at: Time.current,
+      raw: { "provider" => "openclip" }
+    )
   end
 
   def sign_in_as(user)

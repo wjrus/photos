@@ -31,6 +31,10 @@ class PhotoSearch
     self.class.filter_params_for(user).any? { |key| params[key].present? }
   end
 
+  def semantic_search_available?
+    PhotoOpenclipSearch.available_for?(user)
+  end
+
   private
 
   def apply_text(scope)
@@ -42,18 +46,20 @@ class PhotoSearch
     album_ids = PhotoAlbum.visible_to(user).where("photo_albums.title ILIKE ?", query).pluck(:id)
     tagged_user_ids = User.where("users.name ILIKE :query OR users.email ILIKE :query", query: query).pluck(:id)
     location_ids = PhotoLocationPlace.matching_name(query).pluck(:location_id)
+    semantic_photo_ids = PhotoOpenclipSearch.search_ids(query: params[:q], user: user)
 
     scope
       .left_outer_joins(:photo_albums, photo_people_tags: :user)
       .where(
-        text_conditions(location_ids),
+        text_conditions(location_ids, semantic_photo_ids),
         query: query,
         album_ids: album_ids,
-        tagged_user_ids: tagged_user_ids
+        tagged_user_ids: tagged_user_ids,
+        semantic_photo_ids: semantic_photo_ids
       )
   end
 
-  def text_conditions(location_ids)
+  def text_conditions(location_ids, semantic_photo_ids)
     conditions = [
       "photos.title ILIKE :query",
       "photos.description ILIKE :query",
@@ -64,6 +70,8 @@ class PhotoSearch
       "photo_albums.id IN (:album_ids)",
       "photo_people_tags.user_id IN (:tagged_user_ids)"
     ]
+
+    conditions << "photos.id IN (:semantic_photo_ids)" if semantic_photo_ids.any?
 
     location_ids.each_with_index do |location_id, index|
       latitude_bucket, longitude_bucket = PhotoLocation.parse_id(location_id)

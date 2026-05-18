@@ -1,0 +1,33 @@
+<% openclip_embedding = photo.embeddings.where(provider: "openclip").order(embedded_at: :desc, id: :desc).first %>
+<% latest_openclip_run = photo.analysis_runs.where(provider: "openclip").latest_first.first %>
+
+<div class="border-t border-zinc-200 p-5">
+  <section>
+    <h2 class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Analysis</h2>
+    <dl class="mt-3 space-y-2 text-sm">
+      <div class="flex justify-between gap-4">
+        <dt class="text-zinc-500">OpenCLIP</dt>
+        <dd class="text-right text-zinc-800"><%= openclip_embedding ? "embedded" : (latest_openclip_run&.status || "not analyzed") %></dd>
+      </div>
+      <% if openclip_embedding %>
+        <div class="flex justify-between gap-4">
+          <dt class="text-zinc-500">Model</dt>
+          <dd class="text-right text-zinc-800"><%= [ openclip_embedding.model, openclip_embedding.model_version ].compact_blank.join(" / ") %></dd>
+        </div>
+        <div class="flex justify-between gap-4">
+          <dt class="text-zinc-500">Source</dt>
+          <dd class="text-right text-zinc-800"><%= openclip_embedding.source_variant %></dd>
+        </div>
+        <div class="flex justify-between gap-4">
+          <dt class="text-zinc-500">Embedded</dt>
+          <dd class="text-right text-zinc-800"><%= openclip_embedding.embedded_at.to_fs(:short) %></dd>
+        </div>
+      <% elsif latest_openclip_run&.error.present? %>
+        <div class="flex justify-between gap-4">
+          <dt class="text-zinc-500">Error</dt>
+          <dd class="text-right text-zinc-800"><%= latest_openclip_run.error.truncate(120) %></dd>
+        </div>
+      <% end %>
+    </dl>
+  </section>
+</div>

@@ -489,6 +489,19 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-turbo-confirm]", false
   end
 
+  test "owner sees openclip analysis metadata in photo details" do
+    photo = attached_photo
+    create_openclip_embedding(photo)
+
+    get photo_path(photo)
+
+    assert_response :success
+    assert_includes response.body, "Analysis"
+    assert_includes response.body, "OpenCLIP"
+    assert_includes response.body, "embedded"
+    assert_includes response.body, "ViT-B-32 / laion2b_s34b_b79k"
+  end
+
   test "locked photo detail offers move to stream instead of publish actions" do
     photo = attached_photo(title: "Locked detail")
     photo.restrict!
@@ -1270,6 +1283,27 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
       io: StringIO.new("fake mp4 bytes"),
       filename: "clip-display.mp4",
       content_type: "video/mp4"
+    )
+  end
+
+  def create_openclip_embedding(photo, model: "ViT-B-32", model_version: "laion2b_s34b_b79k")
+    run = photo.analysis_runs.create!(
+      provider: "openclip",
+      model: model,
+      model_version: model_version,
+      status: "complete",
+      raw: { "provider" => "openclip" }
+    )
+    photo.embeddings.create!(
+      photo_analysis_run: run,
+      provider: "openclip",
+      model: model,
+      model_version: model_version,
+      dimensions: 512,
+      source_variant: "display",
+      index_key: "#{model}-#{model_version}/#{photo.id}.npy",
+      embedded_at: Time.current,
+      raw: { "provider" => "openclip" }
     )
   end
 

@@ -5,6 +5,7 @@ class SearchController < ApplicationController
     @search_params = search_params
     search = PhotoSearch.new(params: @search_params, user: current_user)
     @search_active = search.active?
+    @semantic_search_available = search.semantic_search_available?
     @photos, @next_cursor, @newer_cursor = paginate_photo_stream_with_focus(search_stream(search.results))
 
     return if render_photo_page_if_requested(
