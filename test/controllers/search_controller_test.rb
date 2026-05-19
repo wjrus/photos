@@ -22,7 +22,8 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Banff overlook"
     refute_includes response.body, "Office note"
     assert_select "a[href='#{photo_path(match)}'][data-photo-return-to='#{search_path(q: "Banff")}']"
-    assert_select "form[data-controller='stream-state-reset'][data-action='submit->stream-state-reset#clear']"
+    assert_select "form[data-controller~='stream-state-reset'][data-controller~='search-form'][data-action='submit->stream-state-reset#clear']"
+    assert_select "button[aria-label='Clear search text'][data-action='search-form#clearQuery']"
   end
 
   test "owner search includes openclip visual matches" do
@@ -84,6 +85,7 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "Fuji frame"
     refute_includes response.body, "Phone frame"
+    assert_select "details[open]"
     assert_select "option[selected]", text: "X100V"
     assert_select "option[selected]", text: "23mm F2"
   end
