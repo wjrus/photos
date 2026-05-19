@@ -10,7 +10,7 @@ class HomeTest < ApplicationSystemTestCase
     assert_no_text "Drop iPhone imports here"
     assert_no_text "Preserved privately."
 
-    find("summary", text: "wjr photos").click
+    find("summary[aria-label='Site navigation']").click
     assert_link "Stream"
     assert_link "Albums"
     assert_no_link "Map"

@@ -29,7 +29,6 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "Map"
-    assert_includes response.body, "Back to stream"
     assert_includes response.body, "1 geotagged photo"
     assert_includes response.body, "All photos"
     assert_includes response.body, "All locations"
@@ -133,7 +132,7 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     get map_path(location_id: location_id)
 
     assert_response :success
-    assert_select "a[href='#{location_path(location_id)}']", text: /Back to/
+    assert_select "a[href='#{location_path(location_id)}']", { text: /Back to/, count: 0 }
     assert_select "option[selected][value='#{location_id}']"
     assert_select "[data-google-map-markers-url-value='#{map_markers_path(location_id: location_id)}']"
 

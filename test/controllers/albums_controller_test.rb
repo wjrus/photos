@@ -40,7 +40,6 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     get albums_path
     assert_response :success
     assert_includes response.body, "Shared"
-    assert_includes response.body, "Back to stream"
     assert_includes response.body, "1 public, 0 private albums"
     assert_includes response.body, "1 photo"
 
@@ -98,7 +97,6 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "1 public, 1 private albums"
-    assert_includes response.body, "Back to stream"
   end
 
   test "album index splits visible photo and video counts" do

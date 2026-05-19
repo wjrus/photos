@@ -6,14 +6,7 @@
   <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
     <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <% if @selected_location %>
-          <%= link_to "Back to #{@selected_location.title}", location_path(@selected_location.id), class: "text-xs font-semibold uppercase tracking-[0.18em] text-teal-700 transition hover:text-teal-900" %>
-        <% elsif @selected_album %>
-          <%= link_to "Back to #{@selected_album.title}", album_path(@selected_album), class: "text-xs font-semibold uppercase tracking-[0.18em] text-teal-700 transition hover:text-teal-900" %>
-        <% else %>
-          <%= link_to "Back to stream", root_path, class: "text-xs font-semibold uppercase tracking-[0.18em] text-teal-700 transition hover:text-teal-900" %>
-        <% end %>
-        <h1 class="mt-3 text-3xl font-semibold text-zinc-950">Map</h1>
+        <h1 class="text-3xl font-semibold text-zinc-950">Map</h1>
         <p class="mt-1 text-sm text-zinc-600"><%= pluralize(@geotagged_photo_count, "geotagged photo") %></p>
       </div>
 
