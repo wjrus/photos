@@ -391,19 +391,19 @@ html[data-theme] :is(input, select, textarea) {
   --photo-tile-height: 156px;
   --photo-tile-gap: 0.3rem;
   --photo-tile-row-gap: 1.5rem;
-  --photo-day-marker-offset: 1.45rem;
+  --photo-day-marker-offset: 1.6rem;
 }
 
 .photo-grid-size-medium {
   --photo-tile-width: 13rem;
   --photo-tile-height: 220px;
-  --photo-day-marker-offset: 1.6rem;
+  --photo-day-marker-offset: 1.75rem;
 }
 
 .photo-grid-size-large {
   --photo-tile-width: 16rem;
   --photo-tile-height: 284px;
-  --photo-day-marker-offset: 1.6rem;
+  --photo-day-marker-offset: 1.75rem;
 }
 
 .photo-day-group {
