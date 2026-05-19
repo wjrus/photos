@@ -1,15 +1,37 @@
 <% stream_time = (photo.captured_at || photo.created_at).in_time_zone %>
 <% metadata_badge_visible = owner_controls && current_user&.show_stream_metadata? && photo.byte_size.present? %>
 <% metadata_dimensions_visible = metadata_badge_visible && photo_dimensions_present?(photo.metadata) %>
+<% day_label = local_assigns[:day_label] %>
+<% day_key = local_assigns[:day_key] %>
+<% day_start = day_label.present? %>
 
 <article class="<%= feature ? "col-span-2 row-span-2" : "" %> group relative overflow-hidden rounded-lg bg-zinc-900 shadow-sm"
          data-bulk-selection-card
          data-photo-id="<%= photo.id %>"
+         <%= %(data-stream-date-group-key="#{day_key}").html_safe if day_key.present? %>
          data-stream-timeline-month-key="<%= stream_time.strftime("%Y-%m") %>"
          data-stream-timeline-day-key="<%= stream_time.strftime("%Y-%m-%d") %>"
          data-stream-timeline-hour-key="<%= stream_time.strftime("%Y-%m-%dT%H") %>">
+  <% if day_start %>
+    <% if owner_controls %>
+      <label class="photo-day-marker day-selection-control absolute left-2 top-2 z-50 inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-white/90 px-2 py-1 text-zinc-950 shadow-sm backdrop-blur"
+             title="Select all photos from <%= day_label %>">
+        <input type="checkbox"
+               aria-label="Select all photos from <%= day_label %>"
+               data-bulk-selection-group-toggle
+               data-action="change->bulk-selection#toggleGroup">
+        <span class="selection-circle">✓</span>
+        <span class="truncate text-xs font-semibold"><%= day_label %></span>
+      </label>
+    <% else %>
+      <h2 class="photo-day-marker absolute left-2 top-2 z-20 truncate rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-zinc-950 shadow-sm backdrop-blur">
+        <%= day_label %>
+      </h2>
+    <% end %>
+  <% end %>
+
   <% if owner_controls %>
-    <label class="selection-control absolute left-3 top-3 z-40 cursor-pointer"
+    <label class="selection-control absolute left-3 <%= day_start ? "top-12" : "top-3" %> z-40 cursor-pointer"
            title="Select"
            data-action="change->bulk-selection#update">
       <%= check_box_tag "photo_ids[]", photo.id, false, form: bulk_form_id, aria: { label: "Select #{photo.title}" } %>

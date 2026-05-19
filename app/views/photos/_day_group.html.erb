@@ -1,36 +1,17 @@
 <% day_key = photo_stream_day_key(day) %>
-<% tile_dimensions = photo_stream_tile_dimensions %>
-<% max_group_columns = tile_dimensions[:width] <= 11 ? 6 : tile_dimensions[:width] >= 16 ? 4 : 5 %>
-<% group_columns = [photos.size, max_group_columns].min.clamp(1, max_group_columns) %>
-<% group_width = "#{(group_columns * tile_dimensions[:width]) + ((group_columns - 1) * 0.75)}rem" %>
 
 <section id="day-<%= day_key %>"
          class="photo-day-group scroll-mt-24"
-         style="--day-group-columns: <%= group_columns %>; --day-group-width: <%= group_width %>;"
          data-bulk-selection-group
-         data-stream-date-group-key="<%= day_key %>">
-  <header class="photo-day-group-header flex items-center">
-    <% if owner_controls %>
-      <label class="day-selection-control inline-flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5"
-             title="Select all photos from <%= photo_stream_day_label(day) %>">
-        <input type="checkbox"
-               aria-label="Select all photos from <%= photo_stream_day_label(day) %>"
-               data-bulk-selection-group-toggle
-               data-action="change->bulk-selection#toggleGroup">
-        <span class="selection-circle">✓</span>
-        <span class="text-sm font-semibold text-zinc-950"><%= photo_stream_day_label(day) %></span>
-      </label>
-    <% else %>
-      <h2 class="text-sm font-semibold text-zinc-950"><%= photo_stream_day_label(day) %></h2>
-    <% end %>
-  </header>
-
+         data-photo-day-group-key="<%= day_key %>">
   <div class="photo-day-group-grid">
     <% photos.each_with_index do |photo, index| %>
       <%= render "photos/card",
             photo: photo,
             return_to: return_to,
             feature: false,
+            day_label: (photo_stream_day_label(day) if index.zero?),
+            day_key: (day_key if index.zero?),
             bulk_form_id: bulk_form_id,
             owner_controls: owner_controls,
             archive_context: local_assigns[:archive_context],

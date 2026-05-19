@@ -67,7 +67,7 @@ function mergeAdjacentDayGroup(insertedEdge, direction) {
     ? nextDayGroupAfter(insertedGroup)
     : previousDayGroupBefore(insertedGroup)
 
-  if (!neighborGroup || neighborGroup.dataset.streamDateGroupKey !== insertedGroup.dataset.streamDateGroupKey) return
+  if (!neighborGroup || neighborGroup.dataset.photoDayGroupKey !== insertedGroup.dataset.photoDayGroupKey) return
 
   if (direction === "prepend") {
     prependCards(neighborGroup, insertedGroup)
@@ -85,8 +85,8 @@ function edgeDayGroup(element, direction) {
 
 function dayGroupsFrom(element) {
   if (!element) return []
-  if (element.matches?.("[data-stream-date-group-key]")) return [element]
-  return Array.from(element.querySelectorAll?.("[data-stream-date-group-key]") || [])
+  if (element.matches?.("[data-photo-day-group-key]")) return [element]
+  return Array.from(element.querySelectorAll?.("[data-photo-day-group-key]") || [])
 }
 
 function previousDayGroupBefore(group) {
@@ -112,6 +112,7 @@ function appendCards(targetGroup, sourceGroup) {
   const sourceGrid = sourceGroup.querySelector(".photo-day-group-grid")
   if (!targetGrid || !sourceGrid) return
 
+  demoteDayStart(sourceGrid.firstElementChild)
   targetGrid.append(...sourceGrid.children)
 }
 
@@ -120,5 +121,16 @@ function prependCards(targetGroup, sourceGroup) {
   const sourceGrid = sourceGroup.querySelector(".photo-day-group-grid")
   if (!targetGrid || !sourceGrid) return
 
+  demoteDayStart(targetGrid.firstElementChild)
   targetGrid.prepend(...sourceGrid.children)
+}
+
+function demoteDayStart(card) {
+  if (!card) return
+
+  card.querySelector(".photo-day-marker")?.remove()
+  card.removeAttribute("data-stream-date-group-key")
+  const selectionControl = card.querySelector(".selection-control")
+  selectionControl?.classList.remove("top-12")
+  selectionControl?.classList.add("top-3")
 }

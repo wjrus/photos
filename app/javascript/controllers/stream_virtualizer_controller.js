@@ -45,13 +45,14 @@ export default class extends Controller {
   }
 
   groups() {
-    return Array.from(this.element.querySelectorAll("[data-stream-date-group-key]"))
+    return Array.from(this.element.querySelectorAll("[data-photo-day-group-key]"))
   }
 
   collapse(group) {
     if (group.dataset.streamVirtualized === "true") return
     if (group.matches(":focus-within")) return
     if (group.querySelector("input:checked")) return
+    if (getComputedStyle(group).display === "contents") return
 
     const height = Math.max(group.getBoundingClientRect().height, 1)
     this.cache.set(group.id, group.innerHTML)

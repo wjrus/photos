@@ -980,10 +980,11 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select ".photo-day-groups"
-    assert_select "section#day-2024-04-29[data-bulk-selection-group][data-stream-date-group-key='2024-04-29']"
-    assert_select "section#day-2024-04-29.photo-day-group[style*='--day-group-columns']"
+    assert_select "section#day-2024-04-29[data-bulk-selection-group][data-photo-day-group-key='2024-04-29']"
+    assert_select "section#day-2024-04-29.photo-day-group"
     assert_select "section#day-2024-04-29 .photo-day-group-grid"
-    assert_select "input[data-bulk-selection-group-toggle][aria-label='Select all photos from Mon, Apr 29, 2024']"
+    assert_select "article[data-stream-date-group-key='2024-04-29']", 1
+    assert_select ".photo-day-marker input[data-bulk-selection-group-toggle][aria-label='Select all photos from Mon, Apr 29, 2024']"
   end
 
   test "photo stream excludes archived photos" do
