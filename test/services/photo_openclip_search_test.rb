@@ -41,7 +41,7 @@ class PhotoOpenclipSearchTest < ActiveSupport::TestCase
     photo = attached_photo(owner, title: "Garage")
     create_openclip_embedding(photo)
     AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENCLIP_ENABLED, true)
-    client = FakeOpenclipSearchClient.new([{ "photo_id" => photo.id, "score" => 0.99 }])
+    client = FakeOpenclipSearchClient.new([ { "photo_id" => photo.id, "score" => 0.99 } ])
 
     with_cache_store(ActiveSupport::Cache::MemoryStore.new) do
       with_openclip_client(client) do

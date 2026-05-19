@@ -31,7 +31,7 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
     other = attached_photo(title: "Office note")
     create_openclip_embedding(match)
     AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENCLIP_ENABLED, true)
-    client = FakeOpenclipSearchClient.new([{ "photo_id" => match.id, "score" => 0.92 }])
+    client = FakeOpenclipSearchClient.new([ { "photo_id" => match.id, "score" => 0.92 } ])
 
     with_openclip_client(client) do
       get search_path(q: "car")
@@ -47,7 +47,7 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
     match = attached_photo(title: "Parking lot")
     create_openclip_embedding(match)
     AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENCLIP_ENABLED, true)
-    client = FakeOpenclipSearchClient.new([{ "photo_id" => match.id, "score" => 0.92 }])
+    client = FakeOpenclipSearchClient.new([ { "photo_id" => match.id, "score" => 0.92 } ])
 
     with_openclip_client(client) do
       get search_path(q: "car")
