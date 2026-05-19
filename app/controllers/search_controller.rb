@@ -4,14 +4,17 @@ class SearchController < ApplicationController
   def show
     @search_params = search_params
     search = PhotoSearch.new(params: @search_params, user: current_user)
+    results = search.results
     @search_active = search.active?
     @semantic_search_available = search.semantic_search_available?
-    @photos, @next_cursor, @newer_cursor = paginate_photo_stream_with_focus(search_stream(search.results))
+    @search_order_token = store_search_order(results) if @search_active
+    @search_return_path = search_return_path
+    @photos, @next_cursor, @newer_cursor = paginate_photo_stream_with_focus(search_stream(results))
 
     return if render_photo_page_if_requested(
-      return_to: search_path(@search_params),
+      return_to: @search_return_path,
       bulk_form_id: "search-photo-bulk-form",
-      next_page_path: search_path(@search_params),
+      next_page_path: @search_return_path,
       stream_target_photo_id: @stream_target_photo_id
     )
 
@@ -24,6 +27,16 @@ class SearchController < ApplicationController
   def search_params
     allowed_filters = PhotoSearch.filter_params_for(current_user)
     params.permit(*allowed_filters, :cursor, :stream_page).to_h.symbolize_keys.slice(*allowed_filters)
+  end
+
+  def store_search_order(results)
+    PhotoSearchOrderSnapshot.store(scope: results.except(:includes), user: current_user, token: params[:search_order])
+  end
+
+  def search_return_path
+    return search_path(@search_params) if @search_order_token.blank?
+
+    search_path(@search_params.merge(search_order: @search_order_token))
   end
 
   def search_stream(results)

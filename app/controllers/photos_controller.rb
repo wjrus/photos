@@ -208,6 +208,13 @@ class PhotosController < ApplicationController
   end
 
   def set_stream_neighbors
+    search_neighbors = search_order_stream_neighbors
+    if search_neighbors
+      @previous_photo = search_neighbors[:previous_photo]
+      @next_photo = search_neighbors[:next_photo]
+      return
+    end
+
     stream = navigation_stream
     if navigation_stream_order == :chronological
       @previous_photo = stream.chronological_before(@photo)
@@ -234,6 +241,26 @@ class PhotosController < ApplicationController
     photo_stream_return_order(uri)
   rescue URI::InvalidURIError
     :stream
+  end
+
+  def search_order_stream_neighbors
+    uri = URI.parse(safe_return_path)
+    return unless uri.path == search_path
+
+    query = Rack::Utils.parse_nested_query(uri.query)
+    token = query["search_order"]
+    return if token.blank?
+
+    neighbor_ids = PhotoSearchOrderSnapshot.neighbor_ids(token: token, user: current_user, photo_id: @photo.id)
+    return unless neighbor_ids
+
+    neighbors = visible_photo_scope.where(id: neighbor_ids.values.compact).index_by(&:id)
+    {
+      previous_photo: neighbors[neighbor_ids[:previous_id]],
+      next_photo: neighbors[neighbor_ids[:next_id]]
+    }
+  rescue URI::InvalidURIError
+    nil
   end
 
   def visible_photo_scope

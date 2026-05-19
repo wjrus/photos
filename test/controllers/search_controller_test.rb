@@ -21,7 +21,7 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "Banff overlook"
     refute_includes response.body, "Office note"
-    assert_select "a[href='#{photo_path(match)}'][data-photo-return-to='#{search_path(q: "Banff")}']"
+    assert_select "a[href='#{photo_path(match)}'][data-photo-return-to*='#{search_path(q: "Banff")}'][data-photo-return-to*='search_order=']"
     assert_select "form[data-controller~='stream-state-reset'][data-controller~='search-form'][data-action='submit->stream-state-reset#clear']"
     assert_select "button[aria-label='Clear search text'][data-action='search-form#clearQuery']"
   end
@@ -104,6 +104,30 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-stream-state-target-photo-id-value='#{target.id}']"
     assert_select "[data-photo-id='#{target.id}']"
     assert_select "[data-photo-id='#{older.id}']"
+  end
+
+  test "search result return path preserves cached result order for photo navigation" do
+    newest = attached_photo(title: "Dog newest")
+    current = attached_photo(title: "Dog current")
+    oldest = attached_photo(title: "Dog oldest")
+    newest.update_columns(created_at: Time.zone.local(2026, 1, 3), updated_at: Time.zone.local(2026, 1, 3))
+    current.update_columns(created_at: Time.zone.local(2026, 1, 2), updated_at: Time.zone.local(2026, 1, 2))
+    oldest.update_columns(created_at: Time.zone.local(2026, 1, 1), updated_at: Time.zone.local(2026, 1, 1))
+
+    with_memory_cache do
+      get search_path(q: "Dog")
+      assert_response :success
+      return_to = css_select("a[href='#{photo_path(current)}']").first["data-photo-return-to"]
+      assert_includes return_to, "search_order="
+
+      get photo_path(current, return_to: return_to)
+      assert_redirected_to photo_path(current)
+      follow_redirect!
+    end
+
+    assert_response :success
+    assert_select "a[href='#{photo_path(newest)}'][aria-label='Previous item in stream']"
+    assert_select "a[href='#{photo_path(oldest)}'][aria-label='Next item in stream']"
   end
 
   test "search finds photos by place name" do
@@ -236,6 +260,14 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
     yield
   ensure
     PhotoAnalysisLocalClient.define_singleton_method(:new, original_new)
+  end
+
+  def with_memory_cache
+    previous_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    yield
+  ensure
+    Rails.cache = previous_cache
   end
 
   def attached_photo(title:)
