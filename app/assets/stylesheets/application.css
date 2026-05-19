@@ -181,23 +181,28 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, var(--photo-tile-width, 13rem)));
   grid-auto-rows: var(--photo-tile-height, 220px);
-  gap: var(--photo-tile-gap, 0.75rem);
+  gap: var(--photo-tile-row-gap, 1.6rem) var(--photo-tile-gap, 0.5rem);
+  padding-block-start: var(--photo-day-marker-offset, 1.6rem);
 }
 
 .photo-grid-size-compact {
   --photo-tile-width: 9.75rem;
   --photo-tile-height: 156px;
-  --photo-tile-gap: 0.55rem;
+  --photo-tile-gap: 0.3rem;
+  --photo-tile-row-gap: 1.5rem;
+  --photo-day-marker-offset: 1.45rem;
 }
 
 .photo-grid-size-medium {
   --photo-tile-width: 13rem;
   --photo-tile-height: 220px;
+  --photo-day-marker-offset: 1.6rem;
 }
 
 .photo-grid-size-large {
   --photo-tile-width: 16rem;
   --photo-tile-height: 284px;
+  --photo-day-marker-offset: 1.6rem;
 }
 
 .photo-day-group {
@@ -205,7 +210,13 @@
 }
 
 .photo-day-marker {
-  max-width: calc(100% - 1rem);
+  inset-block-start: calc(-1 * var(--photo-day-marker-offset, 1.6rem));
+  inset-inline-start: 0;
+  max-width: min(100%, 16rem);
+}
+
+.photo-card-frame {
+  overflow: hidden;
 }
 
 .photo-day-group-grid {
@@ -245,15 +256,15 @@
 
 @media (min-width: 640px) {
   .photo-day-groups {
-    grid-template-columns: repeat(auto-fill, minmax(var(--photo-tile-width, 13rem), var(--photo-tile-width, 13rem)));
+    grid-template-columns: repeat(auto-fill, minmax(var(--photo-tile-width, 13rem), 1fr));
   }
 
   .photo-flat-grid {
-    grid-template-columns: repeat(auto-fill, minmax(var(--photo-tile-width, 13rem), var(--photo-tile-width, 13rem)));
+    grid-template-columns: repeat(auto-fill, minmax(var(--photo-tile-width, 13rem), 1fr));
   }
 
   .photo-flat-pages {
-    grid-template-columns: repeat(auto-fill, minmax(var(--photo-tile-width, 13rem), var(--photo-tile-width, 13rem)));
+    grid-template-columns: repeat(auto-fill, minmax(var(--photo-tile-width, 13rem), 1fr));
   }
 }
 

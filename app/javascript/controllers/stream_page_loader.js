@@ -130,7 +130,4 @@ function demoteDayStart(card) {
 
   card.querySelector(".photo-day-marker")?.remove()
   card.removeAttribute("data-stream-date-group-key")
-  const selectionControl = card.querySelector(".selection-control")
-  selectionControl?.classList.remove("top-12")
-  selectionControl?.classList.add("top-3")
 }
