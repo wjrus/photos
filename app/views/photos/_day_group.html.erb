@@ -1,6 +1,8 @@
 <% day_key = photo_stream_day_key(day) %>
-<% group_columns = [photos.size, 5].min.clamp(feature_first ? 2 : 1, 5) %>
-<% group_width = "#{(group_columns * 13) + ((group_columns - 1) * 0.75)}rem" %>
+<% tile_dimensions = photo_stream_tile_dimensions %>
+<% max_group_columns = tile_dimensions[:width] <= 11 ? 6 : tile_dimensions[:width] >= 16 ? 4 : 5 %>
+<% group_columns = [photos.size, max_group_columns].min.clamp(1, max_group_columns) %>
+<% group_width = "#{(group_columns * tile_dimensions[:width]) + ((group_columns - 1) * 0.75)}rem" %>
 
 <section id="day-<%= day_key %>"
          class="photo-day-group scroll-mt-24"
@@ -28,7 +30,7 @@
       <%= render "photos/card",
             photo: photo,
             return_to: return_to,
-            feature: feature_first && index.zero?,
+            feature: false,
             bulk_form_id: bulk_form_id,
             owner_controls: owner_controls,
             archive_context: local_assigns[:archive_context],

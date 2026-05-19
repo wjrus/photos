@@ -222,6 +222,22 @@ module ApplicationHelper
     end
   end
 
+  def photo_stream_tile_size
+    current_user&.stream_tile_size.presence_in(User::STREAM_TILE_SIZES) || "medium"
+  end
+
+  def photo_stream_tile_dimensions(size = photo_stream_tile_size)
+    {
+      "compact" => { width: 10.5, height: 164 },
+      "medium" => { width: 13.0, height: 220 },
+      "large" => { width: 16.0, height: 284 }
+    }.fetch(size)
+  end
+
+  def photo_stream_tile_label(size)
+    size.to_s.humanize
+  end
+
   def user_avatar(user, classes: "size-9 rounded-lg border border-zinc-200 object-cover")
     if user.avatar.attached?
       image_tag user.avatar, alt: "", class: classes

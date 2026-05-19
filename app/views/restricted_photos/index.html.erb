@@ -18,7 +18,7 @@
         <%= render "photos/grid",
               photos: @photos,
               return_to: restricted_photos_path,
-              feature_first: true,
+              feature_first: false,
               owner_controls: false,
               next_cursor: nil,
               next_page_path: restricted_photos_path %>

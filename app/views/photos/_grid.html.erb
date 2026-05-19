@@ -1,6 +1,7 @@
 <% group_by_day = local_assigns.fetch(:group_by_day, true) %>
+<% tile_size = photo_stream_tile_size %>
 
-<div class="<%= group_by_day ? "space-y-7" : "photo-flat-pages" %>"
+<div class="<%= [("space-y-7" if group_by_day), ("photo-flat-pages" unless group_by_day), "photo-grid-size-#{tile_size}"].compact.join(" ") %>"
      data-stream-page-container
      data-stream-state-target-photo-id-value="<%= local_assigns[:stream_target_photo_id] %>"
      data-controller="<%= [("infinite-scroll" if next_cursor.present? || local_assigns[:newer_cursor].present?), "stream-state", "stream-virtualizer"].compact.join(" ") %>"

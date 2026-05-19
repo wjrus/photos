@@ -886,6 +886,22 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "4,032 x 3,024"
   end
 
+  test "owner photo stream uses selected uniform tile size" do
+    @owner.update!(stream_tile_size: "compact")
+    attached_photo(title: "Uniform tile one")
+    attached_photo(title: "Uniform tile two")
+
+    get root_path
+
+    assert_response :success
+    assert_select ".photo-grid-size-compact"
+    assert_select "article.col-span-2", false
+    assert_select "article.row-span-2", false
+    assert_select "button", text: "Compact"
+    assert_select "button", text: "Medium"
+    assert_select "button", text: "Large"
+  end
+
   test "direct photo detail links back to a focused stream" do
     photo = attached_photo(title: "Direct link")
 

@@ -89,6 +89,22 @@
                   <%= current_user.show_stream_metadata? ? "On" : "Off" %>
                 </span>
               <% end %>
+              <div class="rounded-lg px-3 py-2">
+                <div class="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Stream size</div>
+                <div class="mt-2 grid grid-cols-3 gap-1">
+                  <% User::STREAM_TILE_SIZES.each do |size| %>
+                    <%= button_to photo_stream_tile_label(size),
+                          user_preferences_path,
+                          method: :patch,
+                          params: {
+                            return_to: request.fullpath,
+                            user: { stream_tile_size: size }
+                          },
+                          form: { class: "contents" },
+                          class: "rounded-md border px-2 py-1.5 text-xs font-semibold transition #{current_user.stream_tile_size == size ? "border-zinc-950 bg-zinc-950 text-white" : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-950 hover:bg-zinc-950 hover:text-white"}" %>
+                  <% end %>
+                </div>
+              </div>
               <div class="my-2 border-t border-zinc-200"></div>
             <% end %>
             <%= button_to "Sign out", sign_out_path, method: :delete, class: "w-full rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>

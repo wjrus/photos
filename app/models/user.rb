@@ -1,5 +1,6 @@
 class User < ApplicationRecord
   ROLES = %w[owner viewer].freeze
+  STREAM_TILE_SIZES = %w[compact medium large].freeze
   attr_accessor :first_name, :last_name
 
   has_secure_password validations: false
@@ -25,6 +26,7 @@ class User < ApplicationRecord
   validates :uid, uniqueness: { scope: :provider }
   validates :email, uniqueness: true
   validates :role, inclusion: { in: ROLES }
+  validates :stream_tile_size, inclusion: { in: STREAM_TILE_SIZES }
   validates :password, length: { minimum: 10 }, allow_blank: true
 
   PASSWORD_RESET_TTL = 2.hours

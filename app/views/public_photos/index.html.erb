@@ -21,7 +21,7 @@
       <%= render "photos/grid",
             photos: @photos,
             return_to: public_photos_path,
-            feature_first: true,
+            feature_first: false,
             bulk_form_id: "public-photo-bulk-form",
             stream_target_photo_id: @stream_target_photo_id,
             next_cursor: @next_cursor,

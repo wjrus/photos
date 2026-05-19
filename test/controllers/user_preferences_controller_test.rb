@@ -22,15 +22,35 @@ class UserPreferencesControllerTest < ActionDispatch::IntegrationTest
     assert_predicate @owner.reload, :show_stream_metadata?
   end
 
+  test "owner can change stream tile size preference" do
+    patch user_preferences_path, params: {
+      return_to: root_path,
+      user: { stream_tile_size: "large" }
+    }
+
+    assert_redirected_to root_path
+    assert_equal "large", @owner.reload.stream_tile_size
+  end
+
+  test "invalid stream tile size is rejected" do
+    patch user_preferences_path, params: {
+      user: { stream_tile_size: "enormous" }
+    }
+
+    assert_redirected_to root_path
+    assert_equal "medium", @owner.reload.stream_tile_size
+  end
+
   test "viewer cannot change preferences" do
     sign_in_as(users(:two))
 
     patch user_preferences_path, params: {
-      user: { show_stream_metadata: "1" }
+      user: { show_stream_metadata: "1", stream_tile_size: "large" }
     }
 
     assert_redirected_to root_path
     refute_predicate users(:two).reload, :show_stream_metadata?
+    assert_equal "medium", users(:two).reload.stream_tile_size
   end
 
   private
