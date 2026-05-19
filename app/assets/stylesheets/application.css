@@ -9,6 +9,114 @@
  * Consider organizing styles into separate files for maintainability.
  */
 
+:root {
+  color-scheme: light;
+  --theme-bg: #fafaf8;
+  --theme-panel: #ffffff;
+  --theme-panel-soft: #f4f4f5;
+  --theme-panel-strong: #ffffff;
+  --theme-text: #09090b;
+  --theme-muted: #52525b;
+  --theme-subtle: #71717a;
+  --theme-border: #e4e4e7;
+  --theme-accent: #0f766e;
+  --theme-accent-strong: #134e4a;
+  --theme-accent-ink: #ffffff;
+  --theme-danger: #be123c;
+  --theme-warning: #92400e;
+  --theme-shadow: 0 16px 40px rgba(9, 9, 11, 0.12);
+  --theme-focus: #0f766e;
+  --theme-font: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --theme-bg: #0b0f14;
+  --theme-panel: #111827;
+  --theme-panel-soft: #172033;
+  --theme-panel-strong: #0f172a;
+  --theme-text: #f4f7fb;
+  --theme-muted: #c4ceda;
+  --theme-subtle: #94a3b8;
+  --theme-border: #263448;
+  --theme-accent: #5eead4;
+  --theme-accent-strong: #99f6e4;
+  --theme-accent-ink: #082f2a;
+  --theme-danger: #fb7185;
+  --theme-warning: #fbbf24;
+  --theme-shadow: 0 18px 44px rgba(0, 0, 0, 0.42);
+  --theme-focus: #5eead4;
+}
+
+:root[data-theme="paper"] {
+  color-scheme: light;
+  --theme-bg: #fbf7ed;
+  --theme-panel: #fffdf6;
+  --theme-panel-soft: #f0eadc;
+  --theme-panel-strong: #ffffff;
+  --theme-text: #1f2731;
+  --theme-muted: #5f665e;
+  --theme-subtle: #77705f;
+  --theme-border: #d9cfbb;
+  --theme-accent: #2d6c68;
+  --theme-accent-strong: #1f4f4c;
+  --theme-accent-ink: #fffdf6;
+  --theme-danger: #a83f3f;
+  --theme-warning: #7c4a12;
+  --theme-shadow: 0 16px 40px rgba(31, 39, 49, 0.1);
+  --theme-focus: #2d6c68;
+}
+
+:root[data-theme="terminal"] {
+  color-scheme: dark;
+  --theme-bg: #000000;
+  --theme-panel: #030603;
+  --theme-panel-soft: #071307;
+  --theme-panel-strong: #000000;
+  --theme-text: #39ff88;
+  --theme-muted: #8bd8aa;
+  --theme-subtle: #64b87f;
+  --theme-border: #16803d;
+  --theme-accent: #39ff88;
+  --theme-accent-strong: #a1ffc7;
+  --theme-accent-ink: #001b09;
+  --theme-danger: #ff6b6b;
+  --theme-warning: #d7ff7a;
+  --theme-shadow: 0 16px 40px rgba(57, 255, 136, 0.12);
+  --theme-focus: #39ff88;
+  --theme-font: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+:root[data-theme="amber"] {
+  color-scheme: dark;
+  --theme-bg: #100800;
+  --theme-panel: #1a0d02;
+  --theme-panel-soft: #261504;
+  --theme-panel-strong: #120900;
+  --theme-text: #ffd27a;
+  --theme-muted: #d8aa62;
+  --theme-subtle: #b88949;
+  --theme-border: #7c4a12;
+  --theme-accent: #ffd27a;
+  --theme-accent-strong: #fff1c9;
+  --theme-accent-ink: #1a0d02;
+  --theme-danger: #ff8f7a;
+  --theme-warning: #ffd27a;
+  --theme-shadow: 0 16px 40px rgba(255, 210, 122, 0.11);
+  --theme-focus: #ffd27a;
+  --theme-font: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+html {
+  background: var(--theme-bg);
+}
+
+body {
+  background: var(--theme-bg);
+  color: var(--theme-text);
+  font-family: var(--theme-font);
+}
+
 :where(
   a[href],
   button:not(:disabled),
@@ -41,6 +149,99 @@
   transform: translateY(0);
 }
 
+.theme-picker {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.theme-picker__label {
+  color: var(--theme-subtle);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.theme-picker__select {
+  width: 100%;
+  border: 1px solid var(--theme-border);
+  border-radius: 0.375rem;
+  background: var(--theme-panel-strong);
+  color: var(--theme-text);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0.45rem 0.55rem;
+}
+
+html[data-theme] :is(.bg-stone-50, .bg-zinc-50) {
+  background-color: var(--theme-bg) !important;
+}
+
+html[data-theme] :is(.bg-white, .bg-white\/90, .bg-white\/95) {
+  background-color: color-mix(in srgb, var(--theme-panel) 94%, transparent) !important;
+}
+
+html[data-theme] :is(.bg-zinc-100, .bg-zinc-200) {
+  background-color: var(--theme-panel-soft) !important;
+}
+
+html[data-theme] :is(a, button, summary).bg-zinc-950 {
+  background-color: var(--theme-accent) !important;
+  color: var(--theme-accent-ink) !important;
+}
+
+html[data-theme] :is(.text-zinc-950, .text-zinc-900, .text-zinc-800, .text-black) {
+  color: var(--theme-text) !important;
+}
+
+html[data-theme] :is(.text-zinc-700, .text-zinc-600, .text-zinc-500, .text-zinc-400) {
+  color: var(--theme-muted) !important;
+}
+
+html[data-theme] :is(.text-teal-900, .text-teal-800, .text-teal-700, .text-teal-600) {
+  color: var(--theme-accent) !important;
+}
+
+html[data-theme] :is(.text-rose-950, .text-rose-900, .text-rose-800, .text-rose-700, .text-red-700) {
+  color: var(--theme-danger) !important;
+}
+
+html[data-theme] :is(.text-amber-950, .text-amber-900) {
+  color: var(--theme-warning) !important;
+}
+
+html[data-theme] :is(.border-zinc-100, .border-zinc-200, .border-zinc-300, .border-teal-200, .border-rose-200, .border-amber-200) {
+  border-color: var(--theme-border) !important;
+}
+
+html[data-theme] :is(.decoration-zinc-300, .decoration-teal-200) {
+  text-decoration-color: var(--theme-border) !important;
+}
+
+html[data-theme] :is(.shadow-sm, .shadow-lg, .shadow-2xl) {
+  box-shadow: var(--theme-shadow) !important;
+}
+
+html[data-theme] :is(.hover\:bg-white:hover, .hover\:bg-zinc-100:hover, .hover\:bg-teal-50:hover, .hover\:bg-rose-50:hover, .hover\:bg-red-50:hover) {
+  background-color: var(--theme-panel-soft) !important;
+}
+
+html[data-theme] :is(.hover\:bg-zinc-950:hover, .hover\:bg-zinc-800:hover, .hover\:bg-teal-700:hover, .hover\:bg-teal-800:hover, .hover\:bg-rose-800:hover, .hover\:bg-rose-950:hover, .hover\:bg-amber-900:hover) {
+  background-color: var(--theme-accent) !important;
+  color: var(--theme-accent-ink) !important;
+}
+
+html[data-theme] :is(.hover\:border-zinc-950:hover, .hover\:border-teal-700:hover, .hover\:border-teal-800:hover, .hover\:border-rose-800:hover, .hover\:border-red-700:hover, .hover\:border-amber-900:hover) {
+  border-color: var(--theme-accent) !important;
+}
+
+html[data-theme] :is(input, select, textarea) {
+  accent-color: var(--theme-accent);
+}
+
 :is(
   a[href],
   button,
@@ -51,7 +252,7 @@
   [role="button"],
   [tabindex]:not([tabindex="-1"])
 ):focus-visible {
-  outline: 3px solid #0f766e;
+  outline: 3px solid var(--theme-focus);
   outline-offset: 3px;
 }
 

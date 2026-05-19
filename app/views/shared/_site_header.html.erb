@@ -107,10 +107,33 @@
               </div>
               <div class="my-2 border-t border-zinc-200"></div>
             <% end %>
+            <label class="theme-picker" aria-label="Theme">
+              <span class="theme-picker__label">Theme</span>
+              <select class="theme-picker__select" data-theme-select>
+                <option value="system">System</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+                <option value="paper">Paper</option>
+                <option value="terminal">Terminal</option>
+                <option value="amber">Amber</option>
+              </select>
+            </label>
+            <div class="my-2 border-t border-zinc-200"></div>
             <%= button_to "Sign out", sign_out_path, method: :delete, class: "w-full rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
           </div>
         </details>
       <% else %>
+        <label class="theme-picker hidden sm:grid" aria-label="Theme">
+          <span class="theme-picker__label">Theme</span>
+          <select class="theme-picker__select" data-theme-select>
+            <option value="system">System</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="paper">Paper</option>
+            <option value="terminal">Terminal</option>
+            <option value="amber">Amber</option>
+          </select>
+        </label>
         <%= link_to "Sign in", sign_in_path, class: "rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
       <% end %>
     </div>

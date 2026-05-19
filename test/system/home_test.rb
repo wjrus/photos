@@ -6,6 +6,7 @@ class HomeTest < ApplicationSystemTestCase
 
     assert_text "wjr photos"
     assert_link "Sign in"
+    assert_selector "select[data-theme-select]"
     assert_no_text "ARCHIVE RULE"
     assert_no_text "Drop iPhone imports here"
     assert_no_text "Preserved privately."
