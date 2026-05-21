@@ -20,6 +20,7 @@ class GeneratePhotoDerivativesJob < ApplicationJob
 
     if photo.image?
       generate_image_derivatives(photo)
+      enqueue_enabled_analysis(photo)
     elsif photo.video?
       generate_video_derivatives(photo, preview_only: preview_only)
     end
@@ -76,6 +77,7 @@ class GeneratePhotoDerivativesJob < ApplicationJob
       filename: "#{video_derivative_basename(photo)}-preview.jpg",
       content_type: "image/jpeg"
     )
+    enqueue_enabled_analysis(photo)
   end
 
   def attach_video_display(photo, display_path)
@@ -170,6 +172,22 @@ class GeneratePhotoDerivativesJob < ApplicationJob
 
   def video_derivative_basename(photo)
     File.basename(photo.original_filename.to_s.presence || "video", ".*").parameterize.presence || "video"
+  end
+
+  def enqueue_enabled_analysis(photo)
+    return if photo.restricted?
+    return unless AppSetting.boolean(AppSetting::ANALYSIS_OPENCLIP_ENABLED, default: false)
+    return if current_openclip_embedding_exists?(photo)
+
+    PhotoAnalysisOpenclipJob.perform_later(photo)
+  end
+
+  def current_openclip_embedding_exists?(photo)
+    photo.embeddings.exists?(
+      provider: "openclip",
+      model: ENV.fetch("OPENCLIP_MODEL", "ViT-B-32"),
+      model_version: ENV.fetch("OPENCLIP_PRETRAINED", "laion2b_s34b_b79k")
+    )
   end
 
   def run_ffmpeg(*args, timeout:)

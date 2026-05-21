@@ -14,6 +14,18 @@ class GeneratePhotoDerivativesJobTest < ActiveJob::TestCase
     assert photo.processed_original_variant_record(:display)&.image&.attached?
   end
 
+  test "queues openclip analysis after image derivatives when enabled" do
+    AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENCLIP_ENABLED, true)
+    photo = attached_photo
+    clear_enqueued_jobs
+
+    assert_enqueued_with(job: PhotoAnalysisOpenclipJob, args: [ photo ]) do
+      GeneratePhotoDerivativesJob.perform_now(photo)
+    end
+  ensure
+    AppSetting.find_by(key: AppSetting::ANALYSIS_OPENCLIP_ENABLED)&.destroy
+  end
+
   test "delegates video originals to video derivative generation" do
     photo = users(:one).photos.new
     photo.original.attach(

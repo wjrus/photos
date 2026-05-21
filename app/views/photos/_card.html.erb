@@ -5,7 +5,7 @@
 <% day_key = local_assigns[:day_key] %>
 <% day_start = day_label.present? %>
 
-<article class="<%= feature ? "col-span-2 row-span-2" : "" %> group relative rounded-lg"
+<article class="<%= feature ? "col-span-2 row-span-2" : "" %> group relative z-0 rounded-lg"
          data-bulk-selection-card
          data-photo-id="<%= photo.id %>"
          <%= %(data-stream-date-group-key="#{day_key}").html_safe if day_key.present? %>

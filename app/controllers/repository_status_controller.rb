@@ -30,6 +30,7 @@ class RepositoryStatusController < ApplicationController
     @checksums = Photo.group(:checksum_status).count
     @drive_archives = DriveArchiveObject.group(:status).count
     @derivatives = derivative_totals
+    @location_status = location_status
     @analysis_status = analysis_status
     @health = health_totals
     @health_timeline = health_timeline
@@ -54,6 +55,9 @@ class RepositoryStatusController < ApplicationController
         PhotoAnalysisBackfillJob.perform_later(providers: providers, batch_size: analysis_batch_size)
         redirect_to repository_status_redirect_path, notice: "Photo analysis queued for #{providers.join(', ')}."
       end
+    when "geocode_locations"
+      GeocodeMissingPhotoLocationsJob.perform_later(limit: geocode_location_limit)
+      redirect_to repository_status_redirect_path, notice: "Location name geocoding queued."
     else
       OriginalFileHealthPatrolJob.perform_later(batch_size: patrol_batch_size)
       redirect_to repository_status_redirect_path, notice: "Repository patrol queued."
@@ -197,6 +201,32 @@ class RepositoryStatusController < ApplicationController
     Integer(params[:batch_size].presence || ENV.fetch("ANALYSIS_BACKFILL_BATCH_SIZE", PhotoAnalysisBackfillJob::DEFAULT_BATCH_SIZE)).clamp(1, PhotoAnalysisBackfillJob::MAX_BATCH_SIZE)
   rescue ArgumentError
     PhotoAnalysisBackfillJob::DEFAULT_BATCH_SIZE
+  end
+
+  def geocode_location_limit
+    Integer(params[:limit].presence || GeocodeMissingPhotoLocationsJob::DEFAULT_LIMIT).clamp(1, GeocodeMissingPhotoLocationsJob::MAX_LIMIT)
+  rescue ArgumentError
+    GeocodeMissingPhotoLocationsJob::DEFAULT_LIMIT
+  end
+
+  def location_status
+    rows = PhotoLocation.rows(geotagged_photos, limit: GeocodeMissingPhotoLocationsJob::MAX_LIMIT).to_a
+    location_ids = rows.map { |row| PhotoLocation.id_for_coordinates(row.latitude, row.longitude) }
+    named_count = PhotoLocationPlace.where(location_id: location_ids).count
+
+    {
+      buckets: rows.size,
+      named: named_count,
+      missing: [ rows.size - named_count, 0 ].max,
+      geocoder_configured: LocationReverseGeocoder.api_key.present?
+    }
+  end
+
+  def geotagged_photos
+    Photo
+      .where(restricted: false, archived_at: nil)
+      .joins(:metadata)
+      .where.not(photo_metadata: { latitude: nil, longitude: nil })
   end
 
   def analysis_status

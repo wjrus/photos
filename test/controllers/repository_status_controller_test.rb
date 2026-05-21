@@ -33,6 +33,8 @@ class RepositoryStatusControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Google Drive authorization"
     assert_includes response.body, GoogleDriveArchiveClient::DRIVE_SCOPE
     assert_includes response.body, "Original file auto-heal"
+    assert_includes response.body, "Location names"
+    assert_includes response.body, "Coordinate-only"
   end
 
   test "owner can view analysis section" do
@@ -156,6 +158,15 @@ class RepositoryStatusControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_redirected_to repository_status_path
+  end
+
+  test "owner can queue missing location geocoding from repository status" do
+    assert_enqueued_with(job: GeocodeMissingPhotoLocationsJob, args: [ { limit: 250 } ]) do
+      post repository_status_path, params: { scan_type: "geocode_locations", limit: 250 }
+    end
+
+    assert_redirected_to repository_status_path
+    assert_equal "Location name geocoding queued.", flash[:notice]
   end
 
   test "owner cannot queue disabled photo analysis provider" do

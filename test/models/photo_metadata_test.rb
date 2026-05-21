@@ -25,7 +25,41 @@ class PhotoMetadataTest < ActiveSupport::TestCase
     PhotoMetadata.define_singleton_method(:create!, original_create)
   end
 
+  test "queues reverse geocoding when gps coordinates are stored" do
+    with_geocoding_key do
+      photo = attached_photo
+      metadata = PhotoMetadata.for_photo(photo)
+
+      assert_enqueued_with(
+        job: GeocodePhotoLocationJob,
+        args: [ PhotoLocation.id_for_coordinates(44.7622, -85.5980), 44.7622, -85.5980 ]
+      ) do
+        metadata.update!(latitude: 44.7622, longitude: -85.5980)
+      end
+    end
+  end
+
+  test "does not queue reverse geocoding when place is already known" do
+    with_geocoding_key do
+      photo = attached_photo
+      location_id = PhotoLocation.id_for_coordinates(44.7622, -85.5980)
+      PhotoLocationPlace.create!(location_id: location_id, name: "Traverse City, Michigan")
+
+      assert_no_enqueued_jobs only: GeocodePhotoLocationJob do
+        PhotoMetadata.for_photo(photo).update!(latitude: 44.7622, longitude: -85.5980)
+      end
+    end
+  end
+
   private
+
+  def with_geocoding_key
+    original_key = ENV["GOOGLE_MAPS_GEOCODING_API_KEY"]
+    ENV["GOOGLE_MAPS_GEOCODING_API_KEY"] = "test-key"
+    yield
+  ensure
+    ENV["GOOGLE_MAPS_GEOCODING_API_KEY"] = original_key
+  end
 
   def attached_photo
     photo = users(:one).photos.new

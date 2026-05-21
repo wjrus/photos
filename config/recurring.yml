@@ -16,6 +16,12 @@ production:
   original_file_health_patrol:
     command: "OriginalFileHealthPatrolJob.perform_later(batch_size: 100)"
     schedule: every hour at minute 37
+  photo_analysis_backfill:
+    command: "PhotoAnalysisBackfillJob.perform_later(batch_size: ENV.fetch('ANALYSIS_BACKFILL_BATCH_SIZE', PhotoAnalysisBackfillJob::DEFAULT_BATCH_SIZE).to_i)"
+    schedule: every 10 minutes
+  geocode_missing_photo_locations:
+    command: "GeocodeMissingPhotoLocationsJob.perform_later"
+    schedule: every hour at minute 17
   refresh_photo_location_bounds:
     command: "RefreshPhotoLocationBoundsJob.perform_later"
     schedule: every day at 3:24am
