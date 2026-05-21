@@ -43,13 +43,13 @@ class GeocodePhotoLocationJobTest < ActiveJob::TestCase
     end
   end
 
-  test "removes stale plus code name when no usable place is found" do
+  test "keeps stale plus code name when no usable place is found" do
     PhotoLocationPlace.create!(location_id: "846_-6246", name: "73H55V7C+Q8")
     geocoder = FakeReverseGeocoder.new(nil)
 
     with_reverse_geocoder(geocoder) { GeocodePhotoLocationJob.perform_now("846_-6246", 21.164478, -156.12915) }
 
-    assert_nil PhotoLocationPlace.find_by(location_id: "846_-6246")
+    assert_equal "73H55V7C+Q8", PhotoLocationPlace.find_by!(location_id: "846_-6246").name
   end
 
   class FakeReverseGeocoder

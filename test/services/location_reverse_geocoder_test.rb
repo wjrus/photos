@@ -178,7 +178,9 @@ class LocationReverseGeocoderTest < ActiveSupport::TestCase
     ]
 
     calls = stub_get_responses(responses) do
-      assert_nil LocationReverseGeocoder.new.geocode(latitude: 21.164478, longitude: -156.12915)
+      result = LocationReverseGeocoder.new.geocode(latitude: 21.164478, longitude: -156.12915)
+
+      assert_equal "73H55V7C+Q8", result[:name]
     end
 
     assert_equal 1, calls
@@ -220,7 +222,8 @@ class LocationReverseGeocoderTest < ActiveSupport::TestCase
     calls = stub_get_responses(responses) do
       result = LocationReverseGeocoder.new.geocode(latitude: 21.164478, longitude: -156.12915)
 
-      assert_equal "Lahaina, Hawaii", result[:name]
+      assert_equal "Near Lahaina, Hawaii", result[:name]
+      assert_includes result[:names], "Lahaina, Hawaii"
     end
 
     assert_equal 2, calls

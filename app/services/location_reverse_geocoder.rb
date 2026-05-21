@@ -9,7 +9,7 @@ class LocationReverseGeocoder
   NEARBY_FALLBACK_DAILY_LIMIT_ENV = "LOCATION_GEOCODER_NEARBY_FALLBACK_DAILY_LIMIT".freeze
   NEARBY_FALLBACK_MAX_PROBES_ENV = "LOCATION_GEOCODER_NEARBY_FALLBACK_MAX_PROBES".freeze
   NEARBY_FALLBACK_DEFAULT_DAILY_LIMIT = 25
-  NEARBY_FALLBACK_DEFAULT_MAX_PROBES = 4
+  NEARBY_FALLBACK_DEFAULT_MAX_PROBES = 9
   EARTH_RADIUS_KM = 6_371.0
   LARGE_LOCALITIES = [
     "Chicago",
@@ -46,12 +46,12 @@ class LocationReverseGeocoder
     cached = Rails.cache.read(cache_key)
     return cached if cached.present?
 
-    payloads = geocode_payloads(latitude: latitude, longitude: longitude)
-    result = payloads.lazy.flat_map { |payload| payload.fetch("results", []) }.find { |candidate| usable_result?(candidate) }
-    return unless result
+    match = geocode_result(latitude: latitude, longitude: longitude)
+    return unless match
 
-    primary_name = place_name(result)
-    return if self.class.plus_code_name?(primary_name)
+    result = match.fetch(:result)
+    primary_name = primary_name_for_result(result, nearby: match.fetch(:nearby))
+    return if primary_name.blank?
 
     geocoded = {
       name: primary_name,
@@ -68,22 +68,29 @@ class LocationReverseGeocoder
 
   private
 
-  def geocode_payloads(latitude:, longitude:)
+  def geocode_result(latitude:, longitude:)
     exact_payload = geocode_payload(latitude: latitude, longitude: longitude)
-    return [] unless exact_payload
-    return [ exact_payload ] if exact_payload.fetch("results", []).any? { |result| usable_result?(result) }
-    return [ exact_payload ] unless nearby_fallback_enabled?
+    return unless exact_payload
 
-    fallback_payload = nearby_payload(latitude: latitude.to_f, longitude: longitude.to_f)
-    [ exact_payload, fallback_payload ].compact
+    exact_result = exact_payload.fetch("results", []).find { |result| usable_result?(result) }
+    return { result: exact_result, nearby: false } if exact_result
+
+    if nearby_fallback_enabled?
+      nearby_result = nearby_result(latitude: latitude.to_f, longitude: longitude.to_f)
+      return nearby_result if nearby_result
+    end
+
+    plus_code_result = exact_payload.fetch("results", []).find { |result| plus_code_result?(result) }
+    { result: plus_code_result, nearby: false } if plus_code_result
   end
 
-  def nearby_payload(latitude:, longitude:)
+  def nearby_result(latitude:, longitude:)
     nearby_coordinates(latitude: latitude, longitude: longitude).take(nearby_fallback_max_probes).lazy.filter_map do |nearby_latitude, nearby_longitude|
       next unless reserve_nearby_fallback_request
 
       payload = geocode_payload(latitude: nearby_latitude, longitude: nearby_longitude)
-      payload if payload&.fetch("results", [])&.any? { |result| usable_result?(result) }
+      result = payload&.fetch("results", [])&.find { |candidate| usable_result?(candidate) }
+      { result: result, nearby: true } if result
     end.first
   end
 
@@ -137,8 +144,8 @@ class LocationReverseGeocoder
   end
 
   def nearby_coordinates(latitude:, longitude:)
-    NEARBY_FALLBACK_RADII_KM.flat_map do |radius_km|
-      NEARBY_FALLBACK_BEARINGS.map do |bearing_degrees|
+    NEARBY_FALLBACK_BEARINGS.flat_map do |bearing_degrees|
+      NEARBY_FALLBACK_RADII_KM.map do |radius_km|
         destination_coordinate(latitude: latitude, longitude: longitude, radius_km: radius_km, bearing_degrees: bearing_degrees)
       end
     end
@@ -205,10 +212,20 @@ class LocationReverseGeocoder
     end
   end
 
+  def primary_name_for_result(result, nearby:)
+    name = place_name(result) || plus_code_name(result)
+    return if name.blank?
+    return name unless nearby
+
+    "Near #{name}"
+  end
+
   def place_names(result, primary_name)
+    result_name = place_name(result)
     components = result.fetch("address_components", [])
     [
       primary_name,
+      result_name,
       landmark_name(result, components),
       component_name(components, "neighborhood"),
       component_name(components, "sublocality_level_1"),
@@ -250,6 +267,17 @@ class LocationReverseGeocoder
     return false if result.fetch("types", []).include?("plus_code")
 
     place_name(result).present?
+  end
+
+  def plus_code_result?(result)
+    result.fetch("types", []).include?("plus_code") || plus_code_name(result).present?
+  end
+
+  def plus_code_name(result)
+    [
+      result["formatted_address"].to_s.split(",", 2).first,
+      component_name(result.fetch("address_components", []), "plus_code")
+    ].compact_blank.find { |name| self.class.plus_code_name?(name) }
   end
 
   def api_key_fingerprint

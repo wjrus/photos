@@ -88,10 +88,9 @@ with the Google Geocoding API enabled; if it is absent the app falls back to the
 embed key. `GOOGLE_MAPS_MAP_ID` enables Google Maps advanced markers; if it is
 absent the app uses Google's demo map id.
 
-Reverse geocoding ignores Google Plus Codes as display names. If an exact
-coordinate only returns a Plus Code, the app leaves the location coordinate-based
-by default to avoid surprise API usage. To let it probe nearby coordinates for a
-city/area name, set `LOCATION_GEOCODER_NEARBY_FALLBACK=true` and keep
+Reverse geocoding stores Google Plus Codes when that is all the exact coordinate
+returns. To let it probe nearby coordinates for a friendlier city/area label such
+as `Near Maui, Hawaii`, set `LOCATION_GEOCODER_NEARBY_FALLBACK=true` and keep
 `LOCATION_GEOCODER_NEARBY_FALLBACK_DAILY_LIMIT` small.
 
 Then run:
@@ -238,8 +237,8 @@ Queue a bounded batch of missing location names:
 ```
 
 The Repository Status maintenance page can queue the same missing-location sweep.
-Rows whose current name is only a Plus Code are retried and, if no real place
-name is available, fall back to coordinates rather than storing the code.
+Rows whose current name is only a Plus Code are retried so opt-in nearby fallback
+can upgrade them to a `Near ...` label when Google has a usable nearby place.
 
 Prune stale jobs after code/queue changes:
 
