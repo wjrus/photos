@@ -28,6 +28,32 @@ class LocationReverseGeocoderTest < ActiveSupport::TestCase
     assert_equal "server-key", LocationReverseGeocoder.api_key
   end
 
+  test "uses the current cache namespace" do
+    ENV["GOOGLE_MAPS_GEOCODING_API_KEY"] = "server-key"
+    Rails.cache.write("location-reverse-geocoder/v2/21.16448,-156.12915", { name: "73H55V7C+Q8" })
+    response = http_ok_response(
+      status: "OK",
+      results: [
+        {
+          formatted_address: "Maui County, HI, USA",
+          address_components: [
+            { long_name: "Maui County", types: [ "administrative_area_level_2", "political" ] },
+            { long_name: "Hawaii", types: [ "administrative_area_level_1", "political" ] },
+            { long_name: "United States", types: [ "country", "political" ] }
+          ]
+        }
+      ]
+    )
+
+    calls = stub_get_responses([ response ]) do
+      result = LocationReverseGeocoder.new.geocode(latitude: 21.164478, longitude: -156.12915)
+
+      assert_equal "Maui County, Hawaii", result[:name]
+    end
+
+    assert_equal 1, calls
+  end
+
   test "returns nil and logs google status failures" do
     ENV["GOOGLE_MAPS_GEOCODING_API_KEY"] = "server-key"
     response = http_ok_response(

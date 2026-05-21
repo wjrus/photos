@@ -3,6 +3,7 @@ require "net/http"
 class LocationReverseGeocoder
   ENDPOINT = "https://maps.googleapis.com/maps/api/geocode/json".freeze
   CACHE_TTL = 30.days
+  CACHE_VERSION = "v3".freeze
   NEARBY_FALLBACK_RADII_KM = [ 2, 10, 25 ].freeze
   NEARBY_FALLBACK_BEARINGS = [ 0, 90, 180, 270, 45, 135, 225, 315 ].freeze
   NEARBY_FALLBACK_ENABLED_ENV = "LOCATION_GEOCODER_NEARBY_FALLBACK".freeze
@@ -42,7 +43,7 @@ class LocationReverseGeocoder
   def geocode(latitude:, longitude:)
     return unless @api_key.present?
 
-    cache_key = "location-reverse-geocoder/v2/#{format('%.5f', latitude.to_f)},#{format('%.5f', longitude.to_f)}"
+    cache_key = "location-reverse-geocoder/#{CACHE_VERSION}/#{format('%.5f', latitude.to_f)},#{format('%.5f', longitude.to_f)}"
     cached = Rails.cache.read(cache_key)
     return cached if cached.present?
 
