@@ -9,6 +9,7 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     @google_maps_map_id = ENV["GOOGLE_MAPS_MAP_ID"]
     ENV["GOOGLE_MAPS_EMBED_API_KEY"] = "test-google-maps-key"
     ENV["GOOGLE_MAPS_MAP_ID"] = "test-map-id"
+    Rails.cache.clear
     sign_in_as(@owner)
   end
 
@@ -16,6 +17,7 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     ENV["PHOTOS_TRUSTED_VIEWER_EMAILS"] = @trusted_viewer_emails
     ENV["GOOGLE_MAPS_EMBED_API_KEY"] = @google_maps_api_key
     ENV["GOOGLE_MAPS_MAP_ID"] = @google_maps_map_id
+    Rails.cache.clear
     OmniAuth.config.mock_auth[:google_oauth2] = nil
     OmniAuth.config.test_mode = false
   end
@@ -91,6 +93,51 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     get location.fetch("location_url")
 
     assert_response :success
+  end
+
+  test "clustered location marker title uses representative photo place name" do
+    neighbor = attached_photo(title: "Neighbor cluster item")
+    representative = attached_photo(title: "Named cluster item")
+    geotag(neighbor, latitude: 44.701, longitude: -85.301)
+    geotag(representative, latitude: 44.789, longitude: -85.389)
+    PhotoLocationPlace.create!(
+      location_id: location_id_for(representative),
+      name: "West Edge Place"
+    )
+
+    get map_markers_path(north: 45, south: 44, east: -85, west: -86, zoom: 10)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    location = payload.fetch("markers").find { |marker| marker.fetch("type") == "location" }
+    assert_equal "West Edge Place", location.fetch("title")
+  end
+
+  test "map markers refresh after location place names change" do
+    first = attached_photo(title: "Uncached first")
+    second = attached_photo(title: "Uncached second")
+    geotag(first, latitude: 44.701, longitude: -85.301)
+    geotag(second, latitude: 44.789, longitude: -85.389)
+    marker_params = { north: 45, south: 44, east: -85, west: -86, zoom: 10 }
+
+    get map_markers_path(**marker_params)
+
+    assert_response :success
+    initial_payload = JSON.parse(response.body)
+    initial_location = initial_payload.fetch("markers").find { |marker| marker.fetch("type") == "location" }
+    refute_equal "Fresh Place Name", initial_location.fetch("title")
+
+    PhotoLocationPlace.create!(
+      location_id: location_id_for(second),
+      name: "Fresh Place Name"
+    )
+
+    get map_markers_path(**marker_params)
+
+    assert_response :success
+    updated_payload = JSON.parse(response.body)
+    updated_location = updated_payload.fetch("markers").find { |marker| marker.fetch("type") == "location" }
+    assert_equal "Fresh Place Name", updated_location.fetch("title")
   end
 
   test "owner can focus map on an album" do

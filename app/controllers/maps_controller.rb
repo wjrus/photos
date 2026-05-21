@@ -120,16 +120,12 @@ class MapsController < ApplicationController
 
   def location_payload(row, count, photos_by_id, places)
     representative_photo = photos_by_id[row.representative_photo_id.to_i]
-    location_id = if representative_photo
-      PhotoLocation.id_for_coordinates(representative_photo.metadata.latitude, representative_photo.metadata.longitude)
-    else
-      PhotoLocation.id_for_coordinates(row.latitude, row.longitude)
-    end
+    location_id = marker_location_id(row, representative_photo)
 
     {
       type: "location",
       id: "location-#{row.latitude_bucket.to_i}-#{row.longitude_bucket.to_i}",
-      title: PhotoLocation.title_for_row(row, places),
+      title: marker_location_title(row, representative_photo, places),
       count: count,
       latitude: row.latitude.to_f,
       longitude: row.longitude.to_f,
@@ -140,6 +136,22 @@ class MapsController < ApplicationController
     }
   end
 
+  def marker_location_id(row, representative_photo)
+    return PhotoLocation.id_for_coordinates(representative_photo.metadata.latitude, representative_photo.metadata.longitude) if representative_photo
+
+    PhotoLocation.id_for_coordinates(row.latitude, row.longitude)
+  end
+
+  def marker_location_title(row, representative_photo, places)
+    location_ids = [
+      marker_location_id(row, representative_photo),
+      PhotoLocation.id_for_coordinates(row.latitude, row.longitude)
+    ].uniq
+    place_name = location_ids.filter_map { |location_id| places[location_id]&.name.presence }.first
+
+    place_name || PhotoLocation.title_for(row.latitude, row.longitude)
+  end
+
   def map_media_url(photo)
     return display_photo_path(photo) if photo.image?
 
@@ -147,16 +159,15 @@ class MapsController < ApplicationController
   end
 
   def location_places(rows, photos_by_id)
-    ids = rows.first(MARKER_LIMIT).map do |row|
+    ids = rows.first(MARKER_LIMIT).flat_map do |row|
       representative_photo = photos_by_id[row.representative_photo_id.to_i]
-      if representative_photo
-        PhotoLocation.id_for_coordinates(representative_photo.metadata.latitude, representative_photo.metadata.longitude)
-      else
+      [
+        marker_location_id(row, representative_photo),
         PhotoLocation.id_for_coordinates(row.latitude, row.longitude)
-      end
+      ]
     end
 
-    PhotoLocationPlace.where(location_id: ids).index_by(&:location_id)
+    PhotoLocationPlace.where(location_id: ids.uniq).index_by(&:location_id)
   end
 
   def map_cell_size(zoom)
@@ -222,6 +233,7 @@ class MapsController < ApplicationController
       @selected_album&.id || "all",
       @selected_location&.id || "all",
       Photo.maximum(:updated_at)&.utc&.to_i,
+      PhotoLocationPlace.maximum(:updated_at)&.utc&.to_i,
       PhotoAlbumShare.maximum(:updated_at)&.utc&.to_i,
       PhotoAlbumShare.count,
       map_cell_size(params[:zoom]),
