@@ -5,6 +5,9 @@ class LocationReverseGeocoderTest < ActiveSupport::TestCase
     @google_maps_embed_api_key = ENV["GOOGLE_MAPS_EMBED_API_KEY"]
     @google_maps_geocoding_api_key = ENV["GOOGLE_MAPS_GEOCODING_API_KEY"]
     @google_geocoding_api_key = ENV["GOOGLE_GEOCODING_API_KEY"]
+    @nearby_fallback = ENV["LOCATION_GEOCODER_NEARBY_FALLBACK"]
+    @nearby_fallback_daily_limit = ENV["LOCATION_GEOCODER_NEARBY_FALLBACK_DAILY_LIMIT"]
+    @nearby_fallback_max_probes = ENV["LOCATION_GEOCODER_NEARBY_FALLBACK_MAX_PROBES"]
     Rails.cache.clear
   end
 
@@ -12,6 +15,9 @@ class LocationReverseGeocoderTest < ActiveSupport::TestCase
     ENV["GOOGLE_MAPS_EMBED_API_KEY"] = @google_maps_embed_api_key
     ENV["GOOGLE_MAPS_GEOCODING_API_KEY"] = @google_maps_geocoding_api_key
     ENV["GOOGLE_GEOCODING_API_KEY"] = @google_geocoding_api_key
+    ENV["LOCATION_GEOCODER_NEARBY_FALLBACK"] = @nearby_fallback
+    ENV["LOCATION_GEOCODER_NEARBY_FALLBACK_DAILY_LIMIT"] = @nearby_fallback_daily_limit
+    ENV["LOCATION_GEOCODER_NEARBY_FALLBACK_MAX_PROBES"] = @nearby_fallback_max_probes
     Rails.cache.clear
   end
 
@@ -110,6 +116,116 @@ class LocationReverseGeocoderTest < ActiveSupport::TestCase
     end
   end
 
+  test "skips plus code results in favor of usable places" do
+    ENV["GOOGLE_MAPS_GEOCODING_API_KEY"] = "server-key"
+    response = http_ok_response(
+      status: "OK",
+      results: [
+        {
+          formatted_address: "73H55V7C+Q8",
+          types: [ "plus_code" ],
+          address_components: [
+            { long_name: "73H55V7C+Q8", types: [ "plus_code" ] }
+          ]
+        },
+        {
+          formatted_address: "Maui County, HI, USA",
+          address_components: [
+            { long_name: "Maui County", types: [ "administrative_area_level_2", "political" ] },
+            { long_name: "Hawaii", types: [ "administrative_area_level_1", "political" ] },
+            { long_name: "United States", types: [ "country", "political" ] }
+          ]
+        }
+      ]
+    )
+
+    stub_get_response(response) do
+      result = LocationReverseGeocoder.new.geocode(latitude: 21.164478, longitude: -156.12915)
+
+      assert_equal "Maui County, Hawaii", result[:name]
+      assert_not_includes result[:names], "73H55V7C+Q8"
+    end
+  end
+
+  test "does not probe nearby coordinates unless fallback is enabled" do
+    ENV["GOOGLE_MAPS_GEOCODING_API_KEY"] = "server-key"
+    responses = [
+      http_ok_response(
+        status: "OK",
+        results: [
+          {
+            formatted_address: "73H55V7C+Q8",
+            types: [ "plus_code" ],
+            address_components: [
+              { long_name: "73H55V7C+Q8", types: [ "plus_code" ] }
+            ]
+          }
+        ]
+      ),
+      http_ok_response(
+        status: "OK",
+        results: [
+          {
+            formatted_address: "Lahaina, HI, USA",
+            address_components: [
+              { long_name: "Lahaina", types: [ "locality", "political" ] },
+              { long_name: "Hawaii", types: [ "administrative_area_level_1", "political" ] },
+              { long_name: "United States", types: [ "country", "political" ] }
+            ]
+          }
+        ]
+      )
+    ]
+
+    calls = stub_get_responses(responses) do
+      assert_nil LocationReverseGeocoder.new.geocode(latitude: 21.164478, longitude: -156.12915)
+    end
+
+    assert_equal 1, calls
+  end
+
+  test "nearby fallback is opt in and budgeted" do
+    ENV["GOOGLE_MAPS_GEOCODING_API_KEY"] = "server-key"
+    ENV["LOCATION_GEOCODER_NEARBY_FALLBACK"] = "true"
+    ENV["LOCATION_GEOCODER_NEARBY_FALLBACK_DAILY_LIMIT"] = "1"
+    ENV["LOCATION_GEOCODER_NEARBY_FALLBACK_MAX_PROBES"] = "3"
+    responses = [
+      http_ok_response(
+        status: "OK",
+        results: [
+          {
+            formatted_address: "73H55V7C+Q8",
+            types: [ "plus_code" ],
+            address_components: [
+              { long_name: "73H55V7C+Q8", types: [ "plus_code" ] }
+            ]
+          }
+        ]
+      ),
+      http_ok_response(
+        status: "OK",
+        results: [
+          {
+            formatted_address: "Lahaina, HI, USA",
+            address_components: [
+              { long_name: "Lahaina", types: [ "locality", "political" ] },
+              { long_name: "Hawaii", types: [ "administrative_area_level_1", "political" ] },
+              { long_name: "United States", types: [ "country", "political" ] }
+            ]
+          }
+        ]
+      )
+    ]
+
+    calls = stub_get_responses(responses) do
+      result = LocationReverseGeocoder.new.geocode(latitude: 21.164478, longitude: -156.12915)
+
+      assert_equal "Lahaina, Hawaii", result[:name]
+    end
+
+    assert_equal 2, calls
+  end
+
   private
 
   def http_ok_response(payload)
@@ -123,6 +239,21 @@ class LocationReverseGeocoderTest < ActiveSupport::TestCase
     Net::HTTP.singleton_class.alias_method :original_get_response, :get_response
     Net::HTTP.define_singleton_method(:get_response) { |_uri| response }
     yield
+  ensure
+    Net::HTTP.singleton_class.alias_method :get_response, :original_get_response
+    Net::HTTP.singleton_class.remove_method :original_get_response
+  end
+
+  def stub_get_responses(responses)
+    calls = 0
+    Net::HTTP.singleton_class.alias_method :original_get_response, :get_response
+    Net::HTTP.define_singleton_method(:get_response) do |_uri|
+      response = responses[[ calls, responses.size - 1 ].min]
+      calls += 1
+      response
+    end
+    yield
+    calls
   ensure
     Net::HTTP.singleton_class.alias_method :get_response, :original_get_response
     Net::HTTP.singleton_class.remove_method :original_get_response

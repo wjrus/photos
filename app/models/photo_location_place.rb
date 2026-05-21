@@ -15,6 +15,14 @@ class PhotoLocationPlace < ApplicationRecord
     )
   end
 
+  def self.plus_code_name?(name)
+    LocationReverseGeocoder.plus_code_name?(name)
+  end
+
+  def plus_code_name?
+    self.class.plus_code_name?(name)
+  end
+
   private
 
   def ensure_primary_name_tag

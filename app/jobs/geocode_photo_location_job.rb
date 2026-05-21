@@ -14,6 +14,7 @@ class GeocodePhotoLocationJob < ApplicationJob
 
     result = LocationReverseGeocoder.new.geocode(latitude: latitude, longitude: longitude)
     unless result&.fetch(:name, nil).present?
+      remove_stale_plus_code_name(location_id)
       Rails.logger.warn("No place name found for location #{location_id} (#{latitude}, #{longitude})")
       return
     end
@@ -37,6 +38,13 @@ class GeocodePhotoLocationJob < ApplicationJob
   end
 
   private
+
+  def remove_stale_plus_code_name(location_id)
+    place = PhotoLocationPlace.find_by(location_id: location_id)
+    return unless place&.plus_code_name?
+
+    place.destroy!
+  end
 
   def reschedule(location_id, latitude, longitude, reserved_at)
     self.class

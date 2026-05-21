@@ -17,12 +17,13 @@ class GeocodeMissingPhotoLocationsJob < ApplicationJob
 
   def missing_location_rows(limit:)
     rows = PhotoLocation.rows(geotagged_photos, limit: bounded_limit(limit)).to_a
-    known_location_ids = PhotoLocationPlace
+    reusable_location_ids = PhotoLocationPlace
       .where(location_id: rows.map { |row| PhotoLocation.id_for_coordinates(row.latitude, row.longitude) })
-      .pluck(:location_id)
+      .reject(&:plus_code_name?)
+      .map(&:location_id)
 
     rows.reject do |row|
-      known_location_ids.include?(PhotoLocation.id_for_coordinates(row.latitude, row.longitude))
+      reusable_location_ids.include?(PhotoLocation.id_for_coordinates(row.latitude, row.longitude))
     end
   end
 

@@ -3,6 +3,14 @@ require "net/http"
 class LocationReverseGeocoder
   ENDPOINT = "https://maps.googleapis.com/maps/api/geocode/json".freeze
   CACHE_TTL = 30.days
+  NEARBY_FALLBACK_RADII_KM = [ 2, 10, 25 ].freeze
+  NEARBY_FALLBACK_BEARINGS = [ 0, 90, 180, 270, 45, 135, 225, 315 ].freeze
+  NEARBY_FALLBACK_ENABLED_ENV = "LOCATION_GEOCODER_NEARBY_FALLBACK".freeze
+  NEARBY_FALLBACK_DAILY_LIMIT_ENV = "LOCATION_GEOCODER_NEARBY_FALLBACK_DAILY_LIMIT".freeze
+  NEARBY_FALLBACK_MAX_PROBES_ENV = "LOCATION_GEOCODER_NEARBY_FALLBACK_MAX_PROBES".freeze
+  NEARBY_FALLBACK_DEFAULT_DAILY_LIMIT = 25
+  NEARBY_FALLBACK_DEFAULT_MAX_PROBES = 4
+  EARTH_RADIUS_KM = 6_371.0
   LARGE_LOCALITIES = [
     "Chicago",
     "Cleveland",
@@ -15,11 +23,16 @@ class LocationReverseGeocoder
     "Toronto",
     "Washington"
   ].freeze
+  PLUS_CODE_PATTERN = /\A[23456789CFGHJMPQRVWX]{4,8}\+[23456789CFGHJMPQRVWX]{2,3}(?:\b|,|\s|\z)/i
 
   def self.api_key
     ENV["GOOGLE_MAPS_GEOCODING_API_KEY"].presence ||
       ENV["GOOGLE_GEOCODING_API_KEY"].presence ||
       ENV["GOOGLE_MAPS_EMBED_API_KEY"].presence
+  end
+
+  def self.plus_code_name?(name)
+    name.to_s.match?(PLUS_CODE_PATTERN)
   end
 
   def initialize(api_key: self.class.api_key)
@@ -33,6 +46,75 @@ class LocationReverseGeocoder
     cached = Rails.cache.read(cache_key)
     return cached if cached.present?
 
+    payloads = geocode_payloads(latitude: latitude, longitude: longitude)
+    result = payloads.lazy.flat_map { |payload| payload.fetch("results", []) }.find { |candidate| usable_result?(candidate) }
+    return unless result
+
+    primary_name = place_name(result)
+    return if self.class.plus_code_name?(primary_name)
+
+    geocoded = {
+      name: primary_name,
+      names: place_names(result, primary_name),
+      raw: result
+    }
+
+    Rails.cache.write(cache_key, geocoded, expires_in: CACHE_TTL) if geocoded[:name].present?
+    geocoded.merge(key_fingerprint: api_key_fingerprint)
+  rescue JSON::ParserError, SocketError, SystemCallError, Timeout::Error => error
+    Rails.logger.warn("Location reverse geocode error: #{error.class}: #{error.message} key=#{api_key_fingerprint}")
+    nil
+  end
+
+  private
+
+  def geocode_payloads(latitude:, longitude:)
+    exact_payload = geocode_payload(latitude: latitude, longitude: longitude)
+    return [] unless exact_payload
+    return [ exact_payload ] if exact_payload.fetch("results", []).any? { |result| usable_result?(result) }
+    return [ exact_payload ] unless nearby_fallback_enabled?
+
+    fallback_payload = nearby_payload(latitude: latitude.to_f, longitude: longitude.to_f)
+    [ exact_payload, fallback_payload ].compact
+  end
+
+  def nearby_payload(latitude:, longitude:)
+    nearby_coordinates(latitude: latitude, longitude: longitude).take(nearby_fallback_max_probes).lazy.filter_map do |nearby_latitude, nearby_longitude|
+      next unless reserve_nearby_fallback_request
+
+      payload = geocode_payload(latitude: nearby_latitude, longitude: nearby_longitude)
+      payload if payload&.fetch("results", [])&.any? { |result| usable_result?(result) }
+    end.first
+  end
+
+  def nearby_fallback_enabled?
+    ActiveModel::Type::Boolean.new.cast(ENV[NEARBY_FALLBACK_ENABLED_ENV])
+  end
+
+  def nearby_fallback_max_probes
+    Integer(ENV.fetch(NEARBY_FALLBACK_MAX_PROBES_ENV, NEARBY_FALLBACK_DEFAULT_MAX_PROBES)).clamp(0, NEARBY_FALLBACK_RADII_KM.size * NEARBY_FALLBACK_BEARINGS.size)
+  rescue ArgumentError, TypeError
+    NEARBY_FALLBACK_DEFAULT_MAX_PROBES
+  end
+
+  def reserve_nearby_fallback_request
+    limit = nearby_fallback_daily_limit
+    return false if limit <= 0
+
+    cache_key = "location-reverse-geocoder/nearby-fallback-count/#{Time.zone.today.iso8601}"
+    count = Rails.cache.read(cache_key).to_i
+    return false if count >= limit
+
+    Rails.cache.write(cache_key, count + 1, expires_in: 2.days)
+  end
+
+  def nearby_fallback_daily_limit
+    Integer(ENV.fetch(NEARBY_FALLBACK_DAILY_LIMIT_ENV, NEARBY_FALLBACK_DEFAULT_DAILY_LIMIT)).clamp(0, 10_000)
+  rescue ArgumentError, TypeError
+    NEARBY_FALLBACK_DEFAULT_DAILY_LIMIT
+  end
+
+  def geocode_payload(latitude:, longitude:)
     uri = URI(ENDPOINT)
     uri.query = URI.encode_www_form(
       latlng: "#{latitude.to_f},#{longitude.to_f}",
@@ -51,24 +133,41 @@ class LocationReverseGeocoder
       return
     end
 
-    result = payload.fetch("results", []).first
-    return unless result
-
-    primary_name = place_name(result)
-    geocoded = {
-      name: primary_name,
-      names: place_names(result, primary_name),
-      raw: result
-    }
-
-    Rails.cache.write(cache_key, geocoded, expires_in: CACHE_TTL) if geocoded[:name].present?
-    geocoded.merge(key_fingerprint: api_key_fingerprint)
-  rescue JSON::ParserError, SocketError, SystemCallError, Timeout::Error => error
-    Rails.logger.warn("Location reverse geocode error: #{error.class}: #{error.message} key=#{api_key_fingerprint}")
-    nil
+    payload
   end
 
-  private
+  def nearby_coordinates(latitude:, longitude:)
+    NEARBY_FALLBACK_RADII_KM.flat_map do |radius_km|
+      NEARBY_FALLBACK_BEARINGS.map do |bearing_degrees|
+        destination_coordinate(latitude: latitude, longitude: longitude, radius_km: radius_km, bearing_degrees: bearing_degrees)
+      end
+    end
+  end
+
+  def destination_coordinate(latitude:, longitude:, radius_km:, bearing_degrees:)
+    angular_distance = radius_km.to_f / EARTH_RADIUS_KM
+    bearing = bearing_degrees.to_f * Math::PI / 180
+    latitude_radians = latitude.to_f * Math::PI / 180
+    longitude_radians = longitude.to_f * Math::PI / 180
+
+    destination_latitude = Math.asin(
+      (Math.sin(latitude_radians) * Math.cos(angular_distance)) +
+        (Math.cos(latitude_radians) * Math.sin(angular_distance) * Math.cos(bearing))
+    )
+    destination_longitude = longitude_radians + Math.atan2(
+      Math.sin(bearing) * Math.sin(angular_distance) * Math.cos(latitude_radians),
+      Math.cos(angular_distance) - (Math.sin(latitude_radians) * Math.sin(destination_latitude))
+    )
+
+    [
+      destination_latitude * 180 / Math::PI,
+      normalized_longitude(destination_longitude * 180 / Math::PI)
+    ]
+  end
+
+  def normalized_longitude(longitude)
+    ((longitude + 540) % 360) - 180
+  end
 
   def log_payload_status(payload)
     status = payload["status"].presence || "UNKNOWN"
@@ -102,7 +201,7 @@ class LocationReverseGeocoder
       [ neighborhood, locality ].compact.uniq.join(", ")
     else
       [ locality || neighborhood || county, region || country ].compact.uniq.join(", ").presence ||
-        result["formatted_address"].presence
+        formatted_address_name(result["formatted_address"])
     end
   end
 
@@ -120,7 +219,7 @@ class LocationReverseGeocoder
       component_name(components, "administrative_area_level_2"),
       component_name(components, "administrative_area_level_1"),
       component_name(components, "country")
-    ].compact_blank.uniq
+    ].compact_blank.reject { |name| self.class.plus_code_name?(name) }.uniq
   end
 
   def component_name(components, type)
@@ -138,9 +237,19 @@ class LocationReverseGeocoder
 
   def formatted_address_landmark(formatted_address)
     first_part = formatted_address.to_s.split(",", 2).first
-    return if first_part.blank? || first_part.match?(/\A\d/)
+    return if first_part.blank? || first_part.match?(/\A\d/) || self.class.plus_code_name?(first_part)
 
     first_part
+  end
+
+  def formatted_address_name(formatted_address)
+    formatted_address.presence unless self.class.plus_code_name?(formatted_address)
+  end
+
+  def usable_result?(result)
+    return false if result.fetch("types", []).include?("plus_code")
+
+    place_name(result).present?
   end
 
   def api_key_fingerprint

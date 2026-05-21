@@ -35,7 +35,8 @@ class PhotoMetadata < ApplicationRecord
     return unless LocationReverseGeocoder.api_key.present?
 
     location_id = PhotoLocation.id_for_coordinates(latitude, longitude)
-    return if PhotoLocationPlace.exists?(location_id: location_id)
+    place = PhotoLocationPlace.find_by(location_id: location_id)
+    return if place.present? && !place.plus_code_name?
 
     GeocodePhotoLocationJob.perform_later(location_id, latitude, longitude)
   end

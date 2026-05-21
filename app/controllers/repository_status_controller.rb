@@ -212,7 +212,8 @@ class RepositoryStatusController < ApplicationController
   def location_status
     rows = PhotoLocation.rows(geotagged_photos, limit: GeocodeMissingPhotoLocationsJob::MAX_LIMIT).to_a
     location_ids = rows.map { |row| PhotoLocation.id_for_coordinates(row.latitude, row.longitude) }
-    named_count = PhotoLocationPlace.where(location_id: location_ids).count
+    places = PhotoLocationPlace.where(location_id: location_ids).to_a
+    named_count = places.count { |place| !place.plus_code_name? }
 
     {
       buckets: rows.size,

@@ -38,6 +38,23 @@ class GeocodeMissingPhotoLocationsJobTest < ActiveJob::TestCase
     end
   end
 
+  test "requeues buckets whose existing name is only a plus code" do
+    photo = attached_photo
+    geotag(photo, latitude: 21.164478, longitude: -156.12915)
+    PhotoLocationPlace.create!(
+      location_id: PhotoLocation.id_for_coordinates(21.164478, -156.12915),
+      name: "73H55V7C+Q8"
+    )
+    clear_enqueued_jobs
+
+    assert_enqueued_with(
+      job: GeocodePhotoLocationJob,
+      args: [ PhotoLocation.id_for_coordinates(21.164478, -156.12915), 21.164478, -156.12915 ]
+    ) do
+      GeocodeMissingPhotoLocationsJob.perform_now
+    end
+  end
+
   private
 
   def attached_photo
