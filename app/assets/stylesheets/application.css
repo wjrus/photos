@@ -592,6 +592,19 @@ body.photo-detail-page {
   }
 }
 
+.photo-detail-media {
+  border-radius: 0;
+  box-shadow: none;
+  max-block-size: 100vh;
+  max-inline-size: 100vw;
+}
+
+@supports (max-block-size: 100dvh) {
+  .photo-detail-media {
+    max-block-size: 100dvh;
+  }
+}
+
 .photo-stream-navigation {
   opacity: 0;
   pointer-events: none;

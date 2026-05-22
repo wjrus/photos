@@ -66,7 +66,7 @@ module ApplicationHelper
       video_options = {
         controls: true,
         preload: "metadata",
-        class: "h-[calc(100vh-3rem)] w-full max-w-full rounded-lg object-contain shadow-2xl"
+        class: "photo-detail-media h-screen w-full max-w-full object-contain"
       }
       video_options[:poster] = url_for(photo.video_preview) if photo.video_preview.attached?
 
@@ -77,11 +77,11 @@ module ApplicationHelper
       if attached_blob_available?(detail_variant&.image)
         image_tag detail_variant.image,
           alt: photo.title,
-          class: "max-h-[calc(100vh-3rem)] w-auto rounded-lg object-contain shadow-2xl"
+          class: "photo-detail-media max-h-screen max-w-full object-contain"
       else
         image_tag photo_display_image_path(photo),
           alt: photo.title,
-          class: "max-h-[calc(100vh-3rem)] w-auto rounded-lg object-contain shadow-2xl"
+          class: "photo-detail-media max-h-screen max-w-full object-contain"
       end
     end
   end
