@@ -619,11 +619,13 @@ body.photo-detail-page {
 
 .photo-viewer-topbar {
   background: linear-gradient(to bottom, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.26) 46%, rgba(0, 0, 0, 0));
+  opacity: 0;
   pointer-events: none;
+  transition: opacity 160ms ease, right 200ms ease;
 }
 
 .photo-viewer-topbar :is(a, button) {
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .photo-viewer-action {
@@ -633,6 +635,16 @@ body.photo-detail-page {
 .photo-viewer-shell:hover .photo-stream-navigation,
 .photo-viewer-shell:focus-within .photo-stream-navigation {
   opacity: 1;
+  pointer-events: auto;
+}
+
+.photo-viewer-shell:hover .photo-viewer-topbar,
+.photo-viewer-shell:focus-within .photo-viewer-topbar {
+  opacity: 1;
+}
+
+.photo-viewer-shell:hover .photo-viewer-topbar :is(a, button),
+.photo-viewer-shell:focus-within .photo-viewer-topbar :is(a, button) {
   pointer-events: auto;
 }
 

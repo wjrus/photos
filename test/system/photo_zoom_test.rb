@@ -11,6 +11,7 @@ class PhotoZoomTest < ApplicationSystemTestCase
   test "zoomed photos show minimap and expose keyboard pan region" do
     visit photo_path(@photo)
 
+    find(".photo-viewer-shell").hover
     click_button "Show zoom controls"
     click_button "Zoom in"
 
