@@ -599,6 +599,19 @@ body.photo-detail-page {
   transition: opacity 160ms ease, transform 200ms ease, right 200ms ease;
 }
 
+.photo-viewer-topbar {
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.26) 46%, rgba(0, 0, 0, 0));
+  pointer-events: none;
+}
+
+.photo-viewer-topbar :is(a, button) {
+  pointer-events: auto;
+}
+
+.photo-viewer-action {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
+}
+
 .photo-viewer-shell:hover .photo-stream-navigation,
 .photo-viewer-shell:focus-within .photo-stream-navigation {
   opacity: 1;
@@ -642,7 +655,7 @@ body.photo-detail-page {
     padding-right: calc(390px + 1.5rem);
   }
 
-  .photo-viewer-shell.info-panel-open .photo-zoom-controls {
+  .photo-viewer-shell.info-panel-open .photo-viewer-topbar {
     right: calc(390px + 1rem);
   }
 

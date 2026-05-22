@@ -456,8 +456,8 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Archive"
     assert_select "section[data-controller~='info-panel']"
     assert_select "section[data-controller~='history-back']", false
-    assert_select "section[data-controller~='info-panel'] > a.fixed[href='#{root_path(photo_id: photo.id)}'][aria-label='Return to stream'][data-tooltip='Return to stream']"
-    assert_select "main a[aria-label='Return to stream']", false
+    assert_select "section[data-controller~='info-panel'] > a.fixed", false
+    assert_select "main .photo-viewer-topbar a[href='#{root_path(photo_id: photo.id)}'][aria-label='Return to stream'][data-tooltip='Return to stream']"
     assert_select "aside#photo-info-panel a", { text: "Back to stream", count: 0 }
     assert_select "body.photo-detail-page"
     assert_select "section.photo-detail-frame"
