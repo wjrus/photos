@@ -9,7 +9,7 @@
       data-stream-navigation-next-media-url-value="<%= photo_neighbor_prefetch_media_path(next_photo) if next_photo %>">
   <div class="photo-viewer-topbar absolute inset-x-0 top-0 z-30 flex items-start justify-between px-3 pb-8 pt-3 transition-[right] duration-200 ease-out sm:px-4 sm:pt-4">
     <%= link_to return_to,
-          class: "ui-tooltip photo-viewer-action flex size-11 items-center justify-center rounded-full text-white transition hover:bg-white/20 focus-visible:bg-white/20",
+          class: "ui-tooltip ui-tooltip--left photo-viewer-action flex size-11 items-center justify-center rounded-full text-white transition hover:bg-white/20 focus-visible:bg-white/20",
           aria: { label: "Return to stream" },
           data: { tooltip: "Return to stream" } do %>
       <%= app_icon(:chevron_left, classes: "size-7") %>
@@ -73,8 +73,10 @@
       </div>
 
       <button type="button"
-              class="photo-viewer-action flex size-11 items-center justify-center rounded-full font-serif text-lg font-semibold italic text-white transition hover:bg-white/20 focus-visible:bg-white/20"
+              class="ui-tooltip photo-viewer-action flex size-11 items-center justify-center rounded-full font-serif text-lg font-semibold italic text-white transition hover:bg-white/20 focus-visible:bg-white/20"
               aria-label="Show photo information"
+              title="Show photo information"
+              data-tooltip="Info"
               aria-controls="photo-info-panel"
               aria-expanded="false"
               data-info-panel-target="button"

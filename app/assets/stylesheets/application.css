@@ -572,6 +572,11 @@ html[data-theme] :is(input, select, textarea) {
   pointer-events: none;
 }
 
+.ui-tooltip--left:hover::after,
+.ui-tooltip--left:focus-visible::after {
+  inset-inline: 0 auto;
+}
+
 html:has(body.photo-detail-page),
 body.photo-detail-page {
   block-size: 100%;

@@ -457,13 +457,13 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_select "section[data-controller~='info-panel']"
     assert_select "section[data-controller~='history-back']", false
     assert_select "section[data-controller~='info-panel'] > a.fixed", false
-    assert_select "main .photo-viewer-topbar a[href='#{root_path(photo_id: photo.id)}'][aria-label='Return to stream'][data-tooltip='Return to stream']"
+    assert_select "main .photo-viewer-topbar a.ui-tooltip--left[href='#{root_path(photo_id: photo.id)}'][aria-label='Return to stream'][data-tooltip='Return to stream']"
     assert_select "aside#photo-info-panel a", { text: "Back to stream", count: 0 }
     assert_select "body.photo-detail-page"
     assert_select "section.photo-detail-frame"
     assert_select "main.photo-viewer-shell.overflow-hidden"
     assert_select "main.photo-viewer-shell[data-controller~='photo-zoom']"
-    assert_select "button[aria-label='Show photo information'][data-action='info-panel#toggle']"
+    assert_select "button[aria-label='Show photo information'][data-action='info-panel#toggle'][data-tooltip='Info']"
     assert_select "button[aria-label='Show zoom controls'][data-action='photo-zoom#toggle']"
     assert_select "button[aria-label='Zoom out'][data-action='photo-zoom#zoomOut']"
     assert_select "button[aria-label='Reset zoom'][data-action='photo-zoom#reset']", text: "100%"
