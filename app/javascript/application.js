@@ -20,11 +20,18 @@ const applyThemeChoice = (choice) => {
   const safeChoice = THEME_CHOICES.has(choice) ? choice : "system"
   const resolvedTheme = safeChoice === "system" ? systemTheme() : safeChoice
 
+  document.documentElement.classList.add("theme-applying")
   document.documentElement.dataset.theme = resolvedTheme
   document.documentElement.dataset.themeChoice = safeChoice
 
   document.querySelectorAll("[data-theme-select]").forEach((select) => {
     select.value = safeChoice
+  })
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      document.documentElement.classList.remove("theme-applying")
+    })
   })
 }
 

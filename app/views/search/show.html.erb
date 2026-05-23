@@ -46,7 +46,7 @@
         <div class="flex shrink-0 gap-2">
           <% if advanced_filters_visible %>
             <details class="group relative" <%= "open" if filters_active %>>
-              <summary class="flex cursor-pointer list-none items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white">
+              <summary class="flex cursor-pointer list-none items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 hover:border-zinc-950 hover:bg-zinc-100 hover:text-zinc-950">
                 Filters<%= " (#{filter_params.values.count(&:present?)})" if filters_active %>
               </summary>
               <div class="absolute right-0 z-20 mt-2 w-[min(88vw,52rem)] rounded-lg border border-zinc-200 bg-white p-4 shadow-2xl">
@@ -100,7 +100,7 @@
             </details>
           <% end %>
 
-          <button type="submit" class="rounded-lg bg-zinc-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800">Search</button>
+          <button type="submit" class="rounded-lg bg-zinc-950 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800">Search</button>
         </div>
       </div>
     <% end %>

@@ -122,6 +122,12 @@ body {
   font-family: var(--theme-font);
 }
 
+html.theme-applying *,
+html.theme-applying *::before,
+html.theme-applying *::after {
+  transition: none !important;
+}
+
 :where(
   a[href],
   button:not(:disabled),
