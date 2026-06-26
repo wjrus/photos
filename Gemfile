@@ -82,7 +82,7 @@ group :development do
 end
 
 group :test do
-  gem "axe-core-capybara", "~> 4.11"
+  gem "axe-core-capybara", "~> 4.12"
 
   # Use system testing [https://guides.rubyonrails.org/testing.html#system-testing]
   gem "capybara"
