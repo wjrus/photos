@@ -68,7 +68,7 @@ class UploadChunksControllerTest < ActionDispatch::IntegrationTest
             file_id: "file-0",
             filename: "clip.mov",
             content_type: "video/quicktime",
-            byte_size: 10,
+            byte_size: UploadChunksController::CHUNK_SIZE + 1,
             total_chunks: 2
           }
         ]
@@ -97,6 +97,61 @@ class UploadChunksControllerTest < ActionDispatch::IntegrationTest
     post upload_chunks_path, params: chunk_params(SecureRandom.uuid, "file-0", 0, "photo.jpg", "image/jpeg", "jpg")
 
     assert_response :forbidden
+  end
+
+  test "rejects upload ids that would normalize to another id" do
+    post upload_chunks_path, params: chunk_params("upload/one", "file-0", 0, "photo.jpg", "image/jpeg", "jpg")
+
+    assert_response :bad_request
+    assert_not Dir.exist?(resumable_upload_root.join(@owner.id.to_s, "uploadone"))
+  end
+
+  test "rejects manifests whose chunk count does not match file size" do
+    post complete_upload_chunks_path,
+      params: {
+        upload_id: SecureRandom.uuid,
+        files: [
+          {
+            file_id: "file-0",
+            filename: "photo.jpg",
+            content_type: "image/jpeg",
+            byte_size: 3,
+            total_chunks: 2
+          }
+        ]
+      },
+      as: :json
+
+    assert_response :bad_request
+  end
+
+  test "rejects malformed chunk and manifest parameters" do
+    post upload_chunks_path,
+      params: {
+        upload_id: SecureRandom.uuid,
+        file_id: "file-0",
+        chunk_index: "not-a-number",
+        chunk: "not-a-file"
+      }
+
+    assert_response :bad_request
+
+    post complete_upload_chunks_path,
+      params: {
+        upload_id: SecureRandom.uuid,
+        files: [
+          {
+            file_id: "file-0",
+            filename: "photo.jpg",
+            content_type: "image/jpeg",
+            byte_size: "not-a-number",
+            total_chunks: 1
+          }
+        ]
+      },
+      as: :json
+
+    assert_response :bad_request
   end
 
   private

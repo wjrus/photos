@@ -23,10 +23,32 @@ jobs:
 
       - name: Scan for common Rails security vulnerabilities using static analysis
         run: bin/brakeman --no-pager
-      
+
       - name: Scan for known security vulnerabilities in gems used
         run: bin/bundler-audit
-      
+
+  scan_python:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/analysis_local
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: services/analysis_local/requirements.txt
+
+      - name: Scan for known security vulnerabilities in Python packages
+        run: |
+          python -m pip install --disable-pip-version-check pip-audit==2.10.1
+          python -m pip_audit -r requirements.txt
+
   scan_js:
     runs-on: ubuntu-latest
 
@@ -56,7 +78,7 @@ jobs:
           bundler-cache: true
 
       - name: Prepare RuboCop cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         env:
           DEPENDENCIES_HASH: ${{ hashFiles('.ruby-version', '**/.rubocop.yml', '**/.rubocop_todo.yml', 'Gemfile.lock') }}
         with:

@@ -32,13 +32,8 @@ class SessionsController < ApplicationController
 
   def omniauth_return_path
     origin = request.env["omniauth.origin"].presence
-    return root_path if origin.blank?
+    return origin if safe_internal_path?(origin)
 
-    uri = URI.parse(origin)
-    return origin if uri.relative?
-
-    root_path
-  rescue URI::InvalidURIError
     root_path
   end
 end

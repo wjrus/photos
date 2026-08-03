@@ -71,4 +71,18 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to repository_status_path
   end
+
+  test "does not return to a protocol-relative omniauth origin" do
+    user = users(:one)
+    OmniAuth.config.mock_auth[:google_oauth2] = OmniAuth::AuthHash.new(
+      provider: user.provider,
+      uid: user.uid,
+      info: { email: user.email, name: user.name, image: user.avatar_url }
+    )
+
+    post "/auth/google_oauth2", params: { origin: "//example.com/nope" }
+    follow_redirect!
+
+    assert_redirected_to root_path
+  end
 end

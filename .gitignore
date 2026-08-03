@@ -33,6 +33,10 @@
 
 /public/assets
 
+# Ignore Python bytecode generated while checking the local analysis service.
+__pycache__/
+*.py[cod]
+
 # Ignore key files for decrypting credentials and more.
 /config/*.key
 

@@ -33,14 +33,15 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "William shared photos with you", MailgunClient.deliveries.last.subject
     assert_equal "\"Photos\" <photos@example.invalid>", MailgunClient.deliveries.last.from
     assert_equal "photos@example.invalid", MailgunClient.deliveries.last.headers.fetch("Reply-To")
-    assert_includes MailgunClient.deliveries.last.text, invitation_path(invited.invitation_url_token)
+    invitation_token = MailgunClient.deliveries.last.text[%r{/invitations/([^\s]+)}, 1]
+    assert_equal invited, User.find_signed(invitation_token, purpose: :invitation)
     assert_includes MailgunClient.deliveries.last.text, "private photo galleries William Rockwood has shared with you"
     assert_includes MailgunClient.deliveries.last.html, "View photos"
     assert_includes MailgunClient.deliveries.last.html, "/icon.png"
 
     follow_redirect!
     assert_response :success
-    refute_includes response.body, invitation_url(invited.invitation_url_token)
+    refute_match %r{/invitations/[^"']+}, response.body
   end
 
   test "owner can resend invitation and send password reset" do
@@ -50,7 +51,8 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
       post send_invitation_user_path(user)
     end
     assert_redirected_to users_path
-    assert_includes MailgunClient.deliveries.last.text, invitation_path(user.invitation_url_token)
+    invitation_token = MailgunClient.deliveries.last.text[%r{/invitations/([^\s]+)}, 1]
+    assert_equal user, User.find_signed(invitation_token, purpose: :invitation)
 
     assert_difference "MailgunClient.deliveries.size", 1 do
       post send_password_reset_user_path(user)

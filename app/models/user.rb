@@ -30,6 +30,7 @@ class User < ApplicationRecord
   validates :password, length: { minimum: 10 }, allow_blank: true
 
   PASSWORD_RESET_TTL = 2.hours
+  INVITATION_TTL = 7.days
 
   def self.from_omniauth(auth)
     user = find_by(provider: auth.provider, uid: auth.uid) || find_or_initialize_by(email: auth.info.email)
@@ -108,7 +109,7 @@ class User < ApplicationRecord
   end
 
   def invitation_url_token
-    signed_id(purpose: :invitation)
+    signed_id(purpose: :invitation, expires_in: INVITATION_TTL)
   end
 
   def generate_password_reset_token!

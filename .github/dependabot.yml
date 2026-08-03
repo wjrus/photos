@@ -10,3 +10,8 @@ updates:
   schedule:
     interval: weekly
   open-pull-requests-limit: 10
+- package-ecosystem: pip
+  directory: "/services/analysis_local"
+  schedule:
+    interval: weekly
+  open-pull-requests-limit: 10

@@ -1,5 +1,9 @@
 class UploadChunksController < ApplicationController
   UPLOAD_TTL = 30.minutes
+  CHUNK_SIZE = 16.megabytes
+  MAX_FILES_PER_UPLOAD = 1_000
+  MAX_CHUNKS_PER_FILE = 4_096
+  ID_PATTERN = /\A[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}\z/
   owner_access_message "Only the owner can upload photos."
 
   before_action :require_owner!
@@ -7,6 +11,11 @@ class UploadChunksController < ApplicationController
 
   def create
     chunk = params.require(:chunk)
+    unless chunk.respond_to?(:tempfile) && chunk.respond_to?(:size)
+      raise ActionController::BadRequest, "Invalid upload chunk"
+    end
+    raise ActionController::BadRequest, "Upload chunk is too large" if chunk.size > CHUNK_SIZE
+
     file_dir = upload_file_dir(upload_id, file_id)
     FileUtils.mkdir_p(file_dir)
     FileUtils.cp(chunk.tempfile.path, file_dir.join(chunk_index.to_s))
@@ -44,6 +53,10 @@ class UploadChunksController < ApplicationController
       end
 
       tempfile.rewind
+      unless tempfile.size == manifest.fetch(:byte_size)
+        raise ActionController::BadRequest, "Uploaded file size does not match the manifest"
+      end
+
       ActionDispatch::Http::UploadedFile.new(
         tempfile: tempfile,
         filename: manifest.fetch(:filename),
@@ -61,23 +74,40 @@ class UploadChunksController < ApplicationController
   end
 
   def upload_id
-    params.require(:upload_id).to_s
+    validated_id(params.require(:upload_id), "upload")
   end
 
   def file_id
-    params.require(:file_id).to_s
+    validated_id(params.require(:file_id), "file")
   end
 
   def chunk_index
-    Integer(params.require(:chunk_index))
+    integer_parameter(params.require(:chunk_index), "chunk index").tap do |index|
+      raise ActionController::BadRequest, "Invalid chunk index" unless index.between?(0, MAX_CHUNKS_PER_FILE - 1)
+    end
   end
 
   def file_manifests
-    params.require(:files).map do |file|
+    files = params.require(:files)
+    unless files.is_a?(Array) && files.size.between?(1, MAX_FILES_PER_UPLOAD)
+      raise ActionController::BadRequest, "Invalid file count"
+    end
+
+    manifests = files.map do |file|
+      raise ActionController::BadRequest, "Invalid file manifest" unless file.respond_to?(:permit)
+
       file.permit(:file_id, :filename, :content_type, :byte_size, :total_chunks).to_h.symbolize_keys.tap do |manifest|
-        manifest[:total_chunks] = Integer(manifest.fetch(:total_chunks))
+        manifest[:file_id] = validated_id(manifest.fetch(:file_id), "file")
+        manifest[:filename] = validated_filename(manifest.fetch(:filename))
+        manifest[:byte_size] = integer_parameter(manifest.fetch(:byte_size), "file size")
+        manifest[:total_chunks] = integer_parameter(manifest.fetch(:total_chunks), "chunk count")
+        validate_manifest!(manifest)
       end
     end
+
+    raise ActionController::BadRequest, "Duplicate file id" unless manifests.map { |manifest| manifest[:file_id] }.uniq.size == manifests.size
+
+    manifests
   end
 
   def chunk_statuses
@@ -109,10 +139,7 @@ class UploadChunksController < ApplicationController
   end
 
   def upload_dir(id)
-    safe_id = id.gsub(/[^a-zA-Z0-9_-]/, "")
-    raise ActionController::BadRequest, "Invalid upload id" if safe_id.blank?
-
-    resumable_upload_root.join(safe_id)
+    resumable_upload_root.join(validated_id(id, "upload"))
   end
 
   def resumable_upload_root
@@ -124,10 +151,37 @@ class UploadChunksController < ApplicationController
   end
 
   def upload_file_dir(id, file)
-    safe_file = file.gsub(/[^a-zA-Z0-9_-]/, "")
-    raise ActionController::BadRequest, "Invalid file id" if safe_file.blank?
+    upload_dir(id).join(validated_id(file, "file"))
+  end
 
-    upload_dir(id).join(safe_file)
+  def validated_id(value, label)
+    value.to_s.tap do |id|
+      raise ActionController::BadRequest, "Invalid #{label} id" unless ID_PATTERN.match?(id)
+    end
+  end
+
+  def validated_filename(value)
+    value.to_s.tap do |filename|
+      valid = filename.present? && filename.bytesize <= 255 && File.basename(filename) == filename &&
+        !filename.include?("\\") && !filename.match?(/[[:cntrl:]]/)
+      raise ActionController::BadRequest, "Invalid filename" unless valid
+    end
+  end
+
+  def integer_parameter(value, label)
+    Integer(value)
+  rescue ArgumentError, TypeError
+    raise ActionController::BadRequest, "Invalid #{label}"
+  end
+
+  def validate_manifest!(manifest)
+    byte_size = manifest.fetch(:byte_size)
+    total_chunks = manifest.fetch(:total_chunks)
+    expected_chunks = [ (byte_size.to_f / CHUNK_SIZE).ceil, 1 ].max
+
+    raise ActionController::BadRequest, "Invalid file size" unless byte_size.between?(0, CHUNK_SIZE * MAX_CHUNKS_PER_FILE)
+    raise ActionController::BadRequest, "Invalid chunk count" unless total_chunks.between?(1, MAX_CHUNKS_PER_FILE)
+    raise ActionController::BadRequest, "Chunk count does not match file size" unless total_chunks == expected_chunks
   end
 
   def owner_access_json_response?

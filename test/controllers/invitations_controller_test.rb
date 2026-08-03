@@ -34,4 +34,25 @@ class InvitationsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to root_path
     assert @invited.reload.remember_token_digest.present?
   end
+
+  test "accepted invitation link cannot be reused" do
+    token = @invited.invitation_url_token
+    @invited.accept_invitation!(password: "correct horse battery staple", password_confirmation: "correct horse battery staple")
+
+    get invitation_path(token)
+
+    assert_redirected_to sign_in_path
+    assert_equal "That invitation link is invalid or has already been used.", flash[:alert]
+  end
+
+  test "expired invitation link cannot be used" do
+    token = @invited.invitation_url_token
+
+    travel User::INVITATION_TTL + 1.second do
+      get invitation_path(token)
+
+      assert_redirected_to sign_in_path
+      assert_equal "That invitation link is invalid or expired.", flash[:alert]
+    end
+  end
 end

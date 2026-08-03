@@ -182,6 +182,15 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_predicate photo.reload, :public?
   end
 
+  test "visibility return path ignores protocol-relative urls" do
+    photo = attached_photo
+
+    patch publish_photo_path(photo), params: { return_to: "//example.com/nope" }
+
+    assert_redirected_to root_path
+    assert_predicate photo.reload, :public?
+  end
+
   test "owner can archive a photo from detail without removing album membership" do
     album = @owner.photo_albums.create!(title: "Still Joined", source: "manual")
     photo = attached_photo(title: "Archive candidate")

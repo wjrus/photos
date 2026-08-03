@@ -62,19 +62,13 @@ class ApplicationController < ActionController::Base
 
   def safe_return_path(default: root_path)
     return_to = params[:return_to].presence || cookies[PHOTO_RETURN_TO_COOKIE].presence
-    return default if return_to.blank?
+    return return_to if safe_internal_path?(return_to)
 
-    uri = URI.parse(return_to)
-    return return_to if uri.relative?
-
-    default
-  rescue URI::InvalidURIError
     default
   end
 
   def store_photo_return_path(path)
-    uri = URI.parse(path.to_s)
-    return unless uri.relative?
+    return unless safe_internal_path?(path)
 
     cookies[PHOTO_RETURN_TO_COOKIE] = {
       value: path,
@@ -82,8 +76,17 @@ class ApplicationController < ActionController::Base
       same_site: :lax,
       secure: Rails.env.production?
     }
+  end
+
+  def safe_internal_path?(value)
+    path = value.to_s
+    return false unless path.start_with?("/")
+    return false if path.start_with?("//") || path.include?("\\")
+
+    uri = URI.parse(path)
+    uri.scheme.nil? && uri.host.nil? && uri.path.start_with?("/")
   rescue URI::InvalidURIError
-    nil
+    false
   end
 
   def owner_access_json_response?

@@ -25,8 +25,11 @@ class InvitationsController < ApplicationController
 
   def set_invited_user
     @user = User.find_signed!(params[:token], purpose: :invitation)
+    return if @user.invited_pending?
+
+    redirect_to sign_in_path, alert: "That invitation link is invalid or has already been used."
   rescue ActiveSupport::MessageVerifier::InvalidSignature
-    redirect_to sign_in_path, alert: "That invitation link is invalid."
+    redirect_to sign_in_path, alert: "That invitation link is invalid or expired."
   end
 
   def invitation_params
