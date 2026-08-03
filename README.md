@@ -289,7 +289,9 @@ pair Apple `.AAE` sidecars found beside their originals, and skip previously
 imported originals by SHA-256. Imported records enter a committed upload batch
 and use the same metadata, derivative, archive, geocoding, and enabled-analysis
 jobs as web uploads. Source files remain in the read-only inbox and can be
-removed after a successful import; rerunning the task is safe.
+removed after a successful import; rerunning the task is safe. The command emits
+unbuffered progress for discovery, hashing, duplicate checks, and each import so
+large batches never appear idle.
 
 Repository Status is the preferred home for repeatable maintenance controls:
 queue patrols, baseline scans, queue pause/resume, auto-heal, derivative

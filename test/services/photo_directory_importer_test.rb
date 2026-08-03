@@ -53,13 +53,21 @@ class PhotoDirectoryImporterTest < ActiveSupport::TestCase
 
   test "dry run reports imports without creating photos or batches" do
     FileUtils.cp(Rails.root.join("public/icon.png"), @directory.join("preview.png"))
+    output = StringIO.new
 
     assert_no_difference [ "Photo.count", "UploadBatch.count" ] do
-      summary = PhotoDirectoryImporter.new(owner: @owner, dry_run: true).import_path(@directory)
+      summary = PhotoDirectoryImporter.new(owner: @owner, output: output, dry_run: true).import_path(@directory)
 
       assert_equal 1, summary.fetch(:would_import)
       assert_equal 0, summary.fetch(:imported)
     end
+
+    assert_includes output.string, "Directory import dry run starting."
+    assert_includes output.string, "Discovered 1 media files and 0 sidecars"
+    assert_match(/\[1\/1\] hashing preview\.png \(.+\)/, output.string)
+    assert_includes output.string, "checking library for checksum"
+    assert_includes output.string, "would import"
+    assert_includes output.string, "Finished scanning 1 media files"
   end
 
   test "does not pair sidecars across different directories" do

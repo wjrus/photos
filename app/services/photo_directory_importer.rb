@@ -11,11 +11,12 @@ class PhotoDirectoryImporter
   VIDEO_EXTENSIONS = %w[.3gp .avi .m4v .mkv .mov .mp4 .mpeg .mpg .webm].freeze
   SIDECAR_EXTENSION = ".aae"
 
-  def initialize(owner:, logger: Rails.logger, dry_run: false, verbose: false)
+  def initialize(owner:, logger: Rails.logger, output: nil, dry_run: false, verbose: false)
     raise ArgumentError, "Directory imports require an owner account" unless owner&.owner?
 
     @owner = owner
     @logger = logger
+    @output = output
     @dry_run = dry_run
     @verbose = verbose
     @upload_batch = nil
@@ -25,20 +26,28 @@ class PhotoDirectoryImporter
     root = Pathname(path).expand_path
     raise ArgumentError, "Import directory does not exist: #{root}" unless root.directory?
 
+    started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     summary = empty_summary
+    announce "Directory import #{dry_run ? "dry run" : "run"} starting."
+    announce "Scanning #{root}..."
     paths = discover_paths(root, summary)
     sidecars = paths.select { |candidate| sidecar?(candidate) }.group_by { |candidate| pairing_key(root, candidate) }
     originals = paths.reject { |candidate| sidecar?(candidate) }
     summary[:discovered] = originals.size
+    announce "Discovered #{originals.size} media files and #{sidecars.values.sum(&:size)} sidecars; #{summary[:ignored]} files ignored."
 
     originals.each_with_index do |original, index|
-      import_original(root, original, sidecars.fetch(pairing_key(root, original), []), summary)
+      matched_sidecars = sidecars.fetch(pairing_key(root, original), [])
+      announce "[#{index + 1}/#{originals.size}] hashing #{relative_path(root, original)} (#{formatted_size(original.size)})"
+      import_original(root, original, matched_sidecars, summary)
       log_progress(index + 1, originals.size, summary)
     end
 
     summary[:orphan_sidecars] = sidecars.values.sum(&:size) - summary[:sidecars]
     commit_upload_batch
     summary[:upload_batch_id] = upload_batch&.id
+    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
+    announce "Finished scanning #{originals.size} media files in #{format("%.1f", elapsed)} seconds."
     summary
   rescue StandardError
     commit_upload_batch
@@ -47,7 +56,7 @@ class PhotoDirectoryImporter
 
   private
 
-  attr_reader :owner, :logger, :dry_run, :verbose, :upload_batch
+  attr_reader :owner, :logger, :output, :dry_run, :verbose, :upload_batch
 
   def discover_paths(root, summary)
     paths = []
@@ -72,8 +81,10 @@ class PhotoDirectoryImporter
 
   def import_original(root, original, matched_sidecars, summary)
     checksum = Digest::SHA256.file(original).hexdigest
+    announce "  checking library for checksum #{checksum.first(12)}..."
     if duplicate_photo(checksum, original)
       summary[:duplicates] += 1
+      announce "  duplicate; skipped"
       log("skip duplicate #{relative_path(root, original)}")
       return
     end
@@ -81,6 +92,7 @@ class PhotoDirectoryImporter
     if dry_run
       summary[:would_import] += 1
       summary[:sidecars] += matched_sidecars.size
+      announce "  would import#{sidecar_suffix(matched_sidecars)}"
       log("would import #{relative_path(root, original)}")
       return
     end
@@ -93,10 +105,12 @@ class PhotoDirectoryImporter
       summary[:imported] += result.fetch(:created)
       summary[:sidecars] += uploaded_sidecars.size
     end
+    announce "  imported#{sidecar_suffix(matched_sidecars)}"
     log("imported #{relative_path(root, original)}")
   rescue StandardError => error
     summary[:failed] += 1
     summary[:errors] << "#{relative_path(root, original)}: #{error.class}: #{error.message}"
+    announce "  FAILED: #{error.class}: #{error.message}"
     logger.error("Directory import failed for #{original}: #{error.class}: #{error.message}")
   end
 
@@ -178,6 +192,32 @@ class PhotoDirectoryImporter
 
   def log(message)
     logger.info(message) if verbose
+  end
+
+  def announce(message)
+    return unless output
+
+    output.puts(message)
+    output.flush
+  end
+
+  def formatted_size(bytes)
+    units = %w[B KB MB GB TB]
+    size = bytes.to_f
+    unit = units.shift
+
+    while size >= 1024 && units.any?
+      size /= 1024
+      unit = units.shift
+    end
+
+    size >= 10 || unit == "B" ? "#{size.round} #{unit}" : format("%.1f %s", size, unit)
+  end
+
+  def sidecar_suffix(sidecars)
+    return "" if sidecars.empty?
+
+    " with #{sidecars.size} sidecar#{"s" unless sidecars.one?}"
   end
 
   def empty_summary

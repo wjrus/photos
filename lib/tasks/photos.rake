@@ -1,6 +1,9 @@
 namespace :photos do
   desc "Recursively import photos and videos from a mounted directory"
   task import_directory: :environment do
+    $stdout.sync = true
+    $stderr.sync = true
+
     path = ENV.fetch("DIRECTORY_IMPORT_PATH", ENV.fetch("PHOTOS_DIRECTORY_IMPORT_PATH", "/rails/imports/inbox"))
     owner_email = ENV.fetch("OWNER_EMAIL", ENV["PHOTOS_OWNER_EMAIL"])
     owner = User.find_by!(email: owner_email)
@@ -10,6 +13,7 @@ namespace :photos do
     summary = PhotoDirectoryImporter.new(
       owner: owner,
       logger: Rails.logger,
+      output: $stdout,
       dry_run: dry_run,
       verbose: verbose
     ).import_path(path)
