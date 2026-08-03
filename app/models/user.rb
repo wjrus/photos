@@ -18,6 +18,7 @@ class User < ApplicationRecord
   has_many :photo_album_shares, dependent: :destroy
   has_many :shared_photo_albums, through: :photo_album_shares, source: :photo_album
   has_many :created_photo_album_shares, class_name: "PhotoAlbumShare", foreign_key: :shared_by_id, dependent: :destroy, inverse_of: :shared_by
+  has_many :created_album_access_links, class_name: "AlbumAccessLink", foreign_key: :created_by_id, dependent: :destroy, inverse_of: :created_by
   has_one_attached :avatar
 
   normalizes :email, with: ->(email) { email.to_s.strip.downcase }

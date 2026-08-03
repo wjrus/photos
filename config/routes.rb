@@ -56,9 +56,11 @@ Rails.application.routes.draw do
     patch :publish, on: :member
     patch :unpublish, on: :member
     resources :album_shares, only: %i[create destroy], shallow: true
+    resources :access_links, only: :create, controller: :album_access_links
     resources :photo_album_memberships, only: :destroy, shallow: true
     patch "cover/:photo_id", to: "album_covers#update", as: :cover
   end
+  patch "/album_access_links/:id/revoke", to: "album_access_links#revoke", as: :revoke_album_access_link
   resources :album_downloads, only: %i[create show] do
     get :file, on: :member
   end

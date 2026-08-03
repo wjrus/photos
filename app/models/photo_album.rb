@@ -8,6 +8,7 @@ class PhotoAlbum < ApplicationRecord
   has_many :photos, through: :photo_album_memberships
   has_many :album_downloads, dependent: :destroy
   has_many :photo_album_shares, dependent: :destroy
+  has_many :album_access_links, dependent: :destroy
   has_many :shared_users, through: :photo_album_shares, source: :user
 
   validates :title, presence: true

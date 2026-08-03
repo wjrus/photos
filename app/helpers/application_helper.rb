@@ -2,8 +2,8 @@ module ApplicationHelper
   BULK_ACTION_BUTTON_CLASSES = "ui-tooltip flex size-10 cursor-pointer items-center justify-center rounded-lg text-zinc-800 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40".freeze
   BULK_DANGER_BUTTON_CLASSES = "ui-tooltip flex size-10 cursor-pointer items-center justify-center rounded-lg text-zinc-800 transition hover:bg-rose-50 hover:text-rose-800 disabled:cursor-not-allowed disabled:opacity-40".freeze
 
-  def photo_display_image_path(photo)
-    display_photo_path(photo)
+  def photo_display_image_path(photo, access_params = {})
+    display_photo_path(photo, access_params)
   end
 
   def photo_original_media_path(photo)
@@ -30,7 +30,9 @@ module ApplicationHelper
 
   def photo_stream_media(photo, **options)
     return_to = options.delete(:return_to)
-    stream_path = return_to.present? ? stream_photo_path(photo, return_to: return_to) : stream_photo_path(photo)
+    access_params = options.delete(:access_params) || {}
+    stream_params = access_params.merge(return_to: return_to).compact
+    stream_path = stream_photo_path(photo, stream_params)
 
     if photo.video?
       if photo.video_preview.attached?
@@ -55,7 +57,7 @@ module ApplicationHelper
     uri.to_s
   end
 
-  def photo_detail_media(photo)
+  def photo_detail_media(photo, access_params: {})
     if photo.video?
       unless photo.video_display.attached?
         return tag.div class: "mx-auto flex min-h-80 w-full max-w-xl items-center justify-center rounded-lg border border-white/15 bg-white/5 p-8 text-center text-sm leading-6 text-white/75 shadow-2xl" do
@@ -70,7 +72,7 @@ module ApplicationHelper
       }
       video_options[:poster] = url_for(photo.video_preview) if photo.video_preview.attached?
 
-      video_tag video_photo_path(photo), **video_options
+      video_tag video_photo_path(photo, access_params), **video_options
     else
       detail_variant = photo.processed_original_variant_record(:display) || photo.processed_original_variant_record(:stream)
 
@@ -79,17 +81,17 @@ module ApplicationHelper
           alt: photo.title,
           class: "photo-detail-media max-h-screen max-w-full object-contain"
       else
-        image_tag photo_display_image_path(photo),
+        image_tag photo_display_image_path(photo, access_params),
           alt: photo.title,
           class: "photo-detail-media max-h-screen max-w-full object-contain"
       end
     end
   end
 
-  def photo_stream_neighbor_prefetch_tags(*photos)
+  def photo_stream_neighbor_prefetch_tags(*photos, access_params: {})
     photos.compact.uniq(&:id).flat_map do |photo|
       tags = [
-        tag.link(rel: "prefetch", href: photo_path(photo), as: "document")
+        tag.link(rel: "prefetch", href: photo_path(photo, access_params), as: "document")
       ]
 
       if (media_path = photo_neighbor_prefetch_media_path(photo))
@@ -280,6 +282,7 @@ module ApplicationHelper
       chevron_down: '<path d="m6 9 6 6 6-6"/>',
       chevron_left: '<path d="m15 18-6-6 6-6"/>',
       chevron_up: '<path d="m18 15-6-6-6 6"/>',
+      copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
       globe: '<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z"/><path d="M2 12h20"/><path d="M12 2c2.5 2.7 3.75 6.03 3.75 10S14.5 19.3 12 22c-2.5-2.7-3.75-6.03-3.75-10S9.5 4.7 12 2Z"/>',
       image: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 16 4-4c.9-.9 2.1-.9 3 0l5 5"/><path d="m14 16 1-1c.9-.9 2.1-.9 3 0l3 3"/><path d="M8.5 9.5h.01"/>',
       image_minus: '<path d="M16 5h6"/><path d="M21 11v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7"/><path d="m3 16 4-4c.9-.9 2.1-.9 3 0l5 5"/><path d="m14 16 1-1c.9-.9 2.1-.9 3 0l3 3"/><path d="M8.5 9.5h.01"/>',

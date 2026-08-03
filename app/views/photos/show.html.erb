@@ -1,7 +1,12 @@
 <% content_for :title, @photo.title %>
 <% content_for :body_class, "photo-detail-page" %>
 <% content_for :head do %>
-  <%= photo_stream_neighbor_prefetch_tags(@previous_photo, @next_photo) %>
+  <%= photo_stream_neighbor_prefetch_tags(@previous_photo, @next_photo, access_params: @album_access_params || {}) %>
+<% end %>
+<% if @album_access_link %>
+  <% content_for :head do %>
+    <meta name="robots" content="noindex,nofollow">
+  <% end %>
 <% end %>
 <% if @photo.public? && @photo.image? %>
   <% content_for :head do %>
@@ -31,13 +36,15 @@
           photo: @photo,
           return_to: @return_to,
           previous_photo: @previous_photo,
-          next_photo: @next_photo %>
+          next_photo: @next_photo,
+          access_params: @album_access_params || {} %>
 
     <%= render "photos/info_panel",
           photo: @photo,
           return_to: @return_to,
           albums: @albums,
           taggable_users: @taggable_users,
-          cover_context: @cover_context %>
+          cover_context: @cover_context,
+          album_access: @album_access_link.present? %>
   </div>
 </section>

@@ -4,6 +4,7 @@
 <% day_label = local_assigns[:day_label] %>
 <% day_key = local_assigns[:day_key] %>
 <% day_start = day_label.present? %>
+<% access_params = local_assigns[:access_params] || {} %>
 
 <article class="<%= feature ? "col-span-2 row-span-2" : "" %> group relative z-0 rounded-lg"
          data-bulk-selection-card
@@ -43,13 +44,13 @@
   <% link_data = { photo_return_to: return_to } %>
   <% link_data[:action] = "click->bulk-selection#toggleCard" if owner_controls %>
 
-  <%= link_to photo_path(photo),
+  <%= link_to photo_path(photo, access_params),
         class: "absolute inset-0 z-30",
         aria: { label: "View #{photo.title}" },
         data: link_data do %>
     <span class="sr-only">View <%= photo.title %></span>
   <% end %>
-  <%= photo_stream_media(photo, return_to: return_to) %>
+  <%= photo_stream_media(photo, return_to: return_to, access_params: access_params) %>
   <% if metadata_badge_visible %>
     <div class="pointer-events-none absolute right-3 top-3 z-20 rounded-lg border border-white/15 bg-black/65 px-2 py-1 text-right text-xs font-semibold leading-tight text-white shadow-sm backdrop-blur"
          aria-label="Original file size <%= number_to_human_size(photo.byte_size) %><%= ", dimensions #{photo_dimensions(photo.metadata)}" if metadata_dimensions_visible %>">

@@ -1,5 +1,6 @@
 class PhotosController < ApplicationController
   include PhotoStreamReturnPaths
+  include AlbumLinkAccess
 
   owner_access_message "Only the owner can manage photos."
 
@@ -10,7 +11,7 @@ class PhotosController < ApplicationController
   def show
     if params[:return_to].present?
       store_photo_return_path(safe_return_path)
-      redirect_to photo_path(@photo), status: :see_other
+      redirect_to photo_path(@photo, @album_access_params), status: :see_other
       return
     end
 
@@ -204,6 +205,7 @@ class PhotosController < ApplicationController
   end
 
   def set_visible_photo
+    set_album_access_context
     @photo = visible_photo_scope.find(params[:id])
   end
 
@@ -226,6 +228,8 @@ class PhotosController < ApplicationController
   end
 
   def navigation_stream
+    return album_access_photo_scope(@album_access_album).chronological_order if @album_access_link
+
     return_context_stream || Photo.visible_to(current_user).stream_order
   end
 
@@ -237,6 +241,8 @@ class PhotosController < ApplicationController
   end
 
   def navigation_stream_order
+    return :chronological if @album_access_link
+
     uri = URI.parse(safe_return_path)
     photo_stream_return_order(uri)
   rescue URI::InvalidURIError
@@ -264,6 +270,10 @@ class PhotosController < ApplicationController
   end
 
   def visible_photo_scope
+    if @album_access_link
+      return album_access_photo_scope(@album_access_album).with_attached_original
+    end
+
     return current_user.photos.with_attached_original if current_user&.owner? && restricted_photos_unlocked?
     return current_user.photos.archived.with_attached_original if archived_return_path?
 
@@ -297,6 +307,8 @@ class PhotosController < ApplicationController
   end
 
   def photo_return_path(photo)
+    return album_path(@album_access_album) if @album_access_link && safe_return_path == root_path
+
     return_path = safe_return_path(default: root_path(photo_id: photo.id))
     uri = URI.parse(return_path)
 
@@ -380,5 +392,21 @@ class PhotosController < ApplicationController
     return if @photo.processed_original_variant_record(:display)&.image&.attached?
 
     GeneratePhotoDerivativesJob.perform_later(@photo)
+  end
+
+  def set_album_access_context
+    album_id = params[:album_id].presence
+    return unless album_id
+
+    album = PhotoAlbum.find_by(id: album_id)
+    return unless album
+
+    link = album_access_link_from_cookie(album)
+    return unless link
+
+    @album_access_album = album
+    @album_access_link = link
+    @album_access_params = { album_id: album.id }
+    apply_album_access_response_headers
   end
 end

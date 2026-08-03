@@ -1,5 +1,10 @@
 <% content_for :title, @album.title %>
 <% content_for :body_class, "stream-timeline-scrollbar" if @timeline_periods.present? %>
+<% if @album_access_link %>
+  <% content_for :head do %>
+    <meta name="robots" content="noindex,nofollow">
+  <% end %>
+<% end %>
 
 <% if current_user&.owner? %>
   <% content_for :header_actions do %>
@@ -140,6 +145,89 @@
                     </button>
                   <% end %>
                 <% end %>
+
+                <div class="mt-5 border-t border-zinc-200 pt-5">
+                  <h3 class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Links</h3>
+                  <p class="mt-2 text-xs leading-5 text-zinc-500">Anyone with an active link can view the non-archived photos in this album without signing in.</p>
+
+                  <%= form_with url: album_access_links_path(@album), method: :post, class: "mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]" do %>
+                    <label for="album_access_link_label" class="sr-only">Link label</label>
+                    <input id="album_access_link_label"
+                           name="label"
+                           type="text"
+                           maxlength="80"
+                           placeholder="Friends, family, event..."
+                           class="min-w-0 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15">
+                    <label for="album_access_link_expires_in" class="sr-only">Expiration</label>
+                    <select id="album_access_link_expires_in"
+                            name="expires_in"
+                            class="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15">
+                      <option value="never">Never expires</option>
+                      <option value="7_days">7 days</option>
+                      <option value="30_days">30 days</option>
+                      <option value="90_days">90 days</option>
+                      <option value="1_year">1 year</option>
+                    </select>
+                    <button type="submit" class="rounded-lg bg-zinc-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-teal-800">Create link</button>
+                  <% end %>
+
+                  <% if @album_access_links.any? %>
+                    <div class="mt-4 space-y-3">
+                      <% @album_access_links.each do |access_link| %>
+                        <div class="rounded-lg border border-zinc-200 bg-stone-50 p-3">
+                          <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                              <p class="truncate text-sm font-semibold text-zinc-900"><%= access_link.label %></p>
+                              <p class="mt-1 text-xs text-zinc-500">
+                                <%= pluralize(access_link.access_count, "use") %>
+                                <% if access_link.last_accessed_at %> · Last used <%= time_ago_in_words(access_link.last_accessed_at) %> ago<% end %>
+                              </p>
+                              <p class="mt-1 text-xs text-zinc-500">
+                                <% if access_link.revoked? %>
+                                  Revoked <%= time_ago_in_words(access_link.revoked_at) %> ago
+                                <% elsif access_link.expired? %>
+                                  Expired
+                                <% elsif access_link.expires_at %>
+                                  Expires <%= access_link.expires_at.to_fs(:long) %>
+                                <% else %>
+                                  Never expires
+                                <% end %>
+                              </p>
+                            </div>
+                            <span class="rounded-full border px-2 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] <%= access_link.active? ? "border-teal-200 bg-teal-50 text-teal-900" : "border-zinc-200 bg-zinc-100 text-zinc-500" %>">
+                              <%= access_link.active? ? "Active" : "Inactive" %>
+                            </span>
+                          </div>
+
+                          <% if access_link.active? %>
+                            <div class="mt-3 flex gap-2" data-controller="clipboard">
+                              <input type="text"
+                                     readonly
+                                     value="<%= album_url(@album, key: access_link.key) %>"
+                                     class="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-700"
+                                     aria-label="Share URL for <%= access_link.label %>"
+                                     data-clipboard-target="source"
+                                     data-action="focus->select-text#select"
+                                     data-controller="select-text">
+                              <button type="button"
+                                      class="ui-tooltip flex size-9 shrink-0 items-center justify-center rounded-lg border border-zinc-300 bg-white text-zinc-700 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white"
+                                      aria-label="Copy share link"
+                                      data-tooltip="Copy link"
+                                      data-action="clipboard#copy">
+                                <%= app_icon(:copy, classes: "size-4") %>
+                              </button>
+                              <span class="sr-only" aria-live="polite" data-clipboard-target="status"></span>
+                            </div>
+                            <%= button_to "Revoke link",
+                                  revoke_album_access_link_path(access_link),
+                                  method: :patch,
+                                  class: "mt-3 w-full rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-800 transition hover:bg-rose-800 hover:text-white" %>
+                          <% end %>
+                        </div>
+                      <% end %>
+                    </div>
+                  <% end %>
+                </div>
               </section>
 
               <section class="border-t border-zinc-200 pt-5">
@@ -203,6 +291,7 @@
               feature_first: false,
               bulk_form_id: "album-photo-bulk-form",
               album: @album,
+              access_params: (@album_access_link ? { album_id: @album.id } : {}),
               group_by_day: false,
               stream_target_photo_id: @stream_target_photo_id,
               next_cursor: @next_cursor,

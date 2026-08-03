@@ -23,7 +23,7 @@
     </div>
   </header>
 
-  <% if privileged_metadata_viewer? || (photo.public? && photo.description.present?) %>
+  <% if privileged_metadata_viewer? || ((photo.public? || local_assigns[:album_access]) && photo.description.present?) %>
     <%= render "photos/info_panel_caption", photo: photo, return_to: return_to %>
   <% end %>
 
@@ -31,7 +31,7 @@
     <%= render "photos/info_panel_albums", photo: photo, albums: local_assigns[:albums], return_to: return_to %>
   <% end %>
 
-  <% if privileged_metadata_viewer? || photo.tagged_users.any? %>
+  <% if privileged_metadata_viewer? || (photo.public? && photo.tagged_users.any?) %>
     <%= render "photos/info_panel_people", photo: photo, taggable_users: taggable_users, return_to: return_to %>
   <% end %>
 

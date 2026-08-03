@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_03_093000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_03_094500) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -40,6 +40,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_03_093000) do
     t.bigint "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
+
+  create_table "album_access_links", force: :cascade do |t|
+    t.bigint "access_count", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id", null: false
+    t.datetime "expires_at"
+    t.string "label", default: "Share link", null: false
+    t.datetime "last_accessed_at"
+    t.bigint "photo_album_id", null: false
+    t.datetime "revoked_at"
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_album_access_links_on_created_by_id"
+    t.index ["photo_album_id", "created_at"], name: "index_album_access_links_on_photo_album_id_and_created_at"
+    t.index ["photo_album_id"], name: "index_album_access_links_on_photo_album_id"
+    t.index ["revoked_at"], name: "index_album_access_links_on_revoked_at"
   end
 
   create_table "album_downloads", force: :cascade do |t|
@@ -437,6 +453,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_03_093000) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "album_access_links", "photo_albums"
+  add_foreign_key "album_access_links", "users", column: "created_by_id"
   add_foreign_key "album_downloads", "photo_albums"
   add_foreign_key "album_downloads", "users"
   add_foreign_key "drive_archive_objects", "photos"

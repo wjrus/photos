@@ -11,7 +11,7 @@ The app is intentionally closer to a personal Google Photos/Flickr hybrid than a
 - Generates stripped stream/display derivatives so public viewers do not receive originals or embedded metadata.
 - Extracts EXIF, dimensions, capture dates, camera info, and GPS metadata for trusted views.
 - Groups the main stream by day and supports infinite scrolling, timeline navigation, and bulk actions.
-- Supports private/public albums, shared albums for invited users, and album views that keep photos in the stream.
+- Supports private/public albums, shared albums for invited users, and revocable guest links that do not require an account.
 - Supports an archive stream for screenshots, memes, and other items that should not appear in the main stream.
 - Supports map markers, dense location clusters, and `/locations` auto-galleries for geotagged photos.
 - Supports public/private visibility for photos and albums, plus an owner-only locked private area.
@@ -26,7 +26,7 @@ The app is intentionally closer to a personal Google Photos/Flickr hybrid than a
 
 ## Privacy Model
 
-Anonymous visitors only see photos and albums explicitly marked public. They receive display derivatives, not originals, and should not see embedded metadata, archive state, captions, locations, GPS, or original filenames.
+Anonymous visitors normally see only photos and albums explicitly marked public. A revocable album link can grant anonymous access to the non-archived, non-restricted photos and captions in one album. Anonymous visitors receive display derivatives, not originals, and do not receive embedded metadata, archive state, locations, GPS, or original filenames.
 
 Signed-in invited users can see richer details when allowed. They can also see private photos where they are tagged and private albums explicitly shared with them.
 
@@ -38,7 +38,7 @@ The owner can upload, import, publish, unpublish, archive, restore, tag people, 
 
 - **Stream**: the default chronological view of visible photos, grouped by day.
 - **Timeline**: right-side stream navigation by month/year.
-- **Albums**: manual or imported groupings. Photos remain in the stream when added to albums. Private albums can be shared with invited users.
+- **Albums**: manual or imported groupings. Photos remain in the stream when added to albums. Private albums can be shared with invited users or through revocable guest links.
 - **Archive**: owner-only secondary stream for non-photo items that should be hidden from the main stream.
 - **Map**: Google Maps view of geotagged photos, with album filtering and clustered markers.
 - **Locations**: auto-generated geotagged galleries based on coordinate buckets. Dense map clusters link here.
@@ -48,6 +48,12 @@ The owner can upload, import, publish, unpublish, archive, restore, tag people, 
 - **Repository health**: owner-only patrol jobs that read originals, verify size/checksums, report problems, record important activity, and can optionally heal from Drive.
 - **Photo analysis**: opt-in provider pipelines for local embeddings, object detection, and later external vision enrichment. See [Photo Analysis Plan](docs/photo-analysis.md).
 - **App settings**: runtime toggles stored in the database and managed from Repository Status. Environment files are for secrets and deploy wiring, not feature switches.
+
+## Guest Album Links
+
+The owner can create guest links from an album's **Album info > Sharing > Links** panel. Each link has a label, an optional expiration, an access count, and a last-used timestamp. Revoking a link invalidates existing guest browser access immediately; create a replacement link to rotate access.
+
+The `?key=...` URL is used once to establish an encrypted, HTTP-only album access cookie and then redirects to the clean album URL. A successful key exchange counts as one use. Guest access is limited to that album's non-archived, non-restricted photos and captions, and guest responses are marked private, non-cacheable, and excluded from search indexing.
 
 ## Development
 

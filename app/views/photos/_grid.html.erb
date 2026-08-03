@@ -14,6 +14,7 @@
         owner_controls: local_assigns.fetch(:owner_controls, current_user&.owner?),
         archive_context: local_assigns[:archive_context],
         album: local_assigns[:album],
+        access_params: local_assigns[:access_params],
         group_by_day: group_by_day,
         next_cursor: next_cursor,
         newer_cursor: local_assigns[:newer_cursor],

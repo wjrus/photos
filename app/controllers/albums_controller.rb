@@ -1,5 +1,6 @@
 class AlbumsController < ApplicationController
   include PhotoStreamPagination
+  include AlbumLinkAccess
   owner_access_message "Only the owner can manage albums."
 
   ALBUM_SORT_OPTIONS = {
@@ -35,10 +36,7 @@ class AlbumsController < ApplicationController
   end
 
   def show
-    visible_photos = @album.photos
-      .with_original_variant_records
-      .visible_to(current_user)
-      .chronological_order
+    visible_photos = album_photo_scope.with_original_variant_records.chronological_order
 
     @photos, @next_cursor, @newer_cursor = paginate_chronological_photo_stream_with_focus(visible_photos)
     @newer_cursor ||= chronological_timeline_previous_cursor(visible_photos) if params[:timeline_page].present?
@@ -47,16 +45,18 @@ class AlbumsController < ApplicationController
       return_to: album_path(@album),
       bulk_form_id: "album-photo-bulk-form",
       album: @album,
+      access_params: (@album_access_link ? { album_id: @album.id } : {}),
       group_by_day: false,
       next_page_path: album_path(@album),
       stream_target_photo_id: @stream_target_photo_id
     )
 
-    @visible_media_count = visible_media_counts_for([ @album ]).fetch(@album.id, { photos: 0, videos: 0 })
+    @visible_media_count = visible_media_count_for_show
     if current_user&.owner?
       @albums = current_user.photo_albums.display_order
       @album_shares = @album.photo_album_shares.joins(:user).includes(:user).order(Arel.sql("LOWER(users.email) ASC"))
       @shareable_users = shareable_users_for(@album)
+      @album_access_links = @album.album_access_links.recent_first
     end
     @timeline_periods = stream_timeline_periods(
       visible_photos,
@@ -125,7 +125,15 @@ class AlbumsController < ApplicationController
   end
 
   def set_visible_album
-    @album = PhotoAlbum.visible_to(current_user).find(params[:id])
+    @album = PhotoAlbum.find(params[:id])
+    return if exchange_album_access_key(@album)
+
+    @album_access_link = album_access_link_from_cookie(@album)
+    if @album_access_link
+      apply_album_access_response_headers
+    else
+      @album = PhotoAlbum.visible_to(current_user).find(params[:id])
+    end
   end
 
   def set_album
@@ -181,6 +189,7 @@ class AlbumsController < ApplicationController
     [
       "album-timeline/v4",
       cache_audience_key,
+      @album_access_link&.id,
       album.id,
       album.updated_at&.utc&.to_i,
       PhotoAlbumMembership.where(photo_album_id: album.id).maximum(:created_at)&.utc&.to_i,
@@ -259,5 +268,22 @@ class AlbumsController < ApplicationController
       .where.not(invited_at: nil)
       .where.not(id: shared_user_ids)
       .order(Arel.sql("LOWER(email) ASC"))
+  end
+
+  def album_photo_scope
+    return album_access_photo_scope(@album) if @album_access_link
+
+    @album.photos.visible_to(current_user)
+  end
+
+  def visible_media_count_for_show
+    if @album_access_link
+      {
+        photos: album_photo_scope.where("photos.content_type LIKE ?", "image/%").count,
+        videos: album_photo_scope.where("photos.content_type LIKE ?", "video/%").count
+      }
+    else
+      visible_media_counts_for([ @album ]).fetch(@album.id, { photos: 0, videos: 0 })
+    end
   end
 end

@@ -23,7 +23,8 @@
             bulk_form_id: local_assigns[:bulk_form_id],
             owner_controls: owner_controls,
             archive_context: local_assigns[:archive_context],
-            album: album %>
+            album: album,
+            access_params: local_assigns[:access_params] %>
     <% end %>
   </div>
 <% else %>
@@ -36,7 +37,8 @@
             bulk_form_id: local_assigns[:bulk_form_id],
             owner_controls: owner_controls,
             archive_context: local_assigns[:archive_context],
-            album: album %>
+            album: album,
+            access_params: local_assigns[:access_params] %>
     <% end %>
   </div>
 <% end %>

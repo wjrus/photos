@@ -58,6 +58,105 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "anonymous viewer can exchange an album link for private album access" do
+    album = @owner.photo_albums.create!(title: "Link-only album", source: "manual")
+    visible = attached_photo(title: "Link-visible photo")
+    visible.update!(description: "A private caption for friends")
+    visible.photo_people_tags.create!(user: users(:two), tagged_by: @owner)
+    archived = attached_photo(title: "Archived link photo")
+    restricted = attached_photo(title: "Restricted link photo")
+    archived.archive!
+    restricted.restrict!
+    album.photos << [ visible, archived, restricted ]
+    link = album.album_access_links.create!(created_by: @owner, label: "Friends")
+    delete sign_out_path
+
+    get album_path(album, key: link.key)
+
+    assert_redirected_to album_path(album)
+    assert_equal 1, link.reload.access_count
+    assert_not_nil link.last_accessed_at
+
+    follow_redirect!
+
+    assert_response :success
+    assert_includes response.body, visible.title
+    refute_includes response.body, archived.title
+    refute_includes response.body, restricted.title
+    refute_includes response.body, link.key
+    assert_equal "private, no-store", response.headers["Cache-Control"]
+    assert_equal "no-referrer", response.headers["Referrer-Policy"]
+    assert_equal "noindex, nofollow", response.headers["X-Robots-Tag"]
+    assert_select "a[href='#{photo_path(visible, album_id: album.id)}']"
+
+    get photo_path(visible, album_id: album.id)
+
+    assert_response :success
+    assert_includes response.body, "A private caption for friends"
+    refute_includes response.body, users(:two).email
+    assert_select "meta[name='robots'][content='noindex,nofollow']"
+
+    get display_photo_path(visible, album_id: album.id)
+
+    assert_response :success
+    assert_equal "image/jpeg", response.media_type
+
+    get album_path(album)
+    assert_response :success
+    assert_equal 1, link.reload.access_count
+  end
+
+  test "album link access is revoked immediately" do
+    album = @owner.photo_albums.create!(title: "Temporary album", source: "manual")
+    photo = attached_photo(title: "Temporary photo")
+    album.photos << photo
+    link = album.album_access_links.create!(created_by: @owner, label: "Temporary")
+    delete sign_out_path
+    get album_path(album, key: link.key)
+    follow_redirect!
+    assert_response :success
+
+    link.revoke!
+
+    get album_path(album)
+    assert_response :not_found
+
+    get photo_path(photo, album_id: album.id)
+    assert_response :not_found
+  end
+
+  test "expired and invalid album links do not expose a private album" do
+    album = @owner.photo_albums.create!(title: "Expiring album", source: "manual")
+    link = album.album_access_links.create!(created_by: @owner, label: "Short", expires_at: 1.hour.from_now)
+    key = link.key
+    delete sign_out_path
+
+    get album_path(album, key: "invalid")
+    assert_response :not_found
+
+    travel 2.hours do
+      get album_path(album, key: key)
+      assert_response :not_found
+    end
+  end
+
+  test "album access link cannot expose a photo from another album" do
+    shared_album = @owner.photo_albums.create!(title: "Shared by link", source: "manual")
+    other_album = @owner.photo_albums.create!(title: "Still private", source: "manual")
+    shared_photo = attached_photo(title: "Shared item")
+    other_photo = attached_photo(title: "Other item")
+    shared_album.photos << shared_photo
+    other_album.photos << other_photo
+    link = shared_album.album_access_links.create!(created_by: @owner, label: "Friends")
+    delete sign_out_path
+    get album_path(shared_album, key: link.key)
+    follow_redirect!
+
+    get photo_path(other_photo, album_id: shared_album.id)
+
+    assert_response :not_found
+  end
+
   test "invited viewer sees shared private albums and private album photos" do
     album = @owner.photo_albums.create!(title: "Family album", source: "manual")
     unshared_album = @owner.photo_albums.create!(title: "Unshared album", source: "manual")
@@ -211,6 +310,25 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     assert_select "button", text: "Delete album"
     assert_select "form[action='#{album_path(album)}'][method='post'] input[name='_method'][value='delete']"
     assert_includes response.body, "The photos stay in your library."
+  end
+
+  test "owner sees album access link management and usage" do
+    album = @owner.photo_albums.create!(title: "Trip", source: "manual")
+    link = album.album_access_links.create!(
+      created_by: @owner,
+      label: "Old friends",
+      access_count: 4,
+      last_accessed_at: 2.hours.ago
+    )
+
+    get album_path(album)
+
+    assert_response :success
+    assert_select "form[action='#{album_access_links_path(album)}'][method='post']"
+    assert_select "input[value='#{album_url(album, key: link.key)}']"
+    assert_select "form[action='#{revoke_album_access_link_path(link)}'][method='post'] input[name='_method'][value='patch']"
+    assert_includes response.body, "Old friends"
+    assert_includes response.body, "4 uses"
   end
 
   test "owner can share and unshare a private album with an invited user" do
