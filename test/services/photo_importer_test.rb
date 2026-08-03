@@ -28,6 +28,20 @@ class PhotoImporterTest < ActiveSupport::TestCase
     assert_equal upload_batch, photo.upload_batch
   end
 
+  test "accepts a precomputed checksum while retaining the normal processing callbacks" do
+    owner = users(:one)
+    file = uploaded_file("fake jpg bytes", "IMG_1001.JPG", "image/jpeg")
+
+    assert_enqueued_with(job: MirrorOriginalToDriveJob) do
+      PhotoImporter.new(owner: owner).import([ file ], checksums: { file => "a" * 64 })
+    end
+
+    photo = Photo.find_by!(original_filename: "IMG_1001.JPG")
+    assert_equal "complete", photo.checksum_status
+    assert_equal "a" * 64, photo.checksum_sha256
+    assert_not_nil photo.checksum_checked_at
+  end
+
   private
 
   def uploaded_file(body, filename, content_type)

@@ -252,6 +252,39 @@ Queue a Google Takeout import from the configured import path:
 docker compose exec worker bin/rails runner 'GoogleTakeoutImportJob.perform_later(GoogleTakeoutImportRun.create!(owner: User.find_by!(email: ENV.fetch("PHOTOS_OWNER_EMAIL")), path: ENV.fetch("PHOTOS_TAKEOUT_IMPORT_PATH", "/rails/imports/google-takeout")))'
 ```
 
+### Import a server directory
+
+For large normal imports, rsync a batch into the host import inbox. The default
+host path is `/mnt/photos/imports`, mounted read-only as `/rails/imports` in the
+web and worker containers:
+
+```sh
+rsync -av --progress /path/to/new-photos/ wjr@photos:/mnt/photos/imports/inbox/2026-08-03/
+```
+
+On the photo server, preview the import and then run it:
+
+```sh
+cd ~/apps/photos
+DRY_RUN=true ./scripts/import-directory /rails/imports/inbox/2026-08-03
+./scripts/import-directory /rails/imports/inbox/2026-08-03
+```
+
+The underlying Rails task can also be run directly:
+
+```sh
+docker compose exec -T \
+  -e DIRECTORY_IMPORT_PATH=/rails/imports/inbox/2026-08-03 \
+  worker bin/rails photos:import_directory
+```
+
+Directory imports are recursive. They import supported photos and videos,
+pair Apple `.AAE` sidecars found beside their originals, and skip previously
+imported originals by SHA-256. Imported records enter a committed upload batch
+and use the same metadata, derivative, archive, geocoding, and enabled-analysis
+jobs as web uploads. Source files remain in the read-only inbox and can be
+removed after a successful import; rerunning the task is safe.
+
 Repository Status is the preferred home for repeatable maintenance controls:
 queue patrols, baseline scans, queue pause/resume, auto-heal, derivative
 prewarming, location geocoding, failed-job visibility, and safe retry actions.
@@ -288,6 +321,7 @@ PHOTOS_FORCE_SSL=true
 PHOTOS_DATABASE_PASSWORD=
 PHOTOS_STORAGE_PATH=/mnt/photos/app_storage
 PHOTOS_IMPORT_PATH=/mnt/photos/imports
+PHOTOS_DIRECTORY_IMPORT_PATH=/rails/imports/inbox
 PHOTOS_TAKEOUT_IMPORT_PATH=/rails/imports/google-takeout
 
 GOOGLE_CLIENT_ID=

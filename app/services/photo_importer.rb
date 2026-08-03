@@ -4,7 +4,7 @@ class PhotoImporter
     @upload_batch = upload_batch
   end
 
-  def import(files)
+  def import(files, checksums: {})
     files = Array(files).compact_blank
     sidecars, originals = files.partition { |file| sidecar_file?(file) }
     sidecars_by_basename = sidecars.group_by { |file| import_basename(file) }
@@ -13,8 +13,11 @@ class PhotoImporter
     Photo.transaction do
       originals.each do |original|
         photo = owner.photos.new(upload_batch: upload_batch)
-        photo.original.attach(original)
-        Array(sidecars_by_basename[import_basename(original)]).each { |sidecar| photo.sidecars.attach(sidecar) }
+        apply_checksum(photo, checksums[original])
+        photo.original.attach(attachment_for(original))
+        Array(sidecars_by_basename[import_basename(original)]).each do |sidecar|
+          photo.sidecars.attach(attachment_for(sidecar))
+        end
         photo.save!
         created += 1
       end
@@ -38,5 +41,21 @@ class PhotoImporter
 
   def original_filename(file)
     file.respond_to?(:original_filename) ? file.original_filename.to_s : file.to_s
+  end
+
+  def apply_checksum(photo, checksum)
+    return if checksum.blank?
+
+    photo.assign_attributes(
+      checksum_sha256: checksum,
+      checksum_status: "complete",
+      checksum_checked_at: Time.current
+    )
+  end
+
+  def attachment_for(file)
+    return file.active_storage_attachable if file.respond_to?(:active_storage_attachable)
+
+    file
   end
 end

@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+DIRECTORY="${1:-/rails/imports/inbox}"
+DRY_RUN="${DRY_RUN:-false}"
+VERBOSE="${VERBOSE:-false}"
+
+if [[ "$DIRECTORY" == "-h" || "$DIRECTORY" == "--help" ]]; then
+  cat <<'USAGE'
+Usage:
+  ./scripts/import-directory [container-directory]
+
+Examples:
+  DRY_RUN=true ./scripts/import-directory /rails/imports/inbox/2026-08-03
+  ./scripts/import-directory /rails/imports/inbox/2026-08-03
+  VERBOSE=true ./scripts/import-directory /rails/imports/inbox/2026-08-03
+
+The host PHOTOS_IMPORT_PATH is mounted read-only at /rails/imports. Imports are
+recursive, duplicate-safe by SHA-256, and pair Apple .AAE sidecars found beside
+their matching originals.
+USAGE
+  exit 0
+fi
+
+source "$ROOT/scripts/lib/compose_env"
+load_compose_env
+
+docker compose exec -T \
+  -e DIRECTORY_IMPORT_PATH="$DIRECTORY" \
+  -e DRY_RUN="$DRY_RUN" \
+  -e VERBOSE="$VERBOSE" \
+  worker bin/rails photos:import_directory
