@@ -1,4 +1,6 @@
 class AlbumAccessLink < ApplicationRecord
+  KEY_LENGTH = 16
+
   belongs_to :photo_album
   belongs_to :created_by, class_name: "User", inverse_of: :created_album_access_links
 
@@ -11,14 +13,13 @@ class AlbumAccessLink < ApplicationRecord
   def self.authenticate(album:, key:)
     return if key.blank?
 
-    link = find_signed(key, purpose: :album_access)
+    link = authenticate_short_key(album, key) || authenticate_legacy_key(key)
     link if link&.photo_album_id == album.id && link.active?
   end
 
   def key
-    options = { purpose: :album_access }
-    options[:expires_at] = expires_at if expires_at.present?
-    signed_id(**options)
+    digest = OpenSSL::HMAC.digest("SHA256", self.class.key_secret, id.to_s)
+    Base64.urlsafe_encode64(digest, padding: false).first(KEY_LENGTH)
   end
 
   def active?
@@ -46,6 +47,24 @@ class AlbumAccessLink < ApplicationRecord
   end
 
   private
+
+  def self.authenticate_short_key(album, key)
+    return unless key.bytesize == KEY_LENGTH
+
+    album.album_access_links.find_each do |link|
+      return link if ActiveSupport::SecurityUtils.secure_compare(link.key, key)
+    end
+
+    nil
+  end
+
+  def self.authenticate_legacy_key(key)
+    find_signed(key, purpose: :album_access)
+  end
+
+  def self.key_secret
+    @key_secret ||= Rails.application.key_generator.generate_key("album-access-link", 32)
+  end
 
   def expiration_must_be_in_the_future
     errors.add(:expires_at, "must be in the future") if expires_at.present? && !expires_at.future?

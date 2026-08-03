@@ -24,6 +24,10 @@ class AlbumAccessLinksControllerTest < ActionDispatch::IntegrationTest
       assert_equal "Reunion", link.label
       assert_equal @owner, link.created_by
       assert_equal 30.days.from_now, link.expires_at
+
+      follow_redirect!
+      assert_includes response.body, "Share link created. Copying it to your clipboard..."
+      assert_select "[data-controller='clipboard'][data-clipboard-auto-value='true'] input[value='#{album_url(@album, key: link.key)}']"
     end
   end
 

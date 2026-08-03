@@ -51,7 +51,7 @@ The owner can upload, import, publish, unpublish, archive, restore, tag people, 
 
 ## Guest Album Links
 
-The owner can create guest links from an album's **Album info > Sharing > Links** panel. Each link has a label, an optional expiration, an access count, and a last-used timestamp. Revoking a link invalidates existing guest browser access immediately; create a replacement link to rotate access.
+The owner can create guest links from an album's **Album info > Sharing > Links** panel. Each link has a compact 16-character key, a label, an optional expiration, an access count, and a last-used timestamp. Revoking a link invalidates existing guest browser access immediately; create a replacement link to rotate access.
 
 The `?key=...` URL is used once to establish an encrypted, HTTP-only album access cookie and then redirects to the clean album URL. A successful key exchange counts as one use. Guest access is limited to that album's non-archived, non-restricted photos and captions, and guest responses are marked private, non-cacheable, and excluded from search indexing.
 

@@ -13,13 +13,14 @@ class AlbumAccessLinksController < ApplicationController
   def create
     album = current_user.photo_albums.find(params[:album_id])
     expiration = EXPIRATION_OPTIONS.fetch(params[:expires_in].presence || "never")
-    album.album_access_links.create!(
+    link = album.album_access_links.create!(
       created_by: current_user,
       label: params[:label].presence || "Share link",
       expires_at: expiration&.from_now
     )
 
-    redirect_to album_path(album), notice: "Share link created."
+    flash[:new_album_access_link_id] = link.id
+    redirect_to album_path(album), notice: "Share link created. Copying it to your clipboard..."
   rescue KeyError
     redirect_to album_path(params[:album_id]), alert: "Choose a valid expiration."
   rescue ActiveRecord::RecordInvalid => error
