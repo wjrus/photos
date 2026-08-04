@@ -16,8 +16,19 @@ class OpenrouterVisionClientTest < ActiveSupport::TestCase
     assert_equal true, payload.dig(:provider, :zdr)
     assert_equal "deny", payload.dig(:provider, :data_collection)
     assert_equal true, payload.dig(:provider, :require_parameters)
-    assert_equal "json_object", payload.dig(:response_format, :type)
+    assert_equal "json_schema", payload.dig(:response_format, :type)
+    assert_equal true, payload.dig(:response_format, :json_schema, :strict)
+    assert_equal false, payload.dig(:response_format, :json_schema, :schema, :additionalProperties)
+    assert_equal OpenrouterVisionClient::DEFAULT_MAX_TOKENS, payload.fetch(:max_tokens)
     assert payload.dig(:messages, 0, :content, 1, :image_url, :url).start_with?("data:image/jpeg;base64,")
+  end
+
+  test "treats malformed model JSON as retryable" do
+    error = assert_raises(OpenrouterVisionClient::RetryableError) do
+      OpenrouterVisionClient.new(api_key: "secret").send(:parse_content, '{"caption":"truncated')
+    end
+
+    assert_includes error.message, "was not valid JSON"
   end
 
   test "normalizes caption tags readable text and usage" do

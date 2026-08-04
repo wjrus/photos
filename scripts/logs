@@ -17,11 +17,13 @@ Examples:
   ./scripts/logs web
   ./scripts/logs web worker
   ./scripts/logs analysis
+  ./scripts/logs vision
   ./scripts/logs all
 
 When no service is given, this follows app proxy and web backend logs.
 The shorthand service name "web" expands to app_proxy, web_blue, and web_green.
 The shorthand service name "analysis" expands to analysis-local.
+The shorthand service name "vision" follows the worker that runs OpenRouter jobs.
 The shorthand service name "all" expands to app_proxy, web_blue, web_green, worker, and analysis-local.
 USAGE
   exit 0
@@ -36,6 +38,7 @@ for service in "$@"; do
   case "$service" in
     web) services+=(app_proxy web_blue web_green) ;;
     analysis) services+=(analysis-local) ;;
+    vision) services+=(worker) ;;
     all) services+=(app_proxy web_blue web_green worker analysis-local) ;;
     *) services+=("$service") ;;
   esac

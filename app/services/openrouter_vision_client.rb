@@ -8,6 +8,7 @@ class OpenrouterVisionClient
 
   ENDPOINT = URI("https://openrouter.ai/api/v1/chat/completions")
   DEFAULT_MODEL = "qwen/qwen3-vl-30b-a3b-instruct".freeze
+  DEFAULT_MAX_TOKENS = 480
   DEFAULT_PROMPT = <<~PROMPT.strip.freeze
     Describe the image accurately in 1-2 sentences. Mention people, setting, actions, notable objects, and clearly readable text. Do not speculate, identify people by name, or infer sensitive traits.
 
@@ -57,7 +58,7 @@ class OpenrouterVisionClient
       "cost" => usage["cost"],
       "raw" => body
     }.tap do |normalized|
-      raise Error, "OpenRouter response did not include a caption" if normalized.fetch("caption").blank?
+      raise RetryableError, "OpenRouter response did not include a caption" if normalized.fetch("caption").blank?
     end
   end
 
@@ -79,8 +80,37 @@ class OpenrouterVisionClient
         }
       ],
       temperature: 0.1,
-      max_tokens: 240,
-      response_format: { type: "json_object" },
+      max_tokens: ENV.fetch("OPENROUTER_MAX_TOKENS", DEFAULT_MAX_TOKENS).to_i,
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "photo_vision_caption",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              caption: {
+                type: "string",
+                description: "An accurate 1-2 sentence description of the image."
+              },
+              tags: {
+                type: "array",
+                description: "Up to 12 short lowercase visual search terms.",
+                maxItems: 12,
+                items: { type: "string" }
+              },
+              readable_text: {
+                type: "array",
+                description: "Short strings that are clearly readable in the image.",
+                maxItems: 20,
+                items: { type: "string" }
+              }
+            },
+            required: %w[caption tags readable_text],
+            additionalProperties: false
+          }
+        }
+      },
       usage: { include: true },
       provider: {
         zdr: true,
@@ -130,6 +160,6 @@ class OpenrouterVisionClient
     text = text.sub(/\A```(?:json)?\s*/i, "").sub(/\s*```\z/, "")
     JSON.parse(text)
   rescue JSON::ParserError => error
-    raise Error, "OpenRouter vision response was not valid JSON: #{error.message}"
+    raise RetryableError, "OpenRouter vision response was not valid JSON: #{error.message}"
   end
 end

@@ -16,18 +16,27 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
     image_bytes = source.fetch(:blob).download
     source_checksum = Digest::SHA256.hexdigest(image_bytes)
     return if current_run_exists?(photo, source_checksum)
-    return if budget_exhausted?
+    if budget_exhausted?
+      Rails.logger.warn("OpenRouter vision skipped photo=#{photo.id}: budget exhausted")
+      return
+    end
 
     run = create_run(photo, source:, source_checksum:)
     return unless run
 
+    Rails.logger.info(
+      "OpenRouter vision started photo=#{photo.id} run=#{run.id} model=#{run.model} " \
+      "source=#{run.source_variant} bytes=#{image_bytes.bytesize}"
+    )
     response = vision_client.analyze(image_bytes:, content_type: source.fetch(:blob).content_type || "image/jpeg")
     persist_result(photo, run, response)
   rescue OpenrouterVisionClient::Error, ActiveStorage::FileNotFoundError => error
     run&.update!(status: "failed", finished_at: Time.current, error: error.message)
+    Rails.logger.warn("OpenRouter vision failed photo=#{photo.id} run=#{run&.id || 'none'}: #{error.message}")
     raise
   rescue StandardError => error
     run&.update!(status: "failed", finished_at: Time.current, error: "#{error.class}: #{error.message}")
+    Rails.logger.error("OpenRouter vision failed photo=#{photo.id} run=#{run&.id || 'none'}: #{error.class}: #{error.message}")
     raise
   end
 
@@ -147,5 +156,12 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
         updated_at: Time.current
       )
     end
+
+    Rails.logger.info(
+      "OpenRouter vision completed photo=#{photo.id} run=#{run.id} provider=#{response['provider'].presence || 'unknown'} " \
+      "input_tokens=#{response['input_tokens'] || 'unknown'} output_tokens=#{response['output_tokens'] || 'unknown'} " \
+      "cost=#{response['cost'] || 'unknown'} tags=#{response.fetch('tags').size} " \
+      "readable_text=#{response.fetch('readable_text').size}"
+    )
   end
 end
