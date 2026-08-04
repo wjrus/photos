@@ -45,12 +45,12 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENROUTER_ENABLED, true)
     ENV["OPENROUTER_API_KEY"] = "test-key"
 
-    assert_enqueued_with(job: PhotoAnalysisOpenrouterJob, args: [ photo ]) do
+    assert_enqueued_with(job: PhotoAnalysisOpenrouterJob, args: [ photo, { force: true } ]) do
       post analyze_photo_path(photo)
     end
 
     assert_redirected_to photo_path(photo)
-    assert_equal "Vision caption analysis queued.", flash[:notice]
+    assert_equal "Vision caption regeneration queued.", flash[:notice]
   end
 
   test "photo vision caption requires an enabled configured provider" do

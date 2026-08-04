@@ -15,7 +15,7 @@ class OpenrouterVisionClientTest < ActiveSupport::TestCase
       :request_body,
       image_bytes: "jpeg",
       content_type: "image/jpeg",
-      context: { location: "Petoskey, Michigan", capture_date: "2026-08-04" }
+      context: { approximate_location: "Petoskey, Michigan", capture_date: "2026-08-04" }
     )
 
     assert_equal true, payload.dig(:provider, :zdr)
@@ -28,9 +28,10 @@ class OpenrouterVisionClientTest < ActiveSupport::TestCase
     prompt = payload.dig(:messages, 0, :content, 0, :text)
     assert_includes prompt, "Never state what the image does not contain"
     assert_includes prompt, "omit categories that do not apply"
-    assert_includes prompt, "Location: Petoskey, Michigan"
+    assert_includes prompt, "Approximate location: Petoskey, Michigan"
     assert_includes prompt, "Capture date: 2026-08-04"
     assert_includes prompt, "supporting context"
+    assert_includes prompt, "Never identify a building"
     assert payload.dig(:messages, 0, :content, 1, :image_url, :url).start_with?("data:image/jpeg;base64,")
   end
 
@@ -40,6 +41,20 @@ class OpenrouterVisionClientTest < ActiveSupport::TestCase
     end
 
     assert_includes error.message, "was not valid JSON"
+  end
+
+  test "preserves retry after guidance on rate limits" do
+    response = ErrorResponse.new(
+      JSON.generate(error: { message: "rate limited" }),
+      "429",
+      { "Retry-After" => "60" }
+    )
+
+    error = assert_raises(OpenrouterVisionClient::RetryableError) do
+      OpenrouterVisionClient.new(api_key: "secret").send(:parse_response, response)
+    end
+
+    assert_equal 60, error.retry_after
   end
 
   test "normalizes caption tags readable text and usage" do
@@ -75,6 +90,20 @@ class OpenrouterVisionClientTest < ActiveSupport::TestCase
 
     def code
       "200"
+    end
+  end
+
+  ErrorResponse = Struct.new(:body, :code, :headers) do
+    def is_a?(_klass)
+      false
+    end
+
+    def message
+      "Too Many Requests"
+    end
+
+    def [](name)
+      headers[name]
     end
   end
 end

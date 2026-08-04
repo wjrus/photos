@@ -78,7 +78,12 @@ OPENROUTER_API_KEY=sk-or-v1-your-dedicated-key
 OPENROUTER_VISION_MODEL=qwen/qwen3-vl-30b-a3b-instruct
 OPENROUTER_BUDGET_USD=100
 OPENROUTER_ESTIMATED_COST_USD=0.0025
+VISION_JOB_THREADS=2
 ```
+
+`VISION_JOB_THREADS=2` runs two simultaneous OpenRouter requests. Start there;
+four is a sensible next step after a clean pilot. The client honors OpenRouter's
+`Retry-After` guidance for rate limits and temporary provider unavailability.
 
 After deployment, enable the two OpenRouter flags in **Repository Status >
 Photo Analysis**. New ingests are automatic. Start the existing-library backfill

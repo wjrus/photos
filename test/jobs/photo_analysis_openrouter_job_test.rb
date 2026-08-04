@@ -58,14 +58,22 @@ class PhotoAnalysisOpenrouterJobTest < ActiveJob::TestCase
     )
     PhotoLocationPlace.create!(
       location_id: PhotoLocation.id_for_coordinates(metadata.latitude, metadata.longitude),
-      name: "Petoskey, Michigan"
+      name: "Kilwins, Petoskey",
+      raw: {
+        "address_components" => [
+          { "long_name" => "Kilwins", "types" => [ "point_of_interest" ] },
+          { "long_name" => "Petoskey", "types" => [ "locality" ] },
+          { "long_name" => "Michigan", "types" => [ "administrative_area_level_1" ] },
+          { "long_name" => "United States", "types" => [ "country" ] }
+        ]
+      }
     )
     client = FakeVisionClient.new(response)
 
     perform_with_client(photo, client)
 
     context = client.contexts.sole
-    assert_equal "Petoskey, Michigan", context.fetch(:location)
+    assert_equal "Petoskey, Michigan, United States", context.fetch(:approximate_location)
     assert_equal "2026-08-04", context.fetch(:capture_date)
     assert_equal "Apple iPhone 17 Pro", context.fetch(:camera)
     refute_includes context.values, metadata.latitude.to_s
@@ -82,6 +90,36 @@ class PhotoAnalysisOpenrouterJobTest < ActiveJob::TestCase
     end
 
     assert_equal 1, client.calls
+  end
+
+  test "forced analysis regenerates an existing generated caption" do
+    photo = attached_photo
+    perform_with_client(photo, FakeVisionClient.new(response))
+
+    regenerated = response.merge(
+      "request_id" => "generation-456",
+      "caption" => "A black dog rests beside a sunny window.",
+      "raw" => { "id" => "generation-456" }
+    )
+    perform_with_client(photo, FakeVisionClient.new(regenerated), force: true)
+
+    assert_equal 2, photo.analysis_runs.where(provider: "openrouter", status: "complete").count
+    assert_equal "A black dog rests beside a sunny window.", photo.reload.description
+  end
+
+  test "forced analysis preserves a caption edited after generation" do
+    photo = attached_photo
+    perform_with_client(photo, FakeVisionClient.new(response))
+    photo.update!(description: "My corrected caption.")
+
+    regenerated = response.merge(
+      "request_id" => "generation-456",
+      "caption" => "A black dog rests beside a sunny window.",
+      "raw" => { "id" => "generation-456" }
+    )
+    perform_with_client(photo, FakeVisionClient.new(regenerated), force: true)
+
+    assert_equal "My corrected caption.", photo.reload.description
   end
 
   test "claims a pending backfill reservation" do
@@ -117,6 +155,22 @@ class PhotoAnalysisOpenrouterJobTest < ActiveJob::TestCase
     end
   end
 
+  test "retries rate limits using openrouter retry after guidance" do
+    photo = attached_photo
+    client = FakeVisionClient.new(nil)
+    client.define_singleton_method(:analyze) do |**|
+      raise OpenrouterVisionClient::RetryableError.new("rate limited", retry_after: 60)
+    end
+    job = PhotoAnalysisOpenrouterJob.new(photo)
+    job.define_singleton_method(:vision_client) { client }
+
+    travel_to Time.zone.parse("2026-08-04 12:00:00") do
+      assert_enqueued_with(job: PhotoAnalysisOpenrouterJob, at: 60.seconds.from_now) do
+        job.perform_now
+      end
+    end
+  end
+
   private
 
   FakeVisionClient = Struct.new(:response, :calls, :contexts) do
@@ -134,10 +188,10 @@ class PhotoAnalysisOpenrouterJobTest < ActiveJob::TestCase
     end
   end
 
-  def perform_with_client(photo, client)
+  def perform_with_client(photo, client, force: false)
     job = PhotoAnalysisOpenrouterJob.new
     job.define_singleton_method(:vision_client) { client }
-    job.perform(photo)
+    job.perform(photo, force:)
   end
 
   def attached_photo(description: nil)

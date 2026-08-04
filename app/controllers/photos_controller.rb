@@ -83,8 +83,8 @@ class PhotosController < ApplicationController
       return
     end
 
-    PhotoAnalysisOpenrouterJob.perform_later(@photo)
-    redirect_to photo_path(@photo), notice: "Vision caption analysis queued."
+    PhotoAnalysisOpenrouterJob.perform_later(@photo, force: true)
+    redirect_to photo_path(@photo), notice: "Vision caption regeneration queued."
   end
 
   def manual_location

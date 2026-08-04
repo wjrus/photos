@@ -1,10 +1,18 @@
 require "base64"
 require "json"
 require "net/http"
+require "time"
 
 class OpenrouterVisionClient
   class Error < StandardError; end
-  class RetryableError < Error; end
+  class RetryableError < Error
+    attr_reader :retry_after
+
+    def initialize(message, retry_after: nil)
+      super(message)
+      @retry_after = retry_after
+    end
+  end
 
   ENDPOINT = URI("https://openrouter.ai/api/v1/chat/completions")
   DEFAULT_MODEL = "qwen/qwen3-vl-30b-a3b-instruct".freeze
@@ -132,6 +140,7 @@ class OpenrouterVisionClient
       #{lines.join("\n")}
 
       Use this metadata only as supporting context when it helps describe visible content. Do not repeat metadata mechanically, and do not let it override the image.
+      Approximate location comes from a broad photo grouping cell. Never identify a building, venue, business, or landmark from location metadata; identify it only when visible evidence supports it.
     PROMPT
   end
 
@@ -159,8 +168,14 @@ class OpenrouterVisionClient
     return body if response.is_a?(Net::HTTPSuccess)
 
     message = body.dig("error", "message").presence || response.message
-    error_class = response.code.to_i == 429 || response.code.to_i >= 500 ? RetryableError : Error
-    raise error_class, "OpenRouter returned HTTP #{response.code}: #{message}"
+    if response.code.to_i == 429 || response.code.to_i >= 500
+      raise RetryableError.new(
+        "OpenRouter returned HTTP #{response.code}: #{message}",
+        retry_after: retry_after_seconds(response)
+      )
+    end
+
+    raise Error, "OpenRouter returned HTTP #{response.code}: #{message}"
   rescue JSON::ParserError => error
     error_class = response.code.to_i >= 500 ? RetryableError : Error
     raise error_class, "OpenRouter returned invalid JSON (HTTP #{response.code}): #{error.message}"
@@ -176,5 +191,18 @@ class OpenrouterVisionClient
     JSON.parse(text)
   rescue JSON::ParserError => error
     raise RetryableError, "OpenRouter vision response was not valid JSON: #{error.message}"
+  end
+
+  def retry_after_seconds(response)
+    value = response["Retry-After"].to_s.strip
+    return if value.blank?
+
+    seconds = Integer(value, exception: false)
+    return seconds if seconds&.positive?
+
+    parsed_at = Time.httpdate(value)
+    [ (parsed_at - Time.now).ceil, 1 ].max
+  rescue ArgumentError
+    nil
   end
 end

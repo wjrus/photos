@@ -5,10 +5,19 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
 
   PROMPT_VERSION = "caption-v1".freeze
   ACTIVE_RUN_WINDOW = 15.minutes
+  MAX_RETRY_ATTEMPTS = 5
 
-  retry_on OpenrouterVisionClient::RetryableError, wait: :polynomially_longer, attempts: 5
+  rescue_from OpenrouterVisionClient::RetryableError do |error|
+    if executions < MAX_RETRY_ATTEMPTS
+      wait = error.retry_after || (executions**4 + 2)
+      Rails.logger.warn("OpenRouter vision retrying in #{wait}s after attempt #{executions}: #{error.message}")
+      retry_job wait:, error:
+    else
+      raise error
+    end
+  end
 
-  def perform(photo)
+  def perform(photo, force: false)
     return unless enabled?
     return if photo.restricted? || !photo.image? || !photo.original.attached?
 
@@ -16,13 +25,13 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
     image_bytes = source.fetch(:blob).download
     source_checksum = Digest::SHA256.hexdigest(image_bytes)
     context = analysis_context(photo)
-    return if current_run_exists?(photo, source_checksum)
+    return if !force && current_run_exists?(photo, source_checksum)
     if budget_exhausted?
       Rails.logger.warn("OpenRouter vision skipped photo=#{photo.id}: budget exhausted")
       return
     end
 
-    run = create_run(photo, source:, source_checksum:, context:)
+    run = create_run(photo, source:, source_checksum:, context:, force:)
     return unless run
 
     Rails.logger.info(
@@ -66,9 +75,9 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
     PhotoAnalysisRun.openrouter_spend >= budget
   end
 
-  def create_run(photo, source:, source_checksum:, context:)
+  def create_run(photo, source:, source_checksum:, context:, force:)
     photo.with_lock do
-      return if current_run_exists?(photo, source_checksum)
+      return if !force && current_run_exists?(photo, source_checksum)
       return if active_run_exists?(photo, source_checksum)
 
       pending_run = photo.analysis_runs.where(
@@ -147,7 +156,8 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
     if metadata&.location?
       location_id = PhotoLocation.id_for_coordinates(metadata.latitude, metadata.longitude)
       place = PhotoLocationPlace.find_by(location_id: location_id)
-      context[:location] = place.name if place && !place.plus_code_name?
+      location_name = approximate_location_name(place)
+      context[:approximate_location] = location_name if location_name
     end
 
     camera = [ metadata&.camera_make, metadata&.camera_model ].compact_blank.join(" ").presence
@@ -155,8 +165,31 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
     context
   end
 
+  def approximate_location_name(place)
+    return unless place && !place.plus_code_name?
+
+    components = place.raw.fetch("address_components", [])
+    locality = component_name(components, %w[locality postal_town administrative_area_level_3 administrative_area_level_2])
+    region = component_name(components, %w[administrative_area_level_1])
+    country = component_name(components, %w[country])
+    [ locality, region, country ].compact_blank.uniq.join(", ").presence || place.name
+  end
+
+  def component_name(components, preferred_types)
+    preferred_types.each do |type|
+      name = components.find { |component| Array(component["types"]).include?(type) }&.fetch("long_name", nil)
+      return name if name.present?
+    end
+    nil
+  end
+
   def persist_result(photo, run, response)
     input_context = run.raw.fetch("input_context", {})
+    previous_generated_caption = photo.analysis_runs
+      .where(provider: "openrouter", status: "complete")
+      .where.not(id: run.id)
+      .latest_first
+      .pick(:summary)
     PhotoAnalysisRun.transaction do
       run.update!(
         status: "complete",
@@ -185,7 +218,8 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
         )
       end
 
-      Photo.where(id: photo.id).where(description: [ nil, "" ]).update_all(
+      replaceable_captions = [ nil, "", previous_generated_caption ].uniq
+      Photo.where(id: photo.id).where(description: replaceable_captions).update_all(
         description: response.fetch("caption"),
         updated_at: Time.current
       )

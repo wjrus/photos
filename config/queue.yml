@@ -24,7 +24,7 @@ default: &default
       processes: <%= ENV.fetch("JOB_PROCESSES", ENV.fetch("JOB_CONCURRENCY", 1)) %>
       polling_interval: 0.5
     - queues: vision
-      threads: <%= ENV.fetch("VISION_JOB_THREADS", 1) %>
+      threads: <%= ENV.fetch("VISION_JOB_THREADS", 2) %>
       processes: <%= ENV.fetch("JOB_PROCESSES", ENV.fetch("JOB_CONCURRENCY", 1)) %>
       polling_interval: 0.5
     - queues: video_previews
