@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_03_094500) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_04_190000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -217,14 +217,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_03_094500) do
   end
 
   create_table "photo_analysis_runs", force: :cascade do |t|
+    t.decimal "cost_usd", precision: 12, scale: 6
     t.datetime "created_at", null: false
     t.text "error"
     t.datetime "finished_at"
+    t.bigint "input_tokens"
     t.string "model", null: false
     t.string "model_version"
+    t.bigint "output_tokens"
     t.bigint "photo_id", null: false
     t.string "provider", null: false
     t.jsonb "raw", default: {}, null: false
+    t.string "request_id"
     t.string "source_checksum_sha256"
     t.string "source_variant", default: "display", null: false
     t.datetime "started_at"
@@ -235,6 +239,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_03_094500) do
     t.index ["photo_id", "provider", "model", "model_version"], name: "index_photo_analysis_runs_on_photo_provider_model"
     t.index ["photo_id"], name: "index_photo_analysis_runs_on_photo_id"
     t.index ["provider", "status"], name: "index_photo_analysis_runs_on_provider_and_status"
+    t.index ["request_id"], name: "index_photo_analysis_runs_on_request_id", unique: true, where: "(request_id IS NOT NULL)"
   end
 
   create_table "photo_analysis_tags", force: :cascade do |t|

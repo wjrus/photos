@@ -1,5 +1,5 @@
 class PhotoAnalysisRun < ApplicationRecord
-  PROVIDERS = %w[openclip yolo openai].freeze
+  PROVIDERS = %w[openclip yolo openai openrouter].freeze
   STATUSES = %w[pending running complete failed skipped].freeze
   SOURCE_VARIANTS = %w[stream display original video_preview].freeze
 
@@ -17,4 +17,8 @@ class PhotoAnalysisRun < ApplicationRecord
   scope :latest_first, -> { order(created_at: :desc, id: :desc) }
   scope :complete, -> { where(status: "complete") }
   scope :needs_attention, -> { where(status: "failed") }
+
+  def self.openrouter_spend
+    where(provider: "openrouter", status: "complete").sum(:cost_usd)
+  end
 end

@@ -176,10 +176,16 @@ class GeneratePhotoDerivativesJob < ApplicationJob
 
   def enqueue_enabled_analysis(photo)
     return if photo.restricted?
-    return unless AppSetting.boolean(AppSetting::ANALYSIS_OPENCLIP_ENABLED, default: false)
-    return if current_openclip_embedding_exists?(photo)
 
-    PhotoAnalysisOpenclipJob.perform_later(photo)
+    if AppSetting.boolean(AppSetting::ANALYSIS_OPENCLIP_ENABLED, default: false) && !current_openclip_embedding_exists?(photo)
+      PhotoAnalysisOpenclipJob.perform_later(photo)
+    end
+
+    if AppSetting.boolean(AppSetting::ANALYSIS_OPENROUTER_ENABLED, default: false) &&
+        AppSetting.boolean(AppSetting::ANALYSIS_OPENROUTER_AUTO_NEW_ENABLED, default: true) &&
+        photo.image?
+      PhotoAnalysisOpenrouterJob.perform_later(photo)
+    end
   end
 
   def current_openclip_embedding_exists?(photo)

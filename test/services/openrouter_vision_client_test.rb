@@ -1,0 +1,58 @@
+require "test_helper"
+
+class OpenrouterVisionClientTest < ActiveSupport::TestCase
+  test "requires a configured API key" do
+    error = assert_raises(OpenrouterVisionClient::Error) do
+      OpenrouterVisionClient.new(api_key: "").analyze(image_bytes: "jpeg")
+    end
+
+    assert_equal "OPENROUTER_API_KEY is not configured", error.message
+  end
+
+  test "sends images only to zero retention non collecting providers" do
+    client = OpenrouterVisionClient.new(api_key: "secret")
+    payload = client.send(:request_body, image_bytes: "jpeg", content_type: "image/jpeg")
+
+    assert_equal true, payload.dig(:provider, :zdr)
+    assert_equal "deny", payload.dig(:provider, :data_collection)
+    assert_equal true, payload.dig(:provider, :require_parameters)
+    assert_equal "json_object", payload.dig(:response_format, :type)
+    assert payload.dig(:messages, 0, :content, 1, :image_url, :url).start_with?("data:image/jpeg;base64,")
+  end
+
+  test "normalizes caption tags readable text and usage" do
+    response = SuccessfulResponse.new(
+      JSON.generate(
+        id: "generation-123",
+        model: "qwen/qwen3-vl-30b-a3b-instruct",
+        provider: "DeepInfra",
+        choices: [
+          { message: { content: JSON.generate(caption: "A dog sits by a window.", tags: [ "Dog", " window " ], readable_text: [ "OPEN" ]) } }
+        ],
+        usage: { prompt_tokens: 2_500, completion_tokens: 18, cost: 0.000386 }
+      )
+    )
+    client = OpenrouterVisionClient.new(api_key: "secret")
+    client.define_singleton_method(:perform_request) { |_payload| response }
+
+    result = client.analyze(image_bytes: "jpeg")
+
+    assert_equal "A dog sits by a window.", result.fetch("caption")
+    assert_equal %w[dog window], result.fetch("tags")
+    assert_equal [ "OPEN" ], result.fetch("readable_text")
+    assert_equal 2_500, result.fetch("input_tokens")
+    assert_equal 0.000386, result.fetch("cost")
+  end
+
+  SuccessfulResponse = Struct.new(:body) do
+    def is_a?(klass)
+      return true if klass == Net::HTTPSuccess
+
+      super
+    end
+
+    def code
+      "200"
+    end
+  end
+end

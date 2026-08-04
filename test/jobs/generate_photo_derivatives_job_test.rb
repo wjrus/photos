@@ -26,6 +26,22 @@ class GeneratePhotoDerivativesJobTest < ActiveJob::TestCase
     AppSetting.find_by(key: AppSetting::ANALYSIS_OPENCLIP_ENABLED)&.destroy
   end
 
+  test "queues openrouter caption analysis for new images when enabled" do
+    AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENROUTER_ENABLED, true)
+    AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENROUTER_AUTO_NEW_ENABLED, true)
+    photo = attached_photo
+    clear_enqueued_jobs
+
+    assert_enqueued_with(job: PhotoAnalysisOpenrouterJob, args: [ photo ]) do
+      GeneratePhotoDerivativesJob.perform_now(photo)
+    end
+  ensure
+    AppSetting.where(key: [
+      AppSetting::ANALYSIS_OPENROUTER_ENABLED,
+      AppSetting::ANALYSIS_OPENROUTER_AUTO_NEW_ENABLED
+    ]).delete_all
+  end
+
   test "delegates video originals to video derivative generation" do
     photo = users(:one).photos.new
     photo.original.attach(

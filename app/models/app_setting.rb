@@ -5,13 +5,17 @@ class AppSetting < ApplicationRecord
   ANALYSIS_OPENAI_ENABLED = "analysis_openai_enabled".freeze
   ANALYSIS_OPENAI_PUBLIC_ONLY = "analysis_openai_public_only".freeze
   ANALYSIS_OPENAI_REQUIRE_OWNER_CONFIRM = "analysis_openai_require_owner_confirm".freeze
+  ANALYSIS_OPENROUTER_ENABLED = "analysis_openrouter_enabled".freeze
+  ANALYSIS_OPENROUTER_AUTO_NEW_ENABLED = "analysis_openrouter_auto_new_enabled".freeze
 
   ANALYSIS_BOOLEAN_SETTINGS = {
     ANALYSIS_OPENCLIP_ENABLED => false,
     ANALYSIS_YOLO_ENABLED => false,
     ANALYSIS_OPENAI_ENABLED => false,
     ANALYSIS_OPENAI_PUBLIC_ONLY => true,
-    ANALYSIS_OPENAI_REQUIRE_OWNER_CONFIRM => true
+    ANALYSIS_OPENAI_REQUIRE_OWNER_CONFIRM => true,
+    ANALYSIS_OPENROUTER_ENABLED => false,
+    ANALYSIS_OPENROUTER_AUTO_NEW_ENABLED => true
   }.freeze
 
   validates :key, presence: true, uniqueness: true
