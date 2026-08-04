@@ -15,20 +15,25 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
     source = analysis_source(photo)
     image_bytes = source.fetch(:blob).download
     source_checksum = Digest::SHA256.hexdigest(image_bytes)
+    context = analysis_context(photo)
     return if current_run_exists?(photo, source_checksum)
     if budget_exhausted?
       Rails.logger.warn("OpenRouter vision skipped photo=#{photo.id}: budget exhausted")
       return
     end
 
-    run = create_run(photo, source:, source_checksum:)
+    run = create_run(photo, source:, source_checksum:, context:)
     return unless run
 
     Rails.logger.info(
       "OpenRouter vision started photo=#{photo.id} run=#{run.id} model=#{run.model} " \
-      "source=#{run.source_variant} bytes=#{image_bytes.bytesize}"
+      "source=#{run.source_variant} bytes=#{image_bytes.bytesize} context=#{context.keys.join(',').presence || 'none'}"
     )
-    response = vision_client.analyze(image_bytes:, content_type: source.fetch(:blob).content_type || "image/jpeg")
+    response = vision_client.analyze(
+      image_bytes:,
+      content_type: source.fetch(:blob).content_type || "image/jpeg",
+      context:
+    )
     persist_result(photo, run, response)
   rescue OpenrouterVisionClient::Error, ActiveStorage::FileNotFoundError => error
     run&.update!(status: "failed", finished_at: Time.current, error: error.message)
@@ -61,7 +66,7 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
     PhotoAnalysisRun.openrouter_spend >= budget
   end
 
-  def create_run(photo, source:, source_checksum:)
+  def create_run(photo, source:, source_checksum:, context:)
     photo.with_lock do
       return if current_run_exists?(photo, source_checksum)
       return if active_run_exists?(photo, source_checksum)
@@ -79,13 +84,22 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
         source_variant: source.fetch(:variant),
         source_checksum_sha256: source_checksum
       }
-      return pending_run.tap { |run| run.update!(attributes) } if pending_run
+      if pending_run
+        pending_raw = pending_run.raw.merge(
+          "privacy" => { "zdr" => true, "data_collection" => "deny" },
+          "input_context" => context.stringify_keys
+        )
+        return pending_run.tap { |run| run.update!(attributes.merge(raw: pending_raw)) }
+      end
 
       photo.analysis_runs.create!(
         provider: "openrouter",
         model: model,
         model_version: PROMPT_VERSION,
-        raw: { privacy: { zdr: true, data_collection: "deny" } },
+        raw: {
+          privacy: { zdr: true, data_collection: "deny" },
+          input_context: context
+        },
         **attributes
       )
     end
@@ -124,7 +138,25 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
     raise OpenrouterVisionClient::Error, "OpenRouter could not prepare the display JPEG derivative: #{error.message}"
   end
 
+  def analysis_context(photo)
+    metadata = photo.metadata
+    captured_at = metadata&.captured_at || photo.captured_at
+    context = {}
+    context[:capture_date] = captured_at.to_date.iso8601 if captured_at
+
+    if metadata&.location?
+      location_id = PhotoLocation.id_for_coordinates(metadata.latitude, metadata.longitude)
+      place = PhotoLocationPlace.find_by(location_id: location_id)
+      context[:location] = place.name if place && !place.plus_code_name?
+    end
+
+    camera = [ metadata&.camera_make, metadata&.camera_model ].compact_blank.join(" ").presence
+    context[:camera] = camera if camera
+    context
+  end
+
   def persist_result(photo, run, response)
+    input_context = run.raw.fetch("input_context", {})
     PhotoAnalysisRun.transaction do
       run.update!(
         status: "complete",
@@ -136,7 +168,9 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
         cost_usd: response["cost"],
         finished_at: Time.current,
         raw: response.fetch("raw").merge(
-          "normalized" => response.slice("caption", "tags", "readable_text", "provider")
+          "normalized" => response.slice("caption", "tags", "readable_text", "provider"),
+          "input_context" => input_context,
+          "privacy" => { "zdr" => true, "data_collection" => "deny" }
         )
       )
 

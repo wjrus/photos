@@ -38,10 +38,10 @@ class OpenrouterVisionClient
     @api_key.present?
   end
 
-  def analyze(image_bytes:, content_type: "image/jpeg")
+  def analyze(image_bytes:, content_type: "image/jpeg", context: {})
     raise Error, "OPENROUTER_API_KEY is not configured" unless configured?
 
-    response = perform_request(request_body(image_bytes:, content_type:))
+    response = perform_request(request_body(image_bytes:, content_type:, context:))
     body = parse_response(response)
     result = parse_content(body.dig("choices", 0, "message", "content"))
     usage = body.fetch("usage", {})
@@ -64,14 +64,14 @@ class OpenrouterVisionClient
 
   private
 
-  def request_body(image_bytes:, content_type:)
+  def request_body(image_bytes:, content_type:, context: {})
     {
       model: model,
       messages: [
         {
           role: "user",
           content: [
-            { type: "text", text: @prompt },
+            { type: "text", text: prompt_with_context(context) },
             {
               type: "image_url",
               image_url: { url: "data:#{content_type};base64,#{Base64.strict_encode64(image_bytes)}" }
@@ -118,6 +118,21 @@ class OpenrouterVisionClient
         require_parameters: true
       }
     }
+  end
+
+  def prompt_with_context(context)
+    context = context.to_h.compact_blank
+    return @prompt if context.empty?
+
+    lines = context.map { |key, value| "- #{key.to_s.humanize}: #{value}" }
+    <<~PROMPT.strip
+      #{@prompt}
+
+      Known photo metadata:
+      #{lines.join("\n")}
+
+      Use this metadata only as supporting context when it helps describe visible content. Do not repeat metadata mechanically, and do not let it override the image.
+    PROMPT
   end
 
   def perform_request(payload)

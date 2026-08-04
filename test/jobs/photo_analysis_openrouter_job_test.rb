@@ -45,6 +45,33 @@ class PhotoAnalysisOpenrouterJobTest < ActiveJob::TestCase
     assert_equal "A black dog sits beside a window.", photo.analysis_runs.where(provider: "openrouter").sole.summary
   end
 
+  test "provides friendly local metadata without exact coordinates" do
+    photo = attached_photo
+    metadata = photo.create_metadata!(
+      extraction_status: "complete",
+      captured_at: Time.zone.parse("2026-08-04 14:30:00"),
+      camera_make: "Apple",
+      camera_model: "iPhone 17 Pro",
+      latitude: 45.3733,
+      longitude: -84.9553,
+      raw: {}
+    )
+    PhotoLocationPlace.create!(
+      location_id: PhotoLocation.id_for_coordinates(metadata.latitude, metadata.longitude),
+      name: "Petoskey, Michigan"
+    )
+    client = FakeVisionClient.new(response)
+
+    perform_with_client(photo, client)
+
+    context = client.contexts.sole
+    assert_equal "Petoskey, Michigan", context.fetch(:location)
+    assert_equal "2026-08-04", context.fetch(:capture_date)
+    assert_equal "Apple iPhone 17 Pro", context.fetch(:camera)
+    refute_includes context.values, metadata.latitude.to_s
+    assert_equal context.stringify_keys, photo.analysis_runs.where(provider: "openrouter").sole.raw.fetch("input_context")
+  end
+
   test "does not pay to analyze the same derivative twice" do
     photo = attached_photo
     client = FakeVisionClient.new(response)
@@ -67,6 +94,11 @@ class PhotoAnalysisOpenrouterJobTest < ActiveJob::TestCase
       source_variant: "display",
       raw: { queued_by: "backfill" }
     )
+    photo.create_metadata!(
+      extraction_status: "complete",
+      captured_at: Time.zone.parse("2026-08-04 14:30:00"),
+      raw: {}
+    )
 
     assert_no_difference "PhotoAnalysisRun.count" do
       perform_with_client(photo, FakeVisionClient.new(response))
@@ -74,6 +106,7 @@ class PhotoAnalysisOpenrouterJobTest < ActiveJob::TestCase
 
     assert_equal "complete", run.reload.status
     assert run.source_checksum_sha256.present?
+    assert_equal "2026-08-04", run.raw.dig("input_context", "capture_date")
   end
 
   test "does nothing when disabled" do
@@ -86,13 +119,14 @@ class PhotoAnalysisOpenrouterJobTest < ActiveJob::TestCase
 
   private
 
-  FakeVisionClient = Struct.new(:response, :calls) do
+  FakeVisionClient = Struct.new(:response, :calls, :contexts) do
     def initialize(response)
-      super(response, 0)
+      super(response, 0, [])
     end
 
-    def analyze(image_bytes:, content_type:)
+    def analyze(image_bytes:, content_type:, context: {})
       self.calls += 1
+      contexts << context
       raise "missing image bytes" if image_bytes.blank?
       raise "unexpected content type" unless content_type == "image/jpeg"
 

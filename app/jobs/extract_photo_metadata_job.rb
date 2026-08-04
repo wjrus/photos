@@ -5,6 +5,8 @@ require "vips"
 class ExtractPhotoMetadataJob < ApplicationJob
   queue_as :maintenance
 
+  after_perform :enqueue_openrouter_analysis
+
   def perform(photo)
     metadata = PhotoMetadata.for_photo(photo)
 
@@ -86,6 +88,16 @@ class ExtractPhotoMetadataJob < ApplicationJob
   end
 
   private
+
+  def enqueue_openrouter_analysis
+    photo = arguments.first
+    return unless photo&.image? && !photo.restricted?
+    return unless AppSetting.boolean(AppSetting::ANALYSIS_OPENROUTER_ENABLED, default: false)
+    return unless AppSetting.boolean(AppSetting::ANALYSIS_OPENROUTER_AUTO_NEW_ENABLED, default: true)
+
+    display = photo.reload.processed_original_variant_record(:display)
+    PhotoAnalysisOpenrouterJob.perform_later(photo) if display&.image&.attached?
+  end
 
   def extract_video_metadata(photo, metadata)
     photo.original.blob.open do |file|

@@ -183,9 +183,14 @@ class GeneratePhotoDerivativesJob < ApplicationJob
 
     if AppSetting.boolean(AppSetting::ANALYSIS_OPENROUTER_ENABLED, default: false) &&
         AppSetting.boolean(AppSetting::ANALYSIS_OPENROUTER_AUTO_NEW_ENABLED, default: true) &&
-        photo.image?
+        photo.image? && metadata_ready_for_openrouter?(photo)
       PhotoAnalysisOpenrouterJob.perform_later(photo)
     end
+  end
+
+  def metadata_ready_for_openrouter?(photo)
+    metadata = photo.metadata
+    metadata.present? && metadata.extraction_status != "pending"
   end
 
   def current_openclip_embedding_exists?(photo)

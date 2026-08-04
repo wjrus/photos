@@ -58,6 +58,10 @@ first; external APIs stay off until the owner explicitly enables them.
   privacy settings before enabling the feature.
 - Source: a stripped, resized display JPEG. Originals and restricted photos are
   never sent. The initial implementation handles still images only.
+- Context: when already available locally, the request includes the friendly
+  cached place name, capture date, and camera make/model. It never sends exact
+  coordinates, filenames, or plus-code-only locations, and it performs no
+  additional geocoding calls.
 - Caption behavior: Qwen fills the normal editable photo caption only when it is
   blank. A handwritten/imported caption is never overwritten. The generated
   source remains in `photo_analysis_runs.summary` after edits.

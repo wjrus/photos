@@ -14,6 +14,23 @@ class ExtractPhotoMetadataJobTest < ActiveJob::TestCase
     assert_predicate metadata.extracted_at, :present?
   end
 
+  test "queues openrouter after metadata when the display derivative is already ready" do
+    AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENROUTER_ENABLED, true)
+    AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENROUTER_AUTO_NEW_ENABLED, true)
+    photo = attached_png
+    photo.original.variant(:display).processed
+    clear_enqueued_jobs
+
+    assert_enqueued_with(job: PhotoAnalysisOpenrouterJob, args: [ photo ]) do
+      ExtractPhotoMetadataJob.perform_now(photo)
+    end
+  ensure
+    AppSetting.where(key: [
+      AppSetting::ANALYSIS_OPENROUTER_ENABLED,
+      AppSetting::ANALYSIS_OPENROUTER_AUTO_NEW_ENABLED
+    ]).delete_all
+  end
+
   test "extracts video metadata with ffprobe" do
     photo = attached_video
     job = ExtractPhotoMetadataJob.new

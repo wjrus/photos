@@ -30,9 +30,27 @@ class GeneratePhotoDerivativesJobTest < ActiveJob::TestCase
     AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENROUTER_ENABLED, true)
     AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENROUTER_AUTO_NEW_ENABLED, true)
     photo = attached_photo
+    photo.create_metadata!(extraction_status: "unsupported", extracted_at: Time.current, raw: {})
     clear_enqueued_jobs
 
     assert_enqueued_with(job: PhotoAnalysisOpenrouterJob, args: [ photo ]) do
+      GeneratePhotoDerivativesJob.perform_now(photo)
+    end
+  ensure
+    AppSetting.where(key: [
+      AppSetting::ANALYSIS_OPENROUTER_ENABLED,
+      AppSetting::ANALYSIS_OPENROUTER_AUTO_NEW_ENABLED
+    ]).delete_all
+  end
+
+  test "waits for metadata before queueing an openrouter caption" do
+    AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENROUTER_ENABLED, true)
+    AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENROUTER_AUTO_NEW_ENABLED, true)
+    photo = attached_photo
+    photo.create_metadata!(extraction_status: "pending", raw: {})
+    clear_enqueued_jobs
+
+    assert_no_enqueued_jobs only: PhotoAnalysisOpenrouterJob do
       GeneratePhotoDerivativesJob.perform_now(photo)
     end
   ensure
