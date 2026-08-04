@@ -41,6 +41,30 @@ class OpenrouterVisionClientTest < ActiveSupport::TestCase
     end
 
     assert_includes error.message, "was not valid JSON"
+    assert_equal '{"caption":"truncated', error.details.fetch("content_preview")
+  end
+
+  test "reports empty successful responses with retry diagnostics" do
+    response = SuccessfulResponse.new(
+      JSON.generate(
+        id: "generation-empty",
+        model: "qwen/qwen3-vl-30b-a3b-instruct",
+        provider: "SiliconFlow",
+        choices: [ { finish_reason: "stop", message: { content: "" } } ],
+        usage: { prompt_tokens: 2_500, completion_tokens: 0, cost: 0.00075 }
+      )
+    )
+    client = OpenrouterVisionClient.new(api_key: "secret")
+    client.define_singleton_method(:perform_request) { |_payload| response }
+
+    error = assert_raises(OpenrouterVisionClient::RetryableError) do
+      client.analyze(image_bytes: "jpeg")
+    end
+
+    assert_includes error.message, "empty vision content"
+    assert_includes error.message, "provider=SiliconFlow"
+    assert_equal "generation-empty", error.details.fetch("request_id")
+    assert_equal 0.00075, error.details.dig("usage", "cost")
   end
 
   test "preserves retry after guidance on rate limits" do

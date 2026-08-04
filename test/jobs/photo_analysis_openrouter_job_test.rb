@@ -171,6 +171,49 @@ class PhotoAnalysisOpenrouterJobTest < ActiveJob::TestCase
     end
   end
 
+  test "records failed response diagnostics and cost before retrying" do
+    photo = attached_photo
+    details = {
+      "request_id" => "generation-empty",
+      "model" => OpenrouterVisionClient::DEFAULT_MODEL,
+      "provider" => "SiliconFlow",
+      "finish_reason" => "stop",
+      "content_bytes" => 0,
+      "usage" => { "prompt_tokens" => 2_500, "completion_tokens" => 0, "cost" => 0.00075 }
+    }
+    client = FakeVisionClient.new(nil)
+    client.define_singleton_method(:analyze) do |**|
+      raise OpenrouterVisionClient::RetryableError.new("empty vision content", details:)
+    end
+    job = PhotoAnalysisOpenrouterJob.new(photo)
+    job.define_singleton_method(:vision_client) { client }
+
+    assert_enqueued_with(job: PhotoAnalysisOpenrouterJob) { job.perform_now }
+
+    run = photo.analysis_runs.where(provider: "openrouter").sole
+    assert_equal "failed", run.status
+    assert_equal "generation-empty", run.request_id
+    assert_equal 0.00075.to_d, run.cost_usd
+    assert_equal "SiliconFlow", run.raw.dig("failure_response", "provider")
+  end
+
+  test "marks a failed attempt as recovered after a successful retry" do
+    photo = attached_photo
+    client = FakeVisionClient.new(nil)
+    client.define_singleton_method(:analyze) do |**|
+      raise OpenrouterVisionClient::RetryableError, "empty vision content"
+    end
+
+    assert_raises(OpenrouterVisionClient::RetryableError) { perform_with_client(photo, client) }
+    failed_run = photo.analysis_runs.where(provider: "openrouter").sole
+
+    perform_with_client(photo, FakeVisionClient.new(response))
+
+    assert_equal "skipped", failed_run.reload.status
+    assert_match(/Recovered after retry/, failed_run.error)
+    assert_equal 1, photo.analysis_runs.where(provider: "openrouter", status: "complete").count
+  end
+
   private
 
   FakeVisionClient = Struct.new(:response, :calls, :contexts) do

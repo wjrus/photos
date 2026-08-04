@@ -112,6 +112,11 @@ The command validates the photo and configuration, then force-queues one job on
 the dedicated `vision` queue. An untouched generated caption is replaced when
 the job completes; a caption edited by the owner is preserved.
 
+Empty content, malformed JSON, rate limits, and temporary provider failures are
+retried up to five total attempts. Failed response records retain request,
+provider, finish, token, and cost diagnostics without storing the submitted
+image. A later successful attempt marks its earlier failures as recovered.
+
 The task reserves each selected photo before queueing it, so rerunning it does
 not duplicate paid requests. `LIMIT` defaults to 100 and is capped at 50,000.
 The UI offers 25, 100, and 1,000-photo batches. Neither path is part of the

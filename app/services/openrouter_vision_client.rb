@@ -4,12 +4,20 @@ require "net/http"
 require "time"
 
 class OpenrouterVisionClient
-  class Error < StandardError; end
+  class Error < StandardError
+    attr_reader :details
+
+    def initialize(message, details: {})
+      super(message)
+      @details = details
+    end
+  end
+
   class RetryableError < Error
     attr_reader :retry_after
 
-    def initialize(message, retry_after: nil)
-      super(message)
+    def initialize(message, retry_after: nil, details: {})
+      super(message, details:)
       @retry_after = retry_after
     end
   end
@@ -51,7 +59,9 @@ class OpenrouterVisionClient
 
     response = perform_request(request_body(image_bytes:, content_type:, context:))
     body = parse_response(response)
-    result = parse_content(body.dig("choices", 0, "message", "content"))
+    content = body.dig("choices", 0, "message", "content")
+    diagnostics = response_diagnostics(body, content:)
+    result = parse_content(content, diagnostics:)
     usage = body.fetch("usage", {})
 
     {
@@ -66,7 +76,9 @@ class OpenrouterVisionClient
       "cost" => usage["cost"],
       "raw" => body
     }.tap do |normalized|
-      raise RetryableError, "OpenRouter response did not include a caption" if normalized.fetch("caption").blank?
+      if normalized.fetch("caption").blank?
+        raise RetryableError.new("OpenRouter response did not include a caption", details: diagnostics)
+      end
     end
   end
 
@@ -171,7 +183,8 @@ class OpenrouterVisionClient
     if response.code.to_i == 429 || response.code.to_i >= 500
       raise RetryableError.new(
         "OpenRouter returned HTTP #{response.code}: #{message}",
-        retry_after: retry_after_seconds(response)
+        retry_after: retry_after_seconds(response),
+        details: response_diagnostics(body)
       )
     end
 
@@ -181,16 +194,58 @@ class OpenrouterVisionClient
     raise error_class, "OpenRouter returned invalid JSON (HTTP #{response.code}): #{error.message}"
   end
 
-  def parse_content(content)
-    text = if content.is_a?(Array)
+  def parse_content(content, diagnostics: {})
+    return content.stringify_keys if content.is_a?(Hash)
+
+    text = content_text(content)
+    if text.blank?
+      raise RetryableError.new(
+        "OpenRouter returned empty vision content (#{diagnostic_label(diagnostics)})",
+        details: diagnostics
+      )
+    end
+
+    text = text.sub(/\A```(?:json)?\s*/i, "").sub(/\s*```\z/, "")
+    JSON.parse(text)
+  rescue JSON::ParserError => error
+    details = diagnostics.merge("content_preview" => text.to_s.first(500))
+    raise RetryableError.new(
+      "OpenRouter vision response was not valid JSON: #{error.message} (#{diagnostic_label(details)})",
+      details:
+    )
+  end
+
+  def content_text(content)
+    if content.is_a?(Array)
       content.filter_map { |part| part["text"] if part.is_a?(Hash) }.join
     else
       content.to_s
     end
-    text = text.sub(/\A```(?:json)?\s*/i, "").sub(/\s*```\z/, "")
-    JSON.parse(text)
-  rescue JSON::ParserError => error
-    raise RetryableError, "OpenRouter vision response was not valid JSON: #{error.message}"
+  end
+
+  def response_diagnostics(body, content: nil)
+    choice = body.dig("choices", 0).to_h
+    usage = body.fetch("usage", {}).to_h.slice("prompt_tokens", "completion_tokens", "total_tokens", "cost")
+    {
+      "request_id" => body["id"],
+      "model" => body["model"],
+      "provider" => body["provider"],
+      "finish_reason" => choice["finish_reason"],
+      "native_finish_reason" => choice["native_finish_reason"],
+      "response_error" => choice["error"] || body["error"],
+      "usage" => usage.presence,
+      "content_type" => content.class.name,
+      "content_bytes" => content_text(content).bytesize
+    }.compact
+  end
+
+  def diagnostic_label(details)
+    [
+      "provider=#{details['provider'].presence || 'unknown'}",
+      "request=#{details['request_id'].presence || 'unknown'}",
+      "finish=#{details['finish_reason'].presence || 'unknown'}",
+      "bytes=#{details['content_bytes'] || 0}"
+    ].join(" ")
   end
 
   def retry_after_seconds(response)

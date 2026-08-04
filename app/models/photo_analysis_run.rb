@@ -19,6 +19,6 @@ class PhotoAnalysisRun < ApplicationRecord
   scope :needs_attention, -> { where(status: "failed") }
 
   def self.openrouter_spend
-    where(provider: "openrouter", status: "complete").sum(:cost_usd)
+    where(provider: "openrouter").sum(:cost_usd)
   end
 end

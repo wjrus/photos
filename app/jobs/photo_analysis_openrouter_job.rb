@@ -45,8 +45,12 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
     )
     persist_result(photo, run, response)
   rescue OpenrouterVisionClient::Error, ActiveStorage::FileNotFoundError => error
-    run&.update!(status: "failed", finished_at: Time.current, error: error.message)
-    Rails.logger.warn("OpenRouter vision failed photo=#{photo.id} run=#{run&.id || 'none'}: #{error.message}")
+    record_failure(run, error)
+    diagnostics = error.respond_to?(:details) ? error.details : {}
+    Rails.logger.warn(
+      "OpenRouter vision failed photo=#{photo.id} run=#{run&.id || 'none'}: #{error.message} " \
+      "diagnostics=#{diagnostics.to_json}"
+    )
     raise
   rescue StandardError => error
     run&.update!(status: "failed", finished_at: Time.current, error: "#{error.class}: #{error.message}")
@@ -223,6 +227,16 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
         description: response.fetch("caption"),
         updated_at: Time.current
       )
+
+      photo.analysis_runs.where(
+        provider: "openrouter",
+        model: run.model,
+        model_version: run.model_version,
+        source_checksum_sha256: run.source_checksum_sha256,
+        status: "failed"
+      ).where.not(id: run.id).find_each do |failed_run|
+        failed_run.update!(status: "skipped", error: "Recovered after retry: #{failed_run.error}")
+      end
     end
 
     Rails.logger.info(
@@ -230,6 +244,24 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
       "input_tokens=#{response['input_tokens'] || 'unknown'} output_tokens=#{response['output_tokens'] || 'unknown'} " \
       "cost=#{response['cost'] || 'unknown'} tags=#{response.fetch('tags').size} " \
       "readable_text=#{response.fetch('readable_text').size}"
+    )
+  end
+
+  def record_failure(run, error)
+    return unless run
+
+    details = error.respond_to?(:details) ? error.details.stringify_keys : {}
+    usage = details.fetch("usage", {}).to_h
+    run.update!(
+      status: "failed",
+      request_id: details["request_id"],
+      model: details["model"].presence || run.model,
+      input_tokens: usage["prompt_tokens"],
+      output_tokens: usage["completion_tokens"],
+      cost_usd: usage["cost"],
+      finished_at: Time.current,
+      error: error.message,
+      raw: run.raw.merge("failure_response" => details)
     )
   end
 end
