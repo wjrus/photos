@@ -20,6 +20,9 @@ class OpenrouterVisionClientTest < ActiveSupport::TestCase
     assert_equal true, payload.dig(:response_format, :json_schema, :strict)
     assert_equal false, payload.dig(:response_format, :json_schema, :schema, :additionalProperties)
     assert_equal OpenrouterVisionClient::DEFAULT_MAX_TOKENS, payload.fetch(:max_tokens)
+    prompt = payload.dig(:messages, 0, :content, 0, :text)
+    assert_includes prompt, "Never state what the image does not contain"
+    assert_includes prompt, "omit categories that do not apply"
     assert payload.dig(:messages, 0, :content, 1, :image_url, :url).start_with?("data:image/jpeg;base64,")
   end
 

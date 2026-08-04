@@ -10,7 +10,7 @@ class OpenrouterVisionClient
   DEFAULT_MODEL = "qwen/qwen3-vl-30b-a3b-instruct".freeze
   DEFAULT_MAX_TOKENS = 480
   DEFAULT_PROMPT = <<~PROMPT.strip.freeze
-    Describe the image accurately in 1-2 sentences. Mention people, setting, actions, notable objects, and clearly readable text. Do not speculate, identify people by name, or infer sensitive traits.
+    Describe the image accurately in 1-2 natural sentences. Mention people, setting, actions, notable objects, and clearly readable text only when they are visibly present. Never state what the image does not contain, and omit categories that do not apply. Do not speculate, identify people by name, or infer sensitive traits.
 
     Return JSON with exactly these fields:
     - caption: the 1-2 sentence description
@@ -91,7 +91,7 @@ class OpenrouterVisionClient
             properties: {
               caption: {
                 type: "string",
-                description: "An accurate 1-2 sentence description of the image."
+                description: "An accurate 1-2 sentence description mentioning only content visibly present in the image, without statements about absent content."
               },
               tags: {
                 type: "array",
