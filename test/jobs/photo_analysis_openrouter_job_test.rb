@@ -57,6 +57,25 @@ class PhotoAnalysisOpenrouterJobTest < ActiveJob::TestCase
     assert_equal 1, client.calls
   end
 
+  test "claims a pending backfill reservation" do
+    photo = attached_photo
+    run = photo.analysis_runs.create!(
+      provider: "openrouter",
+      model: OpenrouterVisionClient::DEFAULT_MODEL,
+      model_version: PhotoAnalysisOpenrouterJob::PROMPT_VERSION,
+      status: "pending",
+      source_variant: "display",
+      raw: { queued_by: "backfill" }
+    )
+
+    assert_no_difference "PhotoAnalysisRun.count" do
+      perform_with_client(photo, FakeVisionClient.new(response))
+    end
+
+    assert_equal "complete", run.reload.status
+    assert run.source_checksum_sha256.present?
+  end
+
   test "does nothing when disabled" do
     AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENROUTER_ENABLED, false)
 

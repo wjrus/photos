@@ -57,15 +57,27 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
       return if current_run_exists?(photo, source_checksum)
       return if active_run_exists?(photo, source_checksum)
 
+      pending_run = photo.analysis_runs.where(
+        provider: "openrouter",
+        model: model,
+        model_version: PROMPT_VERSION,
+        status: "pending"
+      ).latest_first.first
+
+      attributes = {
+        status: "running",
+        started_at: Time.current,
+        source_variant: source.fetch(:variant),
+        source_checksum_sha256: source_checksum
+      }
+      return pending_run.tap { |run| run.update!(attributes) } if pending_run
+
       photo.analysis_runs.create!(
         provider: "openrouter",
         model: model,
         model_version: PROMPT_VERSION,
-        status: "running",
-        started_at: Time.current,
-        source_variant: source.fetch(:variant),
-        source_checksum_sha256: source_checksum,
-        raw: { privacy: { zdr: true, data_collection: "deny" } }
+        raw: { privacy: { zdr: true, data_collection: "deny" } },
+        **attributes
       )
     end
   end

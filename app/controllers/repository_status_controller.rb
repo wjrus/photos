@@ -5,6 +5,7 @@ class RepositoryStatusController < ApplicationController
     archive
     maintenance
     analysis
+    vision
     video_previews
     derivatives
     default
@@ -315,6 +316,8 @@ class RepositoryStatusController < ApplicationController
       PhotoAnalysisOpenclipJob
       PhotoAnalysisYoloJob
       PhotoAnalysisOpenaiJob
+      PhotoAnalysisOpenrouterBackfillJob
+      PhotoAnalysisOpenrouterJob
     ]
   end
 

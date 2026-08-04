@@ -25,4 +25,25 @@ namespace :photos do
 
     abort "Directory import completed with failures" if summary.fetch(:failed).positive?
   end
+
+  desc "Queue a bounded OpenRouter vision-caption backfill (LIMIT=100 DRY_RUN=true)"
+  task openrouter_backfill: :environment do
+    $stdout.sync = true
+    $stderr.sync = true
+
+    limit = ENV.fetch("LIMIT", PhotoAnalysisOpenrouterBackfill::DEFAULT_LIMIT)
+    dry_run = ActiveModel::Type::Boolean.new.cast(ENV["DRY_RUN"])
+    result = PhotoAnalysisOpenrouterBackfill.new(output: $stdout).enqueue(limit:, dry_run:)
+
+    puts(dry_run ? "OpenRouter backfill dry run complete" : "OpenRouter backfill queued")
+    puts "eligible: #{result.eligible}"
+    puts "requested: #{result.requested}"
+    puts "queued: #{result.queued}"
+    puts "spent: $#{format('%.4f', result.spend)}"
+    puts "budget: $#{format('%.2f', result.budget)}"
+    puts "remaining: $#{format('%.4f', result.remaining_budget)}"
+    puts "estimated per photo: $#{format('%.4f', result.estimated_cost)}"
+  rescue ArgumentError => error
+    abort error.message
+  end
 end
