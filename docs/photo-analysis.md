@@ -102,6 +102,16 @@ Status before increasing the batch. Continue in bounded chunks:
 docker compose exec -e LIMIT=1000 worker bin/rails photos:openrouter_backfill
 ```
 
+Regenerate the Qwen caption and tags for one photo by ID:
+
+```sh
+docker compose exec worker bin/rails 'photos:qwen[40760]'
+```
+
+The command validates the photo and configuration, then force-queues one job on
+the dedicated `vision` queue. An untouched generated caption is replaced when
+the job completes; a caption edited by the owner is preserved.
+
 The task reserves each selected photo before queueing it, so rerunning it does
 not duplicate paid requests. `LIMIT` defaults to 100 and is capped at 50,000.
 The UI offers 25, 100, and 1,000-photo batches. Neither path is part of the

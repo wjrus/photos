@@ -46,4 +46,24 @@ namespace :photos do
   rescue ArgumentError => error
     abort error.message
   end
+
+  desc "Queue a fresh Qwen vision caption for one photo (photos:qwen[PHOTO_ID])"
+  task :qwen, [ :photo_id ] => :environment do |_task, args|
+    $stdout.sync = true
+    $stderr.sync = true
+
+    photo_id = Integer(args[:photo_id], exception: false)
+    abort "Provide a numeric photo ID: bin/rails 'photos:qwen[PHOTO_ID]'" unless photo_id&.positive?
+    abort "Enable OpenRouter Qwen vision captions in Repository Status first." unless AppSetting.boolean(AppSetting::ANALYSIS_OPENROUTER_ENABLED, default: false)
+    abort "OPENROUTER_API_KEY is not configured." if ENV["OPENROUTER_API_KEY"].blank?
+
+    photo = Photo.find_by(id: photo_id)
+    abort "Photo #{photo_id} was not found." unless photo
+    abort "Photo #{photo_id} is restricted; Qwen only analyzes unlocked photos." if photo.restricted?
+    abort "Photo #{photo_id} is not a still image." unless photo.image?
+    abort "Photo #{photo_id} has no attached original." unless photo.original.attached?
+
+    job = PhotoAnalysisOpenrouterJob.perform_later(photo, force: true)
+    puts "Queued Qwen caption regeneration for photo #{photo.id} on the vision queue (job #{job.job_id})."
+  end
 end
