@@ -56,7 +56,8 @@ class PhotoSearch
         query: query,
         album_ids: album_ids,
         tagged_user_ids: tagged_user_ids,
-        semantic_photo_ids: semantic_photo_ids
+        semantic_photo_ids: semantic_photo_ids,
+        normalized_visual_tag: params[:q].to_s.strip.downcase.tr(" ", "_")
       )
   end
 
@@ -69,7 +70,9 @@ class PhotoSearch
       "photo_metadata.camera_model ILIKE :query",
       "photo_metadata.lens_model ILIKE :query",
       "photo_albums.id IN (:album_ids)",
-      "photo_people_tags.user_id IN (:tagged_user_ids)"
+      "photo_people_tags.user_id IN (:tagged_user_ids)",
+      "photos.id IN (SELECT photo_id FROM photo_analysis_runs WHERE provider = 'openrouter' AND status = 'complete' AND summary ILIKE :query)",
+      "photos.id IN (SELECT photo_id FROM photo_analysis_tags WHERE provider = 'openrouter' AND name = :normalized_visual_tag)"
     ]
 
     conditions << "photos.id IN (:semantic_photo_ids)" if semantic_photo_ids.any?

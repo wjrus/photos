@@ -21,7 +21,7 @@ The app is intentionally closer to a personal Google Photos/Flickr hybrid than a
 - Sends invitation and password-reset links through Mailgun.
 - Imports Google Takeout ZIP archives while preserving album memberships and sidecar metadata.
 - Provides an owner-only repository status dashboard for queues, file health, derivative coverage, storage checks, runtime controls, and repository activity notifications.
-- Provides the foundation for opt-in photo analysis with local OpenCLIP semantic search, local YOLO object detection, and later OpenAI vision enrichment.
+- Provides opt-in photo analysis with local OpenCLIP semantic search and editable OpenRouter/Qwen vision captions.
 - Keeps a separate owner-only locked private route for sensitive material.
 
 ## Privacy Model
@@ -46,7 +46,7 @@ The owner can upload, import, publish, unpublish, archive, restore, tag people, 
 - **Drive archive**: Google Drive mirror of originals. It is an archive copy, not the only source of truth.
 - **Takeout imports**: Google Photos Takeout ZIP imports for backfilling the library and imported albums.
 - **Repository health**: owner-only patrol jobs that read originals, verify size/checksums, report problems, record important activity, and can optionally heal from Drive.
-- **Photo analysis**: opt-in provider pipelines for local embeddings, object detection, and later external vision enrichment. See [Photo Analysis Plan](docs/photo-analysis.md).
+- **Photo analysis**: opt-in provider pipelines for local embeddings, object detection, and external Qwen vision captions. See [Photo Analysis](docs/photo-analysis.md).
 - **App settings**: runtime toggles stored in the database and managed from Repository Status. Environment files are for secrets and deploy wiring, not feature switches.
 
 ## Guest Album Links
@@ -309,6 +309,7 @@ IMPORT_JOB_THREADS=1
 ARCHIVE_JOB_THREADS=1
 MAINTENANCE_JOB_THREADS=1
 ANALYSIS_JOB_THREADS=1
+VISION_JOB_THREADS=1
 DERIVATIVE_JOB_THREADS=3
 DEFAULT_JOB_THREADS=1
 JOB_PROCESSES=1
@@ -345,6 +346,11 @@ MAILGUN_DOMAIN=mg.example.com
 MAILGUN_FROM=photos@example.invalid
 MAILGUN_FROM_NAME=Photos
 PHOTOS_LOCKED_FOLDER_PASSWORD=
+
+OPENROUTER_API_KEY=
+OPENROUTER_VISION_MODEL=qwen/qwen3-vl-30b-a3b-instruct
+OPENROUTER_BUDGET_USD=100
+OPENROUTER_ESTIMATED_COST_USD=0.0025
 ```
 
 `REDIS_URL` is supplied internally by Compose. If it is absent, production falls back to Solid Cache.
@@ -352,3 +358,9 @@ PHOTOS_LOCKED_FOLDER_PASSWORD=
 Mailgun is used for invitations and password resets. `MAILGUN_FROM` is required, with `MAILER_SENDER` supported as a legacy alias. `MAILGUN_FROM_NAME` is used as the sender display name when the sender is a bare address. `MAILGUN_REPLY_TO` is optional, and `MAILGUN_API_BASE_URL` is supported as an alias for `MAILGUN_API_BASE`.
 
 Runtime repository controls, such as original file auto-heal, are stored in the app settings table and controlled from `/repository_status`.
+
+OpenRouter vision is also enabled from the **Photo Analysis** section of
+Repository Status. Enable **OpenRouter Qwen vision captions** to permit API
+calls and **OpenRouter captions for new uploads** to caption new web/CLI imports
+after their stripped display JPEG is ready. The API key and spend ceiling remain
+server-side environment values.

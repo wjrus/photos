@@ -66,6 +66,28 @@ class PhotoAnalysisOpenrouterBackfillTest < ActiveJob::TestCase
     assert_equal 1, result.queued
   end
 
+  test "counts pending reservations against the queue-time budget" do
+    first = attached_photo("reserved.jpg")
+    attached_photo("unreserved.jpg")
+    first.analysis_runs.create!(
+      provider: "openrouter",
+      model: OpenrouterVisionClient::DEFAULT_MODEL,
+      model_version: PhotoAnalysisOpenrouterJob::PROMPT_VERSION,
+      status: "pending",
+      source_variant: "display",
+      raw: { queued_by: "test" }
+    )
+    ENV["OPENROUTER_BUDGET_USD"] = "0.015"
+    clear_enqueued_jobs
+
+    result = nil
+    assert_no_enqueued_jobs only: PhotoAnalysisOpenrouterJob do
+      result = PhotoAnalysisOpenrouterBackfill.new.enqueue(limit: 10)
+    end
+
+    assert_equal 0, result.queued
+  end
+
   private
 
   def attached_photo(filename)

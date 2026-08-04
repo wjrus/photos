@@ -76,6 +76,7 @@ Rails.application.routes.draw do
     get :video, on: :member
     get :media, on: :member
     patch :caption, on: :member
+    post :analyze, on: :member
     patch :manual_location, on: :member
     patch :publish, on: :member
     patch :unpublish, on: :member

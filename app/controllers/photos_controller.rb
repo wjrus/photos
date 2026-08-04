@@ -6,7 +6,7 @@ class PhotosController < ApplicationController
 
   before_action :require_owner!, except: %i[show stream display video]
   before_action :set_visible_photo, only: %i[show stream display video]
-  before_action :set_photo, only: %i[media caption manual_location publish unpublish archive restore restrict unrestrict retry_archive destroy]
+  before_action :set_photo, only: %i[media caption analyze manual_location publish unpublish archive restore restrict unrestrict retry_archive destroy]
 
   def show
     if params[:return_to].present?
@@ -65,6 +65,26 @@ class PhotosController < ApplicationController
     @photo.update!(caption_params)
     store_photo_return_path(safe_return_path)
     redirect_to photo_path(@photo), notice: "Caption saved."
+  end
+
+  def analyze
+    store_photo_return_path(safe_return_path)
+
+    unless AppSetting.boolean(AppSetting::ANALYSIS_OPENROUTER_ENABLED, default: false)
+      redirect_to photo_path(@photo), alert: "Enable OpenRouter vision in Repository Status first."
+      return
+    end
+    if ENV["OPENROUTER_API_KEY"].blank?
+      redirect_to photo_path(@photo), alert: "OPENROUTER_API_KEY is not configured."
+      return
+    end
+    unless @photo.image? && !@photo.restricted?
+      redirect_to photo_path(@photo), alert: "OpenRouter vision currently analyzes unlocked still images only."
+      return
+    end
+
+    PhotoAnalysisOpenrouterJob.perform_later(@photo)
+    redirect_to photo_path(@photo), notice: "Vision caption analysis queued."
   end
 
   def manual_location

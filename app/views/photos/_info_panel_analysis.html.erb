@@ -1,5 +1,7 @@
 <% openclip_embedding = photo.embeddings.where(provider: "openclip").order(embedded_at: :desc, id: :desc).first %>
 <% latest_openclip_run = photo.analysis_runs.where(provider: "openclip").latest_first.first %>
+<% latest_openrouter_run = photo.analysis_runs.where(provider: "openrouter").latest_first.first %>
+<% openrouter_tags = photo.analysis_tags.where(provider: "openrouter").order(:name).pluck(:name) %>
 
 <div class="border-t border-zinc-200 p-5">
   <section>
@@ -28,6 +30,20 @@
           <dd class="text-right text-zinc-800"><%= latest_openclip_run.error.truncate(120) %></dd>
         </div>
       <% end %>
+      <div class="mt-3 flex justify-between gap-4 border-t border-zinc-100 pt-3">
+        <dt class="text-zinc-500">Qwen caption</dt>
+        <dd class="text-right text-zinc-800"><%= latest_openrouter_run&.status || "not analyzed" %></dd>
+      </div>
+      <% if latest_openrouter_run %>
+        <div class="flex justify-between gap-4"><dt class="text-zinc-500">Vision model</dt><dd class="max-w-56 break-words text-right text-zinc-800"><%= latest_openrouter_run.model %></dd></div>
+        <% if latest_openrouter_run.summary.present? %><div><dt class="text-zinc-500">Generated</dt><dd class="mt-1 text-zinc-800"><%= latest_openrouter_run.summary %></dd></div><% end %>
+        <% if openrouter_tags.any? %><div><dt class="text-zinc-500">Visual tags</dt><dd class="mt-2 flex flex-wrap gap-1"><% openrouter_tags.each do |tag| %><span class="rounded-lg border border-zinc-200 bg-stone-50 px-2 py-1 text-xs text-zinc-700"><%= tag.humanize(capitalize: false) %></span><% end %></dd></div><% end %>
+        <% if latest_openrouter_run.cost_usd.present? %><div class="flex justify-between gap-4"><dt class="text-zinc-500">Cost</dt><dd class="text-right text-zinc-800"><%= number_to_currency(latest_openrouter_run.cost_usd, precision: 4) %></dd></div><% end %>
+        <% if latest_openrouter_run.error.present? %><div><dt class="text-zinc-500">Vision error</dt><dd class="mt-1 text-rose-800"><%= latest_openrouter_run.error.truncate(160) %></dd></div><% end %>
+      <% end %>
     </dl>
+    <% if photo.image? %>
+      <%= button_to latest_openrouter_run&.status == "failed" ? "Retry vision caption" : "Analyze vision caption", analyze_photo_path(photo), method: :post, class: "mt-4 inline-flex w-full items-center justify-center rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
+    <% end %>
   </section>
 </div>

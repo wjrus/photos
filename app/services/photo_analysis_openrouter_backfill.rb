@@ -96,7 +96,17 @@ class PhotoAnalysisOpenrouterBackfill
     return MAX_LIMIT unless budget.positive?
     return 0 unless estimated_cost.positive?
 
-    ((budget - current_spend) / estimated_cost).floor.clamp(0, MAX_LIMIT)
+    committed_cost = reserved_run_count * estimated_cost
+    ((budget - current_spend - committed_cost) / estimated_cost).floor.clamp(0, MAX_LIMIT)
+  end
+
+  def reserved_run_count
+    PhotoAnalysisRun.where(
+      provider: "openrouter",
+      model: model,
+      model_version: PhotoAnalysisOpenrouterJob::PROMPT_VERSION,
+      status: %w[pending running]
+    ).count
   end
 
   def reserve_and_enqueue(photo)

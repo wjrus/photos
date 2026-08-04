@@ -4,10 +4,12 @@ class RepositoryStatusControllerTest < ActionDispatch::IntegrationTest
   setup do
     OmniAuth.config.test_mode = true
     @owner = users(:one)
+    @openrouter_api_key = ENV["OPENROUTER_API_KEY"]
     sign_in_as(@owner)
   end
 
   teardown do
+    ENV["OPENROUTER_API_KEY"] = @openrouter_api_key
     OmniAuth.config.mock_auth[:google_oauth2] = nil
     OmniAuth.config.test_mode = false
   end
@@ -42,9 +44,34 @@ class RepositoryStatusControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "OpenCLIP coverage"
+    assert_includes response.body, "Qwen vision captions"
+    assert_includes response.body, "Paid Qwen vision"
     assert_includes response.body, "Analysis Actions"
     assert_includes response.body, "Queue 5,000"
     assert_includes response.body, "Feature Flags"
+  end
+
+  test "owner can queue a bounded openrouter pilot" do
+    AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENROUTER_ENABLED, true)
+    ENV["OPENROUTER_API_KEY"] = "test-key"
+
+    assert_enqueued_with(job: PhotoAnalysisOpenrouterBackfillJob, args: [ { limit: 25 } ]) do
+      post repository_status_path, params: { scan_type: "openrouter_analysis", batch_size: 25, section: "analysis" }
+    end
+
+    assert_redirected_to repository_status_path(section: "analysis")
+    assert_equal "OpenRouter vision backfill queued.", flash[:notice]
+  end
+
+  test "owner cannot queue openrouter without an api key" do
+    AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENROUTER_ENABLED, true)
+    ENV.delete("OPENROUTER_API_KEY")
+
+    assert_no_enqueued_jobs only: PhotoAnalysisOpenrouterBackfillJob do
+      post repository_status_path, params: { scan_type: "openrouter_analysis", batch_size: 25 }
+    end
+
+    assert_equal "OPENROUTER_API_KEY is not configured.", flash[:alert]
   end
 
   test "owner can view queues section" do

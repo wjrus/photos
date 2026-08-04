@@ -7,6 +7,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     @trusted_viewer_emails = ENV["PHOTOS_TRUSTED_VIEWER_EMAILS"]
     @google_maps_api_key = ENV["GOOGLE_MAPS_EMBED_API_KEY"]
     @locked_folder_password = ENV["PHOTOS_LOCKED_FOLDER_PASSWORD"]
+    @openrouter_api_key = ENV["OPENROUTER_API_KEY"]
     ENV["GOOGLE_MAPS_EMBED_API_KEY"] = "test-google-maps-key"
     ENV["PHOTOS_LOCKED_FOLDER_PASSWORD"] = "open-sesame"
     sign_in_as(@owner)
@@ -16,6 +17,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     ENV["PHOTOS_TRUSTED_VIEWER_EMAILS"] = @trusted_viewer_emails
     ENV["GOOGLE_MAPS_EMBED_API_KEY"] = @google_maps_api_key
     ENV["PHOTOS_LOCKED_FOLDER_PASSWORD"] = @locked_folder_password
+    ENV["OPENROUTER_API_KEY"] = @openrouter_api_key
     OmniAuth.config.mock_auth[:google_oauth2] = nil
     OmniAuth.config.test_mode = false
   end
@@ -36,6 +38,30 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_equal "private", photo.visibility
     assert_equal @owner.upload_batches.reviewing.sole, photo.upload_batch
     assert_predicate photo.original, :attached?
+  end
+
+  test "owner can queue a vision caption from photo details" do
+    photo = attached_photo
+    AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENROUTER_ENABLED, true)
+    ENV["OPENROUTER_API_KEY"] = "test-key"
+
+    assert_enqueued_with(job: PhotoAnalysisOpenrouterJob, args: [ photo ]) do
+      post analyze_photo_path(photo)
+    end
+
+    assert_redirected_to photo_path(photo)
+    assert_equal "Vision caption analysis queued.", flash[:notice]
+  end
+
+  test "photo vision caption requires an enabled configured provider" do
+    photo = attached_photo
+    AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENROUTER_ENABLED, false)
+
+    assert_no_enqueued_jobs only: PhotoAnalysisOpenrouterJob do
+      post analyze_photo_path(photo)
+    end
+
+    assert_equal "Enable OpenRouter vision in Repository Status first.", flash[:alert]
   end
 
   test "owner upload can return to upload page" do

@@ -43,6 +43,21 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "OpenCLIP visual search enabled"
   end
 
+  test "owner search includes qwen caption summaries and visual tags" do
+    summary_match = attached_photo(title: "Untitled first")
+    tag_match = attached_photo(title: "Untitled second")
+    other = attached_photo(title: "Office note")
+    create_openrouter_analysis(summary_match, summary: "A red canoe rests beside the water.", tags: [ "boat" ])
+    create_openrouter_analysis(tag_match, summary: "Outdoor recreation equipment.", tags: [ "canoe" ])
+
+    get search_path(q: "canoe")
+
+    assert_response :success
+    assert_includes response.body, summary_match.title
+    assert_includes response.body, tag_match.title
+    refute_includes response.body, other.title
+  end
+
   test "opening a semantic search result does not rerun openclip for navigation" do
     match = attached_photo(title: "Parking lot")
     create_openclip_embedding(match)
@@ -300,6 +315,25 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
       embedded_at: Time.current,
       raw: { "provider" => "openclip" }
     )
+  end
+
+  def create_openrouter_analysis(photo, summary:, tags:)
+    run = photo.analysis_runs.create!(
+      provider: "openrouter",
+      model: OpenrouterVisionClient::DEFAULT_MODEL,
+      model_version: PhotoAnalysisOpenrouterJob::PROMPT_VERSION,
+      status: "complete",
+      summary: summary,
+      raw: { "normalized" => { "caption" => summary, "tags" => tags } }
+    )
+    tags.each do |tag|
+      photo.analysis_tags.create!(
+        photo_analysis_run: run,
+        provider: "openrouter",
+        name: tag,
+        raw: { "source" => "test" }
+      )
+    end
   end
 
   def sign_in_as(user)

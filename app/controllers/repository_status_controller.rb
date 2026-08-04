@@ -56,6 +56,15 @@ class RepositoryStatusController < ApplicationController
         PhotoAnalysisBackfillJob.perform_later(providers: providers, batch_size: analysis_batch_size)
         redirect_to repository_status_redirect_path, notice: "Photo analysis queued for #{providers.join(', ')}."
       end
+    when "openrouter_analysis"
+      if !AppSetting.boolean(AppSetting::ANALYSIS_OPENROUTER_ENABLED, default: false)
+        redirect_to repository_status_redirect_path, alert: "Enable OpenRouter vision first."
+      elsif ENV["OPENROUTER_API_KEY"].blank?
+        redirect_to repository_status_redirect_path, alert: "OPENROUTER_API_KEY is not configured."
+      else
+        PhotoAnalysisOpenrouterBackfillJob.perform_later(limit: openrouter_batch_size)
+        redirect_to repository_status_redirect_path, notice: "OpenRouter vision backfill queued."
+      end
     when "geocode_locations"
       GeocodeMissingPhotoLocationsJob.perform_later(limit: geocode_location_limit)
       redirect_to repository_status_redirect_path, notice: "Location name geocoding queued."
@@ -204,6 +213,12 @@ class RepositoryStatusController < ApplicationController
     PhotoAnalysisBackfillJob::DEFAULT_BATCH_SIZE
   end
 
+  def openrouter_batch_size
+    Integer(params[:batch_size].presence || PhotoAnalysisOpenrouterBackfill::DEFAULT_LIMIT).clamp(1, PhotoAnalysisOpenrouterBackfill::MAX_LIMIT)
+  rescue ArgumentError
+    PhotoAnalysisOpenrouterBackfill::DEFAULT_LIMIT
+  end
+
   def geocode_location_limit
     Integer(params[:limit].presence || GeocodeMissingPhotoLocationsJob::DEFAULT_LIMIT).clamp(1, GeocodeMissingPhotoLocationsJob::MAX_LIMIT)
   rescue ArgumentError
@@ -250,7 +265,40 @@ class RepositoryStatusController < ApplicationController
         coverage_percent: eligible_count.positive? ? (embedded_count.to_f / eligible_count * 100).round(1) : 100.0,
         run_counts: PhotoAnalysisRun::STATUSES.index_with { |status| run_scope.where(status: status).count },
         latest_errors: PhotoAnalysisRun.where(provider: "openclip").where.not(error: [ nil, "" ]).latest_first.limit(5)
-      }
+      },
+      openrouter: openrouter_analysis_status
+    }
+  end
+
+  def openrouter_analysis_status
+    model = ENV.fetch("OPENROUTER_VISION_MODEL", OpenrouterVisionClient::DEFAULT_MODEL)
+    eligible = original_photos.where(restricted: false).where("photos.content_type LIKE ?", "image/%").distinct.count
+    runs = PhotoAnalysisRun.where(
+      provider: "openrouter",
+      model: model,
+      model_version: PhotoAnalysisOpenrouterJob::PROMPT_VERSION
+    )
+    completed = runs.complete.select(:photo_id).distinct.count
+    spend = PhotoAnalysisRun.openrouter_spend.to_d
+    costed = PhotoAnalysisRun.where(provider: "openrouter", status: "complete").where.not(cost_usd: nil)
+    average_cost = costed.exists? ? costed.average(:cost_usd).to_d : 0.to_d
+    budget = ENV.fetch("OPENROUTER_BUDGET_USD", 100).to_d
+    missing = [ eligible - completed, 0 ].max
+
+    {
+      model:,
+      prompt_version: PhotoAnalysisOpenrouterJob::PROMPT_VERSION,
+      configured: ENV["OPENROUTER_API_KEY"].present?,
+      eligible:,
+      completed:,
+      missing:,
+      coverage_percent: eligible.positive? ? (completed.to_f / eligible * 100).round(1) : 100.0,
+      run_counts: PhotoAnalysisRun::STATUSES.index_with { |status| runs.where(status:).count },
+      spend:,
+      budget:,
+      average_cost:,
+      projected_remaining_cost: average_cost.positive? ? average_cost * missing : PhotoAnalysisOpenrouterBackfill::DEFAULT_ESTIMATED_COST_USD * missing,
+      latest_errors: PhotoAnalysisRun.where(provider: "openrouter").where.not(error: [ nil, "" ]).latest_first.limit(5)
     }
   end
 
@@ -396,7 +444,9 @@ class RepositoryStatusController < ApplicationController
       AppSetting::ANALYSIS_YOLO_ENABLED => "YOLO object detection",
       AppSetting::ANALYSIS_OPENAI_ENABLED => "OpenAI vision enrichment",
       AppSetting::ANALYSIS_OPENAI_PUBLIC_ONLY => "OpenAI public photos only",
-      AppSetting::ANALYSIS_OPENAI_REQUIRE_OWNER_CONFIRM => "OpenAI requires owner confirmation"
+      AppSetting::ANALYSIS_OPENAI_REQUIRE_OWNER_CONFIRM => "OpenAI requires owner confirmation",
+      AppSetting::ANALYSIS_OPENROUTER_ENABLED => "OpenRouter Qwen vision captions",
+      AppSetting::ANALYSIS_OPENROUTER_AUTO_NEW_ENABLED => "OpenRouter captions for new uploads"
     }.fetch(key)
   end
 
