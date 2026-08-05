@@ -256,6 +256,58 @@ class PhotoAnalysisOpenrouterJobTest < ActiveJob::TestCase
     assert_equal OpenrouterVisionClient::DEFAULT_MAX_TOKENS, client.options.sole.fetch(:max_tokens)
   end
 
+  test "does not spend again after the persisted automatic retry ceiling" do
+    photo = attached_photo
+    create_failed_attempts(photo, PhotoAnalysisOpenrouterJob::MAX_PAID_ATTEMPTS_PER_SOURCE)
+    client = FakeVisionClient.new(response)
+
+    assert_no_difference "PhotoAnalysisRun.count" do
+      perform_with_client(photo, client)
+    end
+
+    assert_equal 0, client.calls
+  end
+
+  test "allows one explicit final attempt with caption recovery after the retry ceiling" do
+    photo = attached_photo
+    create_failed_attempts(photo, PhotoAnalysisOpenrouterJob::MAX_PAID_ATTEMPTS_PER_SOURCE)
+    client = FakeVisionClient.new(response)
+
+    perform_with_client(photo, client, force: true)
+
+    assert_equal 1, client.calls
+    assert_equal true, client.options.sole.fetch(:allow_caption_recovery)
+    assert_equal 1, photo.analysis_runs.where(provider: "openrouter", status: "complete").count
+  end
+
+  test "enables caption recovery on the fifth paid attempt" do
+    photo = attached_photo
+    create_failed_attempts(photo, PhotoAnalysisOpenrouterJob::MAX_PAID_ATTEMPTS_PER_SOURCE - 1)
+    client = FakeVisionClient.new(response)
+
+    perform_with_client(photo, client)
+
+    assert_equal true, client.options.sole.fetch(:allow_caption_recovery)
+  end
+
+  test "does not enqueue a sixth paid attempt" do
+    photo = attached_photo
+    create_failed_attempts(photo, PhotoAnalysisOpenrouterJob::MAX_PAID_ATTEMPTS_PER_SOURCE - 1)
+    client = FakeVisionClient.new(nil)
+    client.define_singleton_method(:analyze) do |**|
+      raise OpenrouterVisionClient::RetryableError, "malformed JSON"
+    end
+    job = PhotoAnalysisOpenrouterJob.new(photo)
+    job.define_singleton_method(:vision_client) { client }
+
+    assert_no_enqueued_jobs only: PhotoAnalysisOpenrouterJob do
+      assert_raises(OpenrouterVisionClient::RetryableError) { job.perform_now }
+    end
+
+    assert_equal PhotoAnalysisOpenrouterJob::MAX_PAID_ATTEMPTS_PER_SOURCE,
+      photo.analysis_runs.where(provider: "openrouter", status: "failed").count
+  end
+
   private
 
   FakeVisionClient = Struct.new(:response, :calls, :contexts, :options) do
@@ -294,6 +346,23 @@ class PhotoAnalysisOpenrouterJobTest < ActiveJob::TestCase
     photo.save!
     photo.original.variant(:display).processed
     photo
+  end
+
+  def create_failed_attempts(photo, count)
+    display = photo.processed_original_variant_record(:display)
+    checksum = Digest::SHA256.hexdigest(display.image.blob.download)
+    count.times do |index|
+      photo.analysis_runs.create!(
+        provider: "openrouter",
+        model: OpenrouterVisionClient::DEFAULT_MODEL,
+        model_version: PhotoAnalysisOpenrouterJob::PROMPT_VERSION,
+        status: "failed",
+        source_variant: "display",
+        source_checksum_sha256: checksum,
+        error: "Attempt #{index + 1} failed",
+        raw: { "failure_response" => { "failure_kind" => "invalid_json" } }
+      )
+    end
   end
 
   def response

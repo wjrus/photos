@@ -24,10 +24,18 @@ class OpenrouterVisionClientTest < ActiveSupport::TestCase
     assert_equal "json_schema", payload.dig(:response_format, :type)
     assert_equal true, payload.dig(:response_format, :json_schema, :strict)
     assert_equal false, payload.dig(:response_format, :json_schema, :schema, :additionalProperties)
+    schema = payload.dig(:response_format, :json_schema, :schema, :properties)
+    assert_equal OpenrouterVisionClient::MAX_CAPTION_LENGTH, schema.dig(:caption, :maxLength)
+    assert_equal OpenrouterVisionClient::MAX_TAGS, schema.dig(:tags, :maxItems)
+    assert_equal OpenrouterVisionClient::MAX_TAG_LENGTH, schema.dig(:tags, :items, :maxLength)
+    assert_equal OpenrouterVisionClient::MAX_READABLE_TEXT_ITEMS, schema.dig(:readable_text, :maxItems)
+    assert_equal OpenrouterVisionClient::MAX_READABLE_TEXT_LENGTH, schema.dig(:readable_text, :items, :maxLength)
     assert_equal OpenrouterVisionClient::DEFAULT_MAX_TOKENS, payload.fetch(:max_tokens)
     prompt = payload.dig(:messages, 0, :content, 0, :text)
     assert_includes prompt, "Never state what the image does not contain"
     assert_includes prompt, "omit categories that do not apply"
+    assert_includes prompt, "Do not transcribe"
+    assert_includes prompt, "at most 8 representative readable text snippets"
     assert_includes prompt, "Approximate location: Petoskey, Michigan"
     assert_includes prompt, "Capture date: 2026-08-04"
     assert_includes prompt, "supporting context"
@@ -57,6 +65,34 @@ class OpenrouterVisionClientTest < ActiveSupport::TestCase
 
     assert_includes error.message, "was not valid JSON"
     assert_equal '{"caption":"truncated', error.details.fetch("content_preview")
+  end
+
+  test "recovers a complete caption from malformed trailing JSON when explicitly allowed" do
+    content = <<~JSON.strip
+      {"caption":"A hand holds an open cocktail menu.","tags":["menu"],"readable_text":["Champagne" "Cocktails"]}
+    JSON
+    result = OpenrouterVisionClient.new(api_key: "secret").send(
+      :parse_content,
+      content,
+      allow_caption_recovery: true
+    )
+
+    assert_equal "A hand holds an open cocktail menu.", result.fetch("caption")
+    assert_empty result.fetch("tags")
+    assert_empty result.fetch("readable_text")
+    assert_equal true, result.fetch("_recovered_from_invalid_json")
+  end
+
+  test "does not recover an incomplete caption string" do
+    error = assert_raises(OpenrouterVisionClient::RetryableError) do
+      OpenrouterVisionClient.new(api_key: "secret").send(
+        :parse_content,
+        '{"caption":"An unfinished caption',
+        allow_caption_recovery: true
+      )
+    end
+
+    assert_includes error.message, "was not valid JSON"
   end
 
   test "reports empty successful responses with retry diagnostics" do
@@ -118,6 +154,7 @@ class OpenrouterVisionClientTest < ActiveSupport::TestCase
     assert_equal "A dog sits by a window.", result.fetch("caption")
     assert_equal %w[dog window], result.fetch("tags")
     assert_equal [ "OPEN" ], result.fetch("readable_text")
+    assert_equal false, result.fetch("recovered_from_invalid_json")
     assert_equal 2_500, result.fetch("input_tokens")
     assert_equal 0.000386, result.fetch("cost")
   end

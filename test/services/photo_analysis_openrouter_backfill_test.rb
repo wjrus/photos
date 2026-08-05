@@ -88,6 +88,28 @@ class PhotoAnalysisOpenrouterBackfillTest < ActiveJob::TestCase
     assert_equal 0, result.queued
   end
 
+  test "does not automatically queue a photo that already failed" do
+    photo = attached_photo("failed.jpg")
+    photo.analysis_runs.create!(
+      provider: "openrouter",
+      model: OpenrouterVisionClient::DEFAULT_MODEL,
+      model_version: PhotoAnalysisOpenrouterJob::PROMPT_VERSION,
+      status: "failed",
+      source_variant: "display",
+      error: "Retry ceiling reached",
+      raw: { "failure_response" => { "failure_kind" => "invalid_json" } }
+    )
+    clear_enqueued_jobs
+
+    result = nil
+    assert_no_enqueued_jobs only: PhotoAnalysisOpenrouterJob do
+      result = PhotoAnalysisOpenrouterBackfill.new.enqueue(limit: 100)
+    end
+
+    assert_equal 0, result.eligible
+    assert_equal 0, result.queued
+  end
+
   private
 
   def attached_photo(filename)

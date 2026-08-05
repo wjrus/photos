@@ -6,14 +6,19 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
   PROMPT_VERSION = "caption-v1".freeze
   ACTIVE_RUN_WINDOW = 15.minutes
   MAX_RETRY_ATTEMPTS = 5
+  MAX_PAID_ATTEMPTS_PER_SOURCE = 5
   MAX_RETRY_TOKENS = 1_536
 
   rescue_from OpenrouterVisionClient::RetryableError do |error|
-    if executions < MAX_RETRY_ATTEMPTS
+    if executions < MAX_RETRY_ATTEMPTS && persisted_attempts_remaining?
       wait = error.retry_after || (executions**4 + 2)
       Rails.logger.warn("OpenRouter vision retrying in #{wait}s after attempt #{executions}: #{error.message}")
       retry_job wait:, error:
     else
+      Rails.logger.error(
+        "OpenRouter vision retry ceiling reached photo=#{@analysis_photo&.id || 'unknown'} " \
+        "attempts=#{persisted_failure_count}"
+      )
       raise error
     end
   end
@@ -25,9 +30,18 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
     source = analysis_source(photo)
     image_bytes = source.fetch(:blob).download
     source_checksum = Digest::SHA256.hexdigest(image_bytes)
+    @analysis_photo = photo
+    @analysis_source_checksum = source_checksum
     context = analysis_context(photo)
     request_options = retry_request_options(photo, source_checksum)
     return if !force && current_run_exists?(photo, source_checksum)
+    if !force && retry_limit_reached?(photo, source_checksum)
+      Rails.logger.warn(
+        "OpenRouter vision skipped photo=#{photo.id}: retry ceiling reached " \
+        "attempts=#{failed_attempt_count(photo, source_checksum)}"
+      )
+      return
+    end
     if budget_exhausted?
       Rails.logger.warn("OpenRouter vision skipped photo=#{photo.id}: budget exhausted")
       return
@@ -46,6 +60,7 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
       image_bytes:,
       content_type: source.fetch(:blob).content_type || "image/jpeg",
       context:,
+      allow_caption_recovery: final_paid_attempt?(photo, source_checksum),
       **request_options
     )
     persist_result(photo, run, response)
@@ -143,6 +158,34 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
     ).where("started_at >= ?", ACTIVE_RUN_WINDOW.ago).exists?
   end
 
+  def failed_attempt_count(photo, source_checksum)
+    photo.analysis_runs.where(
+      provider: "openrouter",
+      model: model,
+      model_version: PROMPT_VERSION,
+      source_checksum_sha256: source_checksum,
+      status: "failed"
+    ).count
+  end
+
+  def retry_limit_reached?(photo, source_checksum)
+    failed_attempt_count(photo, source_checksum) >= MAX_PAID_ATTEMPTS_PER_SOURCE
+  end
+
+  def final_paid_attempt?(photo, source_checksum)
+    failed_attempt_count(photo, source_checksum) >= MAX_PAID_ATTEMPTS_PER_SOURCE - 1
+  end
+
+  def persisted_attempts_remaining?
+    persisted_failure_count < MAX_PAID_ATTEMPTS_PER_SOURCE
+  end
+
+  def persisted_failure_count
+    return 0 unless @analysis_photo && @analysis_source_checksum
+
+    failed_attempt_count(@analysis_photo, @analysis_source_checksum)
+  end
+
   def analysis_source(photo)
     display = photo.processed_original_variant_record(:display)
     return { blob: display.image.blob, variant: "display" } if display&.image&.attached?
@@ -237,7 +280,13 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
         cost_usd: response["cost"],
         finished_at: Time.current,
         raw: response.fetch("raw").merge(
-          "normalized" => response.slice("caption", "tags", "readable_text", "provider"),
+          "normalized" => response.slice(
+            "caption",
+            "tags",
+            "readable_text",
+            "provider",
+            "recovered_from_invalid_json"
+          ),
           "input_context" => input_context,
           "privacy" => { "zdr" => true, "data_collection" => "deny" }
         )
@@ -275,7 +324,8 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
       "OpenRouter vision completed photo=#{photo.id} run=#{run.id} provider=#{response['provider'].presence || 'unknown'} " \
       "input_tokens=#{response['input_tokens'] || 'unknown'} output_tokens=#{response['output_tokens'] || 'unknown'} " \
       "cost=#{response['cost'] || 'unknown'} tags=#{response.fetch('tags').size} " \
-      "readable_text=#{response.fetch('readable_text').size}"
+      "readable_text=#{response.fetch('readable_text').size} " \
+      "recovered=#{response['recovered_from_invalid_json'] == true}"
     )
   end
 

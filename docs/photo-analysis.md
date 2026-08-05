@@ -64,7 +64,9 @@ boxes, and searchable tags.
 ## OpenRouter Qwen Vision
 
 Qwen creates an accurate one- or two-sentence caption, up to 12 visual search
-tags, and clearly readable text. The current default is:
+tags, and up to 8 representative readable-text snippets. It does not attempt a
+full transcription of text-heavy documents, screens, signs, or menus. The
+current default is:
 
 ```text
 qwen/qwen3-vl-30b-a3b-instruct
@@ -218,13 +220,22 @@ Changing thread count requires a worker restart, normally through deploy.
 
 ### Retry Behavior
 
-OpenRouter jobs make up to five total attempts for retryable failures:
+OpenRouter jobs make up to five paid attempts per photo, model, prompt, and
+source image for retryable failures:
 
 - network timeouts and connection failures use increasing delays
 - HTTP `429` and `5xx` responses honor `Retry-After` when present
 - `finish=length` retries with a larger output allowance, up to 1,536 tokens
 - empty or malformed completed output retries while temporarily ignoring the
   provider that returned it
+- the fifth attempt may preserve a complete caption when only the trailing tags
+  or readable-text JSON is malformed
+
+The five-attempt ceiling is enforced from persisted analysis runs, so worker
+restarts, duplicate jobs, and later backfill commands cannot reset it. A photo
+with a failed current Qwen run is excluded from later automatic backfills.
+`photos:qwen[PHOTO_ID]` is the deliberate escape hatch: for an exhausted photo,
+it makes one forced call and does not start another retry chain.
 
 Failed runs preserve provider, request ID, finish reason, content size, token
 usage, reported cost, and a short response preview when available. A later

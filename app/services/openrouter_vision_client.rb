@@ -25,8 +25,15 @@ class OpenrouterVisionClient
   ENDPOINT = URI("https://openrouter.ai/api/v1/chat/completions")
   DEFAULT_MODEL = "qwen/qwen3-vl-30b-a3b-instruct".freeze
   DEFAULT_MAX_TOKENS = 768
+  MAX_CAPTION_LENGTH = 600
+  MAX_TAGS = 12
+  MAX_TAG_LENGTH = 40
+  MAX_READABLE_TEXT_ITEMS = 8
+  MAX_READABLE_TEXT_LENGTH = 120
   DEFAULT_PROMPT = <<~PROMPT.strip.freeze
     Describe the image accurately in 1-2 natural sentences. Mention people, setting, actions, notable objects, and clearly readable text only when they are visibly present. Never state what the image does not contain, and omit categories that do not apply. Do not speculate, identify people by name, or infer sensitive traits.
+
+    Do not transcribe text-heavy documents, screens, signs, or menus in full. Include at most 8 representative readable text snippets, each no longer than 120 characters.
 
     Return JSON with exactly these fields:
     - caption: the 1-2 sentence description
@@ -55,7 +62,14 @@ class OpenrouterVisionClient
     @api_key.present?
   end
 
-  def analyze(image_bytes:, content_type: "image/jpeg", context: {}, max_tokens: @max_tokens, ignored_providers: [])
+  def analyze(
+    image_bytes:,
+    content_type: "image/jpeg",
+    context: {},
+    max_tokens: @max_tokens,
+    ignored_providers: [],
+    allow_caption_recovery: false
+  )
     raise Error, "OPENROUTER_API_KEY is not configured" unless configured?
 
     response = perform_request(request_body(image_bytes:, content_type:, context:, max_tokens:, ignored_providers:))
@@ -65,16 +79,23 @@ class OpenrouterVisionClient
       "requested_max_tokens" => max_tokens,
       "ignored_providers" => ignored_providers.presence
     ).compact
-    result = parse_content(content, diagnostics:)
+    result = parse_content(content, diagnostics:, allow_caption_recovery:)
     usage = body.fetch("usage", {})
 
     {
       "request_id" => body["id"],
       "model" => body["model"].presence || model,
       "provider" => body["provider"],
-      "caption" => result.fetch("caption").to_s.strip,
-      "tags" => Array(result["tags"]).filter_map { |tag| tag.to_s.strip.downcase.presence }.uniq.first(12),
-      "readable_text" => Array(result["readable_text"]).filter_map { |text| text.to_s.strip.presence }.uniq.first(20),
+      "caption" => result.fetch("caption").to_s.strip.first(MAX_CAPTION_LENGTH),
+      "tags" => Array(result["tags"])
+        .filter_map { |tag| tag.to_s.strip.downcase.first(MAX_TAG_LENGTH).presence }
+        .uniq
+        .first(MAX_TAGS),
+      "readable_text" => Array(result["readable_text"])
+        .filter_map { |text| text.to_s.strip.first(MAX_READABLE_TEXT_LENGTH).presence }
+        .uniq
+        .first(MAX_READABLE_TEXT_ITEMS),
+      "recovered_from_invalid_json" => result["_recovered_from_invalid_json"] == true,
       "input_tokens" => usage["prompt_tokens"],
       "output_tokens" => usage["completion_tokens"],
       "cost" => usage["cost"],
@@ -115,19 +136,20 @@ class OpenrouterVisionClient
             properties: {
               caption: {
                 type: "string",
+                maxLength: MAX_CAPTION_LENGTH,
                 description: "An accurate 1-2 sentence description mentioning only content visibly present in the image, without statements about absent content."
               },
               tags: {
                 type: "array",
                 description: "Up to 12 short lowercase visual search terms.",
-                maxItems: 12,
-                items: { type: "string" }
+                maxItems: MAX_TAGS,
+                items: { type: "string", maxLength: MAX_TAG_LENGTH }
               },
               readable_text: {
                 type: "array",
-                description: "Short strings that are clearly readable in the image.",
-                maxItems: 20,
-                items: { type: "string" }
+                description: "Up to 8 representative short strings that are clearly readable in the image, never a full transcription.",
+                maxItems: MAX_READABLE_TEXT_ITEMS,
+                items: { type: "string", maxLength: MAX_READABLE_TEXT_LENGTH }
               }
             },
             required: %w[caption tags readable_text],
@@ -199,7 +221,7 @@ class OpenrouterVisionClient
     raise error_class, "OpenRouter returned invalid JSON (HTTP #{response.code}): #{error.message}"
   end
 
-  def parse_content(content, diagnostics: {})
+  def parse_content(content, diagnostics: {}, allow_caption_recovery: false)
     return content.stringify_keys if content.is_a?(Hash)
 
     text = content_text(content)
@@ -214,6 +236,15 @@ class OpenrouterVisionClient
     text = text.sub(/\A```(?:json)?\s*/i, "").sub(/\s*```\z/, "")
     JSON.parse(text)
   rescue JSON::ParserError => error
+    if allow_caption_recovery && (caption = recover_caption(text))
+      return {
+        "caption" => caption,
+        "tags" => [],
+        "readable_text" => [],
+        "_recovered_from_invalid_json" => true
+      }
+    end
+
     details = diagnostics.merge(
       "failure_kind" => "invalid_json",
       "content_preview" => text.to_s.first(500)
@@ -222,6 +253,33 @@ class OpenrouterVisionClient
       "OpenRouter vision response was not valid JSON: #{error.message} (#{diagnostic_label(details)})",
       details:
     )
+  end
+
+  def recover_caption(text)
+    match = text.to_s.match(/"caption"\s*:\s*/)
+    return unless match
+
+    start = match.end(0)
+    return unless text.getbyte(start) == 34
+
+    escaped = false
+    index = start + 1
+    while index < text.bytesize
+      byte = text.getbyte(index)
+      if escaped
+        escaped = false
+      elsif byte == 92
+        escaped = true
+      elsif byte == 34
+        caption = JSON.parse(text.byteslice(start, index - start + 1)).to_s.strip
+        return caption.first(MAX_CAPTION_LENGTH).presence
+      end
+      index += 1
+    end
+
+    nil
+  rescue JSON::ParserError
+    nil
   end
 
   def content_text(content)

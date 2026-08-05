@@ -76,7 +76,7 @@ class PhotoAnalysisOpenrouterBackfill
       provider: "openrouter",
       model: model,
       model_version: PhotoAnalysisOpenrouterJob::PROMPT_VERSION,
-      status: %w[pending running complete]
+      status: %w[pending running complete failed]
     ).select(:photo_id)
   end
 

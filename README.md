@@ -305,10 +305,16 @@ resume `vision`; pausing prevents queued and scheduled retry jobs from being
 claimed but does not interrupt an HTTP request already in progress.
 
 OpenRouter jobs retry transient HTTP failures, timeouts, empty responses, and
-malformed JSON up to five total attempts. Output truncated with `finish=length`
-is retried with a larger token allowance. Empty or malformed completed output is
-retried while temporarily excluding the provider that returned it. Failed paid
-attempts remain in analysis history and count toward the app's recorded spend.
+malformed JSON up to five paid attempts per photo/model/prompt/source. That
+ceiling is enforced from persisted runs, survives worker restarts, and excludes
+terminal failures from later automatic backfills. Output truncated with
+`finish=length` is retried with a larger token allowance. Empty or malformed
+completed output is retried while temporarily excluding the provider that
+returned it. The final attempt can preserve a valid caption when only trailing
+structured fields are malformed. Failed paid attempts remain in analysis
+history and count toward the app's recorded spend. The explicit
+`photos:qwen[PHOTO_ID]` task permits one deliberate forced call for an exhausted
+photo without beginning another retry chain.
 
 Queue a Google Takeout import from the configured import path:
 
