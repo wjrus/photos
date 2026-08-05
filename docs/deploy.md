@@ -4,7 +4,7 @@ Production is a small Docker Compose stack:
 
 - `app_proxy`: local nginx router on host port `3000`
 - `web_blue` / `web_green`: Rails, Puma, and Thruster app backends
-- `worker`: Solid Queue worker for checksums, EXIF, derivatives, and Drive mirrors
+- `worker`: Solid Queue workers for imports, derivatives, maintenance, local analysis, and paid vision
 - `analysis-local`: private local OpenCLIP/YOLO analysis sidecar
 - `db`: PostgreSQL with persistent data
 - `redis`: Redis cache for hot Rails cache entries
@@ -33,7 +33,28 @@ For production storage on the Unraid mount, set this in `.env.production`:
 
 ```sh
 PHOTOS_STORAGE_PATH=/mnt/photos/app_storage
+PHOTOS_IMPORT_PATH=/mnt/photos/imports
 ```
+
+`PHOTOS_IMPORT_PATH` is mounted read-only at `/rails/imports` for directory and
+Google Takeout imports.
+
+To enable Qwen captions through OpenRouter, add a dedicated limited key and the
+worker settings before deploying:
+
+```sh
+OPENROUTER_API_KEY=sk-or-v1-your-dedicated-key
+OPENROUTER_VISION_MODEL=qwen/qwen3-vl-30b-a3b-instruct
+OPENROUTER_BUDGET_USD=100
+OPENROUTER_ESTIMATED_COST_USD=0.0025
+OPENROUTER_MAX_TOKENS=768
+VISION_JOB_THREADS=2
+```
+
+Deploying does not permit external requests by itself. Enable the OpenRouter
+runtime flags from **Repository Status > Photo Analysis** after the app is up.
+See [Photo Analysis](photo-analysis.md) for privacy settings, pilots, backfills,
+monitoring, and queue controls.
 
 Required Google OAuth redirect URI:
 
@@ -77,6 +98,13 @@ Check status:
 ```sh
 docker compose ps
 ./scripts/logs
+```
+
+Follow local model or paid vision work separately:
+
+```sh
+./scripts/logs analysis
+./scripts/logs vision
 ```
 
 Open a Rails console:

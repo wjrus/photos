@@ -144,7 +144,7 @@ Production runs as a Docker Compose stack:
 
 - `app_proxy`: local nginx router exposed on host port `3000`
 - `web_blue` / `web_green`: Rails, Puma, and Thruster app backends used for blue/green deploys
-- `worker`: Solid Queue workers for imports, archive mirrors, metadata, checksums, derivatives, and maintenance
+- `worker`: Solid Queue workers for imports, archive mirrors, metadata, checksums, derivatives, maintenance, and paid vision jobs
 - `db`: PostgreSQL
 - `redis`: low-latency Rails cache for hot UI/data reads
 - mounted app storage for originals and generated derivatives
@@ -179,11 +179,12 @@ Queue a baseline repository scan from `/repository_status` with `Queue baseline 
 docker compose exec worker bin/rails runner 'OriginalFileHealthPatrolJob.perform_later(batch_size: 50000, stale_after: 100.years)'
 ```
 
-Routine patrols are scheduled through Solid Queue recurring jobs. The worker config includes a dedicated `solid_queue_recurring` worker plus bounded queues for imports, archive work, maintenance, analysis, video previews, derivatives, and default jobs.
+Routine patrols are scheduled through Solid Queue recurring jobs. The worker config includes a dedicated `solid_queue_recurring` worker plus bounded queues for imports, archive work, maintenance, local analysis, paid vision, video previews, derivatives, and default jobs.
 
 Photo analysis uses optional provider flags and a local sidecar for OpenCLIP and
-YOLO. See [docs/photo-analysis.md](docs/photo-analysis.md) for the development
-and production rollout plan.
+YOLO. Qwen captions use OpenRouter from a dedicated worker queue. See
+[docs/photo-analysis.md](docs/photo-analysis.md) for setup, privacy, backfills,
+monitoring, failure handling, and provider status.
 
 ## Useful Production Commands
 
@@ -203,8 +204,13 @@ Follow logs:
 ./scripts/logs
 ./scripts/logs web
 ./scripts/logs web worker
+./scripts/logs analysis
+./scripts/logs vision
 ./scripts/logs all
 ```
+
+`analysis` follows the local OpenCLIP/YOLO sidecar. `vision` follows the worker
+that processes OpenRouter Qwen jobs.
 
 Open a Rails console:
 
@@ -251,6 +257,58 @@ Prune stale jobs after code/queue changes:
 ```sh
 ./scripts/prune-stale-jobs
 ```
+
+### Run Qwen vision captions
+
+OpenRouter credentials and the spend ceiling live in `.env.production`. The two
+runtime switches live under **Repository Status > Photo Analysis**:
+
+- **OpenRouter Qwen vision captions** permits paid API calls.
+- **OpenRouter captions for new uploads** automatically captions new web and
+  directory imports after their stripped display JPEG is ready.
+
+Preview a 100-photo backfill without queueing or spending anything, then run the
+pilot:
+
+```sh
+docker compose exec -e DRY_RUN=true -e LIMIT=100 worker \
+  bin/rails photos:openrouter_backfill
+docker compose exec -e LIMIT=100 worker bin/rails photos:openrouter_backfill
+```
+
+Queue a larger bounded batch after reviewing the pilot in Repository Status:
+
+```sh
+docker compose exec -e LIMIT=1000 worker bin/rails photos:openrouter_backfill
+```
+
+Regenerate one photo by database ID:
+
+```sh
+docker compose exec worker bin/rails 'photos:qwen[40621]'
+```
+
+The one-photo command force-runs the current model and prompt. It replaces an
+untouched generated caption while preserving a caption edited by the owner.
+Backfills reserve photos before enqueueing, so rerunning a batch fills the next
+eligible set instead of duplicating paid requests.
+
+Monitor progress and detailed provider diagnostics with:
+
+```sh
+./scripts/logs vision
+```
+
+Repository Status shows coverage, pending/running/failed counts, recorded spend,
+projected remaining cost, and recent errors. The **Queues** page can pause or
+resume `vision`; pausing prevents queued and scheduled retry jobs from being
+claimed but does not interrupt an HTTP request already in progress.
+
+OpenRouter jobs retry transient HTTP failures, timeouts, empty responses, and
+malformed JSON up to five total attempts. Output truncated with `finish=length`
+is retried with a larger token allowance. Empty or malformed completed output is
+retried while temporarily excluding the provider that returned it. Failed paid
+attempts remain in analysis history and count toward the app's recorded spend.
 
 Queue a Google Takeout import from the configured import path:
 
@@ -315,7 +373,13 @@ DEFAULT_JOB_THREADS=1
 JOB_PROCESSES=1
 ```
 
-If the VM shows memory pressure or swap activity, reduce `DERIVATIVE_JOB_THREADS` first.
+`VISION_JOB_THREADS=2` runs two OpenRouter calls concurrently. Change worker
+thread counts conservatively and redeploy so the worker process is recreated.
+The provider may apply account- or model-specific rate limits; four vision
+threads is a reasonable next step only after a clean pilot.
+
+If the VM shows memory pressure or swap activity, reduce
+`DERIVATIVE_JOB_THREADS` first.
 
 Queues can be paused and resumed from `/repository_status` for operational control. Worker thread/process counts still come from environment variables because they affect container process shape and require a restart.
 
@@ -365,4 +429,6 @@ OpenRouter vision is also enabled from the **Photo Analysis** section of
 Repository Status. Enable **OpenRouter Qwen vision captions** to permit API
 calls and **OpenRouter captions for new uploads** to caption new web/CLI imports
 after their stripped display JPEG is ready. The API key and spend ceiling remain
-server-side environment values.
+server-side environment values. Set a hard credit limit on the dedicated
+OpenRouter key as the final billing guard; the app ceiling includes recorded
+costs but cannot cancel requests already in flight.

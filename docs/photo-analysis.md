@@ -1,77 +1,129 @@
-# Photo Analysis Plan
+# Photo Analysis
 
-Photo analysis is intentionally provider-based and opt-in. Local processors run
-first; external APIs stay off until the owner explicitly enables them.
+Photo analysis is provider-based, owner-only, and opt-in. Local OpenCLIP runs
+inside Docker. Qwen vision calls OpenRouter only after the owner supplies a key
+and enables the runtime feature. Restricted photos are excluded from external
+analysis.
 
-## Goals
+## Current Status
 
-- Make the library searchable by visual concepts such as `dog`, `car`,
-  `landscape`, `network rack`, `flower`, and similar text prompts.
-- Store provider outputs with model versions so analyses can be re-run safely.
-- Keep every local and external analysis provider independently controlled.
-- Use display or stream derivatives by default, not originals.
-- Keep face recognition out of this first implementation phase.
+| System | Status | Purpose | Runtime |
+| --- | --- | --- | --- |
+| OpenCLIP | Implemented | Semantic image search | Local analysis sidecar |
+| YOLO | Scaffolded | Object labels and bounding boxes | Local endpoint currently returns `501` |
+| OpenRouter Qwen | Implemented | Editable captions, visual tags, readable text | Dedicated `vision` queue |
+| OpenAI Vision | Deferred | Possible future enrichment | Disabled and unconfigured |
 
-## Systems
+Face recognition and automatic identity assignment are intentionally outside
+the current scope. People tags remain owner-managed.
 
-### OpenCLIP
+## Data Flow
 
-- Purpose: local semantic image/text search.
-- Runtime: Docker sidecar on the private Compose network.
-- API keys: none.
-- Rails flag: `analysis_openclip_enabled`.
-- Output: image embeddings stored in a local vector index, with metadata in
-  `photo_embeddings`.
-- Search exposure: owner text search calls the local `/openclip/search`
-  endpoint when OpenCLIP is enabled, filters matches through normal visibility
-  rules, and merges those matches into stream-ordered results.
-- Detail exposure: owner photo details show OpenCLIP embedding status,
-  model/version, source derivative, and latest analysis errors.
+1. A web upload, directory import, or Takeout import creates a normal `Photo`.
+2. Metadata and stripped display derivatives are generated locally.
+3. Enabled analysis jobs use the display derivative rather than the original.
+4. Provider results are versioned in `photo_analysis_runs` and normalized into
+   embeddings or tags.
+5. Owner search and the photo details panel expose the resulting data.
 
-### YOLO
+Analysis feature switches are `AppSetting` values managed from **Repository
+Status > Photo Analysis**. Secrets, model choices, budgets, and worker process
+shape remain environment settings.
 
-- Purpose: local object detection with concrete labels and bounding boxes.
-- Runtime: Docker sidecar on the private Compose network.
-- API keys: none.
-- Rails flag: `analysis_yolo_enabled`.
-- Output: `photo_analysis_objects` rows plus normalized searchable tags.
-- First implementation target: detect common objects and expose them in the
-  owner metadata panel.
+## OpenCLIP
 
-### OpenRouter Qwen Vision
+OpenCLIP provides local text-to-image semantic search such as `dog`, `car`,
+`landscape`, or `network rack`.
 
-- Purpose: create an accurate, editable 1-2 sentence caption plus visual search
-  tags and clearly readable text.
-- Runtime: a dedicated Solid Queue `vision` worker calls OpenRouter directly;
-  no additional inference container is required.
-- Default model: `qwen/qwen3-vl-30b-a3b-instruct`.
-- API key: create a dedicated limited key at
-  <https://openrouter.ai/settings/keys> and store it as
-  `OPENROUTER_API_KEY` only on the server.
-- Rails flags:
-  - `analysis_openrouter_enabled` permits OpenRouter requests.
-  - `analysis_openrouter_auto_new_enabled` captions new uploads and directory
-    imports after their display derivative is ready.
-- Privacy: every request requires a zero-data-retention provider, denies data
-  collection, and requires support for the requested JSON response parameters.
-  Disable prompt logging and the data-sharing discount in OpenRouter account
-  privacy settings before enabling the feature.
-- Source: a stripped, resized display JPEG. Originals and restricted photos are
-  never sent. The initial implementation handles still images only.
-- Context: when already available locally, the request includes the friendly
-  cached place name, capture date, and camera make/model. It never sends exact
-  coordinates, filenames, or plus-code-only locations, and it performs no
-  additional geocoding calls.
-- Caption behavior: Qwen fills the normal editable photo caption only when it is
-  blank. A handwritten/imported caption is never overwritten. The generated
-  source remains in `photo_analysis_runs.summary` after edits.
-- Search: owner search includes completed Qwen summaries and normalized visual
-  tags in addition to the visible caption.
-- Accounting: request ID, tokens, provider response, and reported cost are saved
-  per run. `OPENROUTER_BUDGET_USD` stops new calls once completed spend reaches
-  the app ceiling. A hard limit on the OpenRouter key remains the final guard.
+- Rails flag: `analysis_openclip_enabled`
+- API key: none
+- Source: best available display JPEG
+- Runtime: `analysis-local` Docker service
+- Output: vectors in the persistent `analysis_index` volume and metadata in
+  `photo_embeddings`
+- Search: owner text search queries `/openclip/search`, applies normal photo
+  visibility rules, and merges visual matches into the result stream
+- Details: the owner panel shows model, source derivative, completion time, and
+  the latest error
 
-The production environment values are:
+The sidecar keeps its vector matrix in memory and warms it in the background on
+startup. Set `OPENCLIP_WARM_ON_START=false` to disable that warmup. Rails caches
+semantic query results briefly so returning from a photo to the same search is
+fast.
+
+## YOLO
+
+The Rails job, persistence model, feature flag, and sidecar route exist, but
+model dependencies and inference are not installed yet. `/yolo/detect` returns
+`501` until this phase is implemented. Keep `analysis_yolo_enabled` disabled in
+production.
+
+The intended output is normalized `photo_analysis_objects` rows, bounding
+boxes, and searchable tags.
+
+## OpenRouter Qwen Vision
+
+Qwen creates an accurate one- or two-sentence caption, up to 12 visual search
+tags, and clearly readable text. The current default is:
+
+```text
+qwen/qwen3-vl-30b-a3b-instruct
+```
+
+The prompt asks the model to mention visible people, setting, actions, notable
+objects, and readable text when present. It explicitly avoids statements about
+missing content, speculation, named identification of people, and sensitive
+trait inference.
+
+### Privacy
+
+Each request:
+
+- sends a stripped, resized display JPEG rather than the original
+- excludes locked/restricted photos
+- uses [OpenRouter zero-data-retention routing](https://openrouter.ai/docs/guides/features/zdr)
+  with `zdr: true`
+- applies [provider data-policy filtering](https://openrouter.ai/docs/guides/routing/provider-selection)
+  with `data_collection: deny`
+- requires providers that support the requested JSON schema parameters
+- does not store the submitted image in the analysis run
+
+The request may include a capture date, camera make/model, and a broad locality
+derived from the cached location record. It never includes exact coordinates,
+original filenames, Plus Codes, or a new reverse-geocoding lookup. The prompt
+also warns that the location is approximate and must not be used by itself to
+identify a building, venue, business, or landmark.
+
+Before enabling the feature, review OpenRouter's
+[data collection](https://openrouter.ai/docs/guides/privacy/data-collection) and
+[input/output logging](https://openrouter.ai/docs/guides/features/input-output-logging)
+settings. Keep logging and the data-sharing discount disabled. Use a dedicated
+API key with a hard credit limit. The hard key limit is the final billing guard.
+
+### Caption and Search Behavior
+
+The generated description is copied into the normal editable photo caption when
+that caption is blank. Owner edits are preserved. A forced regeneration replaces
+an untouched prior generated caption, while the generated source remains in
+`photo_analysis_runs.summary` for history and search.
+
+Owner search includes:
+
+- the visible editable caption
+- completed Qwen summaries
+- exact normalized Qwen visual tags
+- OpenCLIP similarity results when enabled
+
+The owner photo details panel shows the Qwen model, status, generated text,
+visual tags, cost, and latest error.
+
+### OpenRouter Setup
+
+1. Create an OpenRouter account and a dedicated key at
+   <https://openrouter.ai/settings/keys>.
+2. Put a hard credit limit on that key.
+3. Review OpenRouter privacy settings and disable logging/data-sharing options.
+4. Add these values to `.env.production` on the Docker host:
 
 ```sh
 OPENROUTER_API_KEY=sk-or-v1-your-dedicated-key
@@ -82,129 +134,184 @@ OPENROUTER_MAX_TOKENS=768
 VISION_JOB_THREADS=2
 ```
 
-`VISION_JOB_THREADS=2` runs two simultaneous OpenRouter requests. Start there;
-four is a sensible next step after a clean pilot. The client honors OpenRouter's
-`Retry-After` guidance for rate limits and temporary provider unavailability.
+5. Deploy so the app and worker receive the environment:
 
-After deployment, enable the two OpenRouter flags in **Repository Status >
-Photo Analysis**. New ingests are automatic. Start the existing-library backfill
-with a dry run and a 100-photo pilot:
+```sh
+cd ~/apps/photos
+./scripts/deploy
+```
+
+6. In **Repository Status > Photo Analysis**, enable **OpenRouter Qwen vision
+   captions**. Enable **OpenRouter captions for new uploads** when new web and
+   directory imports should be captioned automatically.
+
+The app budget is a reservation and monitoring ceiling. It includes every run
+with a reported cost, including failed paid attempts. A few requests already in
+flight can finish after the ceiling is reached, so the OpenRouter key limit must
+remain the hard cap.
+
+### Backfill Existing Photos
+
+Start with a dry run. It reports eligibility and budget capacity without
+queueing jobs or spending money:
 
 ```sh
 docker compose exec -e DRY_RUN=true -e LIMIT=100 worker \
   bin/rails photos:openrouter_backfill
-docker compose exec -e LIMIT=100 worker bin/rails photos:openrouter_backfill
 ```
 
-Inspect captions, tags, failures, average cost, and projected spend in Repository
-Status before increasing the batch. Continue in bounded chunks:
+Run a 100-photo pilot, inspect the results, and then queue larger bounded
+batches:
 
 ```sh
+docker compose exec -e LIMIT=100 worker bin/rails photos:openrouter_backfill
 docker compose exec -e LIMIT=1000 worker bin/rails photos:openrouter_backfill
 ```
 
-Regenerate the Qwen caption and tags for one photo by ID:
+`LIMIT` defaults to 100 and is capped at 50,000. The Repository Status UI offers
+25, 100, and 1,000-photo batches. The backfill reserves each selected photo
+before enqueueing, so running it again selects the next eligible photos rather
+than duplicating paid requests. Qwen backfills are not recurring jobs.
+
+### Run One Photo
+
+Force a fresh Qwen run for one database photo ID:
 
 ```sh
-docker compose exec worker bin/rails 'photos:qwen[40760]'
+docker compose exec worker bin/rails 'photos:qwen[40621]'
 ```
 
-The command validates the photo and configuration, then force-queues one job on
-the dedicated `vision` queue. An untouched generated caption is replaced when
-the job completes; a caption edited by the owner is preserved.
+The task validates that Qwen is enabled, the API key is present, and the photo
+is an unlocked still image with an attached original. It queues the work on the
+`vision` queue and prints the Active Job ID.
 
-Empty content, malformed JSON, rate limits, and temporary provider failures are
-retried up to five total attempts. Failed response records retain request,
-provider, finish, token, and cost diagnostics without storing the submitted
-image. A later successful attempt marks its earlier failures as recovered.
-Retries that hit the output limit receive up to 1,536 tokens; retries for empty
-or malformed completed output temporarily skip the provider that just failed.
+### Monitor and Control the Queue
 
-The task reserves each selected photo before queueing it, so rerunning it does
-not duplicate paid requests. `LIMIT` defaults to 100 and is capped at 50,000.
-The UI offers 25, 100, and 1,000-photo batches. Neither path is part of the
-recurring local-analysis backfill.
+Repository Status shows completion coverage, pending/running/failed counts,
+recorded spend, average completed-photo cost, projected remaining cost, and the
+latest errors.
 
-### OpenAI Vision
+Follow detailed job and provider logs on the server:
 
-- Purpose: rich descriptions and nuanced tags for concepts local models miss.
-- Runtime: Rails worker calling the OpenAI API.
-- API key: `OPENAI_API_KEY`, stored only server-side.
-- Rails flags:
-  - `analysis_openai_enabled`
-  - `analysis_openai_public_only`
-  - `analysis_openai_require_owner_confirm`
-- Default posture: disabled, public-only, owner-confirmed.
-- Security posture: send stripped display derivatives only; log every external
-  send; never process private/restricted photos unless a separate future setting
-  is added and explicitly enabled.
+```sh
+./scripts/logs vision
+```
 
-OpenAI states that API inputs and outputs are not used for training by default
-unless the account opts in. Abuse-monitoring retention and stricter retention
-options should be reviewed before enabling broad backfills.
+The log includes photo ID, analysis run ID, model, derivative byte size, metadata
+context fields, requested token limit, ignored retry providers, request ID,
+actual provider, tokens, cost, tags, and failure diagnostics.
 
-## Data Model
+Pause or resume the `vision` queue from **Repository Status > Queues**. The CLI
+equivalent is:
 
-- `photo_analysis_runs`: provider/model/status/raw output summary.
-- `photo_analysis_tags`: normalized provider tags.
-- `photo_analysis_objects`: detected objects and bounding boxes.
-- `photo_embeddings`: metadata for vectors stored in the local index.
+```sh
+docker compose exec worker bin/rails runner \
+  'SolidQueue::Queue.find_by_name("vision").pause'
+docker compose exec worker bin/rails runner \
+  'SolidQueue::Queue.find_by_name("vision").resume'
+```
 
-## Development Action Items
+Pausing stops workers from claiming queued jobs and scheduled retries. It does
+not cancel a request already in progress. `VISION_JOB_THREADS=2` permits two
+simultaneous calls; four is a reasonable next step only after a clean pilot.
+Changing thread count requires a worker restart, normally through deploy.
 
-1. Run migrations and model tests for the analysis schema.
-2. Build the local analysis sidecar with FastAPI.
-3. Add `/health`, `/openclip/embed`, `/openclip/search`, and `/yolo/detect`
-   endpoints to the sidecar.
-4. Add Rails client classes for the sidecar.
-5. Add `PhotoAnalysisBackfillJob` to enqueue provider-specific jobs.
-6. Add `PhotoAnalysisOpenclipJob` and persist vector index metadata.
-7. Add semantic search integration. Done for owner search; results are merged
-   into stream order rather than ranked by similarity.
-8. Add `PhotoAnalysisYoloJob` and normalize detections into tags.
-9. Add owner UI for analysis status, tags, and detections.
-10. Add OpenRouter Qwen captions with ZDR routing, spend accounting, and an
-    owner-controlled pilot. Done.
-11. Add OpenAI only if a later use case justifies another external provider.
+### Retry Behavior
 
-## Production Action Items
+OpenRouter jobs make up to five total attempts for retryable failures:
 
-1. Deploy migrations.
-2. Add `ANALYSIS_LOCAL_CONTAINER_URL=http://analysis-local:8000`.
-3. Add an `analysis-local` Docker service with read-only storage access and a
-   persistent model/index cache volume.
-4. Start with `analysis_openclip_enabled=false`, `analysis_yolo_enabled=false`,
-   and `analysis_openai_enabled=false`.
-5. Enable OpenCLIP first and run a small backfill batch.
-6. Verify disk usage, runtime, CPU/GPU pressure, and search quality.
-7. Enable YOLO for a small batch after OpenCLIP is stable.
-8. Configure a dedicated limited OpenRouter key and a $100 app ceiling.
-9. Enable OpenRouter and automatic new-upload captions, then run a 100-photo
-   pilot before larger backfill batches.
-10. Keep `OPENAI_API_KEY` absent until the owner is ready for an explicit pilot.
-11. If OpenAI is piloted, create a dedicated OpenAI project/key with usage caps,
-   keep public-only enabled, and run a tiny confirmed batch first.
+- network timeouts and connection failures use increasing delays
+- HTTP `429` and `5xx` responses honor `Retry-After` when present
+- `finish=length` retries with a larger output allowance, up to 1,536 tokens
+- empty or malformed completed output retries while temporarily ignoring the
+  provider that returned it
 
-## Local Sidecar
+Failed runs preserve provider, request ID, finish reason, content size, token
+usage, reported cost, and a short response preview when available. A later
+success marks earlier failures for the same photo/model/source as recovered
+(`skipped`) while retaining their diagnostics and cost.
 
-The deploy script enables the Compose `analysis` profile automatically, starts
-the sidecar, verifies its storage mount, and waits for `/health`. It reuses the
-existing `photos-analysis-local:latest` image after the first build; use
-`REBUILD_ANALYSIS=true ./scripts/deploy` after sidecar code or dependency
-changes. For manual local checks, the service is still available behind the
-`analysis` profile:
+Useful error interpretations:
+
+- `finish=length`: the provider truncated otherwise valid output; the next
+  attempt receives more output tokens.
+- `finish=stop bytes=0`: the provider completed with no message content; the
+  next attempt routes around that provider.
+- malformed JSON with `finish=stop`: a provider returned incomplete structured
+  output; the next attempt routes around it.
+- `429` or `503`: account/model capacity is temporarily constrained; the job
+  waits and retries.
+
+### Start the Qwen Backfill Over
+
+This maintenance procedure removes Qwen analysis history, generated captions,
+tags, queued vision jobs, and the app's recorded Qwen spend. It preserves owner
+captions that no longer match their generated source. OpenRouter billing records
+and actual charges are unaffected.
+
+Stop the worker first, run the cleanup, and deploy to restart it:
+
+```sh
+cd ~/apps/photos
+docker compose stop worker
+docker compose run --rm -T worker bin/rails runner - <<'RUBY'
+generated = Photo.where(<<~SQL)
+  EXISTS (
+    SELECT 1
+    FROM photo_analysis_runs runs
+    WHERE runs.photo_id = photos.id
+      AND runs.provider = 'openrouter'
+      AND runs.summary = photos.description
+  )
+SQL
+
+captions = generated.update_all(description: nil, updated_at: Time.current)
+tags = PhotoAnalysisTag.where(provider: "openrouter").delete_all
+runs = PhotoAnalysisRun.where(provider: "openrouter").delete_all
+jobs = SolidQueue::Job.where(queue_name: "vision").delete_all
+
+puts "Cleared generated captions: #{captions}"
+puts "Deleted Qwen tags: #{tags}"
+puts "Deleted Qwen runs: #{runs}"
+puts "Deleted vision jobs: #{jobs}"
+RUBY
+./scripts/deploy
+```
+
+Run a new dry run before starting another paid backfill.
+
+## Local Analysis Sidecar
+
+The deploy script enables the Compose `analysis` profile, starts the sidecar,
+verifies its read-only storage mount, and waits for `/health`. It reuses the
+existing `photos-analysis-local:latest` image after the first build. Rebuild it
+after sidecar code or dependency changes:
+
+```sh
+REBUILD_ANALYSIS=true ./scripts/deploy
+```
+
+For manual checks:
 
 ```sh
 docker compose --profile analysis up -d analysis-local
+./scripts/logs analysis
 ```
 
-The sidecar exposes a health check plus OpenCLIP embedding/search endpoints.
-Embeddings are written under the `analysis_index` Docker volume. YOLO endpoints
-intentionally return `501` until their model dependencies and inference code are
-added.
+The image retains GPU-capable dependencies but runs on CPU when no compatible
+GPU runtime is available.
 
-OpenCLIP search keeps the vector matrix in the sidecar process memory. The
-sidecar warms that index in the background on startup by default; set
-`OPENCLIP_WARM_ON_START=false` to disable warmup. Rails also caches semantic
-query results briefly so returning to the same search does not call the sidecar
-again.
+## Data Model
+
+- `photo_analysis_runs`: provider, model, prompt/model version, status, source
+  checksum, summary, request diagnostics, token usage, and cost
+- `photo_analysis_tags`: normalized provider tags
+- `photo_analysis_objects`: future YOLO detections and bounding boxes
+- `photo_embeddings`: OpenCLIP vector index metadata
+
+## Future Providers
+
+OpenAI Vision remains deferred because the current Qwen path covers the caption
+use case with a lower-cost model and explicit OpenRouter privacy routing. If it
+is added later, use a dedicated project/key, stripped display derivatives,
+owner confirmation, a tiny pilot, and an explicit policy for private photos.
