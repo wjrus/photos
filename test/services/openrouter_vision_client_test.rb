@@ -35,6 +35,21 @@ class OpenrouterVisionClientTest < ActiveSupport::TestCase
     assert payload.dig(:messages, 0, :content, 1, :image_url, :url).start_with?("data:image/jpeg;base64,")
   end
 
+  test "can increase output room and ignore one failed provider on retry" do
+    client = OpenrouterVisionClient.new(api_key: "secret")
+    payload = client.send(
+      :request_body,
+      image_bytes: "jpeg",
+      max_tokens: 1_536,
+      ignored_providers: [ "novita" ]
+    )
+
+    assert_equal 1_536, payload.fetch(:max_tokens)
+    assert_equal [ "novita" ], payload.dig(:provider, :ignore)
+    assert_equal true, payload.dig(:provider, :zdr)
+    assert_equal "deny", payload.dig(:provider, :data_collection)
+  end
+
   test "treats malformed model JSON as retryable" do
     error = assert_raises(OpenrouterVisionClient::RetryableError) do
       OpenrouterVisionClient.new(api_key: "secret").send(:parse_content, '{"caption":"truncated')
@@ -65,6 +80,8 @@ class OpenrouterVisionClientTest < ActiveSupport::TestCase
     assert_includes error.message, "provider=SiliconFlow"
     assert_equal "generation-empty", error.details.fetch("request_id")
     assert_equal 0.00075, error.details.dig("usage", "cost")
+    assert_equal "empty_content", error.details.fetch("failure_kind")
+    assert_equal OpenrouterVisionClient::DEFAULT_MAX_TOKENS, error.details.fetch("requested_max_tokens")
   end
 
   test "preserves retry after guidance on rate limits" do

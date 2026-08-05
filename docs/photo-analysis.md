@@ -78,6 +78,7 @@ OPENROUTER_API_KEY=sk-or-v1-your-dedicated-key
 OPENROUTER_VISION_MODEL=qwen/qwen3-vl-30b-a3b-instruct
 OPENROUTER_BUDGET_USD=100
 OPENROUTER_ESTIMATED_COST_USD=0.0025
+OPENROUTER_MAX_TOKENS=768
 VISION_JOB_THREADS=2
 ```
 
@@ -116,6 +117,8 @@ Empty content, malformed JSON, rate limits, and temporary provider failures are
 retried up to five total attempts. Failed response records retain request,
 provider, finish, token, and cost diagnostics without storing the submitted
 image. A later successful attempt marks its earlier failures as recovered.
+Retries that hit the output limit receive up to 1,536 tokens; retries for empty
+or malformed completed output temporarily skip the provider that just failed.
 
 The task reserves each selected photo before queueing it, so rerunning it does
 not duplicate paid requests. `LIMIT` defaults to 100 and is capped at 50,000.

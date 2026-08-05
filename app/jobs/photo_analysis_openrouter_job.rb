@@ -6,6 +6,7 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
   PROMPT_VERSION = "caption-v1".freeze
   ACTIVE_RUN_WINDOW = 15.minutes
   MAX_RETRY_ATTEMPTS = 5
+  MAX_RETRY_TOKENS = 1_536
 
   rescue_from OpenrouterVisionClient::RetryableError do |error|
     if executions < MAX_RETRY_ATTEMPTS
@@ -25,6 +26,7 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
     image_bytes = source.fetch(:blob).download
     source_checksum = Digest::SHA256.hexdigest(image_bytes)
     context = analysis_context(photo)
+    request_options = retry_request_options(photo, source_checksum)
     return if !force && current_run_exists?(photo, source_checksum)
     if budget_exhausted?
       Rails.logger.warn("OpenRouter vision skipped photo=#{photo.id}: budget exhausted")
@@ -36,12 +38,15 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
 
     Rails.logger.info(
       "OpenRouter vision started photo=#{photo.id} run=#{run.id} model=#{run.model} " \
-      "source=#{run.source_variant} bytes=#{image_bytes.bytesize} context=#{context.keys.join(',').presence || 'none'}"
+      "source=#{run.source_variant} bytes=#{image_bytes.bytesize} context=#{context.keys.join(',').presence || 'none'} " \
+      "max_tokens=#{request_options.fetch(:max_tokens)} " \
+      "ignored_providers=#{request_options.fetch(:ignored_providers).presence&.join(',') || 'none'}"
     )
     response = vision_client.analyze(
       image_bytes:,
       content_type: source.fetch(:blob).content_type || "image/jpeg",
-      context:
+      context:,
+      **request_options
     )
     persist_result(photo, run, response)
   rescue OpenrouterVisionClient::Error, ActiveStorage::FileNotFoundError => error
@@ -167,6 +172,33 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
     camera = [ metadata&.camera_make, metadata&.camera_model ].compact_blank.join(" ").presence
     context[:camera] = camera if camera
     context
+  end
+
+  def retry_request_options(photo, source_checksum)
+    failures = photo.analysis_runs.where(
+      provider: "openrouter",
+      model: model,
+      model_version: PROMPT_VERSION,
+      source_checksum_sha256: source_checksum,
+      status: "failed"
+    ).latest_first.limit(MAX_RETRY_ATTEMPTS).to_a
+    diagnostics = failures.filter_map { |run| run.raw["failure_response"].presence }
+    truncated_count = diagnostics.count { |details| details["finish_reason"] == "length" }
+    base_max_tokens = vision_client.max_tokens
+    max_tokens = [ base_max_tokens * (2**truncated_count), MAX_RETRY_TOKENS ].min
+
+    failed_provider = diagnostics.find do |details|
+      details["failure_kind"].in?(%w[empty_content invalid_json]) && details["finish_reason"] != "length"
+    end&.fetch("provider", nil)
+
+    {
+      max_tokens:,
+      ignored_providers: Array(failed_provider).map { |provider| provider_slug(provider) }
+    }
+  end
+
+  def provider_slug(provider)
+    provider.to_s.downcase.gsub(/[^a-z0-9]+/, "-").delete_suffix("-")
   end
 
   def approximate_location_name(place)

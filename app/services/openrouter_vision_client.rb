@@ -24,7 +24,7 @@ class OpenrouterVisionClient
 
   ENDPOINT = URI("https://openrouter.ai/api/v1/chat/completions")
   DEFAULT_MODEL = "qwen/qwen3-vl-30b-a3b-instruct".freeze
-  DEFAULT_MAX_TOKENS = 480
+  DEFAULT_MAX_TOKENS = 768
   DEFAULT_PROMPT = <<~PROMPT.strip.freeze
     Describe the image accurately in 1-2 natural sentences. Mention people, setting, actions, notable objects, and clearly readable text only when they are visibly present. Never state what the image does not contain, and omit categories that do not apply. Do not speculate, identify people by name, or infer sensitive traits.
 
@@ -34,7 +34,7 @@ class OpenrouterVisionClient
     - readable_text: an array of short strings that are clearly readable in the image
   PROMPT
 
-  attr_reader :model
+  attr_reader :max_tokens, :model
 
   def initialize(
     api_key: ENV["OPENROUTER_API_KEY"],
@@ -48,19 +48,23 @@ class OpenrouterVisionClient
     @prompt = prompt
     @open_timeout = open_timeout
     @read_timeout = read_timeout
+    @max_tokens = ENV.fetch("OPENROUTER_MAX_TOKENS", DEFAULT_MAX_TOKENS).to_i
   end
 
   def configured?
     @api_key.present?
   end
 
-  def analyze(image_bytes:, content_type: "image/jpeg", context: {})
+  def analyze(image_bytes:, content_type: "image/jpeg", context: {}, max_tokens: @max_tokens, ignored_providers: [])
     raise Error, "OPENROUTER_API_KEY is not configured" unless configured?
 
-    response = perform_request(request_body(image_bytes:, content_type:, context:))
+    response = perform_request(request_body(image_bytes:, content_type:, context:, max_tokens:, ignored_providers:))
     body = parse_response(response)
     content = body.dig("choices", 0, "message", "content")
-    diagnostics = response_diagnostics(body, content:)
+    diagnostics = response_diagnostics(body, content:).merge(
+      "requested_max_tokens" => max_tokens,
+      "ignored_providers" => ignored_providers.presence
+    ).compact
     result = parse_content(content, diagnostics:)
     usage = body.fetch("usage", {})
 
@@ -84,7 +88,7 @@ class OpenrouterVisionClient
 
   private
 
-  def request_body(image_bytes:, content_type:, context: {})
+  def request_body(image_bytes:, content_type: "image/jpeg", context: {}, max_tokens: @max_tokens, ignored_providers: [])
     {
       model: model,
       messages: [
@@ -100,7 +104,7 @@ class OpenrouterVisionClient
         }
       ],
       temperature: 0.1,
-      max_tokens: ENV.fetch("OPENROUTER_MAX_TOKENS", DEFAULT_MAX_TOKENS).to_i,
+      max_tokens:,
       response_format: {
         type: "json_schema",
         json_schema: {
@@ -135,8 +139,9 @@ class OpenrouterVisionClient
       provider: {
         zdr: true,
         data_collection: "deny",
-        require_parameters: true
-      }
+        require_parameters: true,
+        ignore: ignored_providers.presence
+      }.compact
     }
   end
 
@@ -199,16 +204,20 @@ class OpenrouterVisionClient
 
     text = content_text(content)
     if text.blank?
+      details = diagnostics.merge("failure_kind" => "empty_content")
       raise RetryableError.new(
-        "OpenRouter returned empty vision content (#{diagnostic_label(diagnostics)})",
-        details: diagnostics
+        "OpenRouter returned empty vision content (#{diagnostic_label(details)})",
+        details:
       )
     end
 
     text = text.sub(/\A```(?:json)?\s*/i, "").sub(/\s*```\z/, "")
     JSON.parse(text)
   rescue JSON::ParserError => error
-    details = diagnostics.merge("content_preview" => text.to_s.first(500))
+    details = diagnostics.merge(
+      "failure_kind" => "invalid_json",
+      "content_preview" => text.to_s.first(500)
+    )
     raise RetryableError.new(
       "OpenRouter vision response was not valid JSON: #{error.message} (#{diagnostic_label(details)})",
       details:

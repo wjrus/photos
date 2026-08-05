@@ -214,20 +214,67 @@ class PhotoAnalysisOpenrouterJobTest < ActiveJob::TestCase
     assert_equal 1, photo.analysis_runs.where(provider: "openrouter", status: "complete").count
   end
 
+  test "raises the token limit after truncation" do
+    photo = attached_photo
+    display = photo.processed_original_variant_record(:display)
+    checksum = Digest::SHA256.hexdigest(display.image.blob.download)
+    photo.analysis_runs.create!(
+      provider: "openrouter",
+      model: OpenrouterVisionClient::DEFAULT_MODEL,
+      model_version: PhotoAnalysisOpenrouterJob::PROMPT_VERSION,
+      status: "failed",
+      source_variant: "display",
+      source_checksum_sha256: checksum,
+      raw: { "failure_response" => { "failure_kind" => "invalid_json", "provider" => "SiliconFlow", "finish_reason" => "length" } }
+    )
+    client = FakeVisionClient.new(response)
+
+    perform_with_client(photo, client)
+
+    assert_equal 1_536, client.options.sole.fetch(:max_tokens)
+    assert_empty client.options.sole.fetch(:ignored_providers)
+  end
+
+  test "skips an empty-response provider on the next attempt" do
+    photo = attached_photo
+    display = photo.processed_original_variant_record(:display)
+    checksum = Digest::SHA256.hexdigest(display.image.blob.download)
+    photo.analysis_runs.create!(
+      provider: "openrouter",
+      model: OpenrouterVisionClient::DEFAULT_MODEL,
+      model_version: PhotoAnalysisOpenrouterJob::PROMPT_VERSION,
+      status: "failed",
+      source_variant: "display",
+      source_checksum_sha256: checksum,
+      raw: { "failure_response" => { "failure_kind" => "empty_content", "provider" => "Novita", "finish_reason" => "stop" } }
+    )
+    client = FakeVisionClient.new(response)
+
+    perform_with_client(photo, client)
+
+    assert_equal [ "novita" ], client.options.sole.fetch(:ignored_providers)
+    assert_equal OpenrouterVisionClient::DEFAULT_MAX_TOKENS, client.options.sole.fetch(:max_tokens)
+  end
+
   private
 
-  FakeVisionClient = Struct.new(:response, :calls, :contexts) do
+  FakeVisionClient = Struct.new(:response, :calls, :contexts, :options) do
     def initialize(response)
-      super(response, 0, [])
+      super(response, 0, [], [])
     end
 
-    def analyze(image_bytes:, content_type:, context: {})
+    def analyze(image_bytes:, content_type:, context: {}, **options)
       self.calls += 1
       contexts << context
+      self.options << options
       raise "missing image bytes" if image_bytes.blank?
       raise "unexpected content type" unless content_type == "image/jpeg"
 
       response
+    end
+
+    def max_tokens
+      OpenrouterVisionClient::DEFAULT_MAX_TOKENS
     end
   end
 
