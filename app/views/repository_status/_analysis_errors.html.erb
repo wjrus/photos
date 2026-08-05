@@ -1,0 +1,21 @@
+<% runs = runs.to_a %>
+<% if runs.any? %>
+  <div class="mt-5 border-t border-zinc-100 pt-4" data-analysis-errors>
+    <h3 class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Latest errors</h3>
+    <ul class="mt-2 divide-y divide-zinc-100 border-y border-zinc-100">
+      <% runs.each do |run| %>
+        <li class="py-2">
+          <details class="group min-w-0">
+            <summary class="cursor-pointer text-xs text-zinc-700">
+              <span class="font-semibold text-zinc-950">Photo <%= run.photo_id %></span>
+              <span class="text-zinc-500">Run #<%= run.id %></span>
+              <span class="mt-1 block truncate text-zinc-600"><%= run.error %></span>
+            </summary>
+            <p class="mt-2 break-words text-xs leading-5 text-rose-800"><%= run.error %></p>
+            <%= link_to "Open photo", photo_path(run.photo_id), class: "mt-2 inline-flex text-xs font-semibold text-teal-800 underline decoration-teal-300 underline-offset-4 hover:decoration-teal-800" %>
+          </details>
+        </li>
+      <% end %>
+    </ul>
+  </div>
+<% end %>

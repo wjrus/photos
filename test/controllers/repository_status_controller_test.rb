@@ -49,6 +49,30 @@ class RepositoryStatusControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Analysis Actions"
     assert_includes response.body, "Queue 5,000"
     assert_includes response.body, "Feature Flags"
+    assert_select "[data-analysis-dashboard]", count: 1
+    assert_select "[data-analysis-provider-card]", count: 2
+    assert_select "[data-analysis-actions]", count: 1
+    assert_select "[data-analysis-feature-flags]", count: 1
+  end
+
+  test "analysis errors are expandable and link to their photo" do
+    photo = attached_photo
+    run = photo.analysis_runs.create!(
+      provider: "openrouter",
+      model: OpenrouterVisionClient::DEFAULT_MODEL,
+      model_version: PhotoAnalysisOpenrouterJob::PROMPT_VERSION,
+      status: "failed",
+      error: "Provider returned malformed structured output with a long diagnostic payload.",
+      raw: { "failure_response" => { "provider" => "test" } }
+    )
+
+    get repository_status_path(section: "analysis")
+
+    assert_response :success
+    assert_select "[data-analysis-errors] details", minimum: 1
+    assert_select "summary", text: /Photo #{photo.id}/
+    assert_select "a[href='#{photo_path(photo)}']", text: "Open photo"
+    assert_includes response.body, "Run ##{run.id}"
   end
 
   test "owner can queue a bounded openrouter pilot" do
