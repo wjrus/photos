@@ -24,6 +24,26 @@ class ApplicationHelperTest < ActionView::TestCase
     assert_not_includes html, "<video"
   end
 
+  test "stream media uses the editable caption as image alt text" do
+    photo = attached_photo
+    photo.update!(title: "Original title", description: "A lighthouse above a rocky shore.")
+    photo.original.variant(:stream).processed
+
+    html = photo_stream_media(photo)
+
+    assert_select_html html, "img[alt='A lighthouse above a rocky shore.']"
+  end
+
+  test "stream media falls back to the photo title for image alt text" do
+    photo = attached_photo
+    photo.update!(title: "Lighthouse at dusk", description: nil)
+    photo.original.variant(:stream).processed
+
+    html = photo_stream_media(photo)
+
+    assert_select_html html, "img[alt='Lighthouse at dusk']"
+  end
+
   test "detail video uses display derivative for playback" do
     photo = attached_video
     attach_video_derivatives(photo)
@@ -112,6 +132,10 @@ class ApplicationHelperTest < ActionView::TestCase
   end
 
   private
+
+  def assert_select_html(html, selector)
+    assert_select Nokogiri::HTML.fragment(html), selector, 1
+  end
 
   def attached_photo
     photo = users(:one).photos.new

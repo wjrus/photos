@@ -1076,16 +1076,19 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, "Download original"
   end
 
-  test "public stream includes captions for public photos" do
+  test "public stream uses captions as thumbnail alt text without an overlay" do
     photo = attached_photo(title: "Captioned public stream")
     photo.update!(description: "Sunset over the breakwall.")
+    photo.original.variant(:stream).processed
     photo.publish!
     delete sign_out_path
 
     get root_path
 
     assert_response :success
-    assert_select "article[data-photo-id='#{photo.id}'] .photo-card-caption", text: "Sunset over the breakwall."
+    assert_select "article[data-photo-id='#{photo.id}'] img[alt='Sunset over the breakwall.']", 1
+    assert_select "article[data-photo-id='#{photo.id}'] .photo-card-caption", 0
+    assert_select "article[data-photo-id='#{photo.id}']", text: /Sunset over the breakwall\./, count: 0
   end
 
   test "public image detail exposes open graph preview tags" do

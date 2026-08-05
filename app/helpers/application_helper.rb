@@ -33,11 +33,16 @@ module ApplicationHelper
     access_params = options.delete(:access_params) || {}
     stream_params = access_params.merge(return_to: return_to).compact
     stream_path = stream_photo_path(photo, stream_params)
+    image_options = {
+      alt: photo.description.presence || photo.title.presence || "Photo",
+      class: "size-full object-cover",
+      loading: "eager",
+      decoding: "auto"
+    }.merge(options)
 
     if photo.video?
       if photo.video_preview.attached?
-        image_tag stream_path,
-          { alt: photo.title, class: "size-full object-cover", loading: "eager", decoding: "auto" }.merge(options)
+        image_tag stream_path, image_options
       else
         photo_stream_placeholder("Video processing")
       end
@@ -45,8 +50,7 @@ module ApplicationHelper
       stream_variant = photo.processed_original_variant_record(:stream)
       return photo_stream_placeholder("Processing") unless attached_blob_available?(stream_variant&.image)
 
-      image_tag stream_path,
-        { alt: photo.title, class: "size-full object-cover", loading: "eager", decoding: "auto" }.merge(options)
+      image_tag stream_path, image_options
     end
   end
 
