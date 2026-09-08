@@ -119,6 +119,20 @@ docker compose exec worker bin/rails console
 ./scripts/deploy
 ```
 
+### September 2026 Dependency Update
+
+This update refreshes the Ruby dependencies and the analysis service's Uvicorn,
+Pydantic, and NumPy requirements. Rebuild the analysis image when deploying it:
+
+```sh
+REBUILD_ANALYSIS=true ./scripts/deploy
+```
+
+Solid Queue 1.7 remains compatible with the existing queue schema. Its optional
+job-batch tables are not needed by this application; no new queue migration is
+included. Brakeman is updated to 8.0.6 so its required latest-version check can
+run the security scan again.
+
 The deploy script exports `PHOTOS_STORAGE_PATH` from `.env.production` before invoking Docker Compose, verifies that app, worker, and analysis containers mount that exact path at `/rails/storage`, and waits for the new app backend healthcheck to pass before switching `app_proxy`.
 
 If you need to run Docker Compose directly, export the storage path first:

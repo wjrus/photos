@@ -82,18 +82,18 @@ GEM
     ast (2.4.3)
     auth-sanitizer (0.2.3)
       version_gem (~> 1.1, >= 1.1.14)
-    axe-core-api (4.12.0)
+    axe-core-api (4.13.0)
       dumb_delegator
-    axe-core-capybara (4.12.0)
-      axe-core-api (= 4.12.0)
+    axe-core-capybara (4.13.0)
+      axe-core-api (= 4.13.0)
     base64 (0.3.0)
     bcrypt (3.1.22)
     bcrypt_pbkdf (1.1.2)
     bigdecimal (4.1.2)
     bindex (0.8.1)
-    bootsnap (1.24.6)
-      msgpack (~> 1.2)
-    brakeman (8.0.5)
+    bootsnap (1.26.0)
+      msgpack (~> 1.5)
+    brakeman (8.0.6)
       racc
     builder (3.3.0)
     bundler-audit (0.9.3)
@@ -157,7 +157,7 @@ GEM
       multi_json (~> 1.11)
       representable (~> 3.0)
       retriable (>= 3.1, < 5.0)
-    google-apis-drive_v3 (0.85.0)
+    google-apis-drive_v3 (0.87.0)
       google-apis-core (>= 0.15.0, < 2.a)
     google-cloud-env (2.4.0)
       base64 (~> 0.2)
@@ -175,7 +175,7 @@ GEM
       logger
     i18n (1.15.2)
       concurrent-ruby (~> 1.0)
-    image_processing (2.0.2)
+    image_processing (2.1.0)
     importmap-rails (2.2.3)
       actionpack (>= 6.0.0)
       activesupport (>= 6.0.0)
@@ -271,8 +271,8 @@ GEM
       logger
       rack (>= 2.2.3)
       rack-protection
-    omniauth-google-oauth2 (1.2.2)
-      jwt (>= 2.9.2)
+    omniauth-google-oauth2 (1.2.3)
+      jwt (>= 2.9.2, < 4)
       oauth2 (~> 2.0)
       omniauth (~> 2.0)
       omniauth-oauth2 (~> 1.8)
@@ -406,9 +406,9 @@ GEM
     ruby-vips (2.3.0)
       ffi (~> 1.12)
       logger
-    rubyzip (3.4.1)
+    rubyzip (3.6.0)
     securerandom (0.4.1)
-    selenium-webdriver (4.46.0)
+    selenium-webdriver (4.48.0)
       base64 (~> 0.2)
       logger (~> 1.4)
       rexml (~> 3.2, >= 3.2.5)
@@ -430,7 +430,7 @@ GEM
       activejob (>= 7.2)
       activerecord (>= 7.2)
       railties (>= 7.2)
-    solid_queue (1.6.0)
+    solid_queue (1.7.0)
       activejob (>= 7.1)
       activerecord (>= 7.1)
       concurrent-ruby (>= 1.3.1)
@@ -456,10 +456,10 @@ GEM
     tailwindcss-ruby (4.3.3-x86_64-linux-gnu)
     tailwindcss-ruby (4.3.3-x86_64-linux-musl)
     thor (1.5.0)
-    thruster (0.1.23)
-    thruster (0.1.23-aarch64-linux)
-    thruster (0.1.23-arm64-darwin)
-    thruster (0.1.23-x86_64-linux)
+    thruster (0.1.26)
+    thruster (0.1.26-aarch64-linux)
+    thruster (0.1.26-arm64-darwin)
+    thruster (0.1.26-x86_64-linux)
     timeout (0.6.1)
     trailblazer-option (0.1.2)
     tsort (0.2.0)
@@ -500,7 +500,7 @@ PLATFORMS
   x86_64-linux-musl
 
 DEPENDENCIES
-  axe-core-capybara (~> 4.11)
+  axe-core-capybara (~> 4.13)
   bcrypt (~> 3.1)
   bootsnap
   brakeman
@@ -552,15 +552,15 @@ CHECKSUMS
   anonymous_loader (0.1.3) sha256=084a18e2439144d955447dc11dfc982f41fcd1583ad32d4d55151325dc44cb55
   ast (2.4.3) sha256=954615157c1d6a382bc27d690d973195e79db7f55e9765ac7c481c60bdb4d383
   auth-sanitizer (0.2.3) sha256=db10aac92cfbe4c64ab637eebcbe1d67395d1694798041362173370f59933e3c
-  axe-core-api (4.12.0) sha256=9d0284681faacfc0d8609f13da389483814e9ab545b01e99909a6d8fdc312d72
-  axe-core-capybara (4.12.0) sha256=021a824cb23166909532ae5b9dd5c54e084910649a89a16d0725b00776c1838d
+  axe-core-api (4.13.0) sha256=6556c36d541090993b0efffd2659e13c289c109a0a6bf65d28271e363fc7ffa3
+  axe-core-capybara (4.13.0) sha256=7929292f4e6906d79df5f39dd1a9cdee288bfb188452a42c04121fc084ea5843
   base64 (0.3.0) sha256=27337aeabad6ffae05c265c450490628ef3ebd4b67be58257393227588f5a97b
   bcrypt (3.1.22) sha256=1f0072e88c2d705d94aff7f2c5cb02eb3f1ec4b8368671e19112527489f29032
   bcrypt_pbkdf (1.1.2) sha256=c2414c23ce66869b3eb9f643d6a3374d8322dfb5078125c82792304c10b94cf6
   bigdecimal (4.1.2) sha256=53d217666027eab4280346fba98e7d5b66baaae1b9c3c1c0ffe89d48188a3fbd
   bindex (0.8.1) sha256=7b1ecc9dc539ed8bccfc8cb4d2732046227b09d6f37582ff12e50a5047ceb17e
-  bootsnap (1.24.6) sha256=c60bab88c70332290f0a2636a288f675299eb4f804a02a3c085b42eca9da164a
-  brakeman (8.0.5) sha256=03735f9690d3fd4b32d66aacbf0a6d15a84266bdd06b32c05c8ecc8f6021d2be
+  bootsnap (1.26.0) sha256=ca96237015e6cd74a02963d5821cf00ac5ea134653b323e8cd6d702a7718bf1b
+  brakeman (8.0.6) sha256=759cc69341115e6c2dcd47b6fd8649a0b9bd540e3585ac8a0a94e31c66fee386
   builder (3.3.0) sha256=497918d2f9dca528fdca4b88d84e4ef4387256d984b8154e9d5d3fe5a9c8835f
   bundler-audit (0.9.3) sha256=81c8766c71e47d0d28a0f98c7eed028539f21a6ea3cd8f685eb6f42333c9b4e9
   capybara (3.40.0) sha256=42dba720578ea1ca65fd7a41d163dd368502c191804558f6e0f71b391054aeef
@@ -592,13 +592,13 @@ CHECKSUMS
   fugit (1.13.0) sha256=a4f093fce740da52f216740a5041e2a594ea763cdb89e8b2754ca4399634ab18
   globalid (1.4.0) sha256=037f12fbf1d9d7a014d501c2d5c77356fd4ddd96d7a7991d6700bba96706f427
   google-apis-core (1.2.5) sha256=e21562b5627a0fc6a0c3165e429c3afed0f6a628eaa514e83f7204dda1adff69
-  google-apis-drive_v3 (0.85.0) sha256=ad9ce9bf13b61ae8c5f84aad65867f2347728cff06690150642920f8efadde39
+  google-apis-drive_v3 (0.87.0) sha256=b5e47976c0be877853c9ed64f12d75eeb5260828f9d821222ed79913088501e3
   google-cloud-env (2.4.0) sha256=01cb35ecee5d1c4d1cd4deaed8bb5bddc838e296bcc2a35c5d1ddd07ce40d28d
   google-logging-utils (0.2.0) sha256=675462b4ea5affa825a3442694ca2d75d0069455a1d0956127207498fca3df7b
   googleauth (1.17.3) sha256=9a655455885c0c17a8b70537acd2a992a7c7842c43c06c6612dfb0d93e755d58
   hashie (5.1.0) sha256=c266471896f323c446ea8207f8ffac985d2718df0a0ba98651a3057096ca3870
   i18n (1.15.2) sha256=00f9eb62412fe593b2a65a97daa75300d37abb8f7202ec748e94b6d46a9dd1b5
-  image_processing (2.0.2) sha256=d0cf990f862d64efb1a14916044bf4b5bb2bccc7e235022413cde46019799cfa
+  image_processing (2.1.0) sha256=ca3814b1b909fc5fab68b261c50eaffef11e29a6907143e9cf1efc14b6dc6f47
   importmap-rails (2.2.3) sha256=7101be2a4dc97cf1558fb8f573a718404c5f6bcfe94f304bf1f39e444feeb16a
   io-console (0.8.2) sha256=d6e3ae7a7cc7574f4b8893b4fca2162e57a825b223a177b7afa236c5ef9814cc
   irb (1.18.0) sha256=de9454a0703a54704b9811a5ef31a60c86949fbf4013fcf244fabc7c775248e3
@@ -636,7 +636,7 @@ CHECKSUMS
   nokogiri (1.19.4-x86_64-linux-musl) sha256=17dfb7c1fa194ae02fbf7c51a7afc8d278045ab3fdacfd86f91d02d7b274470b
   oauth2 (2.0.25) sha256=2f736a2f93c2caa67c1b08dc3c9889bb907d62643f3183fefaa1723cba6a82ac
   omniauth (2.1.4) sha256=42a05b0496f0d22e1dd85d42aaf602f064e36bb47a6826a27ab55e5ba608763c
-  omniauth-google-oauth2 (1.2.2) sha256=74c3f3d0221c048f938846092fb15a1f15237526f50a7c93d9793f9a4ff1be11
+  omniauth-google-oauth2 (1.2.3) sha256=bdbab67e64e50b7902eee2dcfc2225575cefba15ab89a3b6e92c8947987c1da9
   omniauth-oauth2 (1.9.0) sha256=ed15f6d9d20991807ce114cc5b9c1453bce3645b64e51c68c90cff5ff153fee8
   omniauth-rails_csrf_protection (2.0.1) sha256=c6e3204d7e3925bb537cb52d50fdfc9f05293f1a9d87c5d4ab4ca3a39ba8c32d
   os (1.1.4) sha256=57816d6a334e7bd6aed048f4b0308226c5fb027433b67d90a9ab435f35108d3f
@@ -685,14 +685,14 @@ CHECKSUMS
   rubocop-rails-omakase (1.1.0) sha256=2af73ac8ee5852de2919abbd2618af9c15c19b512c4cfc1f9a5d3b6ef009109d
   ruby-progressbar (1.13.0) sha256=80fc9c47a9b640d6834e0dc7b3c94c9df37f08cb072b7761e4a71e22cff29b33
   ruby-vips (2.3.0) sha256=e685ec02c13969912debbd98019e50492e12989282da5f37d05f5471442f5374
-  rubyzip (3.4.1) sha256=0a79e745b5c25872ebd148457df5665da8530ed8626c993b01457128f173ca02
+  rubyzip (3.6.0) sha256=268994d44d62282d1cfd99bf10eae48d7267199158ad7ea3e1fee2da9458b695
   securerandom (0.4.1) sha256=cc5193d414a4341b6e225f0cb4446aceca8e50d5e1888743fac16987638ea0b1
-  selenium-webdriver (4.46.0) sha256=cb6cfa6f79eac041749df0b14cdcb0e9fe5df3715a64c77bfaa56b345b99f957
+  selenium-webdriver (4.48.0) sha256=0c8376ebc8a0a4879343fe6fe6eccdcea76748611cd25de370b33eded2077a94
   signet (0.22.0) sha256=b76d495ccb07ad35dbc89f3e920665a9d8ed717141955034005d7843dcfe4780
   snaky_hash (2.0.7) sha256=7d02c70012a3f932e48860cd024577908300c9aa615e0cb9b450aaa749cbcb4d
   solid_cable (4.0.2) sha256=084636a67679ad00d23088b33c84047e614bcf41ee559db24b414d83cdc42d03
   solid_cache (1.0.10) sha256=bc05a2fb3ac78a6f43cbb5946679cf9db67dd30d22939ededc385cb93e120d41
-  solid_queue (1.6.0) sha256=b5fc3bb34162e09d8f960df6400d0f9304dc80fe66c2cfface31c32b228de6a1
+  solid_queue (1.7.0) sha256=6566b70b801d1c317c81bba7bcdd5677c019afac584a30374b4164002ca356d3
   sshkit (1.25.1) sha256=be3f10b9d6eb0b44d5eaba3f7cbe41bc6bb894bce4339688ac20124391455b78
   stimulus-rails (1.3.4) sha256=765676ffa1f33af64ce026d26b48e8ffb2e0b94e0f50e9119e11d6107d67cb06
   tailwindcss-rails (4.6.0) sha256=d99512867173d55c5ef8890427682299d8539f550cec1408b3d8667a538bd365
@@ -703,10 +703,10 @@ CHECKSUMS
   tailwindcss-ruby (4.3.3-x86_64-linux-gnu) sha256=2337017ff8b02698480eae1e9637cf01faa0e4824db89d067a13c5a5ee38c9b2
   tailwindcss-ruby (4.3.3-x86_64-linux-musl) sha256=27d478c417bcf73828e5b544744c5bdfd5b5cb54f1a266fc4f185281c32efe6c
   thor (1.5.0) sha256=e3a9e55fe857e44859ce104a84675ab6e8cd59c650a49106a05f55f136425e73
-  thruster (0.1.23) sha256=ad3081e8ff3b5cb413768292c367f1e015c423bb6b35919b9b9f533af50d639f
-  thruster (0.1.23-aarch64-linux) sha256=042a05581dd1d750d1583d83817460b1f7fde254ed0b2bcd7ec56f9bed278c7a
-  thruster (0.1.23-arm64-darwin) sha256=2f1b73119ffec813cdb104d64dd39bfc3771b5308eb0f4dc2428077141140022
-  thruster (0.1.23-x86_64-linux) sha256=9cd7265bf54e954575c8442e42d050ed8eb55df4f9d7da8fd6f94fcc0339baa5
+  thruster (0.1.26) sha256=6e45e807086b29d51404841bd1ad493b67cd95892fd65dc5afcdd32e82e94ce8
+  thruster (0.1.26-aarch64-linux) sha256=2171cb34928c0250830008f535c4ab2ee57846cc3f5d3e96c3475f7b3de7a541
+  thruster (0.1.26-arm64-darwin) sha256=40676164c433abf31313422305d9e9e9210cf941b1befad88e2428b3b8dcc36c
+  thruster (0.1.26-x86_64-linux) sha256=3117a6ee430663f845a0457699fe9a05232dcc6c396e2cc83504de5a223c60e8
   timeout (0.6.1) sha256=78f57368a7e7bbadec56971f78a3f5ecbcfb59b7fcbb0a3ed6ddc08a5094accb
   trailblazer-option (0.1.2) sha256=20e4f12ea4e1f718c8007e7944ca21a329eee4eed9e0fa5dde6e8ad8ac4344a3
   tsort (0.2.0) sha256=9650a793f6859a43b6641671278f79cfead60ac714148aabe4e3f0060480089f
