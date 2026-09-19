@@ -45,6 +45,9 @@
 
 # Ignore development files
 /.devcontainer
+**/.venv/
+**/__pycache__/
+**/*.py[cod]
 
 # Ignore Docker-related files
 /.dockerignore

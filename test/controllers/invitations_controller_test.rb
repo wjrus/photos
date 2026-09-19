@@ -35,6 +35,16 @@ class InvitationsControllerTest < ActionDispatch::IntegrationTest
     assert @invited.reload.remember_token_digest.present?
   end
 
+  test "mismatched password confirmation does not accept an invitation" do
+    patch accept_invitation_path(@invited.invitation_url_token), params: {
+      user: { password: "correct horse battery staple", password_confirmation: "different password" }
+    }
+
+    assert_response :unprocessable_entity
+    assert_not_predicate @invited.reload, :invite_accepted?
+    assert_nil @invited.password_digest
+  end
+
   test "accepted invitation link cannot be reused" do
     token = @invited.invitation_url_token
     @invited.accept_invitation!(password: "correct horse battery staple", password_confirmation: "correct horse battery staple")

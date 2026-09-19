@@ -294,12 +294,12 @@ Run a new dry run before starting another paid backfill.
 ## Local Analysis Sidecar
 
 The deploy script enables the Compose `analysis` profile, starts the sidecar,
-verifies its read-only storage mount, and waits for `/health`. It reuses the
-existing `photos-analysis-local:latest` image after the first build. Rebuild it
-after sidecar code or dependency changes:
+verifies its read-only storage mount, and waits for `/health`. Every deploy builds
+`photos-analysis-local:latest` with `--pull`; Docker caches unchanged layers.
+Sidecar code and dependency changes therefore take effect on a normal deploy:
 
 ```sh
-REBUILD_ANALYSIS=true ./scripts/deploy
+./scripts/deploy
 ```
 
 For manual checks:
@@ -311,6 +311,25 @@ docker compose --profile analysis up -d analysis-local
 
 The image retains GPU-capable dependencies but runs on CPU when no compatible
 GPU runtime is available.
+
+The sidecar uses Python 3.13 and uv. `pyproject.toml` declares direct dependencies;
+`uv.lock` fixes the complete dependency graph for macOS and Linux, including
+platform-specific CUDA packages. Docker and CI require the lock to be current.
+Dependabot updates this lock and also monitors Dockerfiles and Compose images.
+
+From `services/analysis_local`, run:
+
+```sh
+uv sync --locked --only-dev
+uv run --locked --only-dev python -m unittest discover -s tests -v
+uv export --locked --no-dev --no-emit-project --format requirements-txt --output-file /tmp/photos-analysis-requirements.txt
+uv run --locked --only-dev pip-audit --disable-pip --require-hashes -r /tmp/photos-analysis-requirements.txt
+```
+
+These tests use synthetic vectors and do not download model weights. For a full
+local runtime, use `uv sync --locked`. To refresh dependencies, run
+`uv lock --upgrade`, repeat the tests and audit, then commit `uv.lock` alongside
+any changes to `pyproject.toml`.
 
 ## Data Model
 

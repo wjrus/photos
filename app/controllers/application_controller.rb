@@ -94,8 +94,9 @@ class ApplicationController < ActionController::Base
   end
 
   def sign_in(user, remember: false)
-    reset_session
-    session[:user_id] = user.id
+    start_user_session(user)
+    cookies.delete(:remember_user_id)
+    cookies.delete(:remember_token)
     remember_user(user) if remember
   end
 
@@ -108,7 +109,15 @@ class ApplicationController < ActionController::Base
   end
 
   def session_user
-    User.find_by(id: session[:user_id]) if session[:user_id]
+    return unless session[:user_id]
+
+    user = User.find_by(id: session[:user_id])
+    if user && ActiveSupport::SecurityUtils.secure_compare(session[:authentication_fingerprint].to_s, user.authentication_fingerprint)
+      return user
+    end
+
+    reset_session
+    nil
   end
 
   def remembered_user
@@ -117,8 +126,24 @@ class ApplicationController < ActionController::Base
     user = User.find_by(id: user_id)
     return unless user&.remembered?(token)
 
-    session[:user_id] = user.id
+    start_user_session(user)
     user
+  end
+
+  def start_user_session(user)
+    reset_session
+    session[:user_id] = user.id
+    session[:authentication_fingerprint] = user.authentication_fingerprint
+    @current_user = user
+  end
+
+  def authentication_email_key
+    Digest::SHA256.hexdigest(params[:email].to_s.strip.downcase)
+  end
+
+  def authentication_rate_limited(retry_after:)
+    response.set_header("Retry-After", retry_after.to_i.to_s)
+    render plain: "Too many attempts. Please try again later.", status: :too_many_requests
   end
 
   def remember_user(user)

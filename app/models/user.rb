@@ -28,7 +28,9 @@ class User < ApplicationRecord
   validates :email, uniqueness: true
   validates :role, inclusion: { in: ROLES }
   validates :stream_tile_size, inclusion: { in: STREAM_TILE_SIZES }
-  validates :password, length: { minimum: 10 }, allow_blank: true
+  validates :password, length: { minimum: 10 }, confirmation: true, allow_blank: true
+
+  before_save -> { self.remember_token_digest = nil }, if: :will_save_change_to_password_digest?
 
   PASSWORD_RESET_TTL = 2.hours
   INVITATION_TTL = 7.days
@@ -162,6 +164,10 @@ class User < ApplicationRecord
     return false if remember_token_digest.blank? || token.blank?
 
     ActiveSupport::SecurityUtils.secure_compare(remember_token_digest, self.class.digest(token))
+  end
+
+  def authentication_fingerprint
+    self.class.digest(password_digest)
   end
 
   def display_name

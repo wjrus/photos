@@ -1,4 +1,9 @@
 class PasswordResetsController < ApplicationController
+  rate_limit to: 5, within: 10.minutes, only: :create, name: "ip",
+    with: -> { authentication_rate_limited(retry_after: 10.minutes) }
+  rate_limit to: 3, within: 1.hour, only: :create, name: "email", by: :authentication_email_key,
+    with: -> { authentication_rate_limited(retry_after: 1.hour) }
+
   before_action :set_user_from_token, only: %i[edit update]
 
   def new

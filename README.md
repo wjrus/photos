@@ -138,6 +138,11 @@ System tests can be run separately when browser coverage is needed:
 rbenv exec bundle exec rails test:system
 ```
 
+The Python analysis service has its own locked dependencies and regression tests.
+See [Local Analysis Sidecar](docs/photo-analysis.md#local-analysis-sidecar) for uv
+setup, tests, and dependency audits. CI checks these alongside Rails and validates
+both Dockerfiles.
+
 ## Production
 
 Production runs as a Docker Compose stack:

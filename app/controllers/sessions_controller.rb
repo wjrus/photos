@@ -1,4 +1,9 @@
 class SessionsController < ApplicationController
+  rate_limit to: 10, within: 3.minutes, only: :password, name: "ip",
+    with: -> { authentication_rate_limited(retry_after: 3.minutes) }
+  rate_limit to: 10, within: 15.minutes, only: :password, name: "email", by: :authentication_email_key,
+    with: -> { authentication_rate_limited(retry_after: 15.minutes) }
+
   def new
   end
 

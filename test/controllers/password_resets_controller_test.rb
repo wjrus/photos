@@ -83,4 +83,73 @@ class PasswordResetsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to root_path
     assert User.authenticate_by_email(google_user.email, "another correct password")
   end
+
+  test "mismatched confirmation preserves the password and reset token" do
+    @user.update!(password: "old synthetic password", password_confirmation: "old synthetic password")
+    token = @user.generate_password_reset_token!
+    digest = @user.password_digest
+
+    patch update_password_reset_path(token), params: {
+      user: { password: "a new synthetic password", password_confirmation: "different password" }
+    }
+
+    assert_response :unprocessable_entity
+    assert_equal digest, @user.reload.password_digest
+    assert_predicate User.find_by_password_reset_token(token), :present?
+  end
+
+  test "password reset revokes other sessions and remembered browsers" do
+    owner = users(:one)
+    owner.update!(password: "old synthetic password", password_confirmation: "old synthetic password")
+    old_browser = open_session
+    old_browser.post password_sign_in_path, params: { email: owner.email, password: "old synthetic password", remember_me: "1" }
+    old_browser.get uploads_path
+    assert_equal 200, old_browser.response.status
+
+    remembered_browser = open_session
+    remembered_browser.cookies[:remember_user_id] = old_browser.cookies[:remember_user_id]
+    remembered_browser.cookies[:remember_token] = old_browser.cookies[:remember_token]
+    token = owner.generate_password_reset_token!
+
+    patch update_password_reset_path(token), params: {
+      user: { password: "new synthetic password", password_confirmation: "new synthetic password" }
+    }
+
+    assert_redirected_to root_path
+    get uploads_path
+    assert_response :success
+    assert_nil owner.reload.remember_token_digest
+
+    old_browser.get uploads_path
+    assert_equal 302, old_browser.response.status
+    remembered_browser.get uploads_path
+    assert_equal 302, remembered_browser.response.status
+  end
+
+  test "resetting a google-only password invalidates an existing session" do
+    owner = users(:one)
+    assert_nil owner.password_digest
+    old_browser = open_session
+    OmniAuth.config.test_mode = true
+    OmniAuth.config.mock_auth[:google_oauth2] = OmniAuth::AuthHash.new(
+      provider: owner.provider, uid: owner.uid, info: { email: owner.email, name: owner.name }
+    )
+    old_browser.post "/auth/google_oauth2"
+    old_browser.follow_redirect!
+    old_browser.get uploads_path
+    assert_equal 200, old_browser.response.status
+
+    token = owner.generate_password_reset_token!
+    patch update_password_reset_path(token), params: {
+      user: { password: "new synthetic password", password_confirmation: "new synthetic password" }, remember_me: "1"
+    }
+
+    assert_redirected_to root_path
+    assert_predicate owner.reload.remember_token_digest, :present?
+    old_browser.get uploads_path
+    assert_equal 302, old_browser.response.status
+  ensure
+    OmniAuth.config.mock_auth[:google_oauth2] = nil
+    OmniAuth.config.test_mode = false
+  end
 end

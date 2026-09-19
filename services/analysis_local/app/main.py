@@ -1,8 +1,9 @@
 import os
 import logging
 import threading
-from functools import lru_cache
+from contextlib import asynccontextmanager
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
@@ -10,8 +11,17 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 
-app = FastAPI(title="Photos Local Analysis", version="0.1.0")
 logger = logging.getLogger("photos.analysis_local")
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    if os.getenv("OPENCLIP_WARM_ON_START", "true").lower() in {"1", "true", "yes"}:
+        threading.Thread(target=warm_openclip_runtime, daemon=True).start()
+    yield
+
+
+app = FastAPI(title="Photos Local Analysis", version="0.1.0", lifespan=lifespan)
 
 
 @app.exception_handler(Exception)
@@ -57,7 +67,7 @@ class OpenclipRuntime:
         self.tokenizer = open_clip.get_tokenizer(self.model_name)
         self.index_dir = Path(os.getenv("ANALYSIS_INDEX_DIR", "/analysis")) / "openclip" / self.model_key
         self.index_dir.mkdir(parents=True, exist_ok=True)
-        self.index_lock = threading.Lock()
+        self.index_lock = threading.RLock()
         self.index_photo_ids: list[int] = []
         self.index_matrix: Any | None = None
         self.index_loaded = False
@@ -87,8 +97,20 @@ class OpenclipRuntime:
     def save_embedding(self, photo_id: int, embedding: list[float]) -> str:
         index_key = f"{self.model_key}/{photo_id}.npy"
         path = self.index_dir / f"{photo_id}.npy"
-        self.np.save(path, self.np.array(embedding, dtype="float32"))
-        self.update_memory_index(photo_id, embedding)
+        with self.index_lock:
+            # Load older photos before the first write can mark the index loaded.
+            if not self.index_loaded:
+                self.load_memory_index()
+
+            with NamedTemporaryFile(dir=self.index_dir, suffix=".tmp", delete=False) as temporary:
+                temporary_path = Path(temporary.name)
+                try:
+                    self.np.save(temporary, self.np.array(embedding, dtype="float32"))
+                    temporary.flush()
+                    temporary_path.replace(path)
+                finally:
+                    temporary_path.unlink(missing_ok=True)
+            self.update_memory_index(photo_id, embedding)
         return index_key
 
     def search(self, query: str, limit: int) -> list[dict[str, Any]]:
@@ -136,12 +158,18 @@ class OpenclipRuntime:
 
     def update_memory_index(self, photo_id: int, embedding: list[float]) -> None:
         with self.index_lock:
+            if not self.index_loaded:
+                self.load_memory_index()
+
             if self.index_matrix is None:
                 self.index_photo_ids = [photo_id]
                 self.index_matrix = self.np.array([embedding], dtype="float32")
             elif photo_id in self.index_photo_ids:
                 index = self.index_photo_ids.index(photo_id)
-                self.index_matrix[index] = self.np.array(embedding, dtype="float32")
+                # Searches retain a consistent snapshot while embeddings change.
+                matrix = self.index_matrix.copy()
+                matrix[index] = self.np.array(embedding, dtype="float32")
+                self.index_matrix = matrix
             else:
                 self.index_photo_ids.append(photo_id)
                 self.index_matrix = self.np.vstack([
@@ -152,9 +180,17 @@ class OpenclipRuntime:
             self.index_loaded = True
 
 
-@lru_cache(maxsize=1)
+_runtime: OpenclipRuntime | None = None
+_runtime_lock = threading.Lock()
+
+
 def openclip_runtime() -> OpenclipRuntime:
-    return OpenclipRuntime()
+    global _runtime
+    # Warmup and the first request must not create separate in-memory indexes.
+    with _runtime_lock:
+        if _runtime is None:
+            _runtime = OpenclipRuntime()
+        return _runtime
 
 
 def warm_openclip_runtime() -> None:
@@ -163,12 +199,6 @@ def warm_openclip_runtime() -> None:
         runtime.memory_index()
     except Exception:
         logger.exception("Could not warm OpenCLIP runtime")
-
-
-@app.on_event("startup")
-def start_openclip_warmup() -> None:
-    if os.getenv("OPENCLIP_WARM_ON_START", "true").lower() in {"1", "true", "yes"}:
-        threading.Thread(target=warm_openclip_runtime, daemon=True).start()
 
 
 @app.get("/health")

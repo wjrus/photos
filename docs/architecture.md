@@ -4,7 +4,7 @@
 
 ## Starting Choices
 
-- Ruby 3.4.9 and Rails 8.1.3.
+- Ruby 3.4.10 and Rails 8.1.3.1.
 - PostgreSQL for relational data.
 - Rails Active Storage for originals and derivatives.
 - Solid Queue for background work and Solid Cache for Rails cache to start.

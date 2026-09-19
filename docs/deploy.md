@@ -76,22 +76,27 @@ its `/health` check. Provider feature flags still default off in the app, so
 deploying the sidecar does not start broad analysis by itself.
 
 The local analysis image is intentionally large because it can use GPU-capable
-PyTorch builds. Deploy reuses `photos-analysis-local:latest` after the first
-build. Rebuild it explicitly after sidecar dependency/code changes with:
+PyTorch builds. Every deploy runs `docker compose build --pull analysis-local`.
+Docker reuses unchanged dependency layers, while sidecar code, the checked-in
+`uv.lock`, and base-image updates are applied automatically. The old
+`REBUILD_ANALYSIS` flag is no longer needed.
 
-```sh
-REBUILD_ANALYSIS=true ./scripts/deploy
-```
+Deployment pulls PostgreSQL, Redis, and nginx before reconciling their containers
+with `docker compose up -d`. Compose replaces containers when their image or
+configuration changes and preserves their named data volumes; unchanged
+containers keep running. PostgreSQL follows the `postgres:18` tag for updates
+within major version 18. Changing the major version requires a planned database
+migration and must not be done by simply switching the image tag.
 
 Deploys use a blue/green app backend behind the local `app_proxy` service:
 
 1. Build the new app image.
 2. Start the inactive app backend, either `web_blue` or `web_green`.
 3. Wait for that backend's `/up` healthcheck to pass.
-4. Reload `app_proxy` so Nginx Proxy Manager continues to hit host port `3000`, but traffic moves to the new backend.
+4. Reconcile the `app_proxy` image and validate/reload nginx so Nginx Proxy Manager continues to hit host port `3000`, but traffic moves to the new backend. A new proxy image requires a brief container replacement.
 5. Stop the old backend after the proxy switch.
 
-The first deploy after enabling blue/green removes the old legacy `web` container so `app_proxy` can bind port `3000`; later deploys should only have a short proxy reload blip.
+The first deploy after enabling blue/green removes the old legacy `web` container so `app_proxy` can bind port `3000`. Later deploys reload the running proxy when its image and configuration are unchanged; updates replace that container.
 
 Check status:
 
@@ -121,12 +126,19 @@ docker compose exec worker bin/rails console
 
 ### September 2026 Dependency Update
 
-This update refreshes the Ruby dependencies and the analysis service's Uvicorn,
-Pydantic, and NumPy requirements. Rebuild the analysis image when deploying it:
+This update uses Ruby 3.4.10, Bundler 4.0.21, nginx 1.30.5, current compatible
+Ruby dependencies, and a universal Python dependency lock. Normal
+`./scripts/deploy` builds the analysis image automatically and applies pulled
+proxy images. No additional database migration is required.
 
-```sh
-REBUILD_ANALYSIS=true ./scripts/deploy
-```
+Existing login sessions without the new password fingerprint will require a
+fresh sign-in; valid remember-me cookies can establish a new session. Subsequent
+password changes revoke existing sessions and remember-me tokens. Login and
+password-reset rate limits use the shared Rails cache in production.
+
+JSON stays on 2.21.x because Rails 8.1.3.1 passes positional parser options
+removed by JSON 3. Marcel and Retriable remain on the versions allowed by Rails
+and the Google API client. Do not bypass these upstream constraints.
 
 Solid Queue 1.7 remains compatible with the existing queue schema. Its optional
 job-batch tables are not needed by this application; no new queue migration is
