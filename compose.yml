@@ -56,7 +56,7 @@ services:
       - redis_data:/data
 
   app_proxy:
-    image: nginx:1.30.5-alpine
+    image: nginx:1.31.0-alpine
     restart: unless-stopped
     depends_on:
       web_blue:
