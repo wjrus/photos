@@ -5,6 +5,10 @@ updates:
   schedule:
     interval: weekly
   open-pull-requests-limit: 10
+  ignore:
+    # Rails 8.1 is incompatible with JSON 3's keyword-only parser options.
+    - dependency-name: json
+      update-types: ["version-update:semver-major"]
 - package-ecosystem: github-actions
   directory: "/"
   schedule:
@@ -27,3 +31,10 @@ updates:
   schedule:
     interval: weekly
   open-pull-requests-limit: 10
+  ignore:
+    # Track security patches on the current nginx stable branch.
+    - dependency-name: nginx
+      update-types: ["version-update:semver-major", "version-update:semver-minor"]
+    # PostgreSQL major upgrades require a separate data migration.
+    - dependency-name: postgres
+      update-types: ["version-update:semver-major"]

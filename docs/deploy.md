@@ -87,6 +87,9 @@ configuration changes and preserves their named data volumes; unchanged
 containers keep running. PostgreSQL follows the `postgres:18` tag for updates
 within major version 18. Changing the major version requires a planned database
 migration and must not be done by simply switching the image tag.
+Dependabot proposes nginx patches within the current stable branch and blocks
+automatic PostgreSQL major-version proposals. Review these branch boundaries
+when planning a future nginx stable-branch or PostgreSQL major upgrade.
 
 Deploys use a blue/green app backend behind the local `app_proxy` service:
 
