@@ -749,7 +749,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
-  test "detail view exposes stream neighbors for keyboard and swipe navigation" do
+  test "detail view exposes stream neighbors for left and right navigation" do
     newer = attached_photo(title: "Newer")
     photo = attached_photo(title: "Current")
     older = attached_photo(title: "Older")
@@ -765,12 +765,12 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_select "main[data-controller~='stream-navigation']"
     assert_select "a[href='#{photo_path(newer)}'][data-turbo-action='replace'][aria-label='Previous item in stream'][data-tooltip='Previous item']"
     assert_select "a[href='#{photo_path(older)}'][data-turbo-action='replace'][aria-label='Next item in stream'][data-tooltip='Next item']"
-    assert_includes response.body, "wheel->stream-navigation#wheel"
+    assert_select "main[data-action='keydown@window->stream-navigation#keydown']"
+    assert_select "nav a[aria-keyshortcuts='ArrowLeft'][href='#{photo_path(newer)}']"
+    assert_select "nav a[aria-keyshortcuts='ArrowRight'][href='#{photo_path(older)}']"
     assert_includes response.body, %(data-stream-navigation-back-url-value="#{map_path}")
     assert_includes response.body, %(data-stream-navigation-previous-url-value="#{photo_path(newer)}")
     assert_includes response.body, %(data-stream-navigation-next-url-value="#{photo_path(older)}")
-    assert_includes response.body, "data-stream-navigation-previous-media-url-value"
-    assert_includes response.body, "data-stream-navigation-next-media-url-value"
   end
 
   test "album detail navigation stays inside the album stream" do

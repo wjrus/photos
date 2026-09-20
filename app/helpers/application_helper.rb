@@ -285,7 +285,7 @@ module ApplicationHelper
       archive: '<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',
       chevron_down: '<path d="m6 9 6 6 6-6"/>',
       chevron_left: '<path d="m15 18-6-6 6-6"/>',
-      chevron_up: '<path d="m18 15-6-6-6 6"/>',
+      chevron_right: '<path d="m9 6 6 6-6 6"/>',
       copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
       globe: '<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z"/><path d="M2 12h20"/><path d="M12 2c2.5 2.7 3.75 6.03 3.75 10S14.5 19.3 12 22c-2.5-2.7-3.75-6.03-3.75-10S9.5 4.7 12 2Z"/>',
       image: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 16 4-4c.9-.9 2.1-.9 3 0l5 5"/><path d="m14 16 1-1c.9-.9 2.1-.9 3 0l3 3"/><path d="M8.5 9.5h.01"/>',

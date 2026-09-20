@@ -95,7 +95,6 @@ export default class extends Controller {
 
     this.frameTarget.classList.toggle("cursor-grab", this.zoom > this.minZoom && !this.dragging)
     this.frameTarget.classList.toggle("cursor-grabbing", this.zoom > this.minZoom && this.dragging)
-    this.frameTarget.dataset.photoZoomPannable = this.zoom > this.minZoom ? "true" : "false"
     this.frameTarget.tabIndex = this.zoom > this.minZoom ? 0 : -1
     this.percentTarget.textContent = `${Math.round(this.zoom * 100)}%`
     const status = this.statusText()
@@ -109,6 +108,9 @@ export default class extends Controller {
 
   keydown(event) {
     if (this.zoom <= this.minZoom) return
+    if (event.defaultPrevented || event.isComposing) return
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+    if (event.target.closest?.("video, audio")) return
 
     const offsets = {
       ArrowLeft: [this.panStep, 0],

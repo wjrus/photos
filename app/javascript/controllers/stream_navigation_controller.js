@@ -4,177 +4,27 @@ export default class extends Controller {
   static values = {
     backUrl: String,
     nextUrl: String,
-    nextMediaUrl: String,
-    previousUrl: String,
-    previousMediaUrl: String
-  }
-
-  connect() {
-    this.startY = null
-    this.lastWheelAt = 0
-    this.animating = false
-    this.prefetchNeighbors()
+    previousUrl: String
   }
 
   keydown(event) {
-    if (this.insideInfoPanel(event)) return
-    if (this.interactiveElement(event)) return
-    if (this.editingText(event)) return
+    if (event.defaultPrevented || event.repeat || event.isComposing) return
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+    if (event.target.isContentEditable) return
+    if (event.target.closest?.("input, select, textarea, video, audio, [role='slider'], [role='dialog'], dialog, #photo-info-panel")) return
 
-    if (event.key === "Escape") {
-      event.preventDefault()
-      this.leaveStream()
-    }
-
-    if (event.key === "ArrowDown") {
-      event.preventDefault()
-      this.navigateTo(this.nextUrlValue, "next")
-    }
-
-    if (event.key === "ArrowUp") {
-      event.preventDefault()
-      this.navigateTo(this.previousUrlValue, "previous")
-    }
-  }
-
-  touchstart(event) {
-    if (this.panningZoomedMedia(event)) return
-
-    this.startY = event.changedTouches[0]?.clientY
-  }
-
-  touchend(event) {
-    if (this.panningZoomedMedia(event)) {
-      this.startY = null
-      return
-    }
-
-    if (this.startY === null) return
-
-    const endY = event.changedTouches[0]?.clientY
-    if (endY === undefined) return
-
-    const deltaY = endY - this.startY
-    this.startY = null
-
-    if (Math.abs(deltaY) < 50) return
-
-    if (deltaY < 0) {
-      this.navigateTo(this.nextUrlValue, "next")
-    } else {
-      this.navigateTo(this.previousUrlValue, "previous")
-    }
-  }
-
-  wheel(event) {
-    if (this.insideInfoPanel(event)) return
-    if (this.editingText(event)) return
-    if (this.panningZoomedMedia(event)) return
-
-    const absX = Math.abs(event.deltaX)
-    const absY = Math.abs(event.deltaY)
-    if (absY < 35 || absY < absX) return
-
-    const now = Date.now()
-    if (now - this.lastWheelAt < 650) return
-
-    this.lastWheelAt = now
-
-    if (event.deltaY > 0) {
-      this.navigateTo(this.nextUrlValue, "next")
-    } else {
-      this.navigateTo(this.previousUrlValue, "previous")
-    }
-  }
-
-  next(event) {
-    event.preventDefault()
-    this.navigateTo(this.nextUrlValue || event.currentTarget.href, "next")
-  }
-
-  previous(event) {
-    event.preventDefault()
-    this.navigateTo(this.previousUrlValue || event.currentTarget.href, "previous")
-  }
-
-  leaveStream() {
-    this.visit(this.backUrlValue)
-  }
-
-  visit(url, options = {}) {
+    const url = {
+      ArrowLeft: this.previousUrlValue,
+      ArrowRight: this.nextUrlValue,
+      Escape: this.backUrlValue
+    }[event.key]
     if (!url) return
 
+    event.preventDefault()
     if (window.Turbo) {
-      window.Turbo.visit(url, options)
+      window.Turbo.visit(url, event.key === "Escape" ? {} : { action: "replace" })
     } else {
       window.location.href = url
     }
-  }
-
-  navigateTo(url, direction) {
-    if (!url || this.animating) return
-
-    if (!this.shouldAnimate()) {
-      this.visit(url, { action: "replace" })
-      return
-    }
-
-    this.animating = true
-    this.element.classList.add(`photo-viewer-shell--exit-${direction}`)
-
-    window.setTimeout(() => {
-      this.visit(url, { action: "replace" })
-    }, 170)
-  }
-
-  shouldAnimate() {
-    return window.matchMedia("(max-width: 767px)").matches &&
-      !window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  }
-
-  prefetchNeighbors() {
-    this.prefetchDocument(this.previousUrlValue)
-    this.prefetchDocument(this.nextUrlValue)
-    this.prefetchImage(this.previousMediaUrlValue)
-    this.prefetchImage(this.nextMediaUrlValue)
-  }
-
-  prefetchDocument(url) {
-    if (!url || !window.fetch) return
-
-    window.fetch(url, {
-      credentials: "same-origin",
-      headers: {
-        Accept: "text/html, application/xhtml+xml",
-        "Turbo-Prefetch": "true"
-      }
-    }).catch(() => {
-      // Navigation still works if the browser decides not to warm this page.
-    })
-  }
-
-  prefetchImage(url) {
-    if (!url) return
-
-    const image = new Image()
-    image.decoding = "async"
-    image.src = url
-  }
-
-  editingText(event) {
-    const tagName = event.target.tagName
-    return ["INPUT", "SELECT", "TEXTAREA"].includes(tagName) || event.target.isContentEditable
-  }
-
-  interactiveElement(event) {
-    return event.target.closest?.("a, button, summary, [role='button']")
-  }
-
-  insideInfoPanel(event) {
-    return event.target.closest?.("#photo-info-panel")
-  }
-
-  panningZoomedMedia(event) {
-    return event.target.closest?.("[data-photo-zoom-pannable='true']")
   }
 }
