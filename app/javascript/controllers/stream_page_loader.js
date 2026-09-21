@@ -1,3 +1,5 @@
+const pendingPages = new WeakMap()
+
 export async function appendNextStreamPage(sentinel, loadingLabel = "Loading...") {
   return loadStreamPage(sentinel, loadingLabel, "append")
 }
@@ -9,7 +11,19 @@ export async function prependPreviousStreamPage(sentinel, loadingLabel = "Loadin
 async function loadStreamPage(sentinel, loadingLabel, direction) {
   const url = sentinel?.dataset.nextUrl
   if (!url || !sentinel.isConnected) return false
+  if (pendingPages.has(sentinel)) return pendingPages.get(sentinel)
 
+  // Scroll restoration and infinite scrolling can ask for the same page together.
+  const pending = fetchStreamPage(sentinel, url, loadingLabel, direction)
+  pendingPages.set(sentinel, pending)
+  try {
+    return await pending
+  } finally {
+    pendingPages.delete(sentinel)
+  }
+}
+
+async function fetchStreamPage(sentinel, url, loadingLabel, direction) {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 30000)
 

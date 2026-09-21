@@ -53,6 +53,7 @@
     <% if @albums.any? %>
       <div class="mt-6"
            data-stream-page-container
+           data-infinite-scroll-page-size-value="<%= AlbumsController::ALBUM_PAGE_SIZE %>"
            data-controller="<%= "infinite-scroll" if @next_album_page.present? %>">
         <%= render "albums/page", albums: @albums %>
       </div>

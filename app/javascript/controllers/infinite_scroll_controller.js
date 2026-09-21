@@ -3,32 +3,51 @@ import { appendNextStreamPage, prependPreviousStreamPage } from "controllers/str
 
 export default class extends Controller {
   static targets = ["sentinel"]
+  static values = { pageSize: { type: Number, default: 60 } }
 
   connect() {
     this.loadingSentinels = new WeakSet()
-    this.lastScrollY = window.scrollY
-    this.scrollDirection = "down"
-    this.updateScrollDirection = this.updateScrollDirection.bind(this)
-    this.observer = new IntersectionObserver((entries) => this.loadIfVisible(entries), {
-      rootMargin: "800px 0px"
-    })
-    window.addEventListener("scroll", this.updateScrollDirection, { passive: true })
-    this.observeSentinel()
+    this.retrySentinels = new Set()
+    this.retryOnScroll = this.retryOnScroll.bind(this)
+    this.observePages = this.observePages.bind(this)
+    window.addEventListener("scroll", this.retryOnScroll, { passive: true })
+    window.addEventListener("resize", this.observePages)
+    this.observePages()
   }
 
   disconnect() {
     this.observer?.disconnect()
-    window.removeEventListener("scroll", this.updateScrollDirection)
+    window.removeEventListener("scroll", this.retryOnScroll)
+    window.removeEventListener("resize", this.observePages)
+    this.retrySentinels.clear()
   }
 
-  updateScrollDirection() {
-    const scrollY = window.scrollY
-    if (scrollY !== this.lastScrollY) this.scrollDirection = scrollY > this.lastScrollY ? "down" : "up"
-    this.lastScrollY = scrollY
+  retryOnScroll() {
+    this.retrySentinels.forEach((sentinel) => {
+      if (sentinel.isConnected) this.observer.observe(sentinel)
+    })
+    this.retrySentinels.clear()
+  }
+
+  observePages() {
+    this.observer?.disconnect()
+    // Keep roughly one rendered page beyond either viewport edge. Lazy images
+    // let the browser prioritize nearby thumbnails without fetching the whole buffer.
+    const cards = Array.from(this.element.querySelectorAll("article")).slice(0, this.pageSizeValue)
+    const first = cards[0]?.getBoundingClientRect()
+    const last = cards.at(-1)?.getBoundingClientRect()
+    const pageHeight = first && last ? last.bottom - first.top : 0
+    const margin = Math.ceil(Math.max(800, pageHeight))
+    this.observer = new IntersectionObserver((entries) => this.loadIfVisible(entries), {
+      rootMargin: `${margin}px 0px`
+    })
+    this.observeSentinel()
   }
 
   observeSentinel() {
-    this.sentinelTargets.forEach((sentinel) => this.observer.observe(sentinel))
+    this.sentinelTargets.forEach((sentinel) => {
+      if (!this.loadingSentinels.has(sentinel) && !this.retrySentinels.has(sentinel)) this.observer.observe(sentinel)
+    })
   }
 
   sentinelTargetConnected(sentinel) {
@@ -37,12 +56,15 @@ export default class extends Controller {
 
   sentinelTargetDisconnected(sentinel) {
     this.observer?.unobserve(sentinel)
+    this.retrySentinels?.delete(sentinel)
   }
 
-  async loadIfVisible(entries) {
-    const visibleSentinels = entries.filter((entry) => entry.isIntersecting).map((entry) => entry.target)
-    const sentinel = this.sentinelForScrollDirection(visibleSentinels)
-    if (!sentinel?.dataset.nextUrl || this.loadingSentinels.has(sentinel)) return
+  loadIfVisible(entries) {
+    entries.filter((entry) => entry.isIntersecting).forEach((entry) => this.loadPage(entry.target))
+  }
+
+  async loadPage(sentinel) {
+    if (!sentinel?.isConnected || !sentinel.dataset.nextUrl || this.loadingSentinels.has(sentinel)) return
 
     try {
       this.loadingSentinels.add(sentinel)
@@ -54,24 +76,14 @@ export default class extends Controller {
       }
       if (this.element.isConnected) this.observeSentinel()
     } catch (error) {
-      if (!this.element.isConnected) return
+      if (!this.element.isConnected || !sentinel.isConnected) return
 
       console.error(error)
       sentinel.textContent = `${error.message} Scroll to retry.`
-      this.observer.observe(sentinel)
+      // Re-observing here immediately retries an intersecting sentinel in a loop.
+      this.retrySentinels.add(sentinel)
     } finally {
       this.loadingSentinels.delete(sentinel)
     }
-  }
-
-  sentinelForScrollDirection(sentinels) {
-    if (sentinels.length <= 1) return sentinels[0]
-
-    const direction = this.scrollDirection === "up" ? "newer" : "older"
-    return sentinels.find((sentinel) => this.directionForSentinel(sentinel) === direction) || sentinels[0]
-  }
-
-  directionForSentinel(sentinel) {
-    return sentinel.dataset.streamPageDirection === "newer" ? "newer" : "older"
   }
 }

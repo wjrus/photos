@@ -31,13 +31,16 @@ module ApplicationHelper
   def photo_stream_media(photo, **options)
     return_to = options.delete(:return_to)
     access_params = options.delete(:access_params) || {}
-    stream_params = access_params.merge(return_to: return_to).compact
+    # Archived media needs its access context; normal thumbnails share one URL
+    # across feeds so the browser can reuse their cached bytes.
+    stream_params = access_params.dup
+    stream_params[:return_to] = return_to if photo.archived? && return_to.present?
     stream_path = stream_photo_path(photo, stream_params)
     image_options = {
       alt: photo.description.presence || photo.title.presence || "Photo",
       class: "size-full object-cover",
-      loading: "eager",
-      decoding: "auto"
+      loading: "lazy",
+      decoding: "async"
     }.merge(options)
 
     if photo.video?
@@ -83,10 +86,14 @@ module ApplicationHelper
       if attached_blob_available?(detail_variant&.image)
         image_tag detail_variant.image,
           alt: photo.title,
+          fetchpriority: "high",
+          decoding: "async",
           class: "photo-detail-media max-h-screen max-w-full object-contain"
       else
         image_tag photo_display_image_path(photo, access_params),
           alt: photo.title,
+          fetchpriority: "high",
+          decoding: "async",
           class: "photo-detail-media max-h-screen max-w-full object-contain"
       end
     end
@@ -99,7 +106,7 @@ module ApplicationHelper
       ]
 
       if (media_path = photo_neighbor_prefetch_media_path(photo))
-        tags << tag.link(rel: "preload", href: media_path, as: "image")
+        tags << tag.link(rel: "preload", href: media_path, as: "image", fetchpriority: "low")
       end
 
       tags

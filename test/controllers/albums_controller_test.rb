@@ -100,6 +100,11 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_equal "image/jpeg", response.media_type
+    assert_equal "private, no-store", response.headers["Cache-Control"]
+
+    get stream_photo_path(visible, album_id: album.id)
+    assert_response :success
+    assert_equal "private, no-store", response.headers["Cache-Control"]
 
     get album_path(album)
     assert_response :success

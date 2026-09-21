@@ -233,8 +233,8 @@ class Photo < ApplicationRecord
   def self.stream_cursor_before(captured_at)
     [
       captured_at.utc.iso8601(6),
-      Time.utc(9999, 12, 31, 23, 59, 59).iso8601(6),
-      9_999_999_999
+      Time.utc(1, 1, 1).iso8601(6),
+      0
     ].join("_")
   end
 

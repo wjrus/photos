@@ -18,6 +18,7 @@
     <% if @locations.any? %>
       <div class="mt-6"
            data-stream-page-container
+           data-infinite-scroll-page-size-value="<%= LocationsController::LOCATION_PAGE_SIZE %>"
            data-controller="<%= "infinite-scroll" if @next_location_page.present? %>">
         <%= render "locations/page", locations: @locations %>
       </div>

@@ -65,6 +65,7 @@ class StreamScrollTest < ApplicationSystemTestCase
 
   test "Chrome Back restores the feed and resumes a page that was loading when the photo opened" do
     visit root_path
+    assert_selector "[data-photo-id]", count: 120
     hold_page_responses
     page.execute_script("window.scrollTo(0, document.documentElement.scrollHeight)")
     wait_for_page("older")
@@ -82,9 +83,9 @@ class StreamScrollTest < ApplicationSystemTestCase
 
     release_page("older")
     settle_layout
-    assert_selector "[data-photo-id]", count: 60
-    release_page("older")
     assert_selector "[data-photo-id]", count: 120
+    release_page("older")
+    assert_selector "[data-photo-id]", count: 180
     assert_photo_stays_in_place(anchor)
   end
 
@@ -112,6 +113,97 @@ class StreamScrollTest < ApplicationSystemTestCase
   ensure
     browser&.execute_cdp("Emulation.setTouchEmulationEnabled", enabled: false)
     browser&.execute_cdp("Emulation.clearDeviceMetricsOverride")
+  end
+
+  %w[home album location].each do |stream|
+    test "#{stream} timeline follows the photos currently onscreen" do
+      visit stream_path(stream)
+      assert_selector "[data-photo-id]", count: 120
+      page.execute_script("document.querySelectorAll('[data-photo-id]')[45].scrollIntoView({ block: 'start' })")
+      settle_layout
+      period = page.evaluate_script <<~JS
+        Array.from(document.querySelectorAll('[data-photo-id]')).find(card => card.getBoundingClientRect().bottom > 120).dataset.streamTimelineDayKey
+      JS
+      assert_selector "[data-stream-timeline-target='item'][aria-current='date'][data-stream-timeline-period-key-value='#{period}']"
+    end
+  end
+
+  test "preloading starts a page early and leaves distant thumbnails lazy" do
+    visit photo_path(@focus)
+    assert_selector ".photo-viewer-shell"
+    hold_page_responses
+    page.execute_script("Turbo.visit('/')")
+    assert_current_path root_path
+    wait_for_page("older")
+    assert_selector "[data-photo-id]", count: 60
+    distance = page.evaluate_script("document.querySelector('[data-infinite-scroll-target=sentinel]').getBoundingClientRect().top - innerHeight")
+    assert_operator distance, :>, 800, "Pagination should start before the old 800px threshold"
+
+    release_page("older")
+    assert_selector "[data-photo-id]", count: 120
+    settle_layout
+    assert_equal 0, page.evaluate_script("pendingStreamPages.length")
+    assert_equal 0, page.evaluate_script("scrollY")
+    assert page.evaluate_script("document.querySelector('[data-photo-id] img').loading === 'lazy'")
+    assert_not page.evaluate_script("Array.from(document.querySelectorAll('[data-photo-id] img')).at(-1).complete"), "Distant thumbnails should not compete with visible photos"
+
+    page.execute_script("window.scrollTo(0, document.documentElement.scrollHeight)")
+    wait_for_page("older")
+    anchor = visible_photo
+    release_page("older")
+    assert_selector "[data-photo-id]", count: 180
+    assert_photo_stays_in_place(anchor)
+  end
+
+  test "scroll restoration shares an already pending page request" do
+    visit photo_path(@focus)
+    assert_selector ".photo-viewer-shell"
+    hold_page_responses
+    page.execute_script("Turbo.visit('/')")
+    assert_current_path root_path
+    wait_for_page("older")
+    page.evaluate_async_script <<~JS
+      const done = arguments[0]
+      import('controllers/stream_page_loader').then(loader => {
+        const sentinel = document.querySelector('[data-infinite-scroll-target=sentinel]')
+        window.restoredPage = loader.appendNextStreamPage(sentinel, 'Restoring...')
+        done()
+      })
+    JS
+    release_page("older")
+    assert page.evaluate_async_script("const done = arguments[0]; restoredPage.then(done)")
+    assert_selector "[data-photo-id]", count: 120
+    assert_equal 0, page.evaluate_script("pendingStreamPages.length")
+    assert_equal 120, page.evaluate_script("new Set(Array.from(document.querySelectorAll('[data-photo-id]'), card => card.dataset.photoId)).size")
+  end
+
+  test "failed page loads wait for scrolling before retrying" do
+    visit photo_path(@focus)
+    assert_selector ".photo-viewer-shell"
+    page.execute_script <<~JS
+      const originalFetch = window.fetch
+      window.failedPageRequests = 0
+      window.fetch = (...args) => {
+        const url = new URL(args[0].url || args[0], location.href)
+        if (url.searchParams.has('stream_page')) {
+          window.failedPageRequests += 1
+          return Promise.resolve(new Response('', { status: 503 }))
+        }
+        return originalFetch(...args)
+      }
+      Turbo.visit('/')
+    JS
+    assert_current_path root_path
+    assert_text /Could not load more photos\. Scroll to retry\./i
+    settle_layout
+    assert_equal 1, page.evaluate_script("failedPageRequests")
+    scroll_to(200)
+    page.document.synchronize(5) do
+      raise Capybara::ExpectationNotMet, "Scroll did not retry pagination" unless page.evaluate_script("failedPageRequests >= 2")
+    end
+    settle_layout
+    assert_equal 2, page.evaluate_script("failedPageRequests")
+    assert_selector "[data-photo-id]", count: 60
   end
 
   private

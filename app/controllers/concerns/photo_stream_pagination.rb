@@ -69,7 +69,7 @@ module PhotoStreamPagination
   end
 
   def stream_timeline_periods(scope, cache_key:, order: :stream)
-    Rails.cache.fetch(cache_key, expires_in: 30.minutes, race_condition_ttl: 10.seconds) do
+    Rails.cache.fetch([ "stream-timeline-periods/v2", cache_key ], expires_in: 30.minutes, race_condition_ttl: 10.seconds) do
       timeline_scope = scope.except(:order).where.not(captured_at: nil)
       oldest_at, newest_at = timeline_scope.pluck(
         Arel.sql("MIN(photos.captured_at)"),

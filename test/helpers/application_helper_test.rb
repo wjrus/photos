@@ -44,6 +44,23 @@ class ApplicationHelperTest < ActionView::TestCase
     assert_select_html html, "img[alt='Lighthouse at dusk']"
   end
 
+  test "normal feeds share a lazy thumbnail URL while preserving album access and archive context" do
+    photo = attached_photo
+    photo.original.variant(:stream).processed
+
+    [ root_path, search_path(q: "Photo"), album_path(123) ].each do |return_path|
+      html = photo_stream_media(photo, return_to: return_path)
+      assert_select_html html, "img[src='#{stream_photo_path(photo)}'][loading='lazy'][decoding='async']"
+    end
+
+    html = photo_stream_media(photo, return_to: album_path(123), access_params: { album_id: 123 })
+    assert_equal stream_photo_path(photo, album_id: 123), Nokogiri::HTML.fragment(html).at_css("img")["src"]
+
+    photo.archive!
+    html = photo_stream_media(photo, return_to: archived_photos_path)
+    assert_equal stream_photo_path(photo, return_to: archived_photos_path), Nokogiri::HTML.fragment(html).at_css("img")["src"]
+  end
+
   test "detail video uses display derivative for playback" do
     photo = attached_video
     attach_video_derivatives(photo)

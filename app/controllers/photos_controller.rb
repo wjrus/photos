@@ -27,11 +27,7 @@ class PhotosController < ApplicationController
   def display
     return head :not_found if @photo.video?
 
-    variant = @photo.original.variant(:display).processed
-    send_data variant.download,
-      type: "image/jpeg",
-      disposition: "inline",
-      filename: public_filename(@photo, ".jpg")
+    send_image_variant(:display)
   end
 
   def stream
@@ -40,11 +36,7 @@ class PhotosController < ApplicationController
 
       redirect_to rails_blob_path(@photo.video_preview, disposition: "inline")
     else
-      variant = @photo.original.variant(:stream).processed
-      send_data variant.download,
-        type: "image/jpeg",
-        disposition: "inline",
-        filename: public_filename(@photo, ".jpg")
+      send_image_variant(:stream)
     end
   end
 
@@ -191,6 +183,20 @@ class PhotosController < ApplicationController
   end
 
   private
+
+  def send_image_variant(name)
+    variant = @photo.original.variant(name).processed
+    filename = public_filename(@photo, ".jpg")
+    # Authorization runs before revalidation. Keep access-link responses no-store.
+    unless @album_access_link
+      # Binary validators must not depend on HTML templates or transient flash messages.
+      response.weak_etag = [ variant.image.blob, filename ]
+      response.cache_control.merge!(max_age: 0, private: true, must_revalidate: true)
+      return head :not_modified if request.fresh?(response)
+    end
+
+    send_data variant.download, type: "image/jpeg", disposition: "inline", filename: filename
+  end
 
   def photo_params
     params.require(:photo).permit(:title, :description, :original, sidecars: [])

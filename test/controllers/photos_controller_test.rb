@@ -727,6 +727,55 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_equal "image/jpeg", response.media_type
   end
 
+  %w[stream display].each do |variant_name|
+    test "#{variant_name} image revalidates cached bytes without reading the file again" do
+      photo = attached_photo
+      variant = photo.original.variant(variant_name.to_sym).processed
+      path = public_send("#{variant_name}_photo_path", photo)
+      get path
+      assert_response :success
+      etag = response.headers.fetch("ETag")
+      assert_includes response.headers.fetch("Cache-Control"), "private"
+      assert_includes response.headers.fetch("Cache-Control"), "max-age=0"
+      assert_includes response.headers.fetch("Cache-Control"), "must-revalidate"
+
+      # Revalidation must not touch the spinning disk, even if the cached file is unavailable.
+      File.delete(variant.image.blob.service.path_for(variant.image.blob.key))
+      get path, headers: { "If-None-Match" => etag }
+      assert_response :not_modified
+      assert_empty response.body
+
+      delete sign_out_path
+      get path, headers: { "If-None-Match" => etag }
+      assert_response :not_found
+    end
+  end
+
+  test "cached thumbnails do not survive revoked public access" do
+    photo = attached_photo
+    photo.publish!
+    delete sign_out_path
+    get stream_photo_path(photo)
+    assert_response :success
+    etag = response.headers.fetch("ETag")
+
+    photo.unpublish!
+    get stream_photo_path(photo), headers: { "If-None-Match" => etag }
+    assert_response :not_found
+  end
+
+  test "replacing the original invalidates the thumbnail validator" do
+    photo = attached_photo
+    get stream_photo_path(photo)
+    assert_response :success
+    etag = response.headers.fetch("ETag")
+
+    photo.original.attach(io: File.open(Rails.root.join("public/icon.png")), filename: "replacement.png", content_type: "image/png")
+    get stream_photo_path(photo), headers: { "If-None-Match" => etag }
+    assert_response :success
+    assert_not_equal etag, response.headers.fetch("ETag")
+  end
+
   test "public viewer can access stable stream thumbnail for public photo" do
     photo = attached_photo
     photo.original.variant(:stream).processed
@@ -1154,7 +1203,8 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "link[rel='prefetch'][as='document'][href='#{photo_path(newer)}']"
     assert_select "link[rel='prefetch'][as='document'][href='#{photo_path(older)}']"
-    assert_select "link[rel='preload'][as='image']", 2
+    assert_select "link[rel='preload'][as='image'][fetchpriority='low']", 2
+    assert_select "img.photo-detail-media[fetchpriority='high']"
   end
 
   test "photo viewer prefetches video poster but not video display bytes" do

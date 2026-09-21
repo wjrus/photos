@@ -133,19 +133,8 @@ export default class extends Controller {
   }
 
   loadedPeriodElements() {
-    if (this.precisionValue === "hour") {
-      const loadedCards = Array.from(document.querySelectorAll("[data-stream-timeline-hour-key]:not([data-stream-virtualized='true'])"))
-      if (loadedCards.length > 0) return loadedCards
-
-      return Array.from(document.querySelectorAll("[data-stream-timeline-hour-key]"))
-    }
-
-    return this.loadedDateGroups()
-  }
-
-  loadedDateGroups() {
-    const loadedGroups = Array.from(document.querySelectorAll("[data-stream-date-group-key]:not([data-stream-virtualized='true'])"))
-    if (loadedGroups.length > 0) return loadedGroups
+    const loadedCards = Array.from(document.querySelectorAll(`[data-photo-id][${this.periodDataAttribute}]`))
+    if (loadedCards.length > 0) return loadedCards
 
     return Array.from(document.querySelectorAll("[data-stream-date-group-key]"))
   }
