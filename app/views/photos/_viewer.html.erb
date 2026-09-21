@@ -89,7 +89,7 @@
     <nav class="photo-stream-navigation absolute inset-x-3 top-1/2 z-20 flex items-center justify-between sm:inset-x-4" aria-label="Stream navigation">
       <% if previous_photo %>
         <%= link_to photo_path(previous_photo, local_assigns[:access_params] || {}),
-              class: "ui-tooltip ui-tooltip--left photo-viewer-action flex size-12 items-center justify-center rounded-full bg-black/45 text-white transition hover:bg-black/65 focus-visible:bg-black/65 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
+              class: "ui-tooltip ui-tooltip--left photo-viewer-action flex h-24 w-12 items-center justify-center rounded-[4px] bg-black/45 text-white transition hover:bg-black/65 focus-visible:bg-black/65 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
               aria: { label: "Previous item in stream", keyshortcuts: "ArrowLeft" },
               data: { turbo_action: "replace", tooltip: "Previous item" } do %>
           <%= app_icon(:chevron_left, classes: "size-7") %>
@@ -98,7 +98,7 @@
       <% end %>
       <% if next_photo %>
         <%= link_to photo_path(next_photo, local_assigns[:access_params] || {}),
-              class: "ui-tooltip photo-viewer-action ml-auto flex size-12 items-center justify-center rounded-full bg-black/45 text-white transition hover:bg-black/65 focus-visible:bg-black/65 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
+              class: "ui-tooltip photo-viewer-action ml-auto flex h-24 w-12 items-center justify-center rounded-[4px] bg-black/45 text-white transition hover:bg-black/65 focus-visible:bg-black/65 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
               aria: { label: "Next item in stream", keyshortcuts: "ArrowRight" },
               data: { turbo_action: "replace", tooltip: "Next item" } do %>
           <%= app_icon(:chevron_right, classes: "size-7") %>
