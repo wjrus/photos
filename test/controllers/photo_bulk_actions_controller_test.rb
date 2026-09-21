@@ -41,6 +41,21 @@ class PhotoBulkActionsControllerTest < ActionDispatch::IntegrationTest
     assert_includes album.reload.photos, photo
   end
 
+  test "bulk actions return to the first submitted photo regardless of database row order" do
+    first = attached_photo(title: "First selected")
+    second = attached_photo(title: "Second selected")
+
+    [ [ second, first ], [ first, second ] ].each do |selection|
+      post photo_bulk_actions_path, params: {
+        bulk_action: "publish",
+        photo_ids: selection.map { |photo| photo.id.to_s },
+        return_to: root_path
+      }
+
+      assert_redirected_to root_path(photo_id: selection.first.id)
+    end
+  end
+
   test "bulk add to album from stream returns to selected photo" do
     album = @owner.photo_albums.create!(title: "Existing", source: "manual")
     photo = attached_photo(title: "For album")

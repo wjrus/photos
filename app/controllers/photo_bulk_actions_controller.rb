@@ -93,7 +93,7 @@ class PhotoBulkActionsController < ApplicationController
   end
 
   def selected_photos
-    scope = current_user.photos.where(restricted: false, id: selected_photo_ids)
+    scope = current_user.photos.where(restricted: false).in_order_of(:id, selected_photo_ids)
     if params[:bulk_action] == "restore" || archive_return_path?(safe_return_path)
       scope.archived
     else
