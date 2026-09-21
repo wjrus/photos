@@ -5,6 +5,7 @@ export default class extends Controller {
   static targets = ["sentinel"]
 
   connect() {
+    this.loadingSentinels = new WeakSet()
     this.lastScrollY = window.scrollY
     this.scrollDirection = "down"
     this.updateScrollDirection = this.updateScrollDirection.bind(this)
@@ -41,22 +42,25 @@ export default class extends Controller {
   async loadIfVisible(entries) {
     const visibleSentinels = entries.filter((entry) => entry.isIntersecting).map((entry) => entry.target)
     const sentinel = this.sentinelForScrollDirection(visibleSentinels)
-    if (!sentinel || sentinel.dataset.loading === "true") return
+    if (!sentinel?.dataset.nextUrl || this.loadingSentinels.has(sentinel)) return
 
     try {
-      sentinel.dataset.loading = "true"
+      this.loadingSentinels.add(sentinel)
       this.observer.unobserve(sentinel)
       if (sentinel.dataset.streamPageDirection === "newer") {
         await prependPreviousStreamPage(sentinel)
       } else {
         await appendNextStreamPage(sentinel)
       }
-      this.observeSentinel()
+      if (this.element.isConnected) this.observeSentinel()
     } catch (error) {
+      if (!this.element.isConnected) return
+
       console.error(error)
       sentinel.textContent = `${error.message} Scroll to retry.`
-      delete sentinel.dataset.loading
       this.observer.observe(sentinel)
+    } finally {
+      this.loadingSentinels.delete(sentinel)
     }
   }
 

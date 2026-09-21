@@ -7,9 +7,9 @@ module PhotoStreamPagination
     return paginate_newer_photo_stream(scope) if params[:newer_cursor].present?
 
     photos = scope.before_stream_cursor(params[:cursor]).limit(Photo::STREAM_PAGE_SIZE + 1).to_a
-    next_photo = photos[Photo::STREAM_PAGE_SIZE]
+    page = photos.first(Photo::STREAM_PAGE_SIZE)
 
-    [ photos.first(Photo::STREAM_PAGE_SIZE), next_photo&.stream_cursor, nil ]
+    [ page, (page.last.stream_cursor if photos.size > page.size), nil ]
   end
 
   def paginate_photo_stream_with_focus(scope)
@@ -38,29 +38,27 @@ module PhotoStreamPagination
     previous_photo = scope.stream_before(photo)
     page_scope = previous_photo ? scope.before_stream_cursor(previous_photo.stream_cursor) : scope
     photos = page_scope.limit(Photo::STREAM_PAGE_SIZE + 1).to_a
-    next_photo = photos[Photo::STREAM_PAGE_SIZE]
     page = photos.first(Photo::STREAM_PAGE_SIZE)
 
-    [ page, next_photo&.stream_cursor, (page.first&.stream_cursor if previous_photo) ]
+    [ page, (page.last.stream_cursor if photos.size > page.size), (page.first&.stream_cursor if previous_photo) ]
   end
 
   def paginate_chronological_photo_stream(scope)
     return paginate_previous_chronological_photo_stream(scope) if params[:newer_cursor].present?
 
     photos = scope.after_chronological_cursor(params[:cursor]).chronological_order.limit(Photo::STREAM_PAGE_SIZE + 1).to_a
-    next_photo = photos[Photo::STREAM_PAGE_SIZE]
+    page = photos.first(Photo::STREAM_PAGE_SIZE)
 
-    [ photos.first(Photo::STREAM_PAGE_SIZE), next_photo&.stream_cursor, nil ]
+    [ page, (page.last.stream_cursor if photos.size > page.size), nil ]
   end
 
   def paginate_chronological_photo_stream_focused(scope, photo)
     previous_photo = scope.chronological_before(photo)
     page_scope = previous_photo ? scope.after_chronological_cursor(previous_photo.stream_cursor) : scope
     photos = page_scope.chronological_order.limit(Photo::STREAM_PAGE_SIZE + 1).to_a
-    next_photo = photos[Photo::STREAM_PAGE_SIZE]
     page = photos.first(Photo::STREAM_PAGE_SIZE)
 
-    [ page, next_photo&.stream_cursor, (page.first&.stream_cursor if previous_photo) ]
+    [ page, (page.last.stream_cursor if photos.size > page.size), (page.first&.stream_cursor if previous_photo) ]
   end
 
   def render_photo_page_if_requested(**locals)

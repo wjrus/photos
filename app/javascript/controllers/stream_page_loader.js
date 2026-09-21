@@ -3,16 +3,12 @@ export async function appendNextStreamPage(sentinel, loadingLabel = "Loading..."
 }
 
 export async function prependPreviousStreamPage(sentinel, loadingLabel = "Loading...") {
-  const previousHeight = document.documentElement.scrollHeight
-  const loaded = await loadStreamPage(sentinel, loadingLabel, "prepend")
-  const heightDelta = document.documentElement.scrollHeight - previousHeight
-  if (heightDelta > 0) window.scrollBy(0, heightDelta)
-  return loaded
+  return loadStreamPage(sentinel, loadingLabel, "prepend")
 }
 
 async function loadStreamPage(sentinel, loadingLabel, direction) {
   const url = sentinel?.dataset.nextUrl
-  if (!url) return false
+  if (!url || !sentinel.isConnected) return false
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 30000)
@@ -26,18 +22,39 @@ async function loadStreamPage(sentinel, loadingLabel, direction) {
     if (!response.ok) throw new Error("Could not load more photos.")
 
     const html = streamPageHtml(await response.text()).trim()
+    if (!sentinel.isConnected) return false
     if (!html) {
       sentinel.textContent = "No more photos."
+      delete sentinel.dataset.nextUrl
       return false
     }
 
+    const anchor = visibleStreamAnchor(sentinel.closest("[data-stream-page-container]"))
     insertStreamPage(sentinel, html, direction)
     sentinel.remove()
+    restoreStreamAnchor(anchor)
     document.dispatchEvent(new CustomEvent("photos:stream-page-loaded"))
     return true
   } finally {
     clearTimeout(timeout)
   }
+}
+
+function visibleStreamAnchor(container) {
+  if (!container) return
+
+  for (const element of container.querySelectorAll("[data-photo-id], article")) {
+    const rect = element.getBoundingClientRect()
+    if (rect.bottom > 0 && rect.top < window.innerHeight) return { element, top: rect.top }
+  }
+}
+
+function restoreStreamAnchor(anchor) {
+  if (!anchor?.element.isConnected) return
+
+  // Measure after insertion so Chrome's own scroll anchoring is already accounted for.
+  const offset = anchor.element.getBoundingClientRect().top - anchor.top
+  if (offset) window.scrollBy({ top: offset, left: 0, behavior: "instant" })
 }
 
 export function streamPageHtml(html) {
