@@ -44,18 +44,20 @@ class PhotoSearch
     query = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q].to_s.strip)}%"
     return scope.where("photos.title ILIKE ?", query) if user.blank?
 
-    album_ids = PhotoAlbum.visible_to(user).where("photo_albums.title ILIKE ?", query).pluck(:id)
-    tagged_user_ids = User.where("users.name ILIKE :query OR users.email ILIKE :query", query: query).pluck(:id)
+    album_ids = PhotoAlbum.visible_to(user).where("photo_albums.title ILIKE ?", query).select(:id)
+    tagged_user_ids = User.where("users.name ILIKE :query OR users.email ILIKE :query", query: query).select(:id)
+    # Membership subqueries avoid multiplying candidate rows by every album/tag pair.
+    album_photo_ids = PhotoAlbumMembership.where(photo_album_id: album_ids).select(:photo_id)
+    tagged_photo_ids = PhotoPeopleTag.where(user_id: tagged_user_ids).select(:photo_id)
     location_ids = PhotoLocationPlace.matching_name(query).pluck(:location_id)
     semantic_photo_ids = semantic_enabled? ? PhotoOpenclipSearch.search_ids(query: params[:q], user: user) : []
 
     scope
-      .left_outer_joins(:photo_albums, photo_people_tags: :user)
       .where(
         text_conditions(location_ids, semantic_photo_ids),
         query: query,
-        album_ids: album_ids,
-        tagged_user_ids: tagged_user_ids,
+        album_photo_ids: album_photo_ids,
+        tagged_photo_ids: tagged_photo_ids,
         semantic_photo_ids: semantic_photo_ids,
         normalized_visual_tag: params[:q].to_s.strip.downcase.tr(" ", "_")
       )
@@ -69,8 +71,8 @@ class PhotoSearch
       "photo_metadata.camera_make ILIKE :query",
       "photo_metadata.camera_model ILIKE :query",
       "photo_metadata.lens_model ILIKE :query",
-      "photo_albums.id IN (:album_ids)",
-      "photo_people_tags.user_id IN (:tagged_user_ids)",
+      "photos.id IN (:album_photo_ids)",
+      "photos.id IN (:tagged_photo_ids)",
       "photos.id IN (SELECT photo_id FROM photo_analysis_runs WHERE provider = 'openrouter' AND status = 'complete' AND summary ILIKE :query)",
       "photos.id IN (SELECT photo_id FROM photo_analysis_tags WHERE provider = 'openrouter' AND name = :normalized_visual_tag)"
     ]

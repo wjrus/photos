@@ -26,6 +26,9 @@ class LocationsController < ApplicationController
       .stream_order
     @photos, @next_cursor, @newer_cursor = paginate_photo_stream_with_focus(stream_scope)
     @newer_cursor ||= timeline_newer_cursor(scoped_photos) if params[:timeline_page].present?
+    if @photos.empty? && !PhotoLocation.place_id?(@location_id) && !scoped_photos.exists?
+      raise ActiveRecord::RecordNotFound
+    end
 
     return if render_photo_page_if_requested(
       return_to: location_path(@location_id),
@@ -35,6 +38,7 @@ class LocationsController < ApplicationController
       stream_target_photo_id: @stream_target_photo_id
     )
 
+    set_location_summary
     @location_media_count = media_counts_for(scoped_photos)
     @location_map_path = map_path(location_map_bounds_params(scoped_photos).merge(location_id: @location_id))
     @albums = current_user.photo_albums.display_order if current_user&.owner?
@@ -110,7 +114,9 @@ class LocationsController < ApplicationController
   def set_location
     @location_id = params[:id].to_s
     raise ActiveRecord::RecordNotFound unless PhotoLocation.valid_id?(@location_id)
+  end
 
+  def set_location_summary
     if PhotoLocation.place_id?(@location_id)
       @location_title = PhotoLocation.place_name_from_id(@location_id)
       @location_photo_count = location_photo_scope.count

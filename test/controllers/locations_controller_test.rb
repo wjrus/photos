@@ -342,6 +342,40 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to root_path
   end
 
+  test "location pagination does not recalculate location summaries" do
+    photo = attached_photo(title: "Location page photo")
+    geotag(photo, latitude: 40, longitude: -80)
+    place = PhotoLocationPlace.create!(location_id: location_id_for(photo), name: "Synthetic place")
+
+    [ location_id_for(photo), PhotoLocation.place_id_for_name(place.name) ].each do |location_id|
+      queries = []
+      subscriber = ->(event) { queries << event.payload[:sql] unless event.payload[:cached] }
+
+      ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+        get location_path(location_id, stream_page: 1)
+      end
+
+      assert_response :success
+      assert_select "[data-photo-id='#{photo.id}']"
+      aggregates = queries.grep(/\b(?:COUNT|ARRAY_AGG|AVG|MIN|MAX)\s*\(/i)
+      assert_empty aggregates, "Page fragments should not aggregate the entire location"
+    end
+  end
+
+  test "location pagination distinguishes an exhausted page from an inaccessible location" do
+    photo = attached_photo(title: "Only location photo")
+    geotag(photo, latitude: 40, longitude: -80)
+    location_id = location_id_for(photo)
+
+    get location_path(location_id, cursor: photo.stream_cursor, stream_page: 1)
+    assert_response :success
+    assert_select "[data-photo-id]", count: 0
+
+    photo.restrict!
+    get location_path(location_id, stream_page: 1)
+    assert_response :not_found
+  end
+
   private
 
   def location_id_for(photo)

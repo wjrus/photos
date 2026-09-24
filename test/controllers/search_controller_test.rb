@@ -42,6 +42,65 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ photo.id ], PhotoSearch.new(params: { q: "Matching" }, user: @owner).results.pluck(:id)
   end
 
+  test "search matches album titles and people without separate album and user queries" do
+    album_photo = attached_photo(title: "Album scene")
+    person_photo = attached_photo(title: "Portrait")
+    @owner.photo_albums.create!(title: "Synthetic expedition", source: "manual").photos << album_photo
+    person = users(:two)
+    person.update!(name: "Synthetic Person")
+    person_photo.photo_people_tags.create!(user: person, tagged_by: @owner)
+    attached_photo(title: "Unrelated scene")
+    queries = []
+    subscriber = lambda do |event|
+      next if event.payload[:name] == "SCHEMA"
+
+      queries << event.payload[:sql] if event.payload[:sql].start_with?("SELECT")
+    end
+    ids = nil
+
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+      ids = PhotoSearch.new(params: { q: "Synthetic" }, user: @owner, semantic: false)
+        .results.except(:includes).pluck(:id)
+    end
+
+    assert_equal [ album_photo.id, person_photo.id ].sort, ids.sort
+    assert_equal 2, queries.size, "Only place lookup and the photo search should query the database"
+  end
+
+  test "album and people text matches still respect viewer visibility and person filters" do
+    viewer = users(:two)
+    viewer.update!(name: "Synthetic Person")
+    public_photo = attached_photo(title: "Public scene")
+    public_photo.publish!
+    tagged_photo = attached_photo(title: "Tagged scene")
+    tagged_photo.photo_people_tags.create!(user: viewer, tagged_by: @owner)
+    hidden_photo = attached_photo(title: "Hidden scene")
+    locked_photo = attached_photo(title: "Locked scene")
+    locked_photo.restrict!
+    album = @owner.photo_albums.create!(title: "Synthetic expedition", source: "manual", visibility: "public")
+    album.photos << [ public_photo, tagged_photo, hidden_photo, locked_photo ]
+
+    results = ->(params, user) { PhotoSearch.new(params: params, user: user, semantic: false).results.except(:includes).pluck(:id) }
+    assert_equal [ public_photo.id, tagged_photo.id ].sort, results.call({ q: "Synthetic" }, viewer).sort
+    assert_equal [ tagged_photo.id ], results.call({ q: "Synthetic", person_id: viewer.id }, viewer)
+    assert_empty results.call({ q: "Synthetic" }, nil)
+    assert_empty results.call({ q: "%' OR 1=1 --" }, @owner)
+  end
+
+  test "search treats SQL placeholder punctuation and wildcards as literal text" do
+    photo = attached_photo(title: "Synthetic scene")
+    album = @owner.photo_albums.create!(title: "Trip:summer 100%_complete?", source: "manual")
+    album.photos << photo
+    other = attached_photo(title: "Unrelated scene")
+    @owner.photo_albums.create!(title: "Trip:summer 100percent complete", source: "manual").photos << other
+
+    get search_path(q: "Trip:summer 100%_")
+
+    assert_response :success
+    assert_select "[data-photo-id='#{photo.id}']"
+    assert_select "[data-photo-id='#{other.id}']", count: 0
+  end
+
   test "owner search includes openclip visual matches" do
     match = attached_photo(title: "Parking lot")
     other = attached_photo(title: "Office note")

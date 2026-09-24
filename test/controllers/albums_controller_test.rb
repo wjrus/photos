@@ -608,6 +608,50 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     assert_equal photo, album.reload.cover_photo
   end
 
+  test "album index only instantiates cover photos for the requested page on a cold cache" do
+    25.times do |index|
+      photo = attached_photo(title: "Cover #{index}")
+      album = @owner.photo_albums.create!(title: format("Album %02d", index), source: "manual")
+      album.photos << photo
+      album.update!(cover_photo: photo) if index.even?
+    end
+
+    [ [ 1, 12 ], [ 2, 12 ], [ 3, 1 ] ].each do |page, expected_count|
+      instantiated_photos = 0
+      subscriber = lambda do |event|
+        instantiated_photos += event.payload[:record_count] if event.payload[:class_name] == "Photo"
+      end
+
+      ActiveSupport::Notifications.subscribed(subscriber, "instantiation.active_record") do
+        get albums_path(page: page)
+      end
+
+      assert_response :success
+      assert_select "article", count: expected_count
+      assert_equal expected_count, instantiated_photos, "Only this page's covers should be loaded"
+    end
+  end
+
+  test "album index falls back from an invisible explicit cover to the newest visible photo" do
+    album = @owner.photo_albums.create!(title: "Public covers", source: "manual", visibility: "public")
+    hidden = attached_photo(title: "Hidden cover")
+    older = attached_photo(title: "Older cover")
+    newer = attached_photo(title: "Newer cover")
+    [ older, newer ].each(&:publish!)
+    set_stream_time(older, Time.zone.local(2024, 1, 1))
+    set_stream_time(newer, Time.zone.local(2024, 1, 2))
+    newer.original.variant(:stream).processed
+    album.photos << [ hidden, older, newer ]
+    album.update!(cover_photo: hidden)
+    delete sign_out_path
+
+    get albums_path
+
+    assert_response :success
+    assert_select "img[alt='Newer cover']"
+    assert_select "img[alt='Hidden cover']", count: 0
+  end
+
   private
 
   def sign_in_as(user)

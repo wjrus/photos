@@ -59,3 +59,42 @@ viewer request. The snapshot grants no access to photos.
 `PhotoSearchOrderSnapshotTest` checks bounded results, zero record instantiation,
 zero photo queries when reusing a snapshot, expiry, changed filters, and audience
 isolation.
+
+## Text search association matches
+
+Text search tests album and people membership with ID subqueries. Joining both
+collections used to multiply each candidate photo by its album count times its
+people count, even though the outer query ultimately returned unique photos.
+Matching album and user IDs also stay in SQL instead of requiring two separate
+queries and Ruby arrays. Visibility restrictions and escaped search terms remain
+part of the query; anonymous searches still only search photo titles.
+
+Run the focused synthetic benchmark:
+
+```sh
+psql -X -d photos_test -v ON_ERROR_STOP=1 -f test/performance/photo_search.sql
+```
+
+It creates temporary tables with 100,000 photos, six album memberships and four
+people tags per photo, and verifies identical result sets before measuring. One
+local run reduced the ordered-ID query from **794.361 ms to 28.521 ms** (about
+28 times faster). The old plan generated 2.4 million candidate rows and spilled
+temporary data to disk; the new plan scanned 100,000 photos and used indexed
+membership lookups without that spill. This isolates association matching and
+excludes metadata/semantic search, rendering, media I/O, and production load.
+It is not an end-to-end search latency claim.
+
+## Album covers and location scrolling
+
+Album cover selection caches IDs without instantiating photos or loading their
+attachments. Only the requested page's covers are then loaded for rendering.
+A cold-cache regression with 25 albums (mixed explicit and automatic covers)
+reduced first-page Photo instantiations from **50 to 12**; subsequent pages load
+12 and 1 respectively. Automatic covers still use the newest visible photo when
+an explicit cover is inaccessible.
+
+Location page fragments skip summary aggregation and coordinate-summary
+geocoding work. The full page still prepares its heading, counts, map,
+and timeline. Regression tests check that both coordinate and named-location
+fragments execute no aggregate queries, that an exhausted page remains valid,
+and that an inaccessible coordinate location still returns 404.
