@@ -28,3 +28,16 @@ timings exclude rendering, image I/O, network latency, and production load.
 
 Timeline aggregates discard media preloads so computing counts/date ranges does
 not join Active Storage attachments and variant records.
+
+## Search navigation
+
+Search navigation stores at most 10,000 ordered photo IDs, fetched without
+instantiating photo records or preloading attachments. Subsequent pages reuse the
+same snapshot for up to 30 minutes when its audience and query match. A new
+search without a token creates a fresh snapshot; changing filters or an expired
+cache entry rebuilds it. Photo visibility is still checked on each page and
+viewer request. The snapshot grants no access to photos.
+
+`PhotoSearchOrderSnapshotTest` checks bounded results, zero record instantiation,
+zero photo queries when reusing a snapshot, expiry, changed filters, and audience
+isolation.

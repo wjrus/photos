@@ -161,6 +161,32 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href='#{photo_path(oldest)}'][aria-label='Next item in stream']"
   end
 
+  test "cached search navigation still enforces revoked photo access" do
+    current = attached_photo(title: "Visible dog")
+    revoked = attached_photo(title: "Revoked dog")
+    [ current, revoked ].each(&:publish!)
+    delete sign_out_path
+
+    with_memory_cache do
+      get search_path(q: "dog")
+      assert_response :success
+      return_to = css_select("a[href='#{photo_path(current)}']").first["data-photo-return-to"]
+      revoked.unpublish!
+
+      get return_to
+      assert_response :success
+      assert_select "[data-photo-id='#{revoked.id}']", count: 0
+
+      get photo_path(current, return_to: return_to)
+      follow_redirect!
+      assert_response :success
+      assert_select "a[href='#{photo_path(revoked)}']", count: 0
+
+      get photo_path(revoked)
+      assert_response :not_found
+    end
+  end
+
   test "search finds photos by place name" do
     match = attached_photo(title: "Downtown lunch")
     match.create_metadata!(

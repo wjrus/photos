@@ -30,7 +30,7 @@ class SearchController < ApplicationController
   end
 
   def store_search_order(results)
-    PhotoSearchOrderSnapshot.store(scope: results.except(:includes), user: current_user, token: params[:search_order])
+    PhotoSearchOrderSnapshot.store(scope: results, user: current_user, token: params[:search_order])
   end
 
   def search_return_path
