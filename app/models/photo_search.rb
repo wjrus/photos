@@ -16,16 +16,16 @@ class PhotoSearch
 
   def results
     scope = Photo.visible_to(user)
-      .with_original_variant_records
       .left_outer_joins(:metadata)
-      .includes(photo_people_tags: :user, photo_albums: [])
 
     scope = apply_text(scope)
     scope = apply_metadata_filters(scope)
     scope = apply_person_filter(scope)
     scope = apply_place_filter(scope)
 
-    scope.distinct.stream_order
+    # Filter with a subquery so multiple matching tags/albums cannot duplicate
+    # photos. Sort and preload only the resulting photos, not the joined rows.
+    Photo.where(id: scope.select(:id)).with_original_variant_records.stream_order
   end
 
   def active?

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_04_190000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_24_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -382,9 +382,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_04_190000) do
     t.datetime "updated_at", null: false
     t.bigint "upload_batch_id"
     t.string "visibility", default: "private", null: false
+    t.index "(\nCASE\n    WHEN (captured_at IS NULL) THEN 0\n    ELSE 1\nEND) DESC, COALESCE(captured_at, '0001-01-01 00:00:00'::timestamp without time zone) DESC, created_at DESC, id DESC", name: "index_photos_on_public_stream_cursor", where: "(((visibility)::text = 'public'::text) AND (restricted = false) AND (archived_at IS NULL))"
+    t.index "(\nCASE\n    WHEN (captured_at IS NULL) THEN 0\n    ELSE 1\nEND) DESC, COALESCE(captured_at, '0001-01-01 00:00:00'::timestamp without time zone) DESC, created_at DESC, id DESC", name: "index_photos_on_visible_stream_cursor", where: "((restricted = false) AND (archived_at IS NULL))"
     t.index ["archived_at"], name: "index_photos_on_archived_at"
-    t.index ["captured_at", "created_at", "id"], name: "index_photos_on_public_stream_order", order: :desc, where: "(((visibility)::text = 'public'::text) AND (restricted = false) AND (archived_at IS NULL))"
-    t.index ["captured_at", "created_at", "id"], name: "index_photos_on_visible_stream_order", order: :desc, where: "((restricted = false) AND (archived_at IS NULL))"
     t.index ["captured_at"], name: "index_photos_on_captured_at"
     t.index ["checksum_status"], name: "index_photos_on_checksum_status"
     t.index ["owner_id", "checksum_sha256"], name: "index_photos_on_owner_and_checksum", where: "(checksum_sha256 IS NOT NULL)"

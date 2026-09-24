@@ -157,6 +157,38 @@ class PhotoTest < ActiveSupport::TestCase
     assert_equal [ newest ], scope.after_stream_cursor(middle.stream_cursor).reverse_stream_order.to_a
   end
 
+  test "stream cursors and neighbors preserve ties and undated boundaries in every time zone" do
+    captured_at = Time.utc(2026, 1, 1)
+    created_at = Time.utc(2026, 2, 1)
+    records = [
+      attached_photo(captured_at: captured_at, created_at: created_at),
+      attached_photo(captured_at: captured_at, created_at: created_at),
+      attached_photo(captured_at: Time.utc(1, 1, 1), created_at: created_at),
+      attached_photo(captured_at: nil, created_at: created_at),
+      attached_photo(captured_at: nil, created_at: created_at),
+      attached_photo(captured_at: nil, created_at: created_at - 1.second)
+    ]
+    expected = [ records[1], records[0], records[2], records[4], records[3], records[5] ]
+    scope = Photo.where(id: records.map(&:id))
+
+    [ "UTC", "America/Detroit", "Asia/Tokyo" ].each do |zone|
+      Time.use_zone(zone) do
+        assert_equal expected, scope.stream_order.to_a
+        expected.each_with_index do |photo, index|
+          assert_equal expected.drop(index + 1), scope.before_stream_cursor(photo.stream_cursor).stream_order.to_a
+          assert_equal expected.take(index).reverse, scope.after_stream_cursor(photo.stream_cursor).reverse_stream_order.to_a
+          assert_equal expected[index - 1]&.id, scope.stream_before(photo)&.id if index.positive?
+          assert_nil scope.stream_before(photo) if index.zero?
+          if index < expected.length - 1
+            assert_equal expected[index + 1].id, scope.stream_after(photo)&.id
+          else
+            assert_nil scope.stream_after(photo)
+          end
+        end
+      end
+    end
+  end
+
   test "chronological cursor pages from older captured dates toward newer dates" do
     oldest = attached_photo(captured_at: 1.week.ago)
     middle = attached_photo(captured_at: 1.day.ago)

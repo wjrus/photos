@@ -14,7 +14,13 @@ class Photo < ApplicationRecord
     .webp
   ].freeze
   STREAM_PAGE_SIZE = 60
-  STREAM_TUPLE_SQL = "(CASE WHEN photos.captured_at IS NULL THEN 0 ELSE 1 END, COALESCE(photos.captured_at, TIMESTAMP '0001-01-01'), photos.created_at, photos.id)".freeze
+  STREAM_SORT_EXPRESSIONS = [
+    "CASE WHEN photos.captured_at IS NULL THEN 0 ELSE 1 END",
+    "COALESCE(photos.captured_at, TIMESTAMP '0001-01-01')",
+    "photos.created_at",
+    "photos.id"
+  ].freeze
+  STREAM_TUPLE_SQL = "(#{STREAM_SORT_EXPRESSIONS.join(', ')})".freeze
   STREAM_TUPLE_GREATER_THAN_SQL = "#{STREAM_TUPLE_SQL} > (:has_capture, :captured_at, :created_at, :id)".freeze
   STREAM_TUPLE_LESS_THAN_SQL = "#{STREAM_TUPLE_SQL} < (:has_capture, :captured_at, :created_at, :id)".freeze
 
@@ -79,10 +85,10 @@ class Photo < ApplicationRecord
   scope :not_archived, -> { where(archived_at: nil) }
   scope :publicly_visible, -> { where(visibility: "public", restricted: false, archived_at: nil) }
   scope :stream_order, -> {
-    order(Arel.sql("photos.captured_at DESC NULLS LAST, photos.created_at DESC, photos.id DESC"))
+    order(Arel.sql(stream_tuple_order(direction: "DESC")))
   }
   scope :reverse_stream_order, -> {
-    reorder(Arel.sql(stream_tuple_order(direction: "ASC", nulls: "FIRST")))
+    reorder(Arel.sql(stream_tuple_order(direction: "ASC")))
   }
   scope :chronological_order, -> {
     reorder(Arel.sql("photos.captured_at ASC NULLS LAST, photos.created_at ASC, photos.id ASC"))
@@ -121,25 +127,13 @@ class Photo < ApplicationRecord
     captured_at, created_at, id = decode_stream_cursor(cursor)
     return all unless created_at && id
 
-    if captured_at
-      where(
-        "photos.captured_at < :captured_at OR
-          (photos.captured_at = :captured_at AND photos.created_at < :created_at) OR
-          (photos.captured_at = :captured_at AND photos.created_at = :created_at AND photos.id < :id) OR
-          photos.captured_at IS NULL",
-        captured_at: captured_at,
-        created_at: created_at,
-        id: id
-      )
-    else
-      where(
-        "photos.captured_at IS NULL AND
-          (photos.created_at < :created_at OR
-            (photos.created_at = :created_at AND photos.id < :id))",
-        created_at: created_at,
-        id: id
-      )
-    end
+    where(
+      STREAM_TUPLE_LESS_THAN_SQL,
+      has_capture: captured_at.present? ? 1 : 0,
+      captured_at: captured_at || Time.utc(1, 1, 1),
+      created_at: created_at,
+      id: id
+    )
   end
 
   def self.after_stream_cursor(cursor)
@@ -150,7 +144,7 @@ class Photo < ApplicationRecord
       STREAM_TUPLE_GREATER_THAN_SQL,
       {
         has_capture: captured_at.present? ? 1 : 0,
-        captured_at: captured_at || Time.zone.local(1, 1, 1),
+        captured_at: captured_at || Time.utc(1, 1, 1),
         created_at: created_at,
         id: id
       }
@@ -208,11 +202,11 @@ class Photo < ApplicationRecord
   end
 
   def self.stream_before(photo)
-    stream_tuple_greater_than(photo).reorder(Arel.sql(stream_tuple_order(direction: "ASC", nulls: "FIRST"))).first
+    stream_tuple_greater_than(photo).reverse_stream_order.first
   end
 
   def self.stream_after(photo)
-    stream_tuple_less_than(photo).reorder(Arel.sql(stream_tuple_order(direction: "DESC", nulls: "LAST"))).first
+    stream_tuple_less_than(photo).reorder(Arel.sql(stream_tuple_order(direction: "DESC"))).first
   end
 
   def self.chronological_before(photo)
@@ -353,14 +347,16 @@ class Photo < ApplicationRecord
     )
   end
 
-  def self.stream_tuple_order(direction:, nulls:)
-    "CASE WHEN photos.captured_at IS NULL THEN 0 ELSE 1 END #{direction}, photos.captured_at #{direction} NULLS #{nulls}, photos.created_at #{direction}, photos.id #{direction}"
+  # Keep these expressions identical to the stream cursor indexes. Both the
+  # comparison and ORDER BY must match for PostgreSQL to seek directly to a page.
+  def self.stream_tuple_order(direction:)
+    STREAM_SORT_EXPRESSIONS.map { |expression| "#{expression} #{direction}" }.join(", ")
   end
 
   def self.stream_tuple_values(photo)
     {
       has_capture: photo.captured_at.present? ? 1 : 0,
-      captured_at: photo.captured_at || Time.zone.local(1, 1, 1),
+      captured_at: photo.captured_at || Time.utc(1, 1, 1),
       created_at: photo.created_at,
       id: photo.id
     }

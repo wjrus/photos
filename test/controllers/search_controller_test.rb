@@ -26,6 +26,22 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
     assert_select "button[aria-label='Clear search text'][data-action='search-form#clearQuery']"
   end
 
+  test "search returns a photo once when several albums and people match" do
+    photo = attached_photo(title: "Matching photo")
+    [ "Matching first", "Matching second" ].each do |title|
+      @owner.photo_albums.create!(title: title, source: "manual").photos << photo
+    end
+    [ @owner, users(:two) ].each do |user|
+      photo.photo_people_tags.create!(user: user, tagged_by: @owner)
+    end
+
+    get search_path(q: "Matching")
+
+    assert_response :success
+    assert_select "[data-photo-id='#{photo.id}']", count: 1
+    assert_equal [ photo.id ], PhotoSearch.new(params: { q: "Matching" }, user: @owner).results.pluck(:id)
+  end
+
   test "owner search includes openclip visual matches" do
     match = attached_photo(title: "Parking lot")
     other = attached_photo(title: "Office note")

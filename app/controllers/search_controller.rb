@@ -9,7 +9,7 @@ class SearchController < ApplicationController
     @semantic_search_available = search.semantic_search_available?
     @search_order_token = store_search_order(results) if @search_active
     @search_return_path = search_return_path
-    @photos, @next_cursor, @newer_cursor = paginate_photo_stream_with_focus(search_stream(results))
+    @photos, @next_cursor, @newer_cursor = paginate_photo_stream_with_focus(results)
 
     return if render_photo_page_if_requested(
       return_to: @search_return_path,
@@ -37,14 +37,6 @@ class SearchController < ApplicationController
     return search_path(@search_params) if @search_order_token.blank?
 
     search_path(@search_params.merge(search_order: @search_order_token))
-  end
-
-  def search_stream(results)
-    Photo
-      .visible_to(current_user)
-      .with_original_variant_records
-      .where(id: results.except(:order).select(:id))
-      .stream_order
   end
 
   def filter_options

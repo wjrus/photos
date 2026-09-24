@@ -157,6 +157,18 @@ export PHOTOS_STORAGE_PATH=/mnt/photos/app_storage
 docker compose up -d
 ```
 
+### Photo stream cursor indexes
+
+Migration `20260924010000` builds replacement stream indexes concurrently before
+removing the old indexes, also concurrently. Normal `./scripts/deploy` runs this
+through `db:prepare` before switching application traffic. Allow temporary disk
+space for both index pairs and time for the builds on a large library. No photo
+data changes or analysis backfill are required. Rollback recreates the old
+indexes before removing the replacements. If a concurrent build is interrupted,
+inspect and remove its invalid index before retrying the migration.
+
+See [performance checks](performance.md) for the synthetic query benchmark.
+
 ## Backups
 
 Back up the database volume and the app storage path:
