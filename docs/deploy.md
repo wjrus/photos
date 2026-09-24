@@ -159,13 +159,14 @@ docker compose up -d
 
 ### Photo stream cursor indexes
 
-Migration `20260924010000` builds replacement stream indexes concurrently before
-removing the old indexes, also concurrently. Normal `./scripts/deploy` runs this
-through `db:prepare` before switching application traffic. Allow temporary disk
-space for both index pairs and time for the builds on a large library. No photo
-data changes or analysis backfill are required. Rollback recreates the old
-indexes before removing the replacements. If a concurrent build is interrupted,
-inspect and remove its invalid index before retrying the migration.
+Migration `20260924010000` adds two stream cursor indexes concurrently. It keeps
+the original indexes because they support oldest-first album ordering. Normal
+`./scripts/deploy` runs this through `db:prepare` before switching application
+traffic. Allow disk space for the additional index pair and time for the builds
+on a large library. No photo data changes or analysis backfill are required.
+Rollback removes only the added indexes, also concurrently. If a build is
+interrupted, inspect both new indexes and remove any already-created cursor
+indexes (including invalid ones) before retrying the migration.
 
 See [performance checks](performance.md) for the synthetic query benchmark.
 

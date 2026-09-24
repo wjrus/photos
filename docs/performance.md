@@ -26,6 +26,24 @@ deep-page, and neighbor query plans. No application tables are changed. Look for
 an index scan with only the requested rows visited and no sort. These database
 timings exclude rendering, image I/O, network latency, and production load.
 
+The original indexes remain useful for oldest-first album queries, so the
+migration retains them alongside the new cursor indexes. The benchmark also
+checks that chronological ordering can still use its original index.
+
+A representative local run with 100,000 synthetic rows produced these query
+execution times (milliseconds; not end-to-end page timings):
+
+| Query | Before | After |
+| --- | ---: | ---: |
+| First 61-photo page | 13.422 | 0.022 |
+| Deep 61-photo page | 6.413 | 0.025 |
+| Previous photo | 13.636 | 0.006 |
+
+The new plans visit 61, 61, and 1 rows respectively without a sort. The retained
+oldest-first index also serves a 61-photo page without sorting (0.021 ms in that
+run). Actual timings depend on hardware, data distribution, cache warmth, and
+concurrent work; inspect the plans as well as the timings.
+
 Timeline aggregates discard media preloads so computing counts/date ranges does
 not join Active Storage attachments and variant records.
 

@@ -69,3 +69,8 @@ SELECT * FROM benchmark_photos WHERE restricted = false AND archived_at IS NULL 
   (1, TIMESTAMP '2000-06-15 16:00:00', TIMESTAMP '2026-01-01 05:33:21', 20001)
 ORDER BY CASE WHEN captured_at IS NULL THEN 0 ELSE 1 END ASC,
   COALESCE(captured_at, TIMESTAMP '0001-01-01') ASC, created_at ASC, id ASC LIMIT 1;
+
+\echo 'Retained: oldest-first album ordering'
+EXPLAIN (ANALYZE, BUFFERS, TIMING OFF)
+SELECT * FROM benchmark_photos WHERE restricted = false AND archived_at IS NULL
+ORDER BY captured_at ASC NULLS LAST, created_at ASC, id ASC LIMIT 61;

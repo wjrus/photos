@@ -16,20 +16,11 @@ class AlignPhotoStreamCursorIndexes < ActiveRecord::Migration[8.1]
         algorithm: :concurrently
     end
 
-    INDEX_SCOPES.each_key do |audience|
-      remove_index :photos, name: "index_photos_on_#{audience}_stream_order", algorithm: :concurrently
-    end
+    # Keep the original indexes: their reverse scan matches oldest-first album
+    # ordering, whose NULLS LAST behavior differs from the descending feed.
   end
 
   def down
-    INDEX_SCOPES.each do |audience, condition|
-      add_index :photos, %i[captured_at created_at id],
-        order: { captured_at: :desc, created_at: :desc, id: :desc },
-        where: condition,
-        name: "index_photos_on_#{audience}_stream_order",
-        algorithm: :concurrently
-    end
-
     INDEX_SCOPES.each_key do |audience|
       remove_index :photos, name: "index_photos_on_#{audience}_stream_cursor", algorithm: :concurrently
     end
