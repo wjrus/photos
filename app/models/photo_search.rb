@@ -123,9 +123,8 @@ class PhotoSearch
   def apply_place_filter(scope)
     return scope if params[:place_id].blank?
 
-    latitude_bucket, longitude_bucket = PhotoLocation.parse_id(params[:place_id])
-    return scope.none unless latitude_bucket && longitude_bucket
+    return scope.none unless PhotoLocation.valid_id?(params[:place_id])
 
-    PhotoLocation.scope_for(scope, PhotoLocation.id_for(latitude_bucket, longitude_bucket))
+    PhotoLocation.scope_for(scope, params[:place_id])
   end
 end

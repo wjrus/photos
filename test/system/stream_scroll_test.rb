@@ -2,6 +2,7 @@ require "application_system_test_case"
 
 class StreamScrollTest < ApplicationSystemTestCase
   setup do
+    @locked_folder_password = ENV["PHOTOS_LOCKED_FOLDER_PASSWORD"]
     @owner = users(:one)
     @owner.update!(password: "password12")
     blob = ActiveStorage::Blob.create_and_upload!(
@@ -27,7 +28,11 @@ class StreamScrollTest < ApplicationSystemTestCase
     assert_current_path root_path
   end
 
-  %w[home album location].each do |stream|
+  teardown do
+    ENV["PHOTOS_LOCKED_FOLDER_PASSWORD"] = @locked_folder_password
+  end
+
+  %w[home album location restricted].each do |stream|
     test "#{stream} keeps visible photos steady when scrolling after returning from the viewer" do
       path = stream_path(stream)
       visit path
@@ -213,6 +218,14 @@ class StreamScrollTest < ApplicationSystemTestCase
     when "home" then root_path
     when "album" then album_path(@album)
     when "location" then location_path(PhotoLocation.id_for_coordinates(40, -80))
+    when "restricted"
+      ENV["PHOTOS_LOCKED_FOLDER_PASSWORD"] = "synthetic-test-password"
+      Photo.where(id: @photos.map(&:id)).update_all(restricted: true)
+      visit restricted_photos_path
+      fill_in "Password", with: "synthetic-test-password"
+      click_button "Open"
+      assert_button "Lock", wait: 5
+      restricted_photos_path
     end
   end
 

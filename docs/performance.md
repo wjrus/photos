@@ -138,3 +138,46 @@ summaries, including on cache hits and for clients without a JSON Accept header.
 The selected location's visibility is still checked. Tests cover cached coordinate
 and named locations, video readiness, full metadata access, and rendering
 preloaded thumbnails without extra SQL queries.
+
+## Indexed place filters
+
+Coordinate and named-place filters now express each cell as half-open latitude
+and longitude ranges. The old `FLOOR(coordinate / 0.025) = bucket` predicates
+required computing buckets across the table. The ranges can use the existing
+coordinate index; no new index or migration is required. Bounds use decimal
+arithmetic to preserve the original SQL buckets at positive and negative cell
+edges. Regression tests cover exact boundaries, missing coordinates, invalid
+IDs, multi-cell places, and visibility restrictions.
+
+```sh
+psql -X -d photos_test -v ON_ERROR_STOP=1 -f test/performance/location_filter.sql
+```
+
+With 100,000 synthetic metadata rows, a local run produced:
+
+| Filter | Before | After | Matching rows |
+| --- | ---: | ---: | ---: |
+| One coordinate cell | 15.622 ms | 0.044 ms | 25 |
+| Named place spanning two cells | 22.495 ms | 0.107 ms | 50 |
+
+The old plans scanned all 100,000 rows. The new plans used an index scan and
+bitmap index scans respectively. These are isolated query timings, not complete
+place-page response times. The same range filters serve place feeds, filtered
+maps, search place filters, and place-bound maintenance.
+
+Search's place menu now uses an SQL subquery instead of transferring every
+visible GPS coordinate into Ruby and building a large list of IDs. Its ID
+expression preserves the existing Ruby floating-point conversion used for
+stored place IDs. Selecting a named place also resolves all its cells; the
+previous search filter accepted only numeric cell IDs even though the dropdown
+submitted named-place IDs.
+
+## Private feed pagination
+
+The unlocked Private feed uses the same 60-item cursor pagination as the other
+feeds, including older/newer loading and returning to a focused photo. The
+heading still reports the full item count. Previously every private photo and
+its thumbnail associations loaded on the initial request. A 123-photo regression
+now renders 60 cards initially and checks complete forward/backward traversal
+without duplicates, including tied and missing capture dates. Page fragments
+remain subject to the owner and folder-unlock checks.

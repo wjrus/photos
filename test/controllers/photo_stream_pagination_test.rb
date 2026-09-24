@@ -2,6 +2,7 @@ require "test_helper"
 
 class PhotoStreamPaginationTest < ActionDispatch::IntegrationTest
   setup do
+    @locked_folder_password = ENV["PHOTOS_LOCKED_FOLDER_PASSWORD"]
     owner = users(:one)
     owner.update!(password: "password12")
     post sign_in_path, params: { email: owner.email, password: "password12" }
@@ -23,13 +24,19 @@ class PhotoStreamPaginationTest < ActionDispatch::IntegrationTest
     @photos.each { |photo| photo.create_metadata!(extraction_status: "complete", latitude: 40, longitude: -80, raw: {}) }
   end
 
-  %w[home album public archive location search].each do |stream|
+  teardown do
+    ENV["PHOTOS_LOCKED_FOLDER_PASSWORD"] = @locked_folder_password
+  end
+
+  %w[home album public archive location search restricted].each do |stream|
     [ false, true ].each do |focused|
       test "#{stream} pagination includes every photo in order#{' after returning from the viewer' if focused}" do
         path = stream_path(stream)
         ordered_photos = ordered_photos(stream)
         expected = focused ? ordered_photos.drop(1) : ordered_photos
         get path, params: (focused ? { photo_id: expected.first.id } : {})
+        assert_select "[data-photo-id]", count: Photo::STREAM_PAGE_SIZE
+        assert_includes response.body, "123 photos" if stream == "restricted"
 
         ids = []
         loop do
@@ -47,7 +54,7 @@ class PhotoStreamPaginationTest < ActionDispatch::IntegrationTest
     end
   end
 
-  %w[home album public archive location search].each do |stream|
+  %w[home album public archive location search restricted].each do |stream|
     test "#{stream} backward pagination includes timestamp ties and undated photos exactly once" do
       path = stream_path(stream)
       expected = ordered_photos(stream)
@@ -91,6 +98,11 @@ class PhotoStreamPaginationTest < ActionDispatch::IntegrationTest
       archived_photos_path
     when "location" then location_path(PhotoLocation.id_for_coordinates(40, -80))
     when "search" then search_path(q: "Pagination photo")
+    when "restricted"
+      ENV["PHOTOS_LOCKED_FOLDER_PASSWORD"] = "synthetic-test-password"
+      Photo.where(id: @photos.map(&:id)).update_all(restricted: true)
+      post unlock_restricted_photos_path, params: { password: "synthetic-test-password" }
+      restricted_photos_path
     end
   end
 

@@ -4,6 +4,10 @@ class PhotoLocation
   CELL_SIZE = 0.025
   INDEX_LIMIT = 500
   PLACE_ID_PREFIX = "place-".freeze
+  BUCKET_FILTER_SQL = <<~SQL.squish.freeze
+    (photo_metadata.latitude >= :south AND photo_metadata.latitude < :north
+      AND photo_metadata.longitude >= :west AND photo_metadata.longitude < :east)
+  SQL
   SELECT_SQL = <<~SQL.squish
     FLOOR(photo_metadata.latitude / :cell_size) AS latitude_bucket,
     FLOOR(photo_metadata.longitude / :cell_size) AS longitude_bucket,
@@ -33,10 +37,9 @@ class PhotoLocation
     end
 
     latitude_bucket, longitude_bucket = parse_id(id)
+    return scope.none unless latitude_bucket && longitude_bucket
 
-    scope
-      .where("FLOOR(photo_metadata.latitude / ?) = ?", CELL_SIZE, latitude_bucket)
-      .where("FLOOR(photo_metadata.longitude / ?) = ?", CELL_SIZE, longitude_bucket)
+    scope.where(BUCKET_FILTER_SQL, bucket_bounds(latitude_bucket, longitude_bucket))
   end
 
   def self.scope_for_place_name(scope, name)
@@ -50,19 +53,21 @@ class PhotoLocation
     end
     return scope.none if bucket_pairs.empty?
 
-    conditions = bucket_pairs.each_with_index.map do |(latitude_bucket, longitude_bucket), index|
-      Photo.sanitize_sql_array([
-        "(FLOOR(photo_metadata.latitude / :cell_size_#{index}) = :latitude_bucket_#{index} AND FLOOR(photo_metadata.longitude / :cell_size_#{index}) = :longitude_bucket_#{index})",
-        {
-          "cell_size_#{index}": CELL_SIZE,
-          "latitude_bucket_#{index}": latitude_bucket,
-          "longitude_bucket_#{index}": longitude_bucket
-        }
-      ])
+    conditions = bucket_pairs.uniq.map do |latitude_bucket, longitude_bucket|
+      Photo.sanitize_sql_array([ BUCKET_FILTER_SQL, bucket_bounds(latitude_bucket, longitude_bucket) ])
     end
-
     scope.where(conditions.join(" OR "))
   end
+
+  def self.bucket_bounds(latitude_bucket, longitude_bucket)
+    # Half-open decimal ranges preserve FLOOR's buckets and allow the coordinate index to seek.
+    cell_size = CELL_SIZE.to_d
+    {
+      south: latitude_bucket * cell_size, north: (latitude_bucket + 1) * cell_size,
+      west: longitude_bucket * cell_size, east: (longitude_bucket + 1) * cell_size
+    }
+  end
+  private_class_method :bucket_bounds
 
   def self.id_for(latitude_bucket, longitude_bucket)
     "#{latitude_bucket.to_i}_#{longitude_bucket.to_i}"
@@ -109,6 +114,18 @@ class PhotoLocation
 
   def self.id_for_coordinates(latitude, longitude)
     id_for((latitude.to_f / CELL_SIZE).floor, (longitude.to_f / CELL_SIZE).floor)
+  end
+
+  def self.coordinate_id_sql
+    # Match the Float conversion used for persisted place IDs, including boundary rounding.
+    Photo.sanitize_sql_array([
+      <<~SQL.squish,
+        FLOOR(COALESCE(photo_metadata.latitude, 0)::double precision / :cell_size::double precision)::bigint::text
+        || '_' ||
+        FLOOR(COALESCE(photo_metadata.longitude, 0)::double precision / :cell_size::double precision)::bigint::text
+      SQL
+      { cell_size: CELL_SIZE }
+    ])
   end
 
   def self.latitude_bucket_sql

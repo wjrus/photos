@@ -76,6 +76,21 @@ class RestrictedPhotosControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "locking blocks page fragments as well as the full private feed" do
+    photo = attached_photo(title: "Protected page item", restricted: true)
+    post unlock_restricted_photos_path, params: { password: "open-sesame" }
+    get restricted_photos_path(stream_page: 1)
+    assert_response :success
+    assert_select "[data-photo-id='#{photo.id}']"
+    assert_select "main", count: 0
+
+    delete lock_restricted_photos_path
+    get restricted_photos_path(stream_page: 1, photo_id: photo.id)
+    assert_response :success
+    assert_select "[data-photo-id]", count: 0
+    refute_includes response.body, photo.title
+  end
+
   private
 
   def sign_in_as(user)

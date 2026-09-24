@@ -6,7 +6,7 @@
       <div class="mb-6 flex items-center justify-between gap-4 border-b border-zinc-200 pb-5">
         <div>
           <h1 class="text-3xl font-semibold text-zinc-950">Private</h1>
-          <p class="mt-1 text-sm text-zinc-600"><%= pluralize(@photos.size, "photo") %></p>
+          <p class="mt-1 text-sm text-zinc-600"><%= pluralize(@photo_count, "photo") %></p>
         </div>
         <%= button_to "Lock",
               lock_restricted_photos_path,
@@ -20,7 +20,9 @@
               return_to: restricted_photos_path,
               feature_first: false,
               owner_controls: false,
-              next_cursor: nil,
+              stream_target_photo_id: @stream_target_photo_id,
+              next_cursor: @next_cursor,
+              newer_cursor: @newer_cursor,
               next_page_path: restricted_photos_path %>
       <% else %>
         <div class="flex min-h-[340px] items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-white p-8 text-center shadow-sm">
