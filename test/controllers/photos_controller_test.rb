@@ -970,6 +970,31 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "4,032 x 3,024"
   end
 
+  test "photo stream omits full EXIF records and video playback attachments" do
+    photo = attached_photo(title: "Lean stream photo")
+    photo.create_metadata!(extraction_status: "complete", width: 4032, height: 3024, raw: { "synthetic" => "x" * 50_000 })
+    @owner.update!(show_stream_metadata: true)
+    queries = []
+    attachment_names = []
+    subscriber = lambda do |event|
+      next if event.payload[:name] == "SCHEMA"
+
+      queries << event.payload[:sql]
+      if event.payload[:sql].include?("active_storage_attachments")
+        attachment_names.concat(event.payload[:binds].filter_map { |bind| bind.value_for_database if bind.name == "name" })
+      end
+    end
+
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+      get root_path
+    end
+
+    assert_response :success
+    assert_includes response.body, "4,032 x 3,024"
+    assert_empty queries.grep(/SELECT "photo_metadata"\.\*/)
+    refute_includes attachment_names, "video_display"
+  end
+
   test "owner photo stream uses selected uniform tile size" do
     @owner.update!(stream_tile_size: "compact")
     attached_photo(title: "Uniform tile one")

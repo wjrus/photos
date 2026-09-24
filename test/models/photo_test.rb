@@ -1,6 +1,19 @@
 require "test_helper"
 
 class PhotoTest < ActiveSupport::TestCase
+  test "display metadata omits EXIF payload without restricting full metadata access" do
+    photo = attached_photo
+    photo.create_metadata!(width: 4032, height: 3024, latitude: 40, longitude: -80, raw: { "camera" => "Synthetic camera" })
+    photo = Photo.with_original_variant_records.find(photo.id)
+
+    assert_equal 4032, photo.display_metadata.width
+    assert_equal BigDecimal("40"), photo.display_metadata.latitude
+    assert_not photo.display_metadata.has_attribute?(:raw)
+    assert_predicate photo.display_metadata, :readonly?
+    assert_equal "Synthetic camera", photo.metadata.raw.fetch("camera")
+    assert_not photo.metadata.readonly?
+  end
+
   test "new photos default to private" do
     photo = users(:one).photos.new
 

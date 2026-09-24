@@ -27,6 +27,8 @@ class Photo < ApplicationRecord
   belongs_to :owner, class_name: "User", inverse_of: :photos
   belongs_to :upload_batch, optional: true
   has_one :metadata, class_name: "PhotoMetadata", dependent: :destroy, inverse_of: :photo
+  # Cards and map markers need dimensions/coordinates, not the potentially large EXIF payload.
+  has_one :display_metadata, -> { select(:id, :photo_id, :width, :height, :latitude, :longitude).readonly }, class_name: "PhotoMetadata"
   has_one :drive_archive_object, dependent: :destroy
   has_many :file_health_checks, dependent: :destroy
   has_many :analysis_runs, class_name: "PhotoAnalysisRun", dependent: :destroy
@@ -97,10 +99,8 @@ class Photo < ApplicationRecord
     reorder(Arel.sql("photos.captured_at DESC NULLS FIRST, photos.created_at DESC, photos.id DESC"))
   }
   scope :with_original_variant_records, -> {
-    with_attached_video_preview
-      .with_attached_video_display
-      .with_attached_original
-      .includes(:metadata, original_attachment: { blob: { variant_records: { image_attachment: :blob } } })
+    includes(:display_metadata, :video_preview_attachment,
+      original_attachment: { blob: { variant_records: { image_attachment: :blob } } })
   }
   scope :in_map_bounds, ->(bounds) {
     north = bounds[:north]

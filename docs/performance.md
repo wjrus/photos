@@ -98,3 +98,43 @@ geocoding work. The full page still prepares its heading, counts, map,
 and timeline. Regression tests check that both coordinate and named-location
 fragments execute no aggregate queries, that an exhausted page remains valid,
 and that an inaccessible coordinate location still returns 404.
+
+## Feed and map media loading
+
+Cards and map markers preload a read-only metadata projection containing only
+the photo ID, dimensions, and coordinates. They no longer fetch the full EXIF
+JSON payload. The ordinary `metadata` association still loads all fields for
+the viewer, editing, and background jobs.
+
+Feed preloads explicitly include the attachments needed to render thumbnails;
+they omit video playback blobs and Active Storage preview trees that the card
+does not use. Map payloads load only the video-preview attachment's presence,
+with no original blobs or variant records. Still-image map previews use the
+existing 700-pixel stream derivative instead of the 1800-pixel display
+derivative, sharing URLs with feed thumbnails. Video previews also go through
+the authorized stream endpoint.
+
+Run the reproducible media-loading benchmark in the test environment:
+
+```sh
+RAILS_ENV=test rbenv exec bundle exec rails runner test/performance/media_preloads.rb
+```
+
+The script creates 40 images with two variants each and 20 videos with preview
+and playback attachments. Each photo has 50 KB of synthetic EXIF. It rolls all
+database changes back and writes no media files. A local run produced:
+
+| Media preload | Queries before | Queries after | Active Record objects before | Objects after |
+| --- | ---: | ---: | ---: | ---: |
+| Feed page, 60 items | 16 | 8 | 560 | 500 |
+| Map previews, 60 items | 12 | 3 | 520 | 140 |
+
+Both paths also avoid fetching 3,001,320 bytes of synthetic raw EXIF in that
+fixture. These counts describe the media preloading stage, not the entire HTTP
+request. Actual metadata sizes and photo/video mixes vary.
+
+Marker requests also skip full-page location menus and selected-location
+summaries, including on cache hits and for clients without a JSON Accept header.
+The selected location's visibility is still checked. Tests cover cached coordinate
+and named locations, video readiness, full metadata access, and rendering
+preloaded thumbnails without extra SQL queries.

@@ -76,6 +76,85 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 3, payload.fetch("total")
   end
 
+  test "map previews use stream thumbnails without loading original blobs or full EXIF" do
+    first = attached_photo(title: "First thumbnail")
+    second = attached_photo(title: "Second thumbnail")
+    single = attached_photo(title: "Single thumbnail")
+    geotag(first, latitude: 40.001, longitude: -80.001)
+    geotag(second, latitude: 40.002, longitude: -80.002)
+    geotag(single, latitude: 41, longitude: -81)
+    instantiated_blobs = 0
+    queries = []
+    records = lambda do |event|
+      instantiated_blobs += event.payload[:record_count] if event.payload[:class_name] == "ActiveStorage::Blob"
+    end
+    sql = ->(event) { queries << event.payload[:sql] unless event.payload[:name] == "SCHEMA" }
+
+    ActiveSupport::Notifications.subscribed(records, "instantiation.active_record") do
+      ActiveSupport::Notifications.subscribed(sql, "sql.active_record") do
+        get map_markers_path(zoom: 10)
+      end
+    end
+
+    assert_response :success
+    markers = response.parsed_body.fetch("markers")
+    cluster = markers.find { |marker| marker.fetch("type") == "location" }
+    single_marker = markers.find { |marker| marker.fetch("type") == "photo" }
+    assert_equal [ stream_photo_path(first), stream_photo_path(second) ].sort, cluster.fetch("preview_urls").sort
+    assert_equal stream_photo_path(single), single_marker.fetch("media_url")
+    assert_equal 0, instantiated_blobs
+    assert_empty queries.grep(/SELECT "photo_metadata"\.\*/)
+  end
+
+  test "cached location markers do not recalculate selected location summaries" do
+    previous_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    photo = attached_photo(title: "Cached location")
+    geotag(photo, latitude: 40, longitude: -80)
+    place = PhotoLocationPlace.create!(location_id: location_id_for(photo), name: "Synthetic place")
+
+    [ location_id_for(photo), PhotoLocation.place_id_for_name(place.name) ].each do |location_id|
+      get map_markers_path(location_id: location_id)
+      assert_response :success
+      expected_payload = response.parsed_body
+      queries = []
+      subscriber = ->(event) { queries << event.payload[:sql] unless event.payload[:name] == "SCHEMA" }
+
+      ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+        get map_markers_path(location_id: location_id)
+      end
+
+      assert_response :success
+      assert_equal expected_payload, response.parsed_body
+      photo_aggregates = queries.select { |sql| sql.include?('FROM "photos"') && sql.match?(/COUNT\(|ARRAY_AGG\(/) }
+      assert_empty photo_aggregates, "A cache hit should not aggregate the selected location again"
+    end
+  ensure
+    Rails.cache = previous_cache
+  end
+
+  test "map video previews use the authorized thumbnail endpoint and omit pending previews" do
+    ready, pending = [ "Ready clip", "Pending clip" ].map do |title|
+      @owner.photos.create!(
+        title: title,
+        original: { io: StringIO.new("synthetic video"), filename: "clip.mp4", content_type: "video/mp4" }
+      ).tap { |photo| geotag(photo, latitude: 40, longitude: -80) }
+    end
+    ready.video_preview.attach(io: File.open(Rails.root.join("public/icon.png")), filename: "poster.jpg", content_type: "image/jpeg")
+
+    get map_markers_path(zoom: 10), headers: { "Accept" => "application/json" }
+
+    assert_response :success
+    cluster = response.parsed_body.fetch("markers").sole
+    assert_equal 2, cluster.fetch("count")
+    assert_equal [ stream_photo_path(ready) ], cluster.fetch("preview_urls")
+    get stream_photo_path(ready)
+    assert_response :redirect
+    assert_includes response.headers.fetch("Location"), "poster.jpg"
+    get stream_photo_path(pending)
+    assert_response :not_found
+  end
+
   test "clustered location marker links to an existing location page" do
     first = attached_photo(title: "West edge")
     second = attached_photo(title: "East edge")

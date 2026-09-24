@@ -1,6 +1,24 @@
 require "test_helper"
+require "active_record/testing/query_assertions"
 
 class ApplicationHelperTest < ActionView::TestCase
+  include ActiveRecord::Assertions::QueryAssertions
+
+  test "preloaded stream photos render thumbnails without additional queries" do
+    image = attached_photo
+    image.original.variant(:stream).processed
+    ready_video = attached_video
+    attach_video_derivatives(ready_video)
+    pending_video = attached_video
+    photos = Photo.where(id: [ image, ready_video, pending_video ]).with_original_variant_records.index_by(&:id)
+
+    assert_no_queries do
+      assert_includes photo_stream_media(photos.fetch(image.id)), stream_photo_path(image)
+      assert_includes photo_stream_media(photos.fetch(ready_video.id)), stream_photo_path(ready_video)
+      assert_includes photo_stream_media(photos.fetch(pending_video.id)), "Video processing"
+    end
+  end
+
   test "stream media does not preload original video bytes" do
     photo = attached_video
 

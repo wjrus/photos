@@ -1,6 +1,6 @@
 <% stream_time = (photo.captured_at || photo.created_at).in_time_zone %>
 <% metadata_badge_visible = owner_controls && current_user&.show_stream_metadata? && photo.byte_size.present? %>
-<% metadata_dimensions_visible = metadata_badge_visible && photo_dimensions_present?(photo.metadata) %>
+<% metadata_dimensions_visible = metadata_badge_visible && photo_dimensions_present?(photo.display_metadata) %>
 <% day_label = local_assigns[:day_label] %>
 <% day_key = local_assigns[:day_key] %>
 <% day_start = day_label.present? %>
@@ -53,10 +53,10 @@
   <%= photo_stream_media(photo, return_to: return_to, access_params: access_params) %>
   <% if metadata_badge_visible %>
     <div class="pointer-events-none absolute right-3 top-3 z-20 rounded-lg border border-white/15 bg-black/65 px-2 py-1 text-right text-xs font-semibold leading-tight text-white shadow-sm backdrop-blur"
-         aria-label="Original file size <%= number_to_human_size(photo.byte_size) %><%= ", dimensions #{photo_dimensions(photo.metadata)}" if metadata_dimensions_visible %>">
+         aria-label="Original file size <%= number_to_human_size(photo.byte_size) %><%= ", dimensions #{photo_dimensions(photo.display_metadata)}" if metadata_dimensions_visible %>">
       <div><%= number_to_human_size(photo.byte_size) %></div>
       <% if metadata_dimensions_visible %>
-        <div class="mt-0.5 text-[0.68rem] font-medium text-white/80"><%= photo_dimensions(photo.metadata) %></div>
+        <div class="mt-0.5 text-[0.68rem] font-medium text-white/80"><%= photo_dimensions(photo.display_metadata) %></div>
       <% end %>
     </div>
   <% end %>

@@ -41,9 +41,9 @@ class MapsController < ApplicationController
   def set_map_context
     @albums = PhotoAlbum.visible_to(current_user).display_order
     @selected_album = @albums.find_by(id: params[:album_id]) if params[:album_id].present?
-    if request.format.json?
+    if action_name == "markers"
       @map_locations = []
-      @selected_location = selected_location_from_param
+      @selected_location = selected_location_from_param(include_summary: false)
       @map_return_path = map_path(map_filter_params)
       return
     end
@@ -70,7 +70,7 @@ class MapsController < ApplicationController
   end
 
   def marker_payload(photo)
-    metadata = photo.metadata
+    metadata = photo.display_metadata
     {
       type: "photo",
       id: photo.id,
@@ -115,7 +115,7 @@ class MapsController < ApplicationController
 
   def preview_photos(rows)
     ids = rows.first(MARKER_LIMIT).flat_map { |row| Array(row.preview_photo_ids).map(&:to_i) }
-    Photo.with_attached_original.with_attached_video_preview.includes(:metadata).where(id: ids).index_by(&:id)
+    Photo.includes(:display_metadata, :video_preview_attachment).where(id: ids).index_by(&:id)
   end
 
   def location_payload(row, count, photos_by_id, places)
@@ -137,7 +137,7 @@ class MapsController < ApplicationController
   end
 
   def marker_location_id(row, representative_photo)
-    return PhotoLocation.id_for_coordinates(representative_photo.metadata.latitude, representative_photo.metadata.longitude) if representative_photo
+    return PhotoLocation.id_for_coordinates(representative_photo.display_metadata.latitude, representative_photo.display_metadata.longitude) if representative_photo
 
     PhotoLocation.id_for_coordinates(row.latitude, row.longitude)
   end
@@ -153,9 +153,9 @@ class MapsController < ApplicationController
   end
 
   def map_media_url(photo)
-    return display_photo_path(photo) if photo.image?
+    return stream_photo_path(photo) if photo.image?
 
-    url_for(photo.video_preview) if photo.video? && photo.video_preview.attached?
+    stream_photo_path(photo) if photo.video? && photo.video_preview.attached?
   end
 
   def location_places(rows, photos_by_id)
@@ -228,7 +228,7 @@ class MapsController < ApplicationController
 
   def map_markers_cache_key
     [
-      "map-markers/v3",
+      "map-markers/v4",
       cache_audience_key,
       @selected_album&.id || "all",
       @selected_location&.id || "all",
@@ -263,12 +263,13 @@ class MapsController < ApplicationController
     end
   end
 
-  def selected_location_from_param
+  def selected_location_from_param(include_summary: true)
     location_id = params[:location_id].to_s
     return if location_id.blank? || !PhotoLocation.valid_id?(location_id)
 
     scope = PhotoLocation.scope_for(map_location_options_scope, location_id)
     return unless scope.exists?
+    return PhotoLocationGroup.new(id: location_id) unless include_summary
 
     PhotoLocationGroup.new(
       id: location_id,
