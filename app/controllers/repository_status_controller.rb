@@ -243,7 +243,7 @@ class RepositoryStatusController < ApplicationController
     Photo
       .where(restricted: false, archived_at: nil)
       .joins(:metadata)
-      .where.not(photo_metadata: { latitude: nil, longitude: nil })
+      .merge(PhotoMetadata.geotagged)
   end
 
   def analysis_status

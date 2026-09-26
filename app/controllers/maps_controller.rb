@@ -1,8 +1,6 @@
 class MapsController < ApplicationController
   MARKER_LIMIT = 500
   CLUSTER_SELECT_SQL = <<~SQL.squish
-    FLOOR(photo_metadata.latitude / :cell_size) AS latitude_bucket,
-    FLOOR(photo_metadata.longitude / :cell_size) AS longitude_bucket,
     COUNT(*) AS photo_count,
     AVG(photo_metadata.latitude) AS latitude,
     AVG(photo_metadata.longitude) AS longitude,
@@ -64,7 +62,7 @@ class MapsController < ApplicationController
     scope = scope
       .visible_to(current_user)
       .joins(:metadata)
-      .where.not(photo_metadata: { latitude: nil, longitude: nil })
+      .merge(PhotoMetadata.geotagged)
 
     @selected_location ? PhotoLocation.scope_for(scope, @selected_location.id) : scope
   end
@@ -102,9 +100,9 @@ class MapsController < ApplicationController
 
   def location_rows(scope)
     cell_size = map_cell_size(params[:zoom])
-    bucket_sql = Photo.sanitize_sql_array([ CLUSTER_SELECT_SQL, { cell_size: cell_size } ])
-    latitude_bucket_sql = Photo.sanitize_sql_array([ "FLOOR(photo_metadata.latitude / :cell_size)", { cell_size: cell_size } ])
-    longitude_bucket_sql = Photo.sanitize_sql_array([ "FLOOR(photo_metadata.longitude / :cell_size)", { cell_size: cell_size } ])
+    latitude_bucket_sql = PhotoLocation.latitude_bucket_sql(cell_size: cell_size)
+    longitude_bucket_sql = PhotoLocation.longitude_bucket_sql(cell_size: cell_size)
+    bucket_sql = "#{latitude_bucket_sql} AS latitude_bucket, #{longitude_bucket_sql} AS longitude_bucket, #{CLUSTER_SELECT_SQL}"
 
     scope
       .select(bucket_sql)
@@ -228,7 +226,7 @@ class MapsController < ApplicationController
 
   def map_markers_cache_key
     [
-      "map-markers/v4",
+      "map-markers/v5",
       cache_audience_key,
       @selected_album&.id || "all",
       @selected_location&.id || "all",
@@ -293,7 +291,7 @@ class MapsController < ApplicationController
     scope
       .visible_to(current_user)
       .joins(:metadata)
-      .where.not(photo_metadata: { latitude: nil, longitude: nil })
+      .merge(PhotoMetadata.geotagged)
   end
 
   def location_places_for_rows(rows)

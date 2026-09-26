@@ -150,22 +150,22 @@ Coordinate and named-place filters now express each cell as half-open latitude
 and longitude ranges. The old `FLOOR(coordinate / 0.025) = bucket` predicates
 required computing buckets across the table. The ranges can use the existing
 coordinate index; no new index or migration is required. Bounds use decimal
-arithmetic to preserve the original SQL buckets at positive and negative cell
-edges. Regression tests cover exact boundaries, missing coordinates, invalid
+arithmetic with exact-edge adjustments to preserve persisted Float-derived
+place IDs. Regression tests cover exact boundaries, missing coordinates, invalid
 IDs, multi-cell places, and visibility restrictions.
 
 ```sh
 psql -X -d photos_test -v ON_ERROR_STOP=1 -f test/performance/location_filter.sql
 ```
 
-With 100,000 synthetic metadata rows, a local run produced:
+With 100,000 synthetic metadata rows, a local run on September 26, 2026 produced:
 
-| Filter | Before | After | Matching rows |
+| Filter | Computed buckets | Indexed ranges | Matching rows |
 | --- | ---: | ---: | ---: |
-| One coordinate cell | 15.622 ms | 0.044 ms | 25 |
-| Named place spanning two cells | 22.495 ms | 0.107 ms | 50 |
+| One coordinate cell | 17.584 ms | 0.044 ms | 24 |
+| Named place spanning two cells | 15.767 ms | 0.101 ms | 48 |
 
-The old plans scanned all 100,000 rows. The new plans used an index scan and
+The computed-bucket plans scanned all 100,000 rows. The ranges used an index scan and
 bitmap index scans respectively. These are isolated query timings, not complete
 place-page response times. The same range filters serve place feeds, filtered
 maps, search place filters, and place-bound maintenance.
@@ -176,6 +176,22 @@ expression preserves the existing Ruby floating-point conversion used for
 stored place IDs. Selecting a named place also resolves all its cells; the
 previous search filter accepted only numeric cell IDs even though the dropdown
 submitted named-place IDs.
+
+Location grouping, map cells, and place-bound maintenance use the same
+floating-point buckets as the persisted place IDs. Since GPS columns store six
+decimal places, indexed range endpoints advance by one microdegree when Float
+rounding assigns the exact boundary to the preceding cell. For example,
+latitude `44.775000` belongs to bucket `1790`, so its upper bound is
+`44.775001`. This keeps named places and direct location links consistent
+without rewriting saved place names or wrapping indexed columns in functions.
+Regression checks cover every geographic cell boundary and its adjacent stored
+coordinates, plus named-place search, map links, and bounds refreshes. Cached
+location/map results use new namespaces; persisted map bounds refresh through
+the existing daily maintenance job.
+
+Only metadata containing both latitude and longitude participates in locations,
+maps, bounds, geocoding, and place menus. Partial EXIF coordinates remain stored,
+but cannot create phantom locations or collide with the valid `0_0` cell.
 
 ## Private feed pagination
 

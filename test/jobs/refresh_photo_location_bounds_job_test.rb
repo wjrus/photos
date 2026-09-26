@@ -47,6 +47,39 @@ class RefreshPhotoLocationBoundsJobTest < ActiveJob::TestCase
     refute PhotoLocationBound.exists?(stale.id)
   end
 
+  test "incomplete coordinates cannot overwrite zero cell bounds" do
+    complete = attached_photo(title: "Both coordinates")
+    latitude_only = attached_photo(title: "Latitude only")
+    longitude_only = attached_photo(title: "Longitude only")
+    geotag(complete, latitude: 0, longitude: 0)
+    geotag(latitude_only, latitude: 0, longitude: nil)
+    geotag(longitude_only, latitude: nil, longitude: 0)
+
+    RefreshPhotoLocationBoundsJob.perform_now
+
+    bounds = PhotoLocationBound.find_by!(location_id: "0_0")
+    assert_equal 1, bounds.photo_count
+    assert_equal [ 0, 0, 0, 0 ], bounds.attributes.values_at("south", "north", "west", "east")
+    assert_equal 1, PhotoLocationBound.count
+  end
+
+  test "cell and named bounds use the same persisted ids at exact coordinate boundaries" do
+    first = attached_photo(title: "Before boundary")
+    boundary = attached_photo(title: "At boundary")
+    geotag(first, latitude: "44.774999", longitude: "-85.575000")
+    geotag(boundary, latitude: "44.775000", longitude: "-85.575000")
+    PhotoLocationPlace.create!(location_id: location_id_for(boundary), name: "Boundary town")
+
+    RefreshPhotoLocationBoundsJob.perform_now
+
+    [ location_id_for(boundary), PhotoLocation.place_id_for_name("Boundary town") ].each do |id|
+      bounds = PhotoLocationBound.find_by!(location_id: id)
+      assert_equal 2, bounds.photo_count
+      assert_equal BigDecimal("44.774999"), bounds.south
+      assert_equal BigDecimal("44.775000"), bounds.north
+    end
+  end
+
   private
 
   def location_id_for(photo)

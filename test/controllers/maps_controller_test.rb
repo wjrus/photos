@@ -51,6 +51,24 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert_equal map_path, marker.fetch("return_to")
   end
 
+  test "map counts and markers require both coordinates while retaining zero coordinates" do
+    complete = attached_photo(title: "Both coordinates")
+    latitude_only = attached_photo(title: "Latitude only")
+    longitude_only = attached_photo(title: "Longitude only")
+    geotag(complete, latitude: 0, longitude: 0)
+    geotag(latitude_only, latitude: 0, longitude: nil)
+    geotag(longitude_only, latitude: nil, longitude: 0)
+
+    get map_path
+    assert_response :success
+    assert_includes response.body, "1 geotagged photo"
+
+    get map_markers_path(zoom: 12)
+    assert_response :success
+    assert_equal 1, response.parsed_body.fetch("total")
+    assert_equal complete.id, response.parsed_body.fetch("markers").sole.fetch("id")
+  end
+
   test "markers groups nearby photos into locations at lower zoom levels" do
     first = attached_photo(title: "First overlook")
     second = attached_photo(title: "Second overlook")
@@ -74,6 +92,34 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert_includes location.fetch("location_url"), "/locations/"
     assert_equal 2, location.fetch("preview_urls").size
     assert_equal 3, payload.fetch("total")
+  end
+
+  test "map location cells and filtered marker links preserve exact boundary photos" do
+    first = attached_photo(title: "Before boundary")
+    boundary = attached_photo(title: "At boundary")
+    outside = attached_photo(title: "After boundary")
+    geotag(first, latitude: "44.774999", longitude: "-85.575000")
+    geotag(boundary, latitude: "44.775000", longitude: "-85.575000")
+    geotag(outside, latitude: "44.775001", longitude: "-85.575000")
+    PhotoLocationPlace.create!(location_id: location_id_for(boundary), name: "Boundary town")
+
+    get map_markers_path(zoom: 12)
+    assert_response :success
+    cluster = response.parsed_body.fetch("markers").find { |marker| marker.fetch("type") == "location" }
+    assert_equal 2, cluster.fetch("count")
+    assert_equal "Boundary town", cluster.fetch("title")
+    assert_equal location_path(location_id_for(boundary)), cluster.fetch("location_url")
+
+    get cluster.fetch("location_url")
+    assert_response :success
+    assert_select "[data-photo-id='#{first.id}']"
+    assert_select "[data-photo-id='#{boundary.id}']"
+    assert_select "[data-photo-id='#{outside.id}']", count: 0
+
+    get map_markers_path(zoom: 12, location_id: PhotoLocation.place_id_for_name("Boundary town"))
+    assert_response :success
+    assert_equal 2, response.parsed_body.fetch("total")
+    assert_equal 2, response.parsed_body.fetch("markers").sole.fetch("count")
   end
 
   test "map previews use stream thumbnails without loading original blobs or full EXIF" do

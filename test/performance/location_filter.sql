@@ -17,10 +17,11 @@ ANALYZE benchmark_metadata;
 
 CREATE TEMP VIEW benchmark_location_before AS
 SELECT photo_id FROM benchmark_metadata
-WHERE FLOOR(latitude / 0.025) = 41 AND FLOOR(longitude / 0.025) = -459;
+WHERE FLOOR(latitude::double precision / 0.025::double precision) = 41
+  AND FLOOR(longitude::double precision / 0.025::double precision) = -459;
 CREATE TEMP VIEW benchmark_location_after AS
 SELECT photo_id FROM benchmark_metadata
-WHERE latitude >= 1.025 AND latitude < 1.050 AND longitude >= -11.475 AND longitude < -11.450;
+WHERE latitude >= 1.025001 AND latitude < 1.050 AND longitude >= -11.475 AND longitude < -11.450;
 
 DO $$
 BEGIN
@@ -41,10 +42,12 @@ EXPLAIN (ANALYZE, BUFFERS, TIMING OFF) SELECT * FROM benchmark_location_after;
 \echo 'Before: named location containing multiple buckets'
 EXPLAIN (ANALYZE, BUFFERS, TIMING OFF)
 SELECT photo_id FROM benchmark_metadata
-WHERE (FLOOR(latitude / 0.025) = 41 AND FLOOR(longitude / 0.025) = -459)
-   OR (FLOOR(latitude / 0.025) = 43 AND FLOOR(longitude / 0.025) = -457);
+WHERE (FLOOR(latitude::double precision / 0.025::double precision) = 41
+       AND FLOOR(longitude::double precision / 0.025::double precision) = -459)
+   OR (FLOOR(latitude::double precision / 0.025::double precision) = 43
+       AND FLOOR(longitude::double precision / 0.025::double precision) = -457);
 \echo 'After: named location containing multiple indexed ranges'
 EXPLAIN (ANALYZE, BUFFERS, TIMING OFF)
 SELECT photo_id FROM benchmark_metadata
-WHERE (latitude >= 1.025 AND latitude < 1.050 AND longitude >= -11.475 AND longitude < -11.450)
-   OR (latitude >= 1.075 AND latitude < 1.100 AND longitude >= -11.425 AND longitude < -11.400);
+WHERE (latitude >= 1.025001 AND latitude < 1.050 AND longitude >= -11.475 AND longitude < -11.450)
+   OR (latitude >= 1.075001 AND latitude < 1.100 AND longitude >= -11.425 AND longitude < -11.400);

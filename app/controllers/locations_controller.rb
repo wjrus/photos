@@ -55,7 +55,7 @@ class LocationsController < ApplicationController
 
   def location_index_cache_key
     [
-      "locations-index/v2",
+      "locations-index/v3",
       cache_audience_key,
       Photo.maximum(:updated_at)&.utc&.to_i,
       PhotoMetadata.maximum(:updated_at)&.utc&.to_i,
@@ -69,7 +69,7 @@ class LocationsController < ApplicationController
 
   def location_timeline_cache_key(scoped_photos)
     [
-      "location-timeline/v3",
+      "location-timeline/v4",
       cache_audience_key,
       @location_id,
       Photo.maximum(:updated_at)&.utc&.to_i,
@@ -84,7 +84,7 @@ class LocationsController < ApplicationController
     Photo
       .visible_to(current_user)
       .joins(:metadata)
-      .where.not(photo_metadata: { latitude: nil, longitude: nil })
+      .merge(PhotoMetadata.geotagged)
   end
 
   def location_covers(locations)

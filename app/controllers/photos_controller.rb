@@ -401,7 +401,7 @@ class PhotosController < ApplicationController
     current_user.photos
       .visible_to(current_user)
       .joins(:metadata)
-      .where.not(photo_metadata: { latitude: nil, longitude: nil })
+      .merge(PhotoMetadata.geotagged)
   end
 
   def queue_missing_video_display_derivative

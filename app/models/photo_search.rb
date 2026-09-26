@@ -50,6 +50,7 @@ class PhotoSearch
     album_photo_ids = PhotoAlbumMembership.where(photo_album_id: album_ids).select(:photo_id)
     tagged_photo_ids = PhotoPeopleTag.where(user_id: tagged_user_ids).select(:photo_id)
     location_ids = PhotoLocationPlace.matching_name(query).pluck(:location_id)
+    location_photo_ids = PhotoLocation.scope_for_ids(PhotoMetadata.all, location_ids).select(:photo_id)
     semantic_photo_ids = semantic_enabled? ? PhotoOpenclipSearch.search_ids(query: params[:q], user: user) : []
 
     scope
@@ -58,6 +59,7 @@ class PhotoSearch
         query: query,
         album_photo_ids: album_photo_ids,
         tagged_photo_ids: tagged_photo_ids,
+        location_photo_ids: location_photo_ids,
         semantic_photo_ids: semantic_photo_ids,
         normalized_visual_tag: params[:q].to_s.strip.downcase.tr(" ", "_")
       )
@@ -79,29 +81,13 @@ class PhotoSearch
 
     conditions << "photos.id IN (:semantic_photo_ids)" if semantic_photo_ids.any?
 
-    location_ids.each_with_index do |location_id, index|
-      latitude_bucket, longitude_bucket = PhotoLocation.parse_id(location_id)
-      next unless latitude_bucket && longitude_bucket
-
-      conditions << sanitize_location_condition(latitude_bucket, longitude_bucket, index)
-    end
+    conditions << "photos.id IN (:location_photo_ids)" if location_ids.any?
 
     conditions.join(" OR ")
   end
 
   def semantic_enabled?
     @semantic
-  end
-
-  def sanitize_location_condition(latitude_bucket, longitude_bucket, index)
-    ActiveRecord::Base.sanitize_sql_array([
-      "FLOOR(photo_metadata.latitude / :cell_size_#{index}) = :latitude_bucket_#{index} AND FLOOR(photo_metadata.longitude / :cell_size_#{index}) = :longitude_bucket_#{index}",
-      {
-        "cell_size_#{index}": PhotoLocation::CELL_SIZE,
-        "latitude_bucket_#{index}": latitude_bucket,
-        "longitude_bucket_#{index}": longitude_bucket
-      }
-    ])
   end
 
   def apply_metadata_filters(scope)

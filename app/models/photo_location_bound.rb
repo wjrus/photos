@@ -75,19 +75,16 @@ class PhotoLocationBound < ApplicationRecord
     Photo
       .where(restricted: false, archived_at: nil)
       .joins(:metadata)
-      .where.not(photo_metadata: { latitude: nil, longitude: nil })
+      .merge(PhotoMetadata.geotagged)
   end
   private_class_method :visible_geotagged_photos
 
   def self.bucket_bounds_select_sql
-    Photo.sanitize_sql_array([
-      <<~SQL.squish,
-        FLOOR(photo_metadata.latitude / :cell_size) AS latitude_bucket,
-        FLOOR(photo_metadata.longitude / :cell_size) AS longitude_bucket,
-        #{bounds_select_sql}
-      SQL
-      { cell_size: PhotoLocation::CELL_SIZE }
-    ])
+    <<~SQL.squish
+      #{PhotoLocation.latitude_bucket_sql} AS latitude_bucket,
+      #{PhotoLocation.longitude_bucket_sql} AS longitude_bucket,
+      #{bounds_select_sql}
+    SQL
   end
   private_class_method :bucket_bounds_select_sql
 

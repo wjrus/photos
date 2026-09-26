@@ -55,6 +55,51 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href='#{location_path(PhotoLocation.place_id_for_name(place_name))}']"
   end
 
+  test "incomplete coordinates do not create extra locations or inflate the zero cell" do
+    complete = attached_photo(title: "Both coordinates")
+    latitude_only = attached_photo(title: "Latitude only")
+    longitude_only = attached_photo(title: "Longitude only")
+    geotag(complete, latitude: 0, longitude: 0)
+    geotag(latitude_only, latitude: 0, longitude: nil)
+    geotag(longitude_only, latitude: nil, longitude: 0)
+
+    get locations_path
+    assert_response :success
+    assert_includes response.body, "1 photo location"
+    assert_select "article", count: 1
+    assert_select "a[href='#{location_path("0_0")}']"
+
+    get location_path("0_0")
+    assert_response :success
+    assert_select "[data-photo-id='#{complete.id}']"
+    assert_select "[data-photo-id='#{latitude_only.id}']", count: 0
+    assert_select "[data-photo-id='#{longitude_only.id}']", count: 0
+  end
+
+  test "location index and named feed retain photos at Float-derived cell boundaries" do
+    first = attached_photo(title: "Before boundary")
+    boundary = attached_photo(title: "At boundary")
+    outside = attached_photo(title: "After boundary")
+    geotag(first, latitude: "44.774999", longitude: "-85.575000")
+    geotag(boundary, latitude: "44.775000", longitude: "-85.575000")
+    geotag(outside, latitude: "44.775001", longitude: "-85.575000")
+    PhotoLocationPlace.create!(location_id: location_id_for(boundary), name: "Boundary town")
+    named_id = PhotoLocation.place_id_for_name("Boundary town")
+
+    get locations_path
+    assert_response :success
+    assert_select "article", text: /Boundary town.*2 photos/m
+    assert_select "a[href='#{location_path(named_id)}']"
+
+    [ named_id, location_id_for(boundary) ].each do |location_id|
+      get location_path(location_id)
+      assert_response :success
+      assert_select "[data-photo-id='#{first.id}']"
+      assert_select "[data-photo-id='#{boundary.id}']"
+      assert_select "[data-photo-id='#{outside.id}']", count: 0
+    end
+  end
+
   test "locations index splits photo and video counts" do
     photo = attached_photo(title: "Place photo")
     geotag(photo, latitude: 44.7622, longitude: -85.5980)

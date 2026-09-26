@@ -99,7 +99,7 @@ module PhotoStreamReturnPaths
     Photo
       .visible_to(current_user)
       .joins(:metadata)
-      .where.not(photo_metadata: { latitude: nil, longitude: nil })
+      .merge(PhotoMetadata.geotagged)
   end
 
   def photo_stream_return_order(uri)

@@ -5,6 +5,8 @@ class PhotoMetadata < ApplicationRecord
 
   belongs_to :photo
 
+  scope :geotagged, -> { where.not(latitude: nil).where.not(longitude: nil) }
+
   validates :extraction_status, inclusion: { in: EXTRACTION_STATUSES }
 
   after_commit :enqueue_location_geocoding, if: :location_coordinates_changed?

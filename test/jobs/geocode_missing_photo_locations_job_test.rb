@@ -38,6 +38,16 @@ class GeocodeMissingPhotoLocationsJobTest < ActiveJob::TestCase
     end
   end
 
+  test "does not geocode records with only one coordinate" do
+    geotag(attached_photo, latitude: 45, longitude: nil)
+    geotag(attached_photo, latitude: nil, longitude: -84)
+    clear_enqueued_jobs
+
+    assert_no_enqueued_jobs only: GeocodePhotoLocationJob do
+      GeocodeMissingPhotoLocationsJob.perform_now
+    end
+  end
+
   test "requeues buckets whose existing name is only a plus code" do
     photo = attached_photo
     geotag(photo, latitude: 21.164478, longitude: -156.12915)
