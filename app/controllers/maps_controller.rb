@@ -19,7 +19,7 @@ class MapsController < ApplicationController
   end
 
   def markers
-    render json: Rails.cache.fetch(map_markers_cache_key, expires_in: 5.minutes, race_condition_ttl: 10.seconds) {
+    render json: cache_owner_aggregate(map_markers_cache_key, expires_in: 5.minutes, race_condition_ttl: 10.seconds) {
       marker_scope = geotagged_photos.in_map_bounds(map_bounds)
       total = marker_scope.count
       markers = location_payloads(marker_scope)
@@ -193,7 +193,7 @@ class MapsController < ApplicationController
   def initial_map_bounds
     explicit_bounds = map_bounds
     return explicit_bounds if explicit_bounds.values_at(:north, :south, :east, :west).all?
-    return @selected_location.bounds.padded_bounds if @selected_location&.bounds
+    return @selected_location.bounds.padded_bounds if @selected_location&.bounds && current_user&.owner?
     return bounds_for(geotagged_photos) if @selected_location
     return unless @selected_album
 

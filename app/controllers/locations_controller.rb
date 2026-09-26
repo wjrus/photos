@@ -48,7 +48,7 @@ class LocationsController < ApplicationController
   private
 
   def cached_location_rows
-    Rails.cache.fetch(location_index_cache_key, expires_in: 12.hours, race_condition_ttl: 2.minutes) do
+    cache_owner_aggregate(location_index_cache_key, expires_in: 12.hours, race_condition_ttl: 2.minutes) do
       PhotoLocation.rows(geotagged_photos).to_a
     end
   end

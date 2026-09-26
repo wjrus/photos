@@ -159,7 +159,7 @@ class AlbumsController < ApplicationController
   end
 
   def cached_album_index_payload(albums)
-    Rails.cache.fetch(album_index_cache_key(albums), expires_in: 10.minutes, race_condition_ttl: 10.seconds) do
+    cache_owner_aggregate(album_index_cache_key(albums), expires_in: 10.minutes, race_condition_ttl: 10.seconds) do
       {
         public_album_count: albums.count(&:public?),
         private_album_count: albums.count(&:private?),

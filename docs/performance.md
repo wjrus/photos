@@ -47,6 +47,22 @@ concurrent work; inspect the plans as well as the timings.
 Timeline aggregates discard media preloads so computing counts/date ranges does
 not join Active Storage attachments and variant records.
 
+## Aggregate caches and access
+
+Map markers, location rows, album index payloads, and timeline aggregates use
+the existing caches for owners. Viewer and anonymous requests recompute these
+aggregates from the current visible scope. People-tag changes, album membership
+changes, and same-second publication changes therefore take effect immediately,
+without retaining private titles, coordinates, dates, or counts in a stale
+payload. This trades repeated aggregate queries for reliable access revocation
+outside the owner account; owner cache hits remain unchanged.
+
+Persisted location bounds summarize the owner's full visible library, so only
+owner map requests reuse them. Viewer map bounds are computed from the photos
+the viewer can currently access, including when focusing a named place.
+`AggregateCacheAccessTest` exercises grants, revocations, and publication changes
+with a real memory cache, plus a named place containing a hidden distant photo.
+
 ## Search navigation
 
 Search navigation stores at most 10,000 ordered photo IDs, fetched without
