@@ -4,8 +4,8 @@ class PhotoSearchOrderSnapshot
   MAX_IDS = 10_000
   TOKEN_LENGTH = 24
 
-  def self.store(scope:, user:, token: nil)
-    new(user: user, token: token).store(scope)
+  def self.store(scope:, user:, token: nil, refresh: false)
+    new(user: user, token: token).store(scope, refresh: refresh)
   end
 
   def self.neighbor_ids(token:, user:, photo_id:)
@@ -19,16 +19,19 @@ class PhotoSearchOrderSnapshot
 
   attr_reader :token
 
-  def store(scope)
+  def store(scope, refresh: false)
     scope = scope.except(:includes, :preload, :eager_load)
     scope_key = Digest::SHA256.hexdigest(scope.to_sql)
-    payload = Rails.cache.read(cache_key)
+    payload = Rails.cache.read(cache_key) unless refresh
     if payload&.fetch("user_key", nil) == user_key && payload["scope_key"] == scope_key
       return token
     end
 
     ids = scope.limit(MAX_IDS).pluck(:id)
-    return nil if ids.empty?
+    if ids.empty?
+      Rails.cache.delete(cache_key)
+      return nil
+    end
 
     Rails.cache.write(cache_key, { "user_key" => user_key, "scope_key" => scope_key, "ids" => ids }, expires_in: TTL)
     token

@@ -52,13 +52,18 @@ not join Active Storage attachments and variant records.
 Search navigation stores at most 10,000 ordered photo IDs, fetched without
 instantiating photo records or preloading attachments. Subsequent pages reuse the
 same snapshot for up to 30 minutes when its audience and query match. A new
-search without a token creates a fresh snapshot; changing filters or an expired
-cache entry rebuilds it. Photo visibility is still checked on each page and
-viewer request. The snapshot grants no access to photos.
+search or full result-page refresh rebuilds its IDs, including when returning
+from the viewer after editing a result. This keeps navigation aligned with newly
+matching, renamed, archived, or deleted photos. Cursor and stream-page fragments
+reuse the snapshot without querying all result IDs; changing filters or an
+expired cache entry rebuilds it. Refreshing an empty result clears its previous
+snapshot. Photo visibility is still checked on each page and viewer request.
+The snapshot grants no access to photos.
 
 `PhotoSearchOrderSnapshotTest` checks bounded results, zero record instantiation,
-zero photo queries when reusing a snapshot, expiry, changed filters, and audience
-isolation.
+zero photo queries when reusing a snapshot, explicit refresh, expiry, changed
+filters, and audience isolation. Controller regressions cover navigation after
+result mutations and snapshot reuse for older/newer/stream-page fragments.
 
 ## Text search association matches
 

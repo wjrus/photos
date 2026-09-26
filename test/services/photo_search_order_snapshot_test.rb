@@ -53,6 +53,26 @@ class PhotoSearchOrderSnapshotTest < ActiveSupport::TestCase
     assert_equal({ previous_id: nil, next_id: nil }, neighbors(token, @ids.first))
   end
 
+  test "refreshing a snapshot reloads current ids even when its query is unchanged" do
+    token = PhotoSearchOrderSnapshot.store(scope: @scope, user: @owner)
+    Photo.where(id: @ids.second).delete_all
+
+    assert_queries_count(1) do
+      assert_equal token, PhotoSearchOrderSnapshot.store(scope: @scope, user: @owner, token: token, refresh: true)
+    end
+
+    assert_nil neighbors(token, @ids.second)
+    assert_equal({ previous_id: @ids.last, next_id: nil }, neighbors(token, @ids.first))
+  end
+
+  test "refreshing an empty result clears its previous snapshot" do
+    token = PhotoSearchOrderSnapshot.store(scope: @scope, user: @owner)
+    Photo.where(id: @ids).delete_all
+
+    assert_nil PhotoSearchOrderSnapshot.store(scope: @scope, user: @owner, token: token, refresh: true)
+    assert_nil neighbors(token, @ids.second)
+  end
+
   test "expired snapshots rebuild from the current results" do
     token = PhotoSearchOrderSnapshot.store(scope: @scope, user: @owner)
     Photo.where(id: @ids.second).delete_all

@@ -30,7 +30,9 @@ class SearchController < ApplicationController
   end
 
   def store_search_order(results)
-    PhotoSearchOrderSnapshot.store(scope: results, user: current_user, token: params[:search_order])
+    # A fresh result page must reflect edits; scrolling keeps its existing order.
+    refresh = params[:cursor].blank? && params[:newer_cursor].blank? && params[:stream_page].blank?
+    PhotoSearchOrderSnapshot.store(scope: results, user: current_user, token: params[:search_order], refresh: refresh)
   end
 
   def search_return_path

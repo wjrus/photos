@@ -232,7 +232,7 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
       return_to = css_select("a[href='#{photo_path(current)}']").first["data-photo-return-to"]
       revoked.unpublish!
 
-      get return_to
+      get return_to, params: { stream_page: 1 }
       assert_response :success
       assert_select "[data-photo-id='#{revoked.id}']", count: 0
 
@@ -243,6 +243,90 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
 
       get photo_path(revoked)
       assert_response :not_found
+    end
+  end
+
+  [ :rename, :archive, :delete ].each do |change|
+    test "returning to search after a #{change} refreshes viewer navigation" do
+      newest = attached_photo(title: "Dog newest")
+      removed = attached_photo(title: "Removed photo")
+      oldest = attached_photo(title: "Dog oldest")
+      removed.update!(title: "Dog removed")
+      [ oldest, removed, newest ].each_with_index do |photo, index|
+        photo.update_columns(created_at: Time.zone.local(2026, 1, index + 1))
+      end
+
+      with_memory_cache do
+        get search_path(q: "Dog")
+        assert_response :success
+        return_to = css_select("a[href='#{photo_path(newest)}']").first["data-photo-return-to"]
+
+        case change
+        when :rename then removed.update!(title: "Unrelated photo")
+        when :archive then removed.archive!
+        when :delete then removed.destroy!
+        end
+
+        get return_to, params: { photo_id: newest.id }
+        assert_response :success
+        assert_select "[data-photo-id='#{newest.id}']"
+        assert_select "[data-photo-id='#{oldest.id}']"
+        assert_select "[data-photo-id='#{removed.id}']", count: 0
+
+        get photo_path(newest, return_to: return_to)
+        follow_redirect!
+        assert_response :success
+        assert_select "a[aria-label='Previous item in stream']", count: 0
+        assert_select "a[href='#{photo_path(oldest)}'][aria-label='Next item in stream']"
+      end
+    end
+  end
+
+  test "refreshing a search includes newly matching photos in viewer navigation" do
+    current = attached_photo(title: "Dog current")
+    newest = attached_photo(title: "Unrelated photo")
+    current.update_columns(created_at: Time.zone.local(2026, 1, 1))
+    newest.update_columns(created_at: Time.zone.local(2026, 1, 2))
+
+    with_memory_cache do
+      get search_path(q: "Dog")
+      assert_response :success
+      return_to = css_select("a[href='#{photo_path(current)}']").first["data-photo-return-to"]
+      newest.update!(title: "Dog newest")
+
+      get return_to
+      assert_response :success
+      assert_select "[data-photo-id='#{newest.id}']"
+
+      get photo_path(current, return_to: return_to)
+      follow_redirect!
+      assert_response :success
+      assert_select "a[href='#{photo_path(newest)}'][aria-label='Previous item in stream']"
+    end
+  end
+
+  test "search page fragments reuse their navigation snapshot without loading all result ids" do
+    oldest = attached_photo(title: "Dog oldest")
+    newest = attached_photo(title: "Dog newest")
+    oldest.update_columns(created_at: Time.zone.local(2026, 1, 1))
+    newest.update_columns(created_at: Time.zone.local(2026, 1, 2))
+
+    with_memory_cache do
+      get search_path(q: "Dog")
+      assert_response :success
+      return_to = css_select("a[href='#{photo_path(newest)}']").first["data-photo-return-to"]
+
+      [ { cursor: newest.stream_cursor }, { newer_cursor: oldest.stream_cursor }, { stream_page: 1 } ].each do |page_params|
+        snapshot_queries = []
+        subscriber = ->(event) { snapshot_queries << event.payload[:sql] if event.payload[:name] == "Photo Pluck" }
+
+        ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+          get return_to, params: page_params
+        end
+
+        assert_response :success
+        assert_empty snapshot_queries, "Pagination should reuse the ordered IDs: #{page_params}"
+      end
     end
   end
 
