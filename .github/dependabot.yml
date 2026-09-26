@@ -26,6 +26,10 @@ updates:
   schedule:
     interval: weekly
   open-pull-requests-limit: 10
+  ignore:
+    # Interpreter upgrades must coordinate pyproject.toml, uv.lock, Docker, and CI.
+    - dependency-name: python
+      update-types: ["version-update:semver-major", "version-update:semver-minor"]
 - package-ecosystem: docker-compose
   directory: "/"
   schedule:

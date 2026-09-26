@@ -316,6 +316,9 @@ The sidecar uses Python 3.13 and uv. `pyproject.toml` declares direct dependenci
 `uv.lock` fixes the complete dependency graph for macOS and Linux, including
 platform-specific CUDA packages. Docker and CI require the lock to be current.
 Dependabot updates this lock and also monitors Dockerfiles and Compose images.
+Python image updates stay within 3.13. Moving to another interpreter series
+requires updating `requires-python`, regenerating `uv.lock`, and changing the
+Docker and CI runtimes together after checking dependency compatibility.
 
 From `services/analysis_local`, run:
 
