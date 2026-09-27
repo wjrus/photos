@@ -1,0 +1,89 @@
+<% if !data.fetch(:snapshot_available) %>
+  <p class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">Queue status is unavailable. This process cannot access the Solid Queue tables. Queue controls will be available when the connection recovers.</p>
+<% else %>
+  <% totals = data.fetch(:queue_totals) %>
+  <% states = { ready: "Ready", claimed: "Running", scheduled: "Scheduled", failed: "Failed", blocked: "Blocked" } %>
+  <dl class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <%= repository_metric("Ready", number_with_delimiter(totals.fetch(:ready)), detail: "#{number_with_delimiter(totals.fetch(:scheduled))} scheduled") %>
+    <%= repository_metric("Running", number_with_delimiter(totals.fetch(:claimed)), detail: "#{number_with_delimiter(totals.fetch(:blocked))} blocked") %>
+    <%= repository_metric("Failed", number_with_delimiter(totals.fetch(:failed)), attention: totals.fetch(:failed).positive?) %>
+    <%= repository_metric("Finished in 1h", number_with_delimiter(data.fetch(:finished_counts).fetch(:last_hour)), detail: "#{number_with_delimiter(data.fetch(:finished_counts).fetch(:last_day))} in the last 24h") %>
+  </dl>
+
+  <% if data.fetch(:pauses).any? %>
+    <div class="mt-5 flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <p class="min-w-0 break-words text-sm text-amber-950"><strong class="font-semibold">Paused queues:</strong> <%= data.fetch(:pauses).map { |pause| pause.fetch("queue_name") }.join(", ") %></p>
+      <%= button_to "Resume paused queues", queue_pauses_path, method: :delete, class: repository_button_class %>
+    </div>
+  <% end %>
+
+  <div class="mt-5 overflow-x-auto">
+    <table class="block w-full text-left text-sm md:table md:min-w-[58rem]" role="table" aria-label="Queue status and controls">
+      <thead class="hidden border-b border-zinc-200 text-xs uppercase tracking-wider text-zinc-500 md:table-header-group"><tr><th scope="col" class="py-3 pr-3">Queue</th><% states.each_value do |label| %><th scope="col" class="p-3 text-right"><%= label %></th><% end %><th scope="col" class="p-3 text-right">Total</th><th scope="col" class="p-3">Status</th><th scope="col" class="py-3 pl-3 text-right">Control</th></tr></thead>
+      <tbody class="grid gap-3 md:table-row-group md:divide-y md:divide-zinc-100" role="rowgroup">
+        <% data.fetch(:controls).fetch(:queues).each do |queue| %>
+          <tr class="grid grid-cols-6 items-start gap-3 rounded-lg border border-zinc-200 p-4 md:table-row md:rounded-none md:border-0 md:p-0" role="row">
+            <th scope="row" role="rowheader" class="order-1 col-span-4 min-w-0 self-center break-all font-medium md:py-3 md:pr-3"><%= queue.fetch(:name) %></th>
+            <% states.each do |state, label| %><% count = queue.fetch(:counts).fetch(state, 0) %><td role="cell" class="order-4 col-span-2 tabular-nums md:p-3 md:text-right <%= state == :failed && count.positive? ? 'font-semibold text-rose-800' : 'text-zinc-600' %>"><span class="mb-1 block text-xs font-normal text-zinc-500 md:hidden"><%= label %></span><%= number_with_delimiter(count) %></td><% end %>
+            <td role="cell" class="order-4 col-span-2 font-semibold tabular-nums md:p-3 md:text-right"><span class="mb-1 block text-xs font-normal text-zinc-500 md:hidden">Total</span><%= number_with_delimiter(queue.fetch(:total)) %></td>
+            <td role="cell" class="order-3 col-span-6 md:p-3"><%= repository_badge(queue.fetch(:paused) ? "Paused" : "Active", tone: queue.fetch(:paused) ? :warning : :good) %></td>
+            <td role="cell" class="order-2 col-span-2 text-right md:py-3 md:pl-3">
+              <% if queue.fetch(:managed) %>
+                <%= button_to queue.fetch(:paused) ? "Resume" : "Pause", repository_status_path, method: :patch, params: { section: "queues", control: "queue", queue_name: queue.fetch(:name), queue_action: queue.fetch(:paused) ? "resume" : "pause" }, aria: { label: "#{queue.fetch(:paused) ? 'Resume' : 'Pause'} #{queue.fetch(:name)}" }, class: repository_button_class %>
+              <% else %><span class="text-zinc-400" aria-label="No individual control">—</span><% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+  <details id="queue-failures" class="mt-6 border-t border-zinc-100 pt-5">
+    <summary class="cursor-pointer text-sm font-semibold">Recent failures <%= repository_badge("#{data.fetch(:recent_failures).size} shown", tone: data.fetch(:recent_failures).any? ? :danger : :neutral) %></summary>
+    <% if data.fetch(:recent_failures).any? %>
+      <div class="mt-4 flex flex-wrap gap-2">
+        <% if data.fetch(:pruned_failure_count).positive? %><%= button_to "Retry pruned (#{number_with_delimiter(data.fetch(:pruned_failure_count))})", retry_pruned_queue_failures_path, method: :patch, class: repository_button_class %><% end %>
+        <div data-controller="confirm-modal" data-action="keydown@window->confirm-modal#keydown">
+          <button type="button" class="inline-flex min-h-10 items-center justify-center rounded-lg border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-800 transition hover:bg-rose-50" data-action="confirm-modal#open">Clear failed jobs</button>
+          <div class="fixed inset-0 z-50 hidden items-center justify-center bg-zinc-950/65 p-4 text-left backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="clear-queue-failures-title" data-confirm-modal-target="dialog" data-action="click->confirm-modal#backdrop">
+            <div class="w-full max-w-sm rounded-xl border border-rose-200 bg-white p-5 shadow-2xl" data-confirm-modal-target="panel">
+              <h3 id="clear-queue-failures-title" class="text-lg font-semibold">Clear failed jobs?</h3>
+              <p class="mt-3 text-sm leading-6 text-zinc-600">This removes all failed queue executions from the failure list.</p>
+              <div class="mt-5 grid grid-cols-2 gap-3">
+                <button type="button" class="<%= repository_button_class %>" data-action="confirm-modal#close">Cancel</button>
+                <%= button_to "Clear failures", queue_failures_path, method: :delete, class: "min-h-10 w-full rounded-lg bg-rose-800 px-3 py-2 text-sm font-semibold text-white transition hover:bg-rose-950" %>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <ul class="mt-4 divide-y divide-zinc-100">
+        <% data.fetch(:recent_failures).each do |failure| %>
+          <li class="py-4 first:pt-0 last:pb-0">
+            <div class="flex flex-wrap items-center justify-between gap-2"><h3 class="min-w-0 break-all text-sm font-semibold"><%= failure.fetch("class_name") %></h3><%= repository_badge(failure.fetch("queue_name"), tone: :danger) %></div>
+            <p class="mt-2 break-words text-xs leading-5 text-rose-800"><%= failure.fetch("error").to_s.lines.first(3).join.strip %></p>
+            <p class="mt-2 text-xs text-zinc-500"><%= repository_timestamp(failure.fetch("failed_at")) %></p>
+          </li>
+        <% end %>
+      </ul>
+    <% else %><p class="mt-3 text-sm text-zinc-500">No failed jobs.</p><% end %>
+  </details>
+
+  <details id="queue-job-classes" class="mt-5 border-t border-zinc-100 pt-5">
+    <summary class="cursor-pointer text-sm font-semibold">Job classes <span class="font-normal text-zinc-500">(<%= data.fetch(:job_classes).size %>)</span></summary>
+    <% if data.fetch(:job_classes).any? %>
+      <div class="mt-3 overflow-x-auto"><table class="w-full min-w-[46rem] text-left text-sm"><thead class="border-b border-zinc-200 text-xs uppercase tracking-wider text-zinc-500"><tr><th scope="col" class="py-3 pr-3">Class</th><% states.each_value do |label| %><th scope="col" class="p-3 text-right"><%= label %></th><% end %><th scope="col" class="p-3 text-right">Total</th></tr></thead><tbody class="divide-y divide-zinc-100">
+        <% data.fetch(:job_classes).each do |job_class| %><tr><th scope="row" class="max-w-80 truncate py-3 pr-3 font-medium" title="<%= job_class.fetch(:name) %>"><%= job_class.fetch(:name) %></th><% states.each_key do |state| %><% count = job_class.fetch(:counts).fetch(state, 0) %><td class="p-3 text-right tabular-nums <%= state == :failed && count.positive? ? 'font-semibold text-rose-800' : 'text-zinc-600' %>"><%= number_with_delimiter(count) %></td><% end %><td class="p-3 text-right font-semibold tabular-nums"><%= number_with_delimiter(job_class.fetch(:total)) %></td></tr><% end %>
+      </tbody></table></div>
+    <% else %><p class="mt-3 text-sm text-zinc-500">No active job classes.</p><% end %>
+  </details>
+
+  <details id="queue-workers" class="mt-5 border-t border-zinc-100 pt-5">
+    <summary class="cursor-pointer text-sm font-semibold">Workers <span class="font-normal text-zinc-500">(<%= data.fetch(:processes).size %>)</span></summary>
+    <% if data.fetch(:processes).any? %>
+      <ul class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <% data.fetch(:processes).each do |process| %><li class="min-w-0 rounded-lg bg-stone-50 p-4"><div class="flex items-start justify-between gap-3"><p class="min-w-0 break-all text-sm font-medium"><%= process.fetch("name") %></p><%= repository_badge(process.fetch("kind")) %></div><p class="mt-2 break-all text-xs text-zinc-500">PID <%= process.fetch("pid") %><%= " · #{process.fetch('hostname')}" if process.fetch("hostname").present? %></p><p class="mt-1 text-xs text-zinc-500">Heartbeat <%= repository_timestamp(process.fetch("last_heartbeat_at")) %></p></li><% end %>
+      </ul>
+    <% else %><p class="mt-3 text-sm text-zinc-500">No queue workers are registered.</p><% end %>
+  </details>
+<% end %>

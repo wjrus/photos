@@ -1,0 +1,8 @@
+<% originals = data.fetch(:originals) %>
+<% archive_failures = data.fetch(:drive_archives).fetch("failed", 0) %>
+<dl class="grid grid-cols-2 gap-3">
+  <%= repository_metric("Originals", number_with_delimiter(originals.fetch(:total)), detail: "#{number_with_delimiter(originals.fetch(:images))} images · #{number_with_delimiter(originals.fetch(:videos))} videos") %>
+  <%= repository_metric("Original storage", number_to_human_size(originals.fetch(:bytes)), detail: "Excludes generated previews") %>
+</dl>
+<% if archive_failures.positive? %><p class="mt-4 text-sm font-medium text-rose-800"><%= number_with_delimiter(archive_failures) %> Drive archives need attention.</p><% end %>
+<%= link_to "Review files & storage →", repository_status_path(section: "files"), class: "mt-4 inline-flex text-sm font-semibold text-teal-800 underline decoration-teal-300 underline-offset-4 hover:decoration-teal-800" %>

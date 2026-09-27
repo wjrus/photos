@@ -1,46 +1,36 @@
 class RepositoryStatusController < ApplicationController
-  MANAGED_QUEUE_NAMES = %w[
-    solid_queue_recurring
-    import
-    archive
-    maintenance
-    analysis
-    vision
-    video_previews
-    derivatives
-    default
-  ].freeze
+  MANAGED_QUEUE_NAMES = RepositoryStatusData::MANAGED_QUEUE_NAMES
+  SECTION_PANELS = {
+    "overview" => %w[library queues activity], "files" => %w[health maintenance],
+    "analysis" => %w[analysis], "queues" => %w[queues]
+  }.freeze
+  SECTION_ALIASES = { "maintenance" => "files", "health" => "files", "activity" => "overview" }.freeze
 
   owner_access_message "Only the owner can see repository status."
-
+  before_action :prevent_status_caching
   before_action :require_owner!
 
   def show
     @status_section = status_section
-    @snapshot = QueueStatusSnapshot.build
-    @queue_totals = @snapshot.totals
-    @queues = @snapshot.queues
-    @job_classes = @snapshot.job_classes.first(12)
-    @recent_failures = @snapshot.recent_failures(limit: 8)
-    @processes = @snapshot.processes
-    @pauses = @snapshot.pauses
-    @finished_counts = @snapshot.finished_counts
+    load_settings if @status_section.in?(%w[files analysis])
+    return unless params[:synchronous] == "1"
 
-    @storage = storage_status
-    @originals = original_file_totals
-    @checksums = Photo.group(:checksum_status).count
-    @drive_archives = DriveArchiveObject.group(:status).count
-    @derivatives = derivative_totals
-    @location_status = location_status
-    @analysis_status = analysis_status
-    @health = health_totals
-    @health_timeline = health_timeline
-    @last_health_check_at = FileHealthCheck.maximum(:checked_at)
-    @recent_checks = latest_checks.includes(:photo).latest_first.limit(12)
-    @recent_attention = latest_checks.needs_attention.includes(:photo).latest_first.limit(8)
-    @repository_events = RepositoryEvent.latest_first.limit(12)
-    @unread_repository_events = RepositoryEvent.unread.count
-    @controls = controls
+    source = RepositoryStatusData.new(owner_id: current_user.id)
+    @panel_data = SECTION_PANELS.fetch(@status_section).to_h { |panel| [ panel, source.fetch(panel).fetch(:data) ] }
+  end
+
+  def panel
+    name = params[:panel].to_s
+    return render json: { error: "Unknown status panel." }, status: :not_found unless RepositoryStatusData::INTERVALS.key?(name)
+
+    snapshot = RepositoryStatusData.new(owner_id: current_user.id).fetch(name, force: params[:refresh] == "1")
+    partial = name == "queues" && params[:variant] == "summary" ? "queues_summary" : name
+    render json: {
+      html: render_to_string(partial: "repository_status/panels/#{partial}", formats: [ :html ], locals: { data: snapshot.fetch(:data) }),
+      generated_at: snapshot.fetch(:generated_at).iso8601,
+      version: Digest::SHA256.hexdigest(snapshot.fetch(:data).to_json),
+      refresh_after: RepositoryStatusData::INTERVALS.fetch(name)
+    }
   end
 
   def create
@@ -72,6 +62,7 @@ class RepositoryStatusController < ApplicationController
       OriginalFileHealthPatrolJob.perform_later(batch_size: patrol_batch_size)
       redirect_to repository_status_redirect_path, notice: "Repository patrol queued."
     end
+    expire_status_panels
   end
 
   def update
@@ -89,12 +80,18 @@ class RepositoryStatusController < ApplicationController
     else
       redirect_to repository_status_redirect_path, alert: "Unknown repository control."
     end
+    expire_status_panels
   end
 
   private
 
+  def prevent_status_caching
+    response.headers["Cache-Control"] = "private, no-store"
+  end
+
   def status_section
-    params[:section].presence_in(%w[overview maintenance analysis queues health activity]) || "overview"
+    requested = params[:section].to_s
+    SECTION_ALIASES[requested] || requested.presence_in(SECTION_PANELS.keys) || "overview"
   end
 
   def repository_status_redirect_path
@@ -102,93 +99,25 @@ class RepositoryStatusController < ApplicationController
     section == "overview" ? repository_status_path : repository_status_path(section: section)
   end
 
-  def original_file_totals
-    originals = original_photos
-    {
-      total: originals.count,
-      bytes: ActiveStorage::Blob.joins(:attachments).where(active_storage_attachments: { record_type: "Photo", name: "original" }).sum(:byte_size),
-      images: originals.where("photos.content_type LIKE ?", "image/%").count,
-      videos: originals.where("photos.content_type LIKE ?", "video/%").count,
-      public: originals.where(visibility: "public", restricted: false, archived_at: nil).count,
-      private: originals.where(visibility: "private", restricted: false, archived_at: nil).count,
-      restricted: originals.where(restricted: true).count,
-      archived: originals.where.not(archived_at: nil).count
-    }
+  def load_settings
+    defaults = AppSetting::ANALYSIS_BOOLEAN_SETTINGS.merge(AppSetting::ORIGINAL_FILE_AUTO_HEAL => false)
+    saved = AppSetting.where(key: defaults.keys).pluck(:key, :value).to_h
+    @settings = defaults.merge(saved.transform_values { |value| ActiveModel::Type::Boolean.new.cast(value) })
+    @setting_sources = defaults.keys.to_h { |key| [ key, saved.key?(key) ? "repository setting" : "app default" ] }
+  end
+
+  def expire_status_panels
+    panels = case params[:control]
+    when "repository_events" then %w[activity]
+    when "analysis" then %w[analysis]
+    when "original_file_auto_heal" then %w[maintenance]
+    else %w[queues health analysis maintenance]
+    end
+    RepositoryStatusData.invalidate(current_user.id, *panels)
   end
 
   def original_photos
     Photo.joins(:original_attachment)
-  end
-
-  def derivative_totals
-    image_total = original_photos.where("photos.content_type LIKE ?", "image/%").count
-    video_total = original_photos.where("photos.content_type LIKE ?", "video/%").count
-    stream_ready = image_variant_count(:stream)
-    display_ready = image_variant_count(:display)
-    video_preview_ready = original_photos.joins(:video_preview_attachment).where("photos.content_type LIKE ?", "video/%").count
-    video_display_ready = original_photos.joins(:video_display_attachment).where("photos.content_type LIKE ?", "video/%").count
-
-    {
-      image_total: image_total,
-      stream_ready: stream_ready,
-      stream_missing: [ image_total - stream_ready, 0 ].max,
-      display_ready: display_ready,
-      display_missing: [ image_total - display_ready, 0 ].max,
-      video_total: video_total,
-      video_preview_ready: video_preview_ready,
-      video_preview_missing: [ video_total - video_preview_ready, 0 ].max,
-      video_display_ready: video_display_ready,
-      video_display_missing: [ video_total - video_display_ready, 0 ].max,
-      variant_records: ActiveStorage::VariantRecord.count
-    }
-  end
-
-  def image_variant_count(variant_name)
-    digest = variant_digest(variant_name)
-    return 0 unless digest
-
-    Photo
-      .joins(original_attachment: { blob: :variant_records })
-      .where("photos.content_type LIKE ?", "image/%")
-      .where(active_storage_variant_records: { variation_digest: digest })
-      .distinct
-      .count
-  rescue ActiveRecord::ConfigurationError, ActiveRecord::StatementInvalid
-    0
-  end
-
-  def variant_digest(variant_name)
-    sample = original_photos.where("photos.content_type LIKE ?", "image/%").first
-    return unless sample&.original&.attached? && sample.original.variable?
-
-    sample.original.variant(variant_name).variation.digest
-  rescue ActiveStorage::InvariableError
-    nil
-  end
-
-  def health_totals
-    original_count = original_photos.count
-    checked_count = latest_checks.count
-
-    {
-      checked: checked_count,
-      unchecked: [ original_count - checked_count, 0 ].max,
-      checked_percent: original_count.positive? ? (checked_count.to_f / original_count * 100).round(1) : 100.0,
-      attention: latest_checks.needs_attention.count,
-      stale: latest_checks.where("checked_at < ?", OriginalFileHealthPatrolJob::DEFAULT_STALE_AFTER.ago).count,
-      status_counts: latest_checks.group(:status).count,
-      jobs: health_job_counts
-    }
-  end
-
-  def latest_checks
-    FileHealthCheck.where(id: latest_check_ids)
-  end
-
-  def latest_check_ids
-    FileHealthCheck
-      .select("DISTINCT ON (photo_id) id")
-      .order("photo_id, checked_at DESC, id DESC")
   end
 
   def never_checked_count
@@ -225,82 +154,6 @@ class RepositoryStatusController < ApplicationController
     GeocodeMissingPhotoLocationsJob::DEFAULT_LIMIT
   end
 
-  def location_status
-    scope = geotagged_photos
-    matched_count = scope.where.not(photo_metadata: { photo_place_id: nil }).count
-    missing_count = scope.where(photo_metadata: { photo_place_id: nil }).count
-
-    {
-      buckets: matched_count + missing_count,
-      named: matched_count,
-      missing: missing_count,
-      geocoder_configured: LocationReverseGeocoder.api_key.present?
-    }
-  end
-
-  def geotagged_photos
-    Photo
-      .where(restricted: false, archived_at: nil)
-      .joins(:metadata)
-      .merge(PhotoMetadata.geotagged)
-  end
-
-  def analysis_status
-    openclip_model = ENV.fetch("OPENCLIP_MODEL", "ViT-B-32")
-    openclip_model_version = ENV.fetch("OPENCLIP_PRETRAINED", "laion2b_s34b_b79k")
-    eligible_photos = original_photos.where(restricted: false)
-    current_embeddings = PhotoEmbedding.where(provider: "openclip", model: openclip_model, model_version: openclip_model_version)
-    run_scope = PhotoAnalysisRun.where(provider: "openclip", model: openclip_model, model_version: openclip_model_version)
-    embedded_count = eligible_photos.where(id: current_embeddings.select(:photo_id)).distinct.count
-    eligible_count = eligible_photos.distinct.count
-
-    {
-      openclip: {
-        model: openclip_model,
-        model_version: openclip_model_version,
-        eligible: eligible_count,
-        embedded: embedded_count,
-        missing: [ eligible_count - embedded_count, 0 ].max,
-        coverage_percent: eligible_count.positive? ? (embedded_count.to_f / eligible_count * 100).round(1) : 100.0,
-        run_counts: PhotoAnalysisRun::STATUSES.index_with { |status| run_scope.where(status: status).count },
-        latest_errors: PhotoAnalysisRun.where(provider: "openclip").where.not(error: [ nil, "" ]).latest_first.limit(5)
-      },
-      openrouter: openrouter_analysis_status
-    }
-  end
-
-  def openrouter_analysis_status
-    model = ENV.fetch("OPENROUTER_VISION_MODEL", OpenrouterVisionClient::DEFAULT_MODEL)
-    eligible = original_photos.where(restricted: false).where("photos.content_type LIKE ?", "image/%").distinct.count
-    runs = PhotoAnalysisRun.where(
-      provider: "openrouter",
-      model: model,
-      model_version: PhotoAnalysisOpenrouterJob::PROMPT_VERSION
-    )
-    completed = runs.complete.select(:photo_id).distinct.count
-    spend = PhotoAnalysisRun.openrouter_spend.to_d
-    costed = PhotoAnalysisRun.where(provider: "openrouter", status: "complete").where.not(cost_usd: nil)
-    average_cost = costed.exists? ? costed.average(:cost_usd).to_d : 0.to_d
-    budget = ENV.fetch("OPENROUTER_BUDGET_USD", 100).to_d
-    missing = [ eligible - completed, 0 ].max
-
-    {
-      model:,
-      prompt_version: PhotoAnalysisOpenrouterJob::PROMPT_VERSION,
-      configured: ENV["OPENROUTER_API_KEY"].present?,
-      eligible:,
-      completed:,
-      missing:,
-      coverage_percent: eligible.positive? ? (completed.to_f / eligible * 100).round(1) : 100.0,
-      run_counts: PhotoAnalysisRun::STATUSES.index_with { |status| runs.where(status:).count },
-      spend:,
-      budget:,
-      average_cost:,
-      projected_remaining_cost: average_cost.positive? ? average_cost * missing : PhotoAnalysisOpenrouterBackfill::DEFAULT_ESTIMATED_COST_USD * missing,
-      latest_errors: PhotoAnalysisRun.where(provider: "openrouter").where.not(error: [ nil, "" ]).latest_first.limit(5)
-    }
-  end
-
   def analysis_backfill_providers
     requested = Array(params[:providers]).compact_blank.map(&:to_s)
     requested = local_analysis_providers if requested.empty?
@@ -320,120 +173,6 @@ class RepositoryStatusController < ApplicationController
       when "yolo"
         AppSetting.boolean(AppSetting::ANALYSIS_YOLO_ENABLED, default: false)
       end
-    end
-  end
-
-  def health_timeline
-    checks = FileHealthCheck.where("checked_at >= ?", 24.hours.ago).pluck(:checked_at, :status)
-    buckets = 24.downto(0).map { |hours_ago| hours_ago.hours.ago.in_time_zone.beginning_of_hour }.uniq.sort.index_with { Hash.new(0) }
-
-    checks.each do |checked_at, status|
-      bucket = checked_at.in_time_zone.beginning_of_hour
-      buckets[bucket][status] += 1 if buckets.key?(bucket)
-    end
-
-    buckets.map do |time, counts|
-      {
-        label: time.strftime("%-I%P"),
-        healthy: counts.fetch("ok", 0) + counts.fetch("healed", 0),
-        attention: FileHealthCheck::ATTENTION_STATUSES.sum { |status| counts.fetch(status, 0) }
-      }
-    end
-  end
-
-  def health_job_counts
-    counts = QueueStatusSnapshot::EXECUTION_STATES.keys.index_with(0).merge(total: 0)
-    return counts unless @snapshot.available?
-
-    @snapshot.job_classes.each do |job_class|
-      next unless job_class.fetch(:name).in?(health_job_class_names)
-
-      job_class.fetch(:counts).each { |state, count| counts[state] += count }
-      counts[:total] += job_class.fetch(:total)
-    end
-    counts
-  end
-
-  def health_job_class_names
-    %w[
-      OriginalFileHealthPatrolJob
-      OriginalFileHealthCheckJob
-      HealOriginalFromDriveJob
-      PhotoAnalysisBackfillJob
-      PhotoAnalysisOpenclipJob
-      PhotoAnalysisYoloJob
-      PhotoAnalysisOpenaiJob
-      PhotoAnalysisOpenrouterBackfillJob
-      PhotoAnalysisOpenrouterJob
-    ]
-  end
-
-  def storage_status
-    service = ActiveStorage::Blob.service
-    configured_path = ENV.fetch("PHOTOS_STORAGE_PATH", nil)
-    service_root = service.respond_to?(:root) ? service.root.to_s : nil
-    root_exists = service_root.present? ? File.directory?(service_root) : nil
-    configured_path_exists = configured_path_exists_in_container(configured_path, service_root)
-    path_attention = root_exists == false || configured_path_exists == false
-
-    {
-      service: Rails.application.config.active_storage.service,
-      root: service_root,
-      configured_path: configured_path,
-      configured_path_exists: configured_path_exists,
-      root_exists: root_exists,
-      path_attention: path_attention,
-      auto_heal: original_file_auto_heal_enabled?,
-      auto_heal_source: app_setting_present?(AppSetting::ORIGINAL_FILE_AUTO_HEAL) ? "repository setting" : "app default"
-    }
-  end
-
-  def configured_path_exists_in_container(configured_path, service_root)
-    return nil if configured_path.blank?
-    return File.directory?(configured_path) if configured_path == service_root
-
-    nil
-  end
-
-  def original_file_auto_heal_enabled?
-    AppSetting.boolean(AppSetting::ORIGINAL_FILE_AUTO_HEAL, default: false)
-  end
-
-  def app_setting_present?(key)
-    AppSetting.exists?(key: key)
-  end
-
-  def controls
-    paused_queue_names = @pauses.map { |pause| pause.fetch("queue_name") }
-    queue_rows = @queues.index_by { |queue| queue.fetch(:name) }
-
-    {
-      auto_heal: {
-        enabled: original_file_auto_heal_enabled?,
-        source: app_setting_present?(AppSetting::ORIGINAL_FILE_AUTO_HEAL) ? "repository setting" : "app default"
-      },
-      analysis: analysis_controls,
-      queues: MANAGED_QUEUE_NAMES.map do |queue_name|
-        row = queue_rows[queue_name]
-        {
-          name: queue_name,
-          paused: paused_queue_names.include?(queue_name),
-          ready: row&.dig(:counts, :ready).to_i,
-          claimed: row&.dig(:counts, :claimed).to_i,
-          total: row&.fetch(:total).to_i
-        }
-      end
-    }
-  end
-
-  def analysis_controls
-    AppSetting::ANALYSIS_BOOLEAN_SETTINGS.map do |key, default|
-      {
-        key: key,
-        label: analysis_control_label(key),
-        enabled: AppSetting.boolean(key, default: default),
-        source: app_setting_present?(key) ? "repository setting" : "app default"
-      }
     end
   end
 

@@ -34,6 +34,7 @@ Rails.application.routes.draw do
   get "/map/markers", to: "maps#markers", as: :map_markers
   resources :imports, only: %i[index create]
   get "/repository_status", to: "repository_status#show", as: :repository_status
+  get "/repository_status/panels/:panel", to: "repository_status#panel", as: :repository_status_panel, defaults: { format: :json }
   post "/repository_status", to: "repository_status#create"
   patch "/repository_status", to: "repository_status#update"
   get "/queues", to: "queue_status#show", as: :queue_status

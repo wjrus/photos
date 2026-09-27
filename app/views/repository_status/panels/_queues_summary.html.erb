@@ -1,0 +1,13 @@
+<% if data.fetch(:snapshot_available) %>
+  <% totals = data.fetch(:queue_totals) %>
+  <dl class="grid grid-cols-3 gap-3">
+    <%= repository_metric("Ready", number_with_delimiter(totals.fetch(:ready))) %>
+    <%= repository_metric("Running", number_with_delimiter(totals.fetch(:claimed))) %>
+    <%= repository_metric("Failed", number_with_delimiter(totals.fetch(:failed)), attention: totals.fetch(:failed).positive?) %>
+  </dl>
+  <p class="mt-4 text-xs leading-5 text-zinc-500"><%= number_with_delimiter(totals.fetch(:scheduled)) %> scheduled · <%= number_with_delimiter(totals.fetch(:blocked)) %> blocked · <%= number_with_delimiter(data.fetch(:finished_counts).fetch(:last_hour)) %> finished in the last hour</p>
+  <% if data.fetch(:pauses).any? %><p class="mt-2 break-words text-sm font-medium text-amber-800">Paused: <%= data.fetch(:pauses).map { |pause| pause.fetch("queue_name") }.join(", ") %></p><% end %>
+<% else %>
+  <p class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">Queue status is unavailable. This process cannot access the Solid Queue tables.</p>
+<% end %>
+<%= link_to "Manage queues →", repository_status_path(section: "queues"), class: "mt-4 inline-flex text-sm font-semibold text-teal-800 underline decoration-teal-300 underline-offset-4 hover:decoration-teal-800" %>

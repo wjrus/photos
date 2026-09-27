@@ -1,0 +1,24 @@
+<div class="flex flex-wrap items-center justify-between gap-3">
+  <p class="text-sm text-zinc-600">File health and recovery events.</p>
+  <% if data.fetch(:unread_repository_events).positive? %>
+    <%= button_to "Mark all read (#{number_with_delimiter(data.fetch(:unread_repository_events))})", repository_status_path, method: :patch, params: { section: "overview", control: "repository_events" }, class: repository_button_class %>
+  <% end %>
+</div>
+<% if data.fetch(:repository_events).any? %>
+  <ul class="mt-4 divide-y divide-zinc-100">
+    <% data.fetch(:repository_events).each do |event| %>
+      <% tone = case event.fetch("severity"); when "critical", "error" then :danger; when "warning" then :warning; else :good; end %>
+      <li class="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:justify-between">
+        <div class="min-w-0">
+          <div class="flex flex-wrap gap-2"><%= repository_badge(event.fetch("severity").humanize, tone: tone) %><% if event["read_at"].nil? %><%= repository_badge("Unread", tone: :warning) %><% end %></div>
+          <p class="mt-2 break-words text-sm font-medium"><%= event.fetch("message") %></p>
+          <% if event.fetch("data")["error"].present? %><details id="repository-event-<%= event.fetch('id') %>" class="mt-2"><summary class="cursor-pointer text-xs font-semibold text-rose-800">Error details</summary><p class="mt-2 break-words text-xs leading-5 text-rose-800"><%= event.fetch("data")["error"] %></p></details><% end %>
+          <% if event.fetch("data")["photo_id"].present? %><%= link_to "Open photo", photo_path(event.fetch("data")["photo_id"]), class: "mt-2 inline-flex text-xs font-semibold text-teal-800 underline underline-offset-4" %><% end %>
+        </div>
+        <span class="shrink-0 text-xs text-zinc-500"><%= repository_timestamp(event.fetch("occurred_at")) %></span>
+      </li>
+    <% end %>
+  </ul>
+<% else %>
+  <p class="mt-5 rounded-lg bg-stone-50 p-4 text-sm text-zinc-500">No repository events yet.</p>
+<% end %>

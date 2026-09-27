@@ -15,16 +15,14 @@ class RepositoryHealthControllerTest < ActionDispatch::IntegrationTest
   test "owner can view repository health page" do
     get repository_health_path
 
-    assert_response :success
-    assert_includes response.body, "Repository health"
-    assert_includes response.body, "Queue baseline scan"
-    assert_includes response.body, "Showing latest"
-    assert_includes response.body, "Health jobs"
+    assert_redirected_to repository_status_path(section: "files")
   end
 
   test "repository section links back to status overview" do
     get repository_health_path
 
+    assert_redirected_to repository_status_path(section: "files")
+    follow_redirect!
     assert_response :success
     assert_includes response.body, repository_status_path
     assert_includes response.body, "Overview"
@@ -44,7 +42,7 @@ class RepositoryHealthControllerTest < ActionDispatch::IntegrationTest
       post repository_health_path
     end
 
-    assert_redirected_to repository_health_path
+    assert_redirected_to repository_status_path(section: "files")
     assert_equal "Repository patrol queued.", flash[:notice]
   end
 
@@ -53,7 +51,7 @@ class RepositoryHealthControllerTest < ActionDispatch::IntegrationTest
       post repository_health_path, params: { scan_type: "baseline" }
     end
 
-    assert_redirected_to repository_health_path
+    assert_redirected_to repository_status_path(section: "files")
     assert_equal "Baseline repository scan queued.", flash[:notice]
   end
 

@@ -19,36 +19,34 @@ class RepositoryStatusControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "Repository status"
-    assert_includes response.body, "Maintenance"
-    assert_includes response.body, "Photo Analysis"
-    assert_includes response.body, "File Health"
-    assert_includes response.body, "Queue patrol"
-    assert_includes response.body, "Queue baseline scan"
+    assert_includes response.body, "Files &amp; storage"
+    assert_select "[data-controller=repository-panel]", count: 3
+    assert_select "input[name=scan_type]", count: 0
   end
 
   test "owner can view maintenance section" do
-    get repository_status_path(section: "maintenance")
+    get repository_status_path(section: "maintenance", synchronous: 1)
 
     assert_response :success
-    assert_includes response.body, "Maintenance Actions"
+    assert_includes response.body, "Protect your originals"
     assert_includes response.body, "Derivative coverage"
     assert_includes response.body, "Google Drive authorization"
     assert_includes response.body, GoogleDriveArchiveClient::DRIVE_SCOPE
     assert_includes response.body, "Original file auto-heal"
-    assert_includes response.body, "Location names"
-    assert_includes response.body, "Awaiting matching"
+    assert_includes response.body, "Location matching"
+    assert_includes response.body, "awaiting matching"
   end
 
   test "owner can view analysis section" do
-    get repository_status_path(section: "analysis")
+    get repository_status_path(section: "analysis", synchronous: 1)
 
     assert_response :success
     assert_includes response.body, "OpenCLIP coverage"
     assert_includes response.body, "Qwen vision captions"
     assert_includes response.body, "Paid Qwen vision"
-    assert_includes response.body, "Analysis Actions"
-    assert_includes response.body, "Queue 5,000"
-    assert_includes response.body, "Feature Flags"
+    assert_includes response.body, "Run photo analysis"
+    assert_select "datalist#local-analysis-batches option[value=5000]"
+    assert_includes response.body, "Analysis settings"
     assert_select "[data-analysis-dashboard]", count: 1
     assert_select "[data-analysis-provider-card]", count: 2
     assert_select "[data-analysis-actions]", count: 1
@@ -66,7 +64,7 @@ class RepositoryStatusControllerTest < ActionDispatch::IntegrationTest
       raw: { "failure_response" => { "provider" => "test" } }
     )
 
-    get repository_status_path(section: "analysis")
+    get repository_status_path(section: "analysis", synchronous: 1)
 
     assert_response :success
     assert_select "[data-analysis-errors] details", minimum: 1
@@ -99,32 +97,30 @@ class RepositoryStatusControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "owner can view queues section" do
-    get repository_status_path(section: "queues")
+    get repository_status_path(section: "queues", synchronous: 1)
 
     assert_response :success
-    assert_includes response.body, "Queue Controls"
-    assert_includes response.body, "Queue Pressure"
-    assert_includes response.body, "Workers"
-    assert_includes response.body, "Recent failures"
-    assert_includes response.body, queue_status_path
+    assert_select "[data-repository-panel=queues]"
+    assert_includes response.body, "Queue status is unavailable"
+    assert_select "input[name=queue_action]", count: 0
   end
 
   test "owner can view file health section" do
-    get repository_status_path(section: "health")
+    get repository_status_path(section: "health", synchronous: 1)
 
     assert_response :success
-    assert_includes response.body, "File health timeline"
+    assert_includes response.body, "Checks in the last 24 hours"
     assert_includes response.body, "Recent checks"
-    assert_includes response.body, "Recent hash fingerprints"
-    assert_includes response.body, "File health status"
-    assert_includes response.body, repository_health_path
+    assert_select "details#health-check-details"
+    assert_includes response.body, "Status breakdown"
+    assert_select "[data-repository-panel=maintenance]"
   end
 
   test "file health timeline includes recent checks" do
     photo = attached_photo
     record_check(photo, checked_at: 8.minutes.ago)
 
-    get repository_status_path(section: "health")
+    get repository_status_path(section: "health", synchronous: 1)
 
     assert_response :success
     assert_includes response.body, "Last check"
@@ -133,7 +129,7 @@ class RepositoryStatusControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "owner can view activity section" do
-    get repository_status_path(section: "activity")
+    get repository_status_path(section: "activity", synchronous: 1)
 
     assert_response :success
     assert_includes response.body, "Repository activity"
@@ -276,7 +272,7 @@ class RepositoryStatusControllerTest < ActionDispatch::IntegrationTest
       post repository_status_path, params: { section: "maintenance", scan_type: "patrol" }
     end
 
-    assert_redirected_to repository_status_path(section: "maintenance")
+    assert_redirected_to repository_status_path(section: "files")
   end
 
   test "non owner cannot update repository controls" do

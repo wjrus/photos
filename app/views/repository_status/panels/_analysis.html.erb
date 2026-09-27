@@ -1,0 +1,28 @@
+<% openclip = data.fetch(:analysis_status).fetch(:openclip) %>
+<% openrouter = data.fetch(:analysis_status).fetch(:openrouter) %>
+<div class="grid gap-6 xl:grid-cols-2">
+  <section class="min-w-0" data-analysis-provider-card="openclip">
+    <div class="flex items-start justify-between gap-3"><h3 class="font-semibold">OpenCLIP semantic search</h3><%= repository_badge("#{openclip.fetch(:coverage_percent)}% ready", tone: :good) %></div>
+    <p class="mt-2 break-words text-xs leading-5 text-zinc-500"><%= openclip.fetch(:model) %> / <%= openclip.fetch(:model_version) %></p>
+    <p class="mt-4 text-3xl font-semibold"><%= number_with_delimiter(openclip.fetch(:embedded)) %> <span class="text-base font-normal text-zinc-500">of <%= number_with_delimiter(openclip.fetch(:eligible)) %></span></p>
+    <div class="mt-3 h-2 overflow-hidden rounded-full bg-zinc-100" role="progressbar" aria-label="OpenCLIP coverage" aria-valuenow="<%= openclip.fetch(:coverage_percent).clamp(0, 100) %>" aria-valuemin="0" aria-valuemax="100"><div class="h-full rounded-full bg-teal-700" style="width: <%= openclip.fetch(:coverage_percent).clamp(0, 100) %>%"></div></div>
+    <dl class="mt-4 grid grid-cols-3 gap-3 text-sm">
+      <% [["Missing", openclip.fetch(:missing)], ["Running", openclip.fetch(:run_counts).fetch("running", 0)], ["Failed", openclip.fetch(:run_counts).fetch("failed", 0)]].each do |label, count| %><div><dt class="text-zinc-500"><%= label %></dt><dd class="mt-1 font-semibold <%= label == 'Failed' && count.positive? ? 'text-rose-800' : '' %>"><%= number_with_delimiter(count) %></dd></div><% end %>
+    </dl>
+    <%= render "repository_status/analysis_errors", runs: openclip.fetch(:latest_errors) %>
+  </section>
+  <section class="min-w-0 border-t border-zinc-100 pt-6 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0" data-analysis-provider-card="openrouter">
+    <div class="flex items-start justify-between gap-3"><h3 class="font-semibold">Qwen vision captions</h3><%= repository_badge(openrouter.fetch(:configured) ? "API ready" : "API key missing", tone: openrouter.fetch(:configured) ? :good : :warning) %></div>
+    <p class="mt-2 break-words text-xs leading-5 text-zinc-500"><%= openrouter.fetch(:model) %> / <%= openrouter.fetch(:prompt_version) %></p>
+    <p class="mt-4 text-3xl font-semibold"><%= number_with_delimiter(openrouter.fetch(:completed)) %> <span class="text-base font-normal text-zinc-500">of <%= number_with_delimiter(openrouter.fetch(:eligible)) %></span></p>
+    <div class="mt-3 h-2 overflow-hidden rounded-full bg-zinc-100" role="progressbar" aria-label="Qwen caption coverage" aria-valuenow="<%= openrouter.fetch(:coverage_percent).clamp(0, 100) %>" aria-valuemin="0" aria-valuemax="100"><div class="h-full rounded-full bg-teal-700" style="width: <%= openrouter.fetch(:coverage_percent).clamp(0, 100) %>%"></div></div>
+    <dl class="mt-4 grid grid-cols-3 gap-3 text-sm">
+      <% [["Pending", "pending"], ["Running", "running"], ["Failed", "failed"]].each do |label, key| %><% count = openrouter.fetch(:run_counts).fetch(key, 0) %><div><dt class="text-zinc-500"><%= label %></dt><dd class="mt-1 font-semibold <%= key == 'failed' && count.positive? ? 'text-rose-800' : '' %>"><%= number_with_delimiter(count) %></dd></div><% end %>
+    </dl>
+    <div class="mt-5 rounded-lg bg-stone-50 p-4 text-sm">
+      <p><strong class="font-semibold"><%= number_to_currency(openrouter.fetch(:spend), precision: 4) %></strong> spent · <%= number_to_currency(openrouter.fetch(:budget), precision: 2) %> configured ceiling</p>
+      <p class="mt-1 text-xs leading-5 text-zinc-500">Average <%= number_to_currency(openrouter.fetch(:average_cost), precision: 4) %> per completed photo. Projected remaining <%= number_to_currency(openrouter.fetch(:projected_remaining_cost), precision: 2) %> for <%= number_with_delimiter(openrouter.fetch(:missing)) %> photos.</p>
+    </div>
+    <%= render "repository_status/analysis_errors", runs: openrouter.fetch(:latest_errors) %>
+  </section>
+</div>

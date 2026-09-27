@@ -221,3 +221,54 @@ its thumbnail associations loaded on the initial request. A 123-photo regression
 now renders 60 cards initially and checks complete forward/backward traversal
 without duplicates, including tied and missing capture dates. Page fragments
 remain subject to the owner and folder-unlock checks.
+
+## Repository status
+
+Repository status now has four pages: Overview (including activity), Files &
+storage, Photo analysis, and Queues. The previous Maintenance and File Health
+sections are combined. The old `/queues` and `/repository_health` pages redirect
+to the corresponding page; their command routes remain supported. Batch
+selectors replace repeated analysis buttons, and detailed checks, fingerprints,
+worker information, and job classes are expandable.
+
+The initial HTML renders navigation and controls without building dashboard
+aggregates. Authenticated JSON requests load only the panels on the selected
+page. Each response carries a Rails-rendered HTML fragment, a data version, its
+generation time, and a refresh interval. The server caches data rather than HTML,
+so forms and CSRF tokens remain specific to the current session.
+
+| Panel | Refresh and data cache lifetime |
+| --- | ---: |
+| Queues, including the Overview summary | 20 seconds |
+| File health, analysis, activity | 60 seconds |
+| Library, storage, derivatives, location matching | 5 minutes |
+
+Hidden tabs and offscreen panels stop polling. Requests cannot overlap, are
+aborted on navigation, and back off after errors. A failed refresh retains the
+last successful result and its timestamp; expired owner access clears the
+panel. Unchanged data preserves its DOM. New data waits while a user edits a
+control or inspects expanded diagnostics, with a visible update-ready message.
+An explicit Refresh bypasses the relevant data caches. Commands invalidate
+affected panels. Status pages opt out of both HTTP and Turbo snapshot caching;
+every JSON request rechecks owner access. A synchronous link remains available
+when JavaScript is disabled.
+
+Original counts share one conditional aggregate, analysis states use grouped
+counts, and the health timeline groups checks by hour in PostgreSQL instead of
+loading every recent check into Ruby. Queue totals and queue/class breakdowns
+share five grouped queries; hourly/daily throughput uses one query. The queue
+snapshot's aggregate queries dropped from 17 to 6, and table checks from 19 to
+6 in a PostgreSQL fixture with all execution states present.
+
+```sh
+rbenv exec bundle exec ruby test/performance/repository_status.rb
+```
+
+On the small local fixture, initial pages dropped from 57–60 SQL queries to
+3–4 (authentication, header/avatar, unread badge, and settings). Cached panel
+requests execute one owner lookup and no aggregate queries with an in-memory
+cache. Production's database-backed cache adds its own cache reads. These are
+query-count measurements, not production latency claims; the local dashboard
+fixture has no Solid Queue tables, so queue aggregation is measured separately
+by the model tests. Regressions cover independent cache lifetimes, invalidation,
+access checks, HTML escaping, polling lifecycle, and responsive rendering.

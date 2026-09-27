@@ -1,0 +1,62 @@
+<% originals = data.fetch(:originals) %>
+<% derivatives = data.fetch(:derivatives) %>
+<% storage = data.fetch(:storage) %>
+<% locations = data.fetch(:location_status) %>
+<dl class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+  <%= repository_metric("Originals", number_with_delimiter(originals.fetch(:total))) %>
+  <%= repository_metric("Original storage", number_to_human_size(originals.fetch(:bytes))) %>
+  <%= repository_metric("Drive archived", number_with_delimiter(data.fetch(:drive_archives).fetch("archived", 0))) %>
+  <%= repository_metric("Archive failures", number_with_delimiter(data.fetch(:drive_archives).fetch("failed", 0)), attention: data.fetch(:drive_archives).fetch("failed", 0).positive?) %>
+</dl>
+
+<section class="mt-6">
+  <h3 class="text-sm font-semibold">Derivative coverage</h3>
+  <div class="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <% [["Stream images", :stream_ready, :stream_missing, :image_total], ["Display images", :display_ready, :display_missing, :image_total], ["Video previews", :video_preview_ready, :video_preview_missing, :video_total], ["Video displays", :video_display_ready, :video_display_missing, :video_total]].each do |label, ready_key, missing_key, total_key| %>
+      <% ready, missing, total = derivatives.values_at(ready_key, missing_key, total_key) %>
+      <% percent = total.positive? ? (ready.to_f / total * 100).clamp(0, 100).round(1) : 100 %>
+      <div>
+        <p class="text-sm font-medium text-zinc-700"><%= label %></p>
+        <p class="mt-1 text-sm text-zinc-600"><span class="font-semibold text-zinc-950"><%= number_with_delimiter(ready) %></span> of <%= number_with_delimiter(total) %> ready</p>
+        <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-100" role="progressbar" aria-label="<%= label %>" aria-valuenow="<%= percent %>" aria-valuemin="0" aria-valuemax="100"><div class="h-full rounded-full <%= missing.positive? ? 'bg-amber-500' : 'bg-teal-700' %>" style="width: <%= percent %>%"></div></div>
+        <p class="mt-1 text-xs <%= missing.positive? ? 'text-amber-800' : 'text-zinc-500' %>"><%= number_with_delimiter(missing) %> missing</p>
+      </div>
+    <% end %>
+  </div>
+</section>
+
+<section class="mt-6 border-t border-zinc-100 pt-5">
+  <div class="flex flex-wrap items-center justify-between gap-2"><h3 class="text-sm font-semibold">Location matching</h3><%= repository_badge(locations.fetch(:geocoder_configured) ? "Geocoder configured" : "Geocoder key missing", tone: locations.fetch(:geocoder_configured) ? :good : :warning) %></div>
+  <p class="mt-2 text-sm leading-6 text-zinc-600"><strong class="font-semibold text-zinc-950"><%= number_with_delimiter(locations.fetch(:named)) %></strong> of <%= number_with_delimiter(locations.fetch(:buckets)) %> geotagged photos matched. <span class="<%= locations.fetch(:missing).positive? ? 'font-medium text-amber-800' : '' %>"><%= number_with_delimiter(locations.fetch(:missing)) %> awaiting matching.</span></p>
+</section>
+
+<details id="storage-diagnostics" class="mt-6 border-t border-zinc-100 pt-5">
+  <summary class="cursor-pointer text-sm font-semibold">Storage and library details</summary>
+  <div class="mt-4 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+    <section class="min-w-0">
+      <h3 class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Storage</h3>
+      <dl class="mt-3 space-y-3 text-sm">
+        <% { "Service" => storage.fetch(:service), "Service root" => storage.fetch(:root).presence || "unknown", "Configured path" => storage.fetch(:configured_path).presence || "unset" }.each do |label, value| %>
+          <div><dt class="text-zinc-500"><%= label %></dt><dd class="mt-1 break-all font-mono text-xs text-zinc-800"><%= value %></dd></div>
+        <% end %>
+        <div><dt class="text-zinc-500">Path check</dt><dd class="mt-1"><%= repository_badge(storage.fetch(:path_attention) ? "Needs attention" : "OK", tone: storage.fetch(:path_attention) ? :danger : :good) %></dd></div>
+        <div><dt class="text-zinc-500">Variant records</dt><dd class="font-semibold"><%= number_with_delimiter(derivatives.fetch(:variant_records)) %></dd></div>
+      </dl>
+    </section>
+    <section>
+      <h3 class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Original mix</h3>
+      <dl class="mt-3 space-y-2 text-sm">
+        <% { "Images" => :images, "Videos" => :videos, "Public" => :public, "Private" => :private, "Locked" => :restricted, "Archived" => :archived }.each do |label, key| %><div class="flex justify-between gap-3"><dt class="text-zinc-600"><%= label %></dt><dd class="font-semibold"><%= number_with_delimiter(originals.fetch(key)) %></dd></div><% end %>
+      </dl>
+    </section>
+    <section>
+      <% [["Checksums", data.fetch(:checksums)], ["Drive archives", data.fetch(:drive_archives)]].each do |label, counts| %>
+        <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500"><%= label %></h3>
+        <dl class="mb-5 space-y-2 text-sm">
+          <% if counts.empty? %><div><dt class="text-zinc-500">No records yet</dt><dd class="sr-only">0</dd></div><% end %>
+          <% counts.each do |status, count| %><div class="flex justify-between gap-3"><dt class="text-zinc-600"><%= status.to_s.humanize.presence || "Unknown" %></dt><dd class="font-semibold"><%= number_with_delimiter(count) %></dd></div><% end %>
+        </dl>
+      <% end %>
+    </section>
+  </div>
+</details>

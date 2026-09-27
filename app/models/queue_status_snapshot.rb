@@ -6,13 +6,6 @@ class QueueStatusSnapshot
     failed: { table: "solid_queue_failed_executions", queue_column: false },
     blocked: { table: "solid_queue_blocked_executions", queue_column: true }
   }.freeze
-  COUNT_SQL = {
-    "solid_queue_ready_executions" => "SELECT COUNT(*) FROM solid_queue_ready_executions",
-    "solid_queue_claimed_executions" => "SELECT COUNT(*) FROM solid_queue_claimed_executions",
-    "solid_queue_scheduled_executions" => "SELECT COUNT(*) FROM solid_queue_scheduled_executions",
-    "solid_queue_failed_executions" => "SELECT COUNT(*) FROM solid_queue_failed_executions",
-    "solid_queue_blocked_executions" => "SELECT COUNT(*) FROM solid_queue_blocked_executions"
-  }.freeze
   PROCESS_PRUNED_EXCEPTION_CLASS = "SolidQueue::Processes::ProcessPrunedError".freeze
 
   attr_reader :generated_at
@@ -24,6 +17,7 @@ class QueueStatusSnapshot
   def initialize(connection: default_connection, generated_at: Time.current)
     @connection = connection
     @generated_at = generated_at
+    @table_presence = {}
   end
 
   def available?
@@ -33,16 +27,16 @@ class QueueStatusSnapshot
   def totals
     return empty_totals unless available?
 
-    EXECUTION_STATES.transform_values { |definition| count_rows(definition[:table]) }
+    execution_counts.transform_values { |rows| rows.sum { |row| row.fetch("count").to_i } }
   end
 
   def queues
     return [] unless available?
 
     rows = Hash.new { |hash, key| hash[key] = empty_totals.dup }
-    EXECUTION_STATES.each do |state, definition|
-      grouped_counts(definition).each do |queue_name, count|
-        rows[queue_name][state] = count
+    execution_counts.each do |state, executions|
+      executions.each do |execution|
+        rows[execution.fetch("queue_name")][state] += execution.fetch("count").to_i
       end
     end
 
@@ -59,9 +53,9 @@ class QueueStatusSnapshot
     return [] unless available?
 
     rows = Hash.new { |hash, key| hash[key] = empty_totals.dup }
-    EXECUTION_STATES.each do |state, definition|
-      grouped_job_classes(definition).each do |class_name, count|
-        rows[class_name][state] = count
+    execution_counts.each do |state, executions|
+      executions.each do |execution|
+        rows[execution.fetch("class_name")][state] += execution.fetch("count").to_i
       end
     end
 
@@ -77,7 +71,8 @@ class QueueStatusSnapshot
   def recent_failures(limit: 20)
     return [] unless available? && table_exists?("solid_queue_failed_executions")
 
-    select_all(<<~SQL.squish)
+    @recent_failures ||= {}
+    @recent_failures[Integer(limit)] ||= select_all(<<~SQL.squish)
       SELECT
         jobs.id,
         jobs.queue_name,
@@ -96,22 +91,26 @@ class QueueStatusSnapshot
     return 0 unless available? && table_exists?("solid_queue_failed_executions")
 
     SolidQueue::FailedExecution.delete_all
+  ensure
+    reset_cached_results
   end
 
   def pruned_failure_count
-    pruned_failures.count
+    @pruned_failure_count ||= pruned_failures.count
   end
 
   def retry_pruned_failures
     failures = pruned_failures.includes(:job).to_a
     failures.each(&:retry)
     failures.size
+  ensure
+    reset_cached_results
   end
 
   def processes
     return [] unless available? && table_exists?("solid_queue_processes")
 
-    select_all(<<~SQL.squish)
+    @processes ||= select_all(<<~SQL.squish)
       SELECT id, kind, name, pid, hostname, last_heartbeat_at, created_at
       FROM #{quote_table("solid_queue_processes")}
       ORDER BY last_heartbeat_at DESC
@@ -121,7 +120,7 @@ class QueueStatusSnapshot
   def pauses
     return [] unless available? && table_exists?("solid_queue_pauses")
 
-    select_all(<<~SQL.squish)
+    @pauses ||= select_all(<<~SQL.squish)
       SELECT queue_name, created_at
       FROM #{quote_table("solid_queue_pauses")}
       ORDER BY queue_name ASC
@@ -132,6 +131,8 @@ class QueueStatusSnapshot
     pause_names = pauses.map { |pause| pause.fetch("queue_name") }
     pause_names.each { |queue_name| SolidQueue::Queue.find_by_name(queue_name).resume }
     pause_names
+  ensure
+    reset_cached_results
   end
 
   def pause_queue(queue_name)
@@ -139,6 +140,8 @@ class QueueStatusSnapshot
 
     SolidQueue::Queue.find_by_name(queue_name).pause
     true
+  ensure
+    reset_cached_results
   end
 
   def resume_queue(queue_name)
@@ -146,15 +149,24 @@ class QueueStatusSnapshot
 
     SolidQueue::Queue.find_by_name(queue_name).resume
     true
+  ensure
+    reset_cached_results
   end
 
   def finished_counts
     return { last_hour: 0, last_day: 0 } unless available?
 
-    {
-      last_hour: finished_since(1.hour.ago),
-      last_day: finished_since(1.day.ago)
-    }
+    @finished_counts ||= begin
+      row = select_all(ActiveRecord::Base.sanitize_sql_array([
+        <<~SQL.squish,
+          SELECT COUNT(*) FILTER (WHERE finished_at >= :hour) AS last_hour, COUNT(*) AS last_day
+          FROM #{quote_table("solid_queue_jobs")}
+          WHERE finished_at >= :day
+        SQL
+        { hour: generated_at - 1.hour, day: generated_at - 1.day }
+      ])).first
+      { last_hour: row.fetch("last_hour").to_i, last_day: row.fetch("last_day").to_i }
+    end
   end
 
   private
@@ -177,55 +189,23 @@ class QueueStatusSnapshot
     EXECUTION_STATES.keys.index_with(0)
   end
 
-  def count_rows(table)
-    return 0 unless table_exists?(table)
+  def execution_counts
+    @execution_counts ||= EXECUTION_STATES.transform_values do |definition|
+      table = definition.fetch(:table)
+      next [] unless table_exists?(table)
 
-    connection.select_value(COUNT_SQL.fetch(table)).to_i
-  end
-
-  def grouped_counts(definition)
-    table = definition[:table]
-    return {} unless table_exists?(table)
-
-    if definition[:queue_column]
-      rows = select_all(<<~SQL.squish)
-        SELECT queue_name, COUNT(*) AS count
-        FROM #{quote_table(table)}
-        GROUP BY queue_name
-      SQL
-    else
-      rows = select_all(<<~SQL.squish)
-        SELECT jobs.queue_name, COUNT(*) AS count
+      queue_column = definition.fetch(:queue_column) ? "executions.queue_name" : "jobs.queue_name"
+      select_all(<<~SQL.squish)
+        SELECT #{queue_column} AS queue_name, jobs.class_name, COUNT(*) AS count
         FROM #{quote_table(table)} executions
         INNER JOIN #{quote_table("solid_queue_jobs")} jobs ON jobs.id = executions.job_id
-        GROUP BY jobs.queue_name
+        GROUP BY #{queue_column}, jobs.class_name
       SQL
     end
-
-    rows.to_h { |row| [ row.fetch("queue_name"), row.fetch("count").to_i ] }
   end
 
-  def grouped_job_classes(definition)
-    table = definition[:table]
-    return {} unless table_exists?(table)
-
-    rows = select_all(<<~SQL.squish)
-      SELECT jobs.class_name, COUNT(*) AS count
-      FROM #{quote_table(table)} executions
-      INNER JOIN #{quote_table("solid_queue_jobs")} jobs ON jobs.id = executions.job_id
-      GROUP BY jobs.class_name
-    SQL
-
-    rows.to_h { |row| [ row.fetch("class_name"), row.fetch("count").to_i ] }
-  end
-
-  def finished_since(time)
-    connection.select_value(
-      ActiveRecord::Base.sanitize_sql([
-        "SELECT COUNT(*) FROM #{quote_table('solid_queue_jobs')} WHERE finished_at >= ?",
-        time
-      ])
-    ).to_i
+  def reset_cached_results
+    @execution_counts = @finished_counts = @processes = @pauses = @recent_failures = @pruned_failure_count = nil
   end
 
   def select_all(sql)
@@ -239,7 +219,7 @@ class QueueStatusSnapshot
   end
 
   def table_exists?(table)
-    connection.data_source_exists?(table)
+    @table_presence.fetch(table) { @table_presence[table] = connection.data_source_exists?(table) }
   end
 
   def quote_table(table)

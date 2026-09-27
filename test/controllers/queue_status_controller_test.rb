@@ -15,13 +15,14 @@ class QueueStatusControllerTest < ActionDispatch::IntegrationTest
   test "owner can view queue status page" do
     get queue_status_path
 
-    assert_response :success
-    assert_includes response.body, "Queue status"
+    assert_redirected_to repository_status_path(section: "queues")
   end
 
   test "repository section links back to status overview" do
     get queue_status_path
 
+    assert_redirected_to repository_status_path(section: "queues")
+    follow_redirect!
     assert_response :success
     assert_includes response.body, repository_status_path
     assert_includes response.body, "Overview"
@@ -43,7 +44,7 @@ class QueueStatusControllerTest < ActionDispatch::IntegrationTest
 
     delete queue_failures_path
 
-    assert_redirected_to queue_status_path
+    assert_redirected_to repository_status_path(section: "queues")
     assert_equal "Cleared 3 failed jobs.", flash[:notice]
   ensure
     QueueStatusSnapshot.define_singleton_method(:build, original_build)
@@ -56,7 +57,7 @@ class QueueStatusControllerTest < ActionDispatch::IntegrationTest
 
     patch retry_pruned_queue_failures_path
 
-    assert_redirected_to queue_status_path
+    assert_redirected_to repository_status_path(section: "queues")
     assert_equal "Retried 2 pruned jobs.", flash[:notice]
   ensure
     QueueStatusSnapshot.define_singleton_method(:build, original_build)
@@ -87,7 +88,7 @@ class QueueStatusControllerTest < ActionDispatch::IntegrationTest
 
     delete queue_pauses_path
 
-    assert_redirected_to queue_status_path
+    assert_redirected_to repository_status_path(section: "queues")
     assert_equal "Resumed archive and maintenance.", flash[:notice]
   ensure
     QueueStatusSnapshot.define_singleton_method(:build, original_build)

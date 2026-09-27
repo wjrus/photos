@@ -1,18 +1,10 @@
-<% links = [
-  [ "Overview", repository_status_path ],
-  [ "Queues", queue_status_path ],
-  [ "File health", repository_health_path ]
-] %>
-
-<nav class="mt-5 flex flex-wrap gap-2" aria-label="Repository status sections">
-  <% links.each do |label, path| %>
-    <% active = current_page?(path) %>
-    <%= link_to label,
-          path,
-          aria: { current: ("page" if active) },
-          class: [
-            "inline-flex items-center justify-center rounded-lg border px-4 py-2 text-sm font-semibold shadow-sm transition",
-            active ? "border-zinc-950 bg-zinc-950 text-white" : "border-zinc-300 bg-white text-zinc-800 hover:border-zinc-950 hover:bg-zinc-950 hover:text-white"
-          ].join(" ") %>
-  <% end %>
+<% sections = [["overview", "Overview"], ["files", "Files & storage"], ["analysis", "Photo analysis"], ["queues", "Queues"]] %>
+<nav class="mt-6 border-b border-zinc-200" aria-label="Repository status sections">
+  <div class="grid grid-cols-2 gap-x-5 gap-y-1 sm:flex sm:gap-5">
+    <% sections.each do |key, label| %>
+      <% active = @status_section == key %>
+      <%= link_to label, repository_status_path(section: key), aria: { current: ("page" if active) },
+            class: "border-b-2 px-1 py-3 text-sm font-semibold transition #{active ? 'border-teal-700 text-teal-800' : 'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-950'}" %>
+    <% end %>
+  </div>
 </nav>
