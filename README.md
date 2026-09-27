@@ -94,10 +94,13 @@ with the Google Geocoding API enabled; if it is absent the app falls back to the
 embed key. `GOOGLE_MAPS_MAP_ID` enables Google Maps advanced markers; if it is
 absent the app uses Google's demo map id.
 
-Reverse geocoding stores Google Plus Codes when that is all the exact coordinate
-returns. To let it probe nearby coordinates for a friendlier city/area label such
-as `Near Maui, Hawaii`, set `LOCATION_GEOCODER_NEARBY_FALLBACK=true` and keep
-`LOCATION_GEOCODER_NEARBY_FALLBACK_DAILY_LIMIT` small.
+Photos are assigned to explicit places using the identity of the geographic
+feature returned for their coordinates. Uncertain results keep coordinates or
+Plus Codes; the app does not probe neighboring coordinates to guess a name.
+At lower map zoom levels, qualified city and metropolitan groups can summarize
+several specific places without changing their assignments. See
+[location matching](docs/location-matching.md) for the matching rules and
+transition from older shared grid labels.
 
 Then run:
 
@@ -253,9 +256,13 @@ Queue a bounded batch of missing location names:
 ./scripts/geocode-locations 25
 ```
 
-The Repository Status maintenance page can queue the same missing-location sweep.
-Rows whose current name is only a Plus Code are retried so opt-in nearby fallback
-can upgrade them to a `Near ...` label when Google has a usable nearby place.
+The Repository Status maintenance page can queue the same per-photo sweep.
+The command defaults to 100 photos and accepts at most 1,000 per run. Existing
+manual addresses are restored from their saved per-photo data without an API
+request. Remaining unmatched photos use their own coordinates. `--refresh`
+rematches automatic assignments while preserving manual corrections and saved
+place records. Wait for the queued photo jobs to finish and review the
+provider's usage before processing another batch.
 
 Prune stale jobs after code/queue changes:
 

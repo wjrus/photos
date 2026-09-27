@@ -28,7 +28,7 @@ class Photo < ApplicationRecord
   belongs_to :upload_batch, optional: true
   has_one :metadata, class_name: "PhotoMetadata", dependent: :destroy, inverse_of: :photo
   # Cards and map markers need dimensions/coordinates, not the potentially large EXIF payload.
-  has_one :display_metadata, -> { select(:id, :photo_id, :width, :height, :latitude, :longitude).readonly }, class_name: "PhotoMetadata"
+  has_one :display_metadata, -> { select(:id, :photo_id, :width, :height, :latitude, :longitude, :photo_place_id).readonly }, class_name: "PhotoMetadata"
   has_one :drive_archive_object, dependent: :destroy
   has_many :file_health_checks, dependent: :destroy
   has_many :analysis_runs, class_name: "PhotoAnalysisRun", dependent: :destroy

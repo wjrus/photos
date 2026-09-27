@@ -114,8 +114,8 @@ reduced first-page Photo instantiations from **50 to 12**; subsequent pages load
 12 and 1 respectively. Automatic covers still use the newest visible photo when
 an explicit cover is inaccessible.
 
-Location page fragments skip summary aggregation and coordinate-summary
-geocoding work. The full page still prepares its heading, counts, map,
+Location page fragments skip summary aggregation. Browsing does not enqueue
+geocoding. The full page still prepares its heading, counts, map,
 and timeline. Regression tests check that both coordinate and named-location
 fragments execute no aggregate queries, that an exhausted page remains valid,
 and that an inaccessible coordinate location still returns 404.
@@ -123,7 +123,7 @@ and that an inaccessible coordinate location still returns 404.
 ## Feed and map media loading
 
 Cards and map markers preload a read-only metadata projection containing only
-the photo ID, dimensions, and coordinates. They no longer fetch the full EXIF
+the photo ID, dimensions, coordinates, and assigned place ID. They no longer fetch the full EXIF
 JSON payload. The ordinary `metadata` association still loads all fields for
 the viewer, editing, and background jobs.
 
@@ -160,12 +160,20 @@ The selected location's visibility is still checked. Tests cover cached coordina
 and named locations, video readiness, full metadata access, and rendering
 preloaded thumbnails without extra SQL queries.
 
-## Indexed place filters
+## Indexed place and coordinate filters
 
-Coordinate and named-place filters now express each cell as half-open latitude
+Resolved places filter by the indexed `photo_metadata.photo_place_id`, so a
+venue never needs to claim every photo in its coordinate cell. Place names and
+aliases are matched through a subquery; only the selected photos are loaded.
+Location pages count and paginate groups in SQL, with no implicit 500-place
+cutoff. A 501-place regression loads only 12 place records for the first page.
+The map's compact selector keeps the top 500 locations plus a selected location
+outside that list. Search menu coordinates summarize only the viewer's visible photos.
+
+Unmatched areas and old coordinate links express each cell as half-open latitude
 and longitude ranges. The old `FLOOR(coordinate / 0.025) = bucket` predicates
-required computing buckets across the table. The ranges can use the existing
-coordinate index; no new index or migration is required. Bounds use decimal
+required computing buckets across the table. The ranges use the existing
+coordinate index. Bounds use decimal
 arithmetic with exact-edge adjustments to preserve persisted Float-derived
 place IDs. Regression tests cover exact boundaries, missing coordinates, invalid
 IDs, multi-cell places, and visibility restrictions.
@@ -179,31 +187,26 @@ With 100,000 synthetic metadata rows, a local run on September 26, 2026 produced
 | Filter | Computed buckets | Indexed ranges | Matching rows |
 | --- | ---: | ---: | ---: |
 | One coordinate cell | 17.584 ms | 0.044 ms | 24 |
-| Named place spanning two cells | 15.767 ms | 0.101 ms | 48 |
+| Two coordinate cells | 15.767 ms | 0.101 ms | 48 |
 
 The computed-bucket plans scanned all 100,000 rows. The ranges used an index scan and
 bitmap index scans respectively. These are isolated query timings, not complete
-place-page response times. The same range filters serve place feeds, filtered
-maps, search place filters, and place-bound maintenance.
+place-page response times. These timings apply to coordinate filtering; resolved
+place pages now use the direct foreign-key lookup described above.
 
-Search's place menu now uses an SQL subquery instead of transferring every
-visible GPS coordinate into Ruby and building a large list of IDs. Its ID
-expression preserves the existing Ruby floating-point conversion used for
-stored place IDs. Selecting a named place also resolves all its cells; the
-previous search filter accepted only numeric cell IDs even though the dropdown
-submitted named-place IDs.
-
-Location grouping, map cells, and place-bound maintenance use the same
-floating-point buckets as the persisted place IDs. Since GPS columns store six
+Unmatched-area grouping, map cells, and coordinate-bound maintenance use the same
+floating-point buckets as old coordinate URLs. Since GPS columns store six
 decimal places, indexed range endpoints advance by one microdegree when Float
 rounding assigns the exact boundary to the preceding cell. For example,
 latitude `44.775000` belongs to bucket `1790`, so its upper bound is
-`44.775001`. This keeps named places and direct location links consistent
-without rewriting saved place names or wrapping indexed columns in functions.
+`44.775001`. This keeps coordinate filters and area links consistent without
+wrapping indexed columns in functions.
 Regression checks cover every geographic cell boundary and its adjacent stored
 coordinates, plus named-place search, map links, and bounds refreshes. Cached
-location/map results use new namespaces; persisted map bounds refresh through
-the existing daily maintenance job.
+location/map results use new namespaces; assignment changes invalidate affected
+bounds, and the existing maintenance job rebuilds them. See
+[location matching](location-matching.md) for place identity, legacy links, and
+zoom-dependent metropolitan grouping.
 
 Only metadata containing both latitude and longitude participates in locations,
 maps, bounds, geocoding, and place menus. Partial EXIF coordinates remain stored,

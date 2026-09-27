@@ -36,7 +36,7 @@ class RepositoryStatusControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, GoogleDriveArchiveClient::DRIVE_SCOPE
     assert_includes response.body, "Original file auto-heal"
     assert_includes response.body, "Location names"
-    assert_includes response.body, "Coordinate-only"
+    assert_includes response.body, "Awaiting matching"
   end
 
   test "owner can view analysis section" do

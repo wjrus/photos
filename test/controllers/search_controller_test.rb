@@ -64,7 +64,7 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_equal [ album_photo.id, person_photo.id ].sort, ids.sort
-    assert_equal 2, queries.size, "Only place lookup and the photo search should query the database"
+    assert_equal 1, queries.size, "Places, albums, and people should match through subqueries in the photo search"
   end
 
   test "album and people text matches still respect viewer visibility and person filters" do
@@ -338,8 +338,7 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
       longitude: -85.5980,
       raw: {}
     )
-    PhotoLocationPlace.create!(
-      location_id: PhotoLocation.id_for_coordinates(44.7622, -85.5980),
+    assign_photo_place(match,
       name: "Traverse City, Michigan"
     )
     other = attached_photo(title: "Elsewhere lunch")
@@ -354,29 +353,30 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
   test "place menu stays in SQL and selecting a named place searches all its visible cells" do
     viewer = users(:two)
     coordinates = [ [ 40, -80 ], [ 41, -81 ], [ 42, -82 ] ]
+    place = nil
     photos = coordinates.each_with_index.map do |(latitude, longitude), index|
       attached_photo(title: "Place selection #{index}").tap do |photo|
         photo.create_metadata!(latitude: latitude, longitude: longitude, raw: {})
-        PhotoLocationPlace.create!(location_id: PhotoLocation.id_for_coordinates(latitude, longitude), name: "Synthetic region")
+        place = assign_photo_place(photo, place: place, name: "Synthetic region")
       end
     end
     photos.first.publish!
     photos.second.photo_people_tags.create!(user: viewer, tagged_by: @owner)
     hidden = attached_photo(title: "Hidden place")
     hidden.create_metadata!(latitude: 43, longitude: -83, raw: {})
-    PhotoLocationPlace.create!(location_id: PhotoLocation.id_for_coordinates(43, -83), name: "Hidden region")
+    assign_photo_place(hidden, name: "Hidden region")
     delete sign_out_path
     sign_in_as(viewer)
     queries = []
     subscriber = ->(event) { queries << event.payload[:sql] unless event.payload[:name] == "SCHEMA" }
 
     ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
-      get search_path(place_id: PhotoLocation.place_id_for_name("Synthetic region"))
+      get search_path(place_id: PhotoLocation.id_for_place(place))
     end
 
     assert_response :success
-    assert_select "select#place_id option", text: "Synthetic region", count: 1
-    assert_select "select#place_id option", text: "Hidden region", count: 0
+    assert_select "select#place_id option", text: /Synthetic region/, count: 1
+    assert_select "select#place_id option", text: /Hidden region/, count: 0
     assert_select "[data-photo-id]", count: 2
     assert_select "[data-photo-id='#{photos.first.id}']"
     assert_select "[data-photo-id='#{photos.second.id}']"
@@ -391,8 +391,7 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
       longitude: -85.5980,
       raw: {}
     )
-    PhotoLocationPlace.create!(
-      location_id: PhotoLocation.id_for_coordinates(44.7622, -85.5980),
+    assign_photo_place(match,
       name: "Traverse City, Michigan",
       names: [ "Traverse City, Michigan", "Traverse City", "Michigan", "United States" ]
     )
@@ -418,8 +417,7 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
       raw: {}
     )
     public_photo.photo_people_tags.create!(user: users(:two), tagged_by: @owner)
-    PhotoLocationPlace.create!(
-      location_id: PhotoLocation.id_for_coordinates(44.7622, -85.5980),
+    assign_photo_place(public_photo,
       name: "Hidden Hamlet"
     )
 
@@ -449,8 +447,7 @@ class SearchControllerTest < ActionDispatch::IntegrationTest
       raw: {}
     )
     public_photo.photo_people_tags.create!(user: users(:two), tagged_by: @owner)
-    PhotoLocationPlace.create!(
-      location_id: PhotoLocation.id_for_coordinates(44.7622, -85.5980),
+    assign_photo_place(public_photo,
       name: "Hidden Hamlet"
     )
 

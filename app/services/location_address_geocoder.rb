@@ -13,7 +13,7 @@ class LocationAddressGeocoder
     normalized_address = address.to_s.squish
     return if @api_key.blank? || normalized_address.blank?
 
-    cache_key = "location-address-geocoder/v1/#{Digest::SHA256.hexdigest(normalized_address.downcase)}"
+    cache_key = "location-address-geocoder/v3/#{Digest::SHA256.hexdigest(normalized_address.downcase)}"
     cached = Rails.cache.read(cache_key)
     return cached.merge(key_fingerprint: api_key_fingerprint) if cached.present?
 
@@ -36,13 +36,37 @@ class LocationAddressGeocoder
     location = result&.dig("geometry", "location")
     return unless location
 
-    geocoded = {
-      latitude: BigDecimal(location.fetch("lat").to_s),
-      longitude: BigDecimal(location.fetch("lng").to_s),
-      name: result["formatted_address"].presence || normalized_address,
-      names: place_names(result, normalized_address),
+    latitude = BigDecimal(location.fetch("lat").to_s).round(6)
+    longitude = BigDecimal(location.fetch("lng").to_s).round(6)
+    plus_code = result.fetch("types", []).include?("plus_code") || LocationReverseGeocoder.plus_code_name?(result["formatted_address"])
+    identity = if result["place_id"].present? && !plus_code
+      {
+        identity_key: "google:#{result.fetch('place_id')}",
+        provider: "google",
+        provider_place_id: result.fetch("place_id"),
+        place_type: result.fetch("types", []).find { |type| type != "political" } || "address"
+      }
+    else
+      LocationReverseGeocoder.coordinate_identity(latitude: latitude, longitude: longitude)
+    end
+    name = if identity[:place_type] == "coordinate"
+      if LocationReverseGeocoder.plus_code_name?(result["formatted_address"])
+        result["formatted_address"]
+      else
+        LocationReverseGeocoder.coordinate_pair(latitude: latitude, longitude: longitude).join(", ")
+      end
+    else
+      result["formatted_address"].presence || normalized_address
+    end
+
+    region = LocationMapRegion.for_result(result)
+    geocoded = identity.merge(region).merge(
+      latitude: latitude,
+      longitude: longitude,
+      name: name,
+      names: [ name, *place_names(result, normalized_address), region[:map_region_name] ].compact_blank.uniq,
       raw: result
-    }
+    )
 
     Rails.cache.write(cache_key, geocoded, expires_in: CACHE_TTL)
     geocoded.merge(key_fingerprint: api_key_fingerprint)

@@ -11,16 +11,12 @@ class RefreshPhotoLocationBoundsJobTest < ActiveJob::TestCase
     geotag(first, latitude: 36.895894, longitude: -111.526942)
     geotag(second, latitude: 36.921856, longitude: -111.495014)
     place_name = "Colorado River"
-    [ first, second ].each do |photo|
-      PhotoLocationPlace.create!(
-        location_id: location_id_for(photo),
-        name: place_name
-      )
-    end
+    place = assign_photo_place(first, name: place_name)
+    assign_photo_place(second, place: place)
 
     RefreshPhotoLocationBoundsJob.perform_now
 
-    place_bounds = PhotoLocationBound.find_by!(location_id: PhotoLocation.place_id_for_name(place_name))
+    place_bounds = PhotoLocationBound.find_by!(location_id: PhotoLocation.id_for_place(place))
     assert_equal 2, place_bounds.photo_count
     assert_equal BigDecimal("36.895894"), place_bounds.south
     assert_equal BigDecimal("36.921856"), place_bounds.north
@@ -60,7 +56,8 @@ class RefreshPhotoLocationBoundsJobTest < ActiveJob::TestCase
     bounds = PhotoLocationBound.find_by!(location_id: "0_0")
     assert_equal 1, bounds.photo_count
     assert_equal [ 0, 0, 0, 0 ], bounds.attributes.values_at("south", "north", "west", "east")
-    assert_equal 1, PhotoLocationBound.count
+    assert_equal 2, PhotoLocationBound.count
+    assert_equal 1, PhotoLocationBound.find_by!(location_id: PhotoLocation.id_for_area("0_0")).photo_count
   end
 
   test "cell and named bounds use the same persisted ids at exact coordinate boundaries" do
@@ -68,11 +65,12 @@ class RefreshPhotoLocationBoundsJobTest < ActiveJob::TestCase
     boundary = attached_photo(title: "At boundary")
     geotag(first, latitude: "44.774999", longitude: "-85.575000")
     geotag(boundary, latitude: "44.775000", longitude: "-85.575000")
-    PhotoLocationPlace.create!(location_id: location_id_for(boundary), name: "Boundary town")
+    place = assign_photo_place(first, name: "Boundary town")
+    assign_photo_place(boundary, place: place)
 
     RefreshPhotoLocationBoundsJob.perform_now
 
-    [ location_id_for(boundary), PhotoLocation.place_id_for_name("Boundary town") ].each do |id|
+    [ location_id_for(boundary), PhotoLocation.id_for_place(place) ].each do |id|
       bounds = PhotoLocationBound.find_by!(location_id: id)
       assert_equal 2, bounds.photo_count
       assert_equal BigDecimal("44.774999"), bounds.south

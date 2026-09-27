@@ -7,6 +7,7 @@ class PhotoLocationBound < ApplicationRecord
     active_ids = []
 
     refresh_bucket_bounds!(calculated_at: now).each { |location_id| active_ids << location_id }
+    refresh_area_bounds!(calculated_at: now).each { |location_id| active_ids << location_id }
     refresh_place_bounds!(calculated_at: now).each { |location_id| active_ids << location_id }
 
     active_ids.any? ? where.not(location_id: active_ids).delete_all : delete_all
@@ -38,28 +39,37 @@ class PhotoLocationBound < ApplicationRecord
   end
   private_class_method :refresh_bucket_bounds!
 
-  def self.refresh_place_bounds!(calculated_at:)
-    PhotoLocationPlace
-      .where.not(name: [ nil, "" ])
-      .distinct
-      .pluck(:name)
-      .filter_map do |place_name|
-        scope = PhotoLocation.scope_for_place_name(visible_geotagged_photos, place_name)
-        row = scope.reselect(bounds_select_sql).take
-        next unless row&.south && row&.north && row&.west && row&.east
+  def self.refresh_area_bounds!(calculated_at:)
+    rows = visible_geotagged_photos.where(photo_metadata: { photo_place_id: nil })
+      .select(bucket_bounds_select_sql)
+      .group(Arel.sql(PhotoLocation.latitude_bucket_sql), Arel.sql(PhotoLocation.longitude_bucket_sql))
+    attributes = rows.map do |row|
+      bounds_attributes(row, calculated_at: calculated_at).tap do |attributes|
+        attributes[:location_id] = PhotoLocation.id_for_area(attributes[:location_id])
+      end
+    end
+    upsert_bounds(attributes)
+  end
+  private_class_method :refresh_area_bounds!
 
-        {
-          location_id: PhotoLocation.place_id_for_name(place_name),
-          south: row.south,
-          north: row.north,
-          west: row.west,
-          east: row.east,
-          photo_count: row.photo_count.to_i,
-          calculated_at: calculated_at,
-          created_at: calculated_at,
-          updated_at: calculated_at
-        }
-      end.then { |attributes| upsert_bounds(attributes) }
+  def self.refresh_place_bounds!(calculated_at:)
+    rows = visible_geotagged_photos.where.not(photo_metadata: { photo_place_id: nil })
+      .select("photo_metadata.photo_place_id AS place_id, #{bounds_select_sql}")
+      .group("photo_metadata.photo_place_id")
+    attributes = rows.map do |row|
+      {
+        location_id: PhotoLocation.id_for_place(row.place_id),
+        south: row.south,
+        north: row.north,
+        west: row.west,
+        east: row.east,
+        photo_count: row.photo_count.to_i,
+        calculated_at: calculated_at,
+        created_at: calculated_at,
+        updated_at: calculated_at
+      }
+    end
+    upsert_bounds(attributes)
   end
   private_class_method :refresh_place_bounds!
 

@@ -93,7 +93,7 @@ export default class extends Controller {
     const bounds = this.map.getBounds()
     if (!bounds) return
 
-    const requestKey = bounds.toUrlValue(4)
+    const requestKey = `${bounds.toUrlValue(4)}:${this.map.getZoom()}`
     if (requestKey === this.lastRequestKey) return
     this.lastRequestKey = requestKey
     this.setStatus("Loading visible locations...")
@@ -230,6 +230,9 @@ export default class extends Controller {
     const previewGrid = previews
       ? `<div style="display:grid;grid-template-columns:repeat(3,54px);gap:4px;margin:8px 0 10px;">${previews}</div>`
       : ""
+    const locationLink = marker.location_url
+      ? `<a href="${this.escapeAttribute(marker.location_url)}" style="font-weight:700;">View location</a>`
+      : ""
 
     return `
       <div style="max-width:190px;">
@@ -237,8 +240,8 @@ export default class extends Controller {
         <div style="color:#52525b;font-size:12px;font-weight:600;">${marker.count.toLocaleString()} photos</div>
         ${previewGrid}
         <div style="display:flex;gap:8px;align-items:center;">
-          <a href="${this.escapeAttribute(marker.location_url)}" style="font-weight:700;">View location</a>
-          <button type="button" data-map-action="zoom-location" style="border:0;background:transparent;color:#0f766e;cursor:pointer;font:700 13px system-ui,sans-serif;padding:0;">Zoom in</button>
+          ${locationLink}
+          <button type="button" data-map-action="zoom-location" data-map-minimum-zoom="${Number(marker.zoom_to) || 0}" style="border:0;background:transparent;color:#0f766e;cursor:pointer;font:700 13px system-ui,sans-serif;padding:0;">Zoom in</button>
         </div>
       </div>
     `
@@ -254,8 +257,11 @@ export default class extends Controller {
     if (!button || !this.activeLocationPosition) return
 
     button.addEventListener("click", () => {
+      this.ignoreNextIdle = false
+      clearTimeout(this.ignoreNextIdleTimeout)
       this.map.panTo(this.activeLocationPosition)
-      this.map.setZoom(Math.min(this.map.getZoom() + 2, 21))
+      const minimumZoom = Number(button.dataset.mapMinimumZoom) || 0
+      this.map.setZoom(Math.min(Math.max(this.map.getZoom() + 2, minimumZoom), 21))
       this.infoWindow.close()
     }, { once: true })
   }

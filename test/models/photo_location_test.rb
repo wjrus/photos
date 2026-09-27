@@ -59,11 +59,12 @@ class PhotoLocationTest < ActiveSupport::TestCase
     ids.each { |id| PhotoLocationPlace.create!(location_id: id, name: "Synthetic region") }
     expected = ids.flat_map { |id| PhotoLocation.scope_for(@scope, id).pluck(:id) }.uniq
     assert_equal expected.sort, PhotoLocation.scope_for_ids(@scope, ids + [ "invalid", "place-bad" ]).pluck(:id).sort
-    assert_equal expected.sort, PhotoLocation.scope_for(@scope, PhotoLocation.place_id_for_name("Synthetic region")).pluck(:id).sort
+    assert_empty PhotoLocation.scope_for(@scope, PhotoLocation.place_id_for_name("Synthetic region")), "A name shared by several areas must be disambiguated"
+    assert_equal ids.map { |id| PhotoLocation.id_for_area(id) }.sort, PhotoLocation.legacy_groups(@scope, PhotoLocation.place_id_for_name("Synthetic region")).map(&:id).sort
 
     Photo.where(id: expected.first).update_all(restricted: true)
     visible = @scope.merge(Photo.visible_to(users(:one)))
-    assert_equal expected.drop(1).sort, PhotoLocation.scope_for_place_name(visible, "Synthetic region").pluck(:id).sort
+    assert_equal expected.drop(1).sort, PhotoLocation.scope_for_ids(visible, ids).pluck(:id).sort
     assert_empty PhotoLocation.scope_for(@scope, "invalid")
     assert_empty PhotoLocation.scope_for_ids(@scope, [])
   end
@@ -73,6 +74,26 @@ class PhotoLocationTest < ActiveSupport::TestCase
     expected = metadata.pluck(:latitude, :longitude).map { |latitude, longitude| PhotoLocation.id_for_coordinates(latitude, longitude) }
 
     assert_equal expected, metadata.pluck(Arel.sql(PhotoLocation.coordinate_id_sql))
+  end
+
+  test "distinct places are not silently truncated at the old cell limit" do
+    now = Time.current
+    place_ids = PhotoPlace.insert_all!(501.times.map do |index|
+      { identity_key: "many-places:#{index}", name: "Place #{index}", created_at: now, updated_at: now }
+    end).rows.flatten
+    photo_ids = Photo.insert_all!(501.times.map do |index|
+      { owner_id: users(:one).id, title: "Place photo #{index}", created_at: now, updated_at: now }
+    end).rows.flatten
+    PhotoMetadata.insert_all!(photo_ids.zip(place_ids).map do |photo_id, place_id|
+      { photo_id: photo_id, photo_place_id: place_id, latitude: 40, longitude: -80, created_at: now, updated_at: now }
+    end)
+
+    groups = nil
+    assert_queries_count(2) do
+      groups = PhotoLocation.groups(Photo.where(id: photo_ids).joins(:metadata))
+    end
+    assert_equal 501, groups.size
+    assert_equal place_ids.map { |id| PhotoLocation.id_for_place(id) }.sort, groups.map(&:id).sort
   end
 
   private

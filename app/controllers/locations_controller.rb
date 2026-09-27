@@ -7,12 +7,12 @@ class LocationsController < ApplicationController
   before_action :set_location, only: :show
 
   def index
-    location_rows = cached_location_rows
-    @location_places = location_places(location_rows)
-    locations = grouped_location_rows(location_rows, @location_places)
-    @location_count = locations.size
+    @location_count = cache_owner_aggregate([ location_index_cache_key, "count" ], expires_in: 12.hours) do
+      PhotoLocation.group_count(geotagged_photos)
+    end
     @location_page = [ params[:page].to_i, 1 ].max
-    @locations = locations.slice((@location_page - 1) * LOCATION_PAGE_SIZE, LOCATION_PAGE_SIZE) || []
+    offset = (@location_page - 1) * LOCATION_PAGE_SIZE
+    @locations = offset < @location_count ? cached_location_rows(offset: offset) : []
     @next_location_page = @location_page + 1 if @location_page * LOCATION_PAGE_SIZE < @location_count
     @location_covers = location_covers(@locations)
 
@@ -26,7 +26,7 @@ class LocationsController < ApplicationController
       .stream_order
     @photos, @next_cursor, @newer_cursor = paginate_photo_stream_with_focus(stream_scope)
     @newer_cursor ||= timeline_newer_cursor(scoped_photos) if params[:timeline_page].present?
-    if @photos.empty? && !PhotoLocation.place_id?(@location_id) && !scoped_photos.exists?
+    if @photos.empty? && !scoped_photos.exists?
       raise ActiveRecord::RecordNotFound
     end
 
@@ -47,18 +47,19 @@ class LocationsController < ApplicationController
 
   private
 
-  def cached_location_rows
-    cache_owner_aggregate(location_index_cache_key, expires_in: 12.hours, race_condition_ttl: 2.minutes) do
-      PhotoLocation.rows(geotagged_photos).to_a
+  def cached_location_rows(offset:)
+    cache_owner_aggregate([ location_index_cache_key, offset ], expires_in: 12.hours, race_condition_ttl: 2.minutes) do
+      PhotoLocation.groups(geotagged_photos, limit: LOCATION_PAGE_SIZE, offset: offset)
     end
   end
 
   def location_index_cache_key
     [
-      "locations-index/v3",
+      "locations-index/v4",
       cache_audience_key,
       Photo.maximum(:updated_at)&.utc&.to_i,
-      PhotoMetadata.maximum(:updated_at)&.utc&.to_i,
+      PhotoMetadata.maximum(:updated_at)&.utc&.iso8601(6),
+      PhotoPlace.maximum(:updated_at)&.utc&.iso8601(6),
       PhotoMetadata.count,
       PhotoAlbumShare.maximum(:updated_at)&.utc&.to_i,
       PhotoAlbumShare.count,
@@ -69,11 +70,11 @@ class LocationsController < ApplicationController
 
   def location_timeline_cache_key(scoped_photos)
     [
-      "location-timeline/v4",
+      "location-timeline/v5",
       cache_audience_key,
       @location_id,
       Photo.maximum(:updated_at)&.utc&.to_i,
-      PhotoMetadata.maximum(:updated_at)&.utc&.to_i,
+      PhotoMetadata.maximum(:updated_at)&.utc&.iso8601(6),
       PhotoAlbumShare.maximum(:updated_at)&.utc&.to_i,
       PhotoAlbumShare.count,
       stream_timeline_cache_fingerprint(scoped_photos)
@@ -99,34 +100,53 @@ class LocationsController < ApplicationController
       .index_by(&:id)
 
     locations.each_with_object({}) do |location, covers|
-      cover = photos[explicit_covers[location.id]] || photos[location.representative_photo_id.to_i]
+      candidates = [ photos[explicit_covers[location.id]], photos[location.representative_photo_id.to_i] ].compact
+      cover = candidates.find { |photo| PhotoLocation.id_for_metadata(photo.display_metadata) == location.id }
       covers[location.id] = cover if cover
     end
   end
 
   def explicit_location_covers(locations)
-    PhotoLocationCover
-      .where(location_id: locations.map(&:id))
+    aliases = locations.to_h do |location|
+      legacy_id = if PhotoLocation.area_id?(location.id)
+        location.id.delete_prefix(PhotoLocation::AREA_ID_PREFIX)
+      else
+        PhotoLocation.place_id_for_name(location.title)
+      end
+      [ location.id, legacy_id ]
+    end
+    covers = PhotoLocationCover
+      .where(location_id: aliases.keys + aliases.values)
       .pluck(:location_id, :cover_photo_id)
       .to_h
+    aliases.to_h { |id, legacy_id| [ id, covers[id] || covers[legacy_id] ] }
   end
 
   def set_location
     @location_id = params[:id].to_s
     raise ActiveRecord::RecordNotFound unless PhotoLocation.valid_id?(@location_id)
+    return unless PhotoLocation.legacy_place_id?(@location_id)
+
+    candidates = PhotoLocation.legacy_groups(geotagged_photos, @location_id)
+    raise ActiveRecord::RecordNotFound if candidates.empty?
+    return redirect_to location_path(candidates.first.id) if candidates.one?
+
+    @legacy_place_name = PhotoLocation.place_name_from_id(@location_id)
+    @locations = candidates
+    @location_count = candidates.size
+    @location_covers = location_covers(candidates)
+    render :index
   end
 
   def set_location_summary
-    if PhotoLocation.place_id?(@location_id)
+    if PhotoLocation.place_record_id?(@location_id)
       @location_title = PhotoLocation.place_name_from_id(@location_id)
       @location_photo_count = location_photo_scope.count
     else
       @location_row = PhotoLocation.rows(location_photo_scope, limit: 1).first
       raise ActiveRecord::RecordNotFound unless @location_row
 
-      @location_places = location_places([ @location_row ])
-      enqueue_missing_location_names([ @location_row ], @location_places)
-      @location_title = PhotoLocation.title_for_row(@location_row, @location_places)
+      @location_title = PhotoLocation.title_for(@location_row.latitude, @location_row.longitude)
       @location_photo_count = @location_row.photo_count.to_i
     end
   end
@@ -178,45 +198,6 @@ class LocationsController < ApplicationController
       west: (west - longitude_padding).clamp(-180.0, 180.0),
       east: (east + longitude_padding).clamp(-180.0, 180.0)
     }
-  end
-
-  def location_places(locations)
-    ids = locations.map do |location|
-      if location.respond_to?(:location_ids)
-        location.location_ids
-      else
-        PhotoLocation.id_for_coordinates(location.latitude, location.longitude)
-      end
-    end.flatten
-
-    PhotoLocationPlace.where(location_id: ids).index_by(&:location_id)
-  end
-
-  def grouped_location_rows(locations, places)
-    groups = {}
-
-    locations.each do |location|
-      location_id = PhotoLocation.id_for(location.latitude_bucket, location.longitude_bucket)
-      place_name = places[location_id]&.name.presence
-      group_id = place_name ? PhotoLocation.place_id_for_name(place_name) : location_id
-      title = place_name || PhotoLocation.title_for_row(location, places)
-
-      groups[group_id] ||= PhotoLocationGroup.new(id: group_id, title: title)
-      groups[group_id].add(location)
-    end
-
-    groups.values.sort_by { |location| [ -location.photo_count.to_i, -(location.newest_at&.to_i || 0) ] }
-  end
-
-  def enqueue_missing_location_names(locations, places)
-    return unless LocationReverseGeocoder.api_key.present?
-
-    locations.each do |location|
-      location_id = PhotoLocation.id_for_coordinates(location.latitude, location.longitude)
-      next if places[location_id]
-
-      GeocodePhotoLocationJob.perform_later(location_id, location.latitude, location.longitude)
-    end
   end
 
   def require_privileged_metadata_viewer!

@@ -3,27 +3,15 @@ require "net/http"
 class LocationReverseGeocoder
   ENDPOINT = "https://maps.googleapis.com/maps/api/geocode/json".freeze
   CACHE_TTL = 30.days
-  CACHE_VERSION = "v3".freeze
-  NEARBY_FALLBACK_RADII_KM = [ 2, 10, 25 ].freeze
-  NEARBY_FALLBACK_BEARINGS = [ 0, 90, 180, 270, 45, 135, 225, 315 ].freeze
-  NEARBY_FALLBACK_ENABLED_ENV = "LOCATION_GEOCODER_NEARBY_FALLBACK".freeze
-  NEARBY_FALLBACK_DAILY_LIMIT_ENV = "LOCATION_GEOCODER_NEARBY_FALLBACK_DAILY_LIMIT".freeze
-  NEARBY_FALLBACK_MAX_PROBES_ENV = "LOCATION_GEOCODER_NEARBY_FALLBACK_MAX_PROBES".freeze
-  NEARBY_FALLBACK_DEFAULT_DAILY_LIMIT = 25
-  NEARBY_FALLBACK_DEFAULT_MAX_PROBES = 9
-  EARTH_RADIUS_KM = 6_371.0
-  LARGE_LOCALITIES = [
-    "Chicago",
-    "Cleveland",
-    "Detroit",
-    "London",
-    "Los Angeles",
-    "New York",
-    "Paris",
-    "San Francisco",
-    "Toronto",
-    "Washington"
+  CACHE_VERSION = "v5".freeze
+  GEOGRAPHY_TYPES = %w[
+    neighborhood sublocality_level_5 sublocality_level_4 sublocality_level_3
+    sublocality_level_2 sublocality_level_1 sublocality locality postal_town
+    administrative_area_level_7 administrative_area_level_6 administrative_area_level_5
+    administrative_area_level_4 administrative_area_level_3
   ].freeze
+  LANDMARK_TYPES = %w[tourist_attraction point_of_interest establishment premise natural_feature park airport].freeze
+  ALIAS_TYPES = (GEOGRAPHY_TYPES + %w[administrative_area_level_2 administrative_area_level_1 country]).freeze
   PLUS_CODE_PATTERN = /\A[23456789CFGHJMPQRVWX]{4,8}\+[23456789CFGHJMPQRVWX]{2,3}(?:\b|,|\s|\z)/i
 
   def self.api_key
@@ -36,6 +24,22 @@ class LocationReverseGeocoder
     name.to_s.match?(PLUS_CODE_PATTERN)
   end
 
+  def self.coordinate_pair(latitude:, longitude:)
+    [ latitude, longitude ].map do |value|
+      rounded = BigDecimal(value.to_s).round(6)
+      format("%.6f", rounded.zero? ? 0 : rounded)
+    end
+  end
+
+  def self.coordinate_identity(latitude:, longitude:)
+    {
+      identity_key: "coordinate:#{coordinate_pair(latitude: latitude, longitude: longitude).join(',')}",
+      provider: nil,
+      provider_place_id: nil,
+      place_type: "coordinate"
+    }
+  end
+
   def initialize(api_key: self.class.api_key)
     @api_key = api_key
   end
@@ -43,24 +47,35 @@ class LocationReverseGeocoder
   def geocode(latitude:, longitude:)
     return unless @api_key.present?
 
-    cache_key = "location-reverse-geocoder/#{CACHE_VERSION}/#{format('%.5f', latitude.to_f)},#{format('%.5f', longitude.to_f)}"
+    latitude, longitude = self.class.coordinate_pair(latitude: latitude, longitude: longitude)
+    cache_key = "location-reverse-geocoder/#{CACHE_VERSION}/#{latitude},#{longitude}"
     cached = Rails.cache.read(cache_key)
-    return cached if cached.present?
+    return cached.merge(key_fingerprint: api_key_fingerprint) if cached.present?
 
-    match = geocode_result(latitude: latitude, longitude: longitude)
-    return unless match
+    payload = geocode_payload(latitude: latitude, longitude: longitude)
+    return unless payload
 
-    result = match.fetch(:result)
-    primary_name = primary_name_for_result(result, nearby: match.fetch(:nearby))
-    return if primary_name.blank?
+    results = payload.fetch("results", [])
+    candidate = canonical_result(results, latitude: latitude, longitude: longitude)
+    if candidate
+      result, type = candidate
+      primary_name = feature_name(result, type)
+      identity = {
+        identity_key: "google:#{result.fetch('place_id')}",
+        provider: "google",
+        provider_place_id: result.fetch("place_id"),
+        place_type: type
+      }
+    else
+      result = results.find { |item| plus_code_name(item).present? } || results.first || {}
+      primary_name = plus_code_name(result) || [ latitude, longitude ].join(", ")
+      identity = self.class.coordinate_identity(latitude: latitude, longitude: longitude)
+    end
 
-    geocoded = {
-      name: primary_name,
-      names: place_names(result, primary_name),
-      raw: result
-    }
-
-    Rails.cache.write(cache_key, geocoded, expires_in: CACHE_TTL) if geocoded[:name].present?
+    region = LocationMapRegion.for_result(result)
+    names = [ *place_names(results, primary_name), region[:map_region_name] ].compact_blank.uniq
+    geocoded = identity.merge(region).merge(name: primary_name, names: names, raw: result)
+    Rails.cache.write(cache_key, geocoded, expires_in: CACHE_TTL)
     geocoded.merge(key_fingerprint: api_key_fingerprint)
   rescue JSON::ParserError, SocketError, SystemCallError, Timeout::Error => error
     Rails.logger.warn("Location reverse geocode error: #{error.class}: #{error.message} key=#{api_key_fingerprint}")
@@ -69,209 +84,77 @@ class LocationReverseGeocoder
 
   private
 
-  def geocode_result(latitude:, longitude:)
-    exact_payload = geocode_payload(latitude: latitude, longitude: longitude)
-    return unless exact_payload
+  def canonical_result(results, latitude:, longitude:)
+    # A component label does not give us that component's place ID. Only an
+    # actual result for the geography can identify a shared place. Counties,
+    # states, and countries are useful aliases, but too broad to group photos.
+    candidates = results.filter_map do |result|
+      next if result["place_id"].blank? || result["partial_match"]
+      next if result.fetch("types", []).include?("plus_code")
 
-    exact_result = exact_payload.fetch("results", []).find { |result| usable_result?(result) }
-    return { result: exact_result, nearby: false } if exact_result
+      type = canonical_type(result, latitude: latitude, longitude: longitude)
+      next unless type && feature_name(result, type).present?
 
-    if nearby_fallback_enabled?
-      nearby_result = nearby_result(latitude: latitude.to_f, longitude: longitude.to_f)
-      return nearby_result if nearby_result
+      [ result, type ]
     end
-
-    plus_code_result = exact_payload.fetch("results", []).find { |result| plus_code_result?(result) }
-    { result: plus_code_result, nearby: false } if plus_code_result
-  end
-
-  def nearby_result(latitude:, longitude:)
-    nearby_coordinates(latitude: latitude, longitude: longitude).take(nearby_fallback_max_probes).lazy.filter_map do |nearby_latitude, nearby_longitude|
-      next unless reserve_nearby_fallback_request
-
-      payload = geocode_payload(latitude: nearby_latitude, longitude: nearby_longitude)
-      result = payload&.fetch("results", [])&.find { |candidate| usable_result?(candidate) }
-      { result: result, nearby: true } if result
-    end.first
-  end
-
-  def nearby_fallback_enabled?
-    ActiveModel::Type::Boolean.new.cast(ENV[NEARBY_FALLBACK_ENABLED_ENV])
-  end
-
-  def nearby_fallback_max_probes
-    Integer(ENV.fetch(NEARBY_FALLBACK_MAX_PROBES_ENV, NEARBY_FALLBACK_DEFAULT_MAX_PROBES)).clamp(0, NEARBY_FALLBACK_RADII_KM.size * NEARBY_FALLBACK_BEARINGS.size)
-  rescue ArgumentError, TypeError
-    NEARBY_FALLBACK_DEFAULT_MAX_PROBES
-  end
-
-  def reserve_nearby_fallback_request
-    limit = nearby_fallback_daily_limit
-    return false if limit <= 0
-
-    cache_key = "location-reverse-geocoder/nearby-fallback-count/#{Time.zone.today.iso8601}"
-    count = Rails.cache.read(cache_key).to_i
-    return false if count >= limit
-
-    Rails.cache.write(cache_key, count + 1, expires_in: 2.days)
-  end
-
-  def nearby_fallback_daily_limit
-    Integer(ENV.fetch(NEARBY_FALLBACK_DAILY_LIMIT_ENV, NEARBY_FALLBACK_DEFAULT_DAILY_LIMIT)).clamp(0, 10_000)
-  rescue ArgumentError, TypeError
-    NEARBY_FALLBACK_DEFAULT_DAILY_LIMIT
-  end
-
-  def geocode_payload(latitude:, longitude:)
-    uri = URI(ENDPOINT)
-    uri.query = URI.encode_www_form(
-      latlng: "#{latitude.to_f},#{longitude.to_f}",
-      key: @api_key
-    )
-
-    response = Net::HTTP.get_response(uri)
-    unless response.is_a?(Net::HTTPSuccess)
-      Rails.logger.warn("Location reverse geocode HTTP failure: status=#{response.code} key=#{api_key_fingerprint}")
-      return
-    end
-
-    payload = JSON.parse(response.body)
-    unless payload["status"] == "OK"
-      log_payload_status(payload)
-      return
-    end
-
-    payload
-  end
-
-  def nearby_coordinates(latitude:, longitude:)
-    NEARBY_FALLBACK_BEARINGS.flat_map do |bearing_degrees|
-      NEARBY_FALLBACK_RADII_KM.map do |radius_km|
-        destination_coordinate(latitude: latitude, longitude: longitude, radius_km: radius_km, bearing_degrees: bearing_degrees)
-      end
+    candidates.min_by do |result, type|
+      [ LANDMARK_TYPES.include?(type) ? -1 : GEOGRAPHY_TYPES.index(type), result.fetch("place_id") ]
     end
   end
 
-  def destination_coordinate(latitude:, longitude:, radius_km:, bearing_degrees:)
-    angular_distance = radius_km.to_f / EARTH_RADIUS_KM
-    bearing = bearing_degrees.to_f * Math::PI / 180
-    latitude_radians = latitude.to_f * Math::PI / 180
-    longitude_radians = longitude.to_f * Math::PI / 180
-
-    destination_latitude = Math.asin(
-      (Math.sin(latitude_radians) * Math.cos(angular_distance)) +
-        (Math.cos(latitude_radians) * Math.sin(angular_distance) * Math.cos(bearing))
-    )
-    destination_longitude = longitude_radians + Math.atan2(
-      Math.sin(bearing) * Math.sin(angular_distance) * Math.cos(latitude_radians),
-      Math.cos(angular_distance) - (Math.sin(latitude_radians) * Math.sin(destination_latitude))
-    )
-
-    [
-      destination_latitude * 180 / Math::PI,
-      normalized_longitude(destination_longitude * 180 / Math::PI)
-    ]
-  end
-
-  def normalized_longitude(longitude)
-    ((longitude + 540) % 360) - 180
-  end
-
-  def log_payload_status(payload)
-    status = payload["status"].presence || "UNKNOWN"
-    message = payload["error_message"].presence
-    log_line = "Location reverse geocode failed: status=#{status} key=#{api_key_fingerprint}"
-    log_line = "#{log_line} error=#{message}" if message
-
-    if status == "ZERO_RESULTS"
-      Rails.logger.info(log_line)
-    else
-      Rails.logger.warn(log_line)
+  def canonical_type(result, latitude:, longitude:)
+    types = result.fetch("types", [])
+    landmark_type = LANDMARK_TYPES.find { |type| types.include?(type) }
+    # Reverse geocoding may return the nearest address or attraction. A named
+    # landmark only takes precedence when its point matches the stored GPS
+    # precision; no distance threshold or nearby probe implies a visit.
+    if landmark_type && landmark_name(result).present? && exact_point?(result, latitude: latitude, longitude: longitude)
+      return landmark_type
     end
+
+    GEOGRAPHY_TYPES.find { |type| types.include?(type) }
   end
 
-  def place_name(result)
+  def exact_point?(result, latitude:, longitude:)
+    location = result.dig("geometry", "location")
+    return false unless location && location["lat"] && location["lng"]
+
+    self.class.coordinate_pair(latitude: location["lat"], longitude: location["lng"]) == [ latitude, longitude ]
+  end
+
+  def feature_name(result, type)
     components = result.fetch("address_components", [])
-    locality = component_name(components, "postal_town") ||
-      component_name(components, "locality") ||
-      component_name(components, "administrative_area_level_3")
-    neighborhood = component_name(components, "neighborhood") ||
-      component_name(components, "sublocality_level_1") ||
-      component_name(components, "sublocality")
-    landmark = landmark_name(result, components)
-    county = component_name(components, "administrative_area_level_2")
-    region = component_name(components, "administrative_area_level_1")
-    country = component_name(components, "country")
+    feature = LANDMARK_TYPES.include?(type) ? landmark_name(result) : component_name(components, type)
+    return formatted_address_name(result["formatted_address"]) if feature.blank?
 
-    if landmark.present?
-      [ landmark, locality || county || region || country ].compact.uniq.join(", ")
-    elsif locality.in?(LARGE_LOCALITIES) && neighborhood.present?
-      [ neighborhood, locality ].compact.uniq.join(", ")
-    else
-      [ locality || neighborhood || county, region || country ].compact.uniq.join(", ").presence ||
-        formatted_address_name(result["formatted_address"])
+    locality = component_name(components, "locality") || component_name(components, "postal_town")
+    region = component_name(components, "administrative_area_level_1") || component_name(components, "country")
+    context = type.in?(%w[locality postal_town]) ? region : locality || region
+    [ feature, context ].compact.uniq.join(", ")
+  end
+
+  def place_names(results, primary_name)
+    aliases = results.flat_map do |result|
+      components = result.fetch("address_components", [])
+      ALIAS_TYPES.filter_map { |type| component_name(components, type) }
     end
+    [ primary_name, *aliases ].compact_blank.reject { |name| self.class.plus_code_name?(name) }.uniq
   end
 
-  def primary_name_for_result(result, nearby:)
-    name = place_name(result) || plus_code_name(result)
-    return if name.blank?
-    return name unless nearby
-
-    "Near #{name}"
-  end
-
-  def place_names(result, primary_name)
-    result_name = place_name(result)
-    components = result.fetch("address_components", [])
-    [
-      primary_name,
-      result_name,
-      landmark_name(result, components),
-      component_name(components, "neighborhood"),
-      component_name(components, "sublocality_level_1"),
-      component_name(components, "sublocality"),
-      component_name(components, "postal_town"),
-      component_name(components, "locality"),
-      component_name(components, "administrative_area_level_3"),
-      component_name(components, "administrative_area_level_2"),
-      component_name(components, "administrative_area_level_1"),
-      component_name(components, "country")
-    ].compact_blank.reject { |name| self.class.plus_code_name?(name) }.uniq
+  def landmark_name(result)
+    component = result.fetch("address_components", []).find do |item|
+      (item.fetch("types", []) & LANDMARK_TYPES).any?
+    end
+    name = component&.fetch("long_name", nil).presence || result["formatted_address"].to_s.split(",", 2).first
+    name if name.present? && !name.match?(/\A\d/) && !self.class.plus_code_name?(name)
   end
 
   def component_name(components, type)
     components.find { |component| component.fetch("types", []).include?(type) }&.fetch("long_name", nil)
   end
 
-  def landmark_name(result, components)
-    result_types = result.fetch("types", [])
-    landmark_types = %w[establishment point_of_interest tourist_attraction premise]
-    return unless (result_types & landmark_types).any?
-
-    component = components.find { |address_component| (address_component.fetch("types", []) & landmark_types).any? }
-    component&.fetch("long_name", nil).presence || formatted_address_landmark(result["formatted_address"])
-  end
-
-  def formatted_address_landmark(formatted_address)
-    first_part = formatted_address.to_s.split(",", 2).first
-    return if first_part.blank? || first_part.match?(/\A\d/) || self.class.plus_code_name?(first_part)
-
-    first_part
-  end
-
   def formatted_address_name(formatted_address)
     formatted_address.presence unless self.class.plus_code_name?(formatted_address)
-  end
-
-  def usable_result?(result)
-    return false if result.fetch("types", []).include?("plus_code")
-
-    place_name(result).present?
-  end
-
-  def plus_code_result?(result)
-    result.fetch("types", []).include?("plus_code") || plus_code_name(result).present?
   end
 
   def plus_code_name(result)
@@ -279,6 +162,32 @@ class LocationReverseGeocoder
       result["formatted_address"].to_s.split(",", 2).first,
       component_name(result.fetch("address_components", []), "plus_code")
     ].compact_blank.find { |name| self.class.plus_code_name?(name) }
+  end
+
+  def geocode_payload(latitude:, longitude:)
+    uri = URI(ENDPOINT)
+    uri.query = URI.encode_www_form(latlng: "#{latitude},#{longitude}", key: @api_key)
+    response = Net::HTTP.get_response(uri)
+    unless response.is_a?(Net::HTTPSuccess)
+      Rails.logger.warn("Location reverse geocode HTTP failure: status=#{response.code} key=#{api_key_fingerprint}")
+      return
+    end
+
+    payload = JSON.parse(response.body)
+    unless payload["status"].in?(%w[OK ZERO_RESULTS])
+      log_payload_status(payload)
+      return
+    end
+
+    payload
+  end
+
+  def log_payload_status(payload)
+    status = payload["status"].presence || "UNKNOWN"
+    message = payload["error_message"].presence
+    log_line = "Location reverse geocode failed: status=#{status} key=#{api_key_fingerprint}"
+    log_line = "#{log_line} error=#{message}" if message
+    Rails.logger.warn(log_line)
   end
 
   def api_key_fingerprint

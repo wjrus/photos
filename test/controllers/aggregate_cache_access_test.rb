@@ -19,10 +19,7 @@ class AggregateCacheAccessTest < ActionDispatch::IntegrationTest
       }
     )
     @photo.create_metadata!(extraction_status: "complete", latitude: 44.76, longitude: -85.59, raw: {})
-    @place = PhotoLocationPlace.create!(
-      location_id: PhotoLocation.id_for_coordinates(44.76, -85.59),
-      name: "Private valley"
-    )
+    @place = assign_photo_place(@photo, name: "Private valley")
     @album = @owner.photo_albums.create!(title: "Public album", source: "manual", visibility: "public")
     sign_in_as(@viewer)
   end
@@ -138,11 +135,9 @@ class AggregateCacheAccessTest < ActionDispatch::IntegrationTest
     create_grant(:people_tag)
     hidden = @owner.photos.create!(title: "Hidden faraway photo", original: @photo.original.blob)
     hidden.create_metadata!(extraction_status: "complete", latitude: 50, longitude: -70, raw: {})
-    PhotoLocationPlace.create!(
-      location_id: PhotoLocation.id_for_coordinates(50, -70), name: @place.name
-    )
+    assign_photo_place(hidden, place: @place)
     PhotoLocationBound.refresh_all!
-    location_id = PhotoLocation.place_id_for_name(@place.name)
+    location_id = PhotoLocation.id_for_place(@place)
 
     get map_path(location_id: location_id)
 

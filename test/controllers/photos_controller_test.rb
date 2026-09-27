@@ -479,8 +479,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
       longitude: -85.597983,
       raw: {}
     )
-    PhotoLocationPlace.create!(
-      location_id: PhotoLocation.id_for_coordinates(44.762222, -85.597983),
+    assign_photo_place(photo,
       name: "Traverse City, Michigan",
       names: [ "Traverse City, Michigan", "Traverse City", "Michigan", "United States" ]
     )
@@ -657,7 +656,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_equal BigDecimal("-85.622800"), metadata.longitude
     assert_equal "kept", metadata.raw.dig("camera")
     assert_equal "Traverse City, MI", metadata.raw.dig("manual_location", "address")
-    place = PhotoLocationPlace.find_by!(location_id: PhotoLocation.id_for_coordinates(metadata.latitude, metadata.longitude))
+    place = metadata.photo_place
     assert_equal "Traverse City, MI, USA", place.name
     assert_equal [ "Traverse City, MI, USA", "Traverse City", "Michigan", "United States" ], place.names
   end

@@ -56,8 +56,7 @@ class PhotoAnalysisOpenrouterJobTest < ActiveJob::TestCase
       longitude: -84.9553,
       raw: {}
     )
-    PhotoLocationPlace.create!(
-      location_id: PhotoLocation.id_for_coordinates(metadata.latitude, metadata.longitude),
+    assign_photo_place(photo,
       name: "Kilwins, Petoskey",
       raw: {
         "address_components" => [

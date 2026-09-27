@@ -28,12 +28,12 @@ class LocationCoversControllerTest < ActionDispatch::IntegrationTest
     photo = attached_photo(title: "Place cover")
     geotag(photo, latitude: 44.7622, longitude: -85.5980)
     place_name = "Traverse City, Michigan"
-    PhotoLocationPlace.create!(location_id: location_id_for(photo), name: place_name)
+    place = assign_photo_place(photo, name: place_name)
 
-    patch location_cover_path(PhotoLocation.place_id_for_name(place_name), photo)
+    patch location_cover_path(PhotoLocation.id_for_place(place), photo)
 
-    assert_redirected_to location_path(PhotoLocation.place_id_for_name(place_name))
-    cover = @owner.photo_location_covers.find_by!(location_id: PhotoLocation.place_id_for_name(place_name))
+    assert_redirected_to location_path(PhotoLocation.id_for_place(place))
+    cover = @owner.photo_location_covers.find_by!(location_id: PhotoLocation.id_for_place(place))
     assert_equal photo, cover.cover_photo
   end
 

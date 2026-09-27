@@ -34,7 +34,7 @@
                   class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-800 shadow-sm outline-none transition hover:border-zinc-950 focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15">
             <option value="">All locations</option>
             <% @map_locations.each do |location| %>
-              <option value="<%= location.id %>" <%= "selected" if @selected_location&.id == location.id %>><%= location.title %></option>
+              <option value="<%= location.id %>" <%= "selected" if @selected_location&.id == location.id %>><%= @map_location_labels.fetch(location.id) %></option>
             <% end %>
           </select>
         <% end %>

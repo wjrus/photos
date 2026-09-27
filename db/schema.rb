@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_24_010000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_26_020100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -335,8 +335,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_24_010000) do
     t.integer "iso"
     t.decimal "latitude", precision: 10, scale: 6
     t.string "lens_model"
+    t.string "location_source"
     t.decimal "longitude", precision: 10, scale: 6
     t.bigint "photo_id", null: false
+    t.bigint "photo_place_id"
     t.jsonb "raw", default: {}, null: false
     t.datetime "updated_at", null: false
     t.bigint "video_bitrate"
@@ -349,6 +351,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_24_010000) do
     t.index ["extraction_status"], name: "index_photo_metadata_on_extraction_status"
     t.index ["latitude", "longitude"], name: "index_photo_metadata_on_location", where: "((latitude IS NOT NULL) AND (longitude IS NOT NULL))"
     t.index ["photo_id"], name: "index_photo_metadata_on_photo_id", unique: true
+    t.index ["photo_place_id"], name: "index_photo_metadata_on_photo_place_id"
+    t.check_constraint "location_source::text = ANY (ARRAY['automatic'::character varying, 'manual'::character varying]::text[])", name: "photo_metadata_location_source"
   end
 
   create_table "photo_people_tags", force: :cascade do |t|
@@ -361,6 +365,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_24_010000) do
     t.index ["photo_id"], name: "index_photo_people_tags_on_photo_id"
     t.index ["tagged_by_id"], name: "index_photo_people_tags_on_tagged_by_id"
     t.index ["user_id"], name: "index_photo_people_tags_on_user_id"
+  end
+
+  create_table "photo_places", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "geocoded_at"
+    t.string "identity_key", null: false
+    t.decimal "latitude", precision: 10, scale: 6
+    t.decimal "longitude", precision: 10, scale: 6
+    t.string "map_region_key"
+    t.string "map_region_name"
+    t.string "name", null: false
+    t.jsonb "names", default: [], null: false
+    t.string "place_type"
+    t.string "provider"
+    t.string "provider_place_id"
+    t.jsonb "raw", default: {}, null: false
+    t.datetime "updated_at", null: false
+    t.index ["identity_key"], name: "index_photo_places_on_identity_key", unique: true
+    t.index ["names"], name: "index_photo_places_on_names", using: :gin
   end
 
   create_table "photos", force: :cascade do |t|
@@ -485,6 +508,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_24_010000) do
   add_foreign_key "photo_embeddings", "photos"
   add_foreign_key "photo_location_covers", "photos", column: "cover_photo_id"
   add_foreign_key "photo_location_covers", "users", column: "owner_id"
+  add_foreign_key "photo_metadata", "photo_places"
   add_foreign_key "photo_metadata", "photos"
   add_foreign_key "photo_people_tags", "photos"
   add_foreign_key "photo_people_tags", "users"

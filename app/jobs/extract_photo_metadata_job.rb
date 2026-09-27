@@ -11,7 +11,7 @@ class ExtractPhotoMetadataJob < ApplicationJob
     metadata = PhotoMetadata.for_photo(photo)
 
     unless photo.original.attached?
-      metadata.update!(extraction_status: "failed", extraction_error: "Original is not attached", extracted_at: Time.current)
+      metadata.update_extracted!(extraction_status: "failed", extraction_error: "Original is not attached", extracted_at: Time.current)
       return
     end
 
@@ -31,7 +31,7 @@ class ExtractPhotoMetadataJob < ApplicationJob
       dimensions = image_dimensions(image)
 
       unless exif.any?
-        metadata.update!(
+        metadata.update_extracted!(
           extraction_status: "unsupported",
           extraction_error: nil,
           raw: {},
@@ -51,7 +51,7 @@ class ExtractPhotoMetadataJob < ApplicationJob
 
       captured_at = parse_captured_at(exif["DateTimeOriginal"] || exif["DateTime"])
 
-      metadata.update!(
+      metadata.update_extracted!(
         extraction_status: "complete",
         extraction_error: nil,
         captured_at: captured_at,
@@ -79,7 +79,7 @@ class ExtractPhotoMetadataJob < ApplicationJob
       photo.update_columns(captured_at: captured_at, updated_at: Time.current) if captured_at
     end
   rescue StandardError => e
-    PhotoMetadata.for_photo(photo).update!(
+    PhotoMetadata.for_photo(photo).update_extracted!(
       extraction_status: "failed",
       extraction_error: e.message,
       extracted_at: Time.current
@@ -107,7 +107,7 @@ class ExtractPhotoMetadataJob < ApplicationJob
       audio_stream = streams(probe).find { |stream| stream["codec_type"] == "audio" }
       captured_at = parse_video_captured_at(format, video_stream)
 
-      metadata.update!(
+      metadata.update_extracted!(
         extraction_status: "complete",
         extraction_error: nil,
         captured_at: captured_at,
@@ -223,7 +223,7 @@ class ExtractPhotoMetadataJob < ApplicationJob
   end
 
   def clear_media_metadata(metadata, attributes)
-    metadata.update!(
+    metadata.update_extracted!(
       {
         extraction_error: nil,
         captured_at: nil,

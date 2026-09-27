@@ -76,10 +76,7 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     geotag(first, latitude: 44.7622, longitude: -85.5980)
     geotag(second, latitude: 44.7630, longitude: -85.5970)
     geotag(far, latitude: 45.5, longitude: -86.5)
-    PhotoLocationPlace.create!(
-      location_id: location_id_for(first),
-      name: "Traverse City, Michigan"
-    )
+    place = assign_place([ first, second ], name: "Traverse City, Michigan")
 
     get map_markers_path(north: 46, south: 44, east: -84, west: -87, zoom: 10)
 
@@ -89,7 +86,7 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert location
     assert_equal 2, location.fetch("count")
     assert_equal "Traverse City, Michigan", location.fetch("title")
-    assert_includes location.fetch("location_url"), "/locations/"
+    assert_equal location_path(PhotoLocation.id_for_place(place)), location.fetch("location_url")
     assert_equal 2, location.fetch("preview_urls").size
     assert_equal 3, payload.fetch("total")
   end
@@ -101,14 +98,14 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     geotag(first, latitude: "44.774999", longitude: "-85.575000")
     geotag(boundary, latitude: "44.775000", longitude: "-85.575000")
     geotag(outside, latitude: "44.775001", longitude: "-85.575000")
-    PhotoLocationPlace.create!(location_id: location_id_for(boundary), name: "Boundary town")
+    place = assign_place([ first, boundary ], name: "Boundary town")
 
     get map_markers_path(zoom: 12)
     assert_response :success
     cluster = response.parsed_body.fetch("markers").find { |marker| marker.fetch("type") == "location" }
     assert_equal 2, cluster.fetch("count")
     assert_equal "Boundary town", cluster.fetch("title")
-    assert_equal location_path(location_id_for(boundary)), cluster.fetch("location_url")
+    assert_equal location_path(PhotoLocation.id_for_place(place)), cluster.fetch("location_url")
 
     get cluster.fetch("location_url")
     assert_response :success
@@ -116,10 +113,131 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-photo-id='#{boundary.id}']"
     assert_select "[data-photo-id='#{outside.id}']", count: 0
 
-    get map_markers_path(zoom: 12, location_id: PhotoLocation.place_id_for_name("Boundary town"))
+    get map_markers_path(zoom: 12, location_id: PhotoLocation.id_for_place(place))
     assert_response :success
     assert_equal 2, response.parsed_body.fetch("total")
     assert_equal 2, response.parsed_body.fetch("markers").sole.fetch("count")
+  end
+
+  test "low zoom combines a qualified metro region across cells and higher zoom restores exact places" do
+    previous_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    first, second, outside = london_region_photos
+    marker_params = { north: 52, south: 51, east: 0.5, west: -0.6 }
+
+    [ 9, 10 ].each do |zoom|
+      get map_markers_path(**marker_params, zoom: zoom)
+
+      assert_response :success
+      assert_equal 3, response.parsed_body.fetch("total")
+      markers = response.parsed_body.fetch("markers")
+      assert_equal 2, markers.size
+      london = markers.find { |marker| marker.fetch("type") == "location" }
+      assert_equal "London", london.fetch("title")
+      assert_equal 2, london.fetch("count")
+      assert_equal [ stream_photo_path(first), stream_photo_path(second) ].sort, london.fetch("preview_urls").sort
+      assert_equal 11, london.fetch("zoom_to")
+      refute london.key?("location_url")
+      assert_equal outside.id, markers.find { |marker| marker.fetch("type") == "photo" }.fetch("id")
+    end
+
+    # 10 and 10.5 use the same spatial size but different region-grouping modes.
+    [ 10.5, 12 ].each do |zoom|
+      get map_markers_path(**marker_params, zoom: zoom)
+
+      assert_response :success
+      markers = response.parsed_body.fetch("markers")
+      assert_equal [ first.id, second.id, outside.id ].sort, markers.map { |marker| marker.fetch("id") }.sort
+      assert markers.all? { |marker| marker.fetch("type") == "photo" }
+    end
+
+    get location_path(PhotoLocation.id_for_place(first.metadata.photo_place))
+    assert_response :success
+    assert_select "[data-photo-id='#{first.id}']"
+    assert_select "[data-photo-id='#{second.id}']", count: 0
+    assert_select "[data-photo-id='#{outside.id}']", count: 0
+  ensure
+    Rails.cache = previous_cache
+  end
+
+  test "regional rollups honor the current viewport and album filter" do
+    first, second, = london_region_photos
+
+    get map_markers_path(zoom: 9, north: 51.52, south: 51.49, east: -0.1, west: -0.2)
+    assert_response :success
+    assert_equal 1, response.parsed_body.fetch("total")
+    assert_equal first.id, response.parsed_body.fetch("markers").sole.fetch("id")
+
+    album = @owner.photo_albums.create!(title: "One borough", source: "manual")
+    album.photos << second
+    get map_markers_path(zoom: 9, album_id: album.id)
+    assert_response :success
+    assert_equal 1, response.parsed_body.fetch("total")
+    assert_equal second.id, response.parsed_body.fetch("markers").sole.fetch("id")
+  end
+
+  test "a regional marker zooms instead of linking to the only precise place currently represented" do
+    photos = [ "Venue first", "Venue second" ].map do |title|
+      attached_photo(title: title).tap { |photo| geotag(photo, latitude: 51.501, longitude: -0.141) }
+    end
+    place = assign_place(photos, name: "Specific London venue")
+    place.update!(map_region_key: "test:gb:greater-london", map_region_name: "London")
+
+    get map_markers_path(zoom: 9)
+    assert_response :success
+    marker = response.parsed_body.fetch("markers").sole
+    assert_equal "London", marker.fetch("title")
+    assert_equal 2, marker.fetch("count")
+    assert_equal 11, marker.fetch("zoom_to")
+    refute marker.key?("location_url")
+
+    get map_markers_path(zoom: 12)
+    assert_response :success
+    marker = response.parsed_body.fetch("markers").sole
+    assert_equal place.name, marker.fetch("title")
+    assert_equal location_path(PhotoLocation.id_for_place(place)), marker.fetch("location_url")
+  end
+
+  test "region names never substitute for missing qualified region identities" do
+    photos = [ [ 51.501, -0.141 ], [ 51.462, -0.302 ] ].map.with_index do |(latitude, longitude), index|
+      attached_photo(title: "Unqualified photo #{index}").tap do |photo|
+        geotag(photo, latitude: latitude, longitude: longitude)
+        assign_place([ photo ], name: "London")
+        PhotoLocationPlace.create!(location_id: location_id_for(photo), name: "London")
+      end
+    end
+
+    get map_markers_path(zoom: 9)
+
+    assert_response :success
+    assert_equal photos.map(&:id).sort, response.parsed_body.fetch("markers").map { |marker| marker.fetch("id") }.sort
+  end
+
+  test "invited viewers see only authorized region members and revocation immediately changes the rollup" do
+    previous_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    first, second, hidden = london_region_photos
+    hidden.metadata.photo_place.update!(map_region_key: "test:gb:greater-london", map_region_name: "London")
+    first.publish!
+    grant = second.photo_people_tags.create!(user: users(:two), tagged_by: @owner)
+    delete sign_out_path
+    sign_in_as(users(:two))
+
+    get map_markers_path(zoom: 9)
+    assert_response :success
+    assert_equal 2, response.parsed_body.fetch("total")
+    marker = response.parsed_body.fetch("markers").sole
+    assert_equal "London", marker.fetch("title")
+    assert_equal 2, marker.fetch("count")
+    assert_equal [ stream_photo_path(first), stream_photo_path(second) ].sort, marker.fetch("preview_urls").sort
+
+    grant.destroy!
+    get map_markers_path(zoom: 9)
+    assert_response :success
+    assert_equal 1, response.parsed_body.fetch("total")
+    assert_equal first.id, response.parsed_body.fetch("markers").sole.fetch("id")
+  ensure
+    Rails.cache = previous_cache
   end
 
   test "map previews use stream thumbnails without loading original blobs or full EXIF" do
@@ -157,9 +275,9 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     Rails.cache = ActiveSupport::Cache::MemoryStore.new
     photo = attached_photo(title: "Cached location")
     geotag(photo, latitude: 40, longitude: -80)
-    place = PhotoLocationPlace.create!(location_id: location_id_for(photo), name: "Synthetic place")
+    place = assign_place([ photo ], name: "Synthetic place")
 
-    [ location_id_for(photo), PhotoLocation.place_id_for_name(place.name) ].each do |location_id|
+    [ location_id_for(photo), PhotoLocation.id_for_place(place) ].each do |location_id|
       get map_markers_path(location_id: location_id)
       assert_response :success
       expected_payload = response.parsed_body
@@ -201,7 +319,7 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
-  test "clustered location marker links to an existing location page" do
+  test "a mixed coordinate cluster cannot link only to its representative location" do
     first = attached_photo(title: "West edge")
     second = attached_photo(title: "East edge")
     geotag(first, latitude: 44.701, longitude: -85.301)
@@ -214,35 +332,179 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     location = payload.fetch("markers").find { |marker| marker.fetch("type") == "location" }
     assert location
     assert_equal 2, location.fetch("count")
-
-    get location.fetch("location_url")
-
-    assert_response :success
+    assert_equal "2 nearby locations", location.fetch("title")
+    refute location.key?("location_url")
   end
 
-  test "clustered location marker title uses representative photo place name" do
+  test "different places in one coordinate cell keep separate identities in clusters and map filters" do
     neighbor = attached_photo(title: "Neighbor cluster item")
     representative = attached_photo(title: "Named cluster item")
-    geotag(neighbor, latitude: 44.701, longitude: -85.301)
-    geotag(representative, latitude: 44.789, longitude: -85.389)
-    PhotoLocationPlace.create!(
-      location_id: location_id_for(representative),
-      name: "West Edge Place"
-    )
+    geotag(neighbor, latitude: 44.7622, longitude: -85.5980)
+    geotag(representative, latitude: 44.7630, longitude: -85.5970)
+    neighbor_place = assign_place([ neighbor ], name: "Shared display name")
+    representative_place = assign_place([ representative ], name: "Shared display name")
 
-    get map_markers_path(north: 45, south: 44, east: -85, west: -86, zoom: 10)
+    get map_markers_path(north: 45, south: 44, east: -85, west: -86, zoom: 12)
 
     assert_response :success
     payload = JSON.parse(response.body)
     location = payload.fetch("markers").find { |marker| marker.fetch("type") == "location" }
-    assert_equal "West Edge Place", location.fetch("title")
+    assert_equal "2 nearby locations", location.fetch("title")
+    refute location.key?("location_url")
+
+    get map_path
+    assert_response :success
+    [ [ neighbor_place, neighbor ], [ representative_place, representative ] ].each do |place, photo|
+      coordinates = PhotoLocation.title_for(photo.metadata.latitude, photo.metadata.longitude)
+      assert_select "select#location_id option[value='#{PhotoLocation.id_for_place(place)}']", text: "Shared display name (#{coordinates})"
+    end
+
+    get map_markers_path(location_id: PhotoLocation.id_for_place(neighbor_place), zoom: 12)
+    assert_response :success
+    assert_equal 1, response.parsed_body.fetch("total")
+    assert_equal neighbor.id, response.parsed_body.fetch("markers").sole.fetch("id")
+
+    get map_path(location_id: location_id_for(neighbor))
+    assert_response :success
+    assert_select "select#location_id option[selected][value='#{location_id_for(neighbor)}']", text: /44\.7626, -85\.5975/
+    assert_includes response.body, "2 geotagged photos"
+  end
+
+  test "one place spanning coordinate cells links every cluster member to that exact place" do
+    first = attached_photo(title: "Same place west")
+    second = attached_photo(title: "Same place east")
+    outsider = attached_photo(title: "Different nearby place")
+    geotag(first, latitude: 44.701, longitude: -85.301)
+    geotag(second, latitude: 44.789, longitude: -85.389)
+    geotag(outsider, latitude: 45.0, longitude: -86.0)
+    place = assign_place([ first, second ], name: "One actual place")
+    assign_place([ outsider ], name: "One actual place")
+
+    get map_markers_path(north: 45, south: 44, east: -85, west: -86, zoom: 10)
+
+    assert_response :success
+    marker = response.parsed_body.fetch("markers").find { |item| item.fetch("type") == "location" }
+    assert_equal "One actual place", marker.fetch("title")
+    assert_equal location_path(PhotoLocation.id_for_place(place)), marker.fetch("location_url")
+    get marker.fetch("location_url")
+    assert_response :success
+    assert_select "[data-photo-id='#{first.id}']"
+    assert_select "[data-photo-id='#{second.id}']"
+    assert_select "[data-photo-id='#{outsider.id}']", count: 0
+  end
+
+  test "cluster identity considers members outside its six preview photos" do
+    photos = 7.times.map do |index|
+      attached_photo(title: "Cluster member #{index}").tap do |photo|
+        geotag(photo, latitude: 44.7622, longitude: -85.5980)
+        photo.update_columns(created_at: Time.zone.local(2026, 1, index + 1))
+      end
+    end
+    assign_place(photos.drop(1), name: "Preview place")
+    assign_place([ photos.first ], name: "Older different place")
+
+    get map_markers_path(zoom: 12)
+
+    assert_response :success
+    marker = response.parsed_body.fetch("markers").sole
+    assert_equal 7, marker.fetch("count")
+    assert_equal 6, marker.fetch("preview_urls").size
+    assert_equal "2 nearby locations", marker.fetch("title")
+    refute marker.key?("location_url")
+  end
+
+  test "unresolved coordinates do not inherit a legacy cell place name" do
+    first = attached_photo(title: "Unresolved first")
+    second = attached_photo(title: "Unresolved second")
+    geotag(first, latitude: 44.7622, longitude: -85.5980)
+    geotag(second, latitude: 44.7630, longitude: -85.5970)
+    PhotoLocationPlace.create!(location_id: location_id_for(first), name: "Legacy area name")
+
+    get map_path
+    assert_response :success
+    assert_select "select#location_id option", text: "Legacy area name", count: 0
+    assert_select "select#location_id option[value='#{PhotoLocation.id_for_area(location_id_for(first))}']"
+
+    get map_markers_path(zoom: 12)
+    assert_response :success
+    marker = response.parsed_body.fetch("markers").sole
+    refute_equal "Legacy area name", marker.fetch("title")
+    assert_equal location_path(PhotoLocation.id_for_area(location_id_for(first))), marker.fetch("location_url")
+  end
+
+  test "an unresolved area filter and marker link exclude assigned places in the same cell" do
+    unresolved = [ "Unresolved first", "Unresolved second" ].map { |title| attached_photo(title: title) }
+    assigned = attached_photo(title: "Matched venue")
+    [ *unresolved, assigned ].each { |photo| geotag(photo, latitude: 44.7622, longitude: -85.5980) }
+    assign_place([ assigned ], name: "Nearby venue")
+    area_id = PhotoLocation.id_for_area(location_id_for(assigned))
+
+    get map_markers_path(location_id: area_id, zoom: 12)
+    assert_response :success
+    assert_equal 2, response.parsed_body.fetch("total")
+    marker = response.parsed_body.fetch("markers").sole
+    assert_equal location_path(area_id), marker.fetch("location_url")
+
+    get marker.fetch("location_url")
+    assert_response :success
+    unresolved.each { |photo| assert_select "[data-photo-id='#{photo.id}']" }
+    assert_select "[data-photo-id='#{assigned.id}']", count: 0
+
+    get map_markers_path(location_id: location_id_for(assigned), zoom: 12)
+    assert_response :success
+    assert_equal 3, response.parsed_body.fetch("total")
+    assert_equal "2 nearby locations", response.parsed_body.fetch("markers").sole.fetch("title")
+    refute response.parsed_body.fetch("markers").sole.key?("location_url")
+  end
+
+  test "legacy named map links go through location disambiguation and ambiguous markers stay empty" do
+    previous_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    first = attached_photo(title: "First old named place")
+    second = attached_photo(title: "Second old named place")
+    geotag(first, latitude: 44.7622, longitude: -85.5980)
+    geotag(second, latitude: 45.0, longitude: -86.0)
+    assign_place([ first ], name: "Duplicate place name")
+    assign_place([ second ], name: "Duplicate place name")
+    legacy_id = PhotoLocation.place_id_for_name("Duplicate place name")
+
+    get map_path(location_id: legacy_id)
+    assert_redirected_to location_path(legacy_id)
+
+    get map_markers_path
+    assert_response :success
+    assert_equal 2, response.parsed_body.fetch("total")
+
+    [ legacy_id, "invalid", "all", "place-id-999999999" ].each do |location_id|
+      get map_markers_path(location_id: location_id)
+      assert_response :success
+      assert_equal 0, response.parsed_body.fetch("total")
+      assert_empty response.parsed_body.fetch("markers")
+    end
+  ensure
+    Rails.cache = previous_cache
+  end
+
+  test "unique legacy marker filters normalize their photo return path to the exact place" do
+    photo = attached_photo(title: "Old unique named place")
+    geotag(photo, latitude: 44.7622, longitude: -85.5980)
+    place = assign_place([ photo ], name: "Unique legacy place")
+
+    get map_markers_path(location_id: PhotoLocation.place_id_for_name(place.name))
+
+    assert_response :success
+    marker = response.parsed_body.fetch("markers").sole
+    assert_equal map_path(location_id: PhotoLocation.id_for_place(place)), marker.fetch("return_to")
   end
 
   test "map markers refresh after location place names change" do
+    previous_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
     first = attached_photo(title: "Uncached first")
     second = attached_photo(title: "Uncached second")
     geotag(first, latitude: 44.701, longitude: -85.301)
     geotag(second, latitude: 44.789, longitude: -85.389)
+    place = assign_place([ first, second ], name: "Original place")
     marker_params = { north: 45, south: 44, east: -85, west: -86, zoom: 10 }
 
     get map_markers_path(**marker_params)
@@ -252,10 +514,7 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     initial_location = initial_payload.fetch("markers").find { |marker| marker.fetch("type") == "location" }
     refute_equal "Fresh Place Name", initial_location.fetch("title")
 
-    PhotoLocationPlace.create!(
-      location_id: location_id_for(second),
-      name: "Fresh Place Name"
-    )
+    place.update!(name: "Fresh Place Name")
 
     get map_markers_path(**marker_params)
 
@@ -263,6 +522,31 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     updated_payload = JSON.parse(response.body)
     updated_location = updated_payload.fetch("markers").find { |marker| marker.fetch("type") == "location" }
     assert_equal "Fresh Place Name", updated_location.fetch("title")
+  ensure
+    Rails.cache = previous_cache
+  end
+
+  test "cached markers refresh when a photo receives a different place assignment" do
+    previous_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    first = attached_photo(title: "Assigned first")
+    second = attached_photo(title: "Assigned second")
+    [ first, second ].each { |photo| geotag(photo, latitude: 44.7622, longitude: -85.5980) }
+    place = assign_place([ first, second ], name: "Original place")
+    other_place = PhotoPlace.create!(identity_key: "test:#{SecureRandom.uuid}", name: "New separate place")
+
+    get map_markers_path(zoom: 12)
+    assert_response :success
+    assert_equal location_path(PhotoLocation.id_for_place(place)), response.parsed_body.fetch("markers").sole.fetch("location_url")
+
+    second.metadata.update!(photo_place: other_place, location_source: "automatic")
+    get map_markers_path(zoom: 12)
+    assert_response :success
+    marker = response.parsed_body.fetch("markers").sole
+    assert_equal "2 nearby locations", marker.fetch("title")
+    refute marker.key?("location_url")
+  ensure
+    Rails.cache = previous_cache
   end
 
   test "owner can focus map on an album" do
@@ -324,8 +608,8 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     alpha = attached_photo(title: "Alpha place")
     geotag(zed, latitude: 45.0, longitude: -86.0)
     geotag(alpha, latitude: 44.7622, longitude: -85.5980)
-    PhotoLocationPlace.create!(location_id: location_id_for(zed), name: "Zed Point")
-    PhotoLocationPlace.create!(location_id: location_id_for(alpha), name: "Alpha Bay")
+    assign_place([ zed ], name: "Zed Point")
+    assign_place([ alpha ], name: "Alpha Bay")
 
     get map_path
 
@@ -453,6 +737,25 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def london_region_photos
+    [ [ "Westminster venue", 51.501, -0.141 ], [ "Western borough venue", 51.462, -0.302 ], [ "Outside metro namesake", 51.72, -0.34 ] ].map.with_index do |(title, latitude, longitude), index|
+      attached_photo(title: title).tap do |photo|
+        geotag(photo, latitude: latitude, longitude: longitude)
+        place = assign_place([ photo ], name: title)
+        place.update!(
+          map_region_key: index == 2 ? "test:gb:other-county:london" : "test:gb:greater-london",
+          map_region_name: "London"
+        )
+      end
+    end
+  end
+
+  def assign_place(photos, name:)
+    PhotoPlace.create!(identity_key: "test:#{SecureRandom.uuid}", name: name).tap do |place|
+      photos.each { |photo| photo.metadata.update!(photo_place: place, location_source: "automatic") }
+    end
+  end
 
   def location_id_for(photo)
     metadata = photo.metadata

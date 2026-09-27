@@ -49,13 +49,12 @@ class PhotoSearch
     # Membership subqueries avoid multiplying candidate rows by every album/tag pair.
     album_photo_ids = PhotoAlbumMembership.where(photo_album_id: album_ids).select(:photo_id)
     tagged_photo_ids = PhotoPeopleTag.where(user_id: tagged_user_ids).select(:photo_id)
-    location_ids = PhotoLocationPlace.matching_name(query).pluck(:location_id)
-    location_photo_ids = PhotoLocation.scope_for_ids(PhotoMetadata.all, location_ids).select(:photo_id)
+    location_photo_ids = PhotoMetadata.where(photo_place_id: PhotoPlace.matching_name(query).select(:id)).select(:photo_id)
     semantic_photo_ids = semantic_enabled? ? PhotoOpenclipSearch.search_ids(query: params[:q], user: user) : []
 
     scope
       .where(
-        text_conditions(location_ids, semantic_photo_ids),
+        text_conditions(semantic_photo_ids),
         query: query,
         album_photo_ids: album_photo_ids,
         tagged_photo_ids: tagged_photo_ids,
@@ -65,7 +64,7 @@ class PhotoSearch
       )
   end
 
-  def text_conditions(location_ids, semantic_photo_ids)
+  def text_conditions(semantic_photo_ids)
     conditions = [
       "photos.title ILIKE :query",
       "photos.description ILIKE :query",
@@ -75,13 +74,12 @@ class PhotoSearch
       "photo_metadata.lens_model ILIKE :query",
       "photos.id IN (:album_photo_ids)",
       "photos.id IN (:tagged_photo_ids)",
+      "photos.id IN (:location_photo_ids)",
       "photos.id IN (SELECT photo_id FROM photo_analysis_runs WHERE provider = 'openrouter' AND status = 'complete' AND summary ILIKE :query)",
       "photos.id IN (SELECT photo_id FROM photo_analysis_tags WHERE provider = 'openrouter' AND name = :normalized_visual_tag)"
     ]
 
     conditions << "photos.id IN (:semantic_photo_ids)" if semantic_photo_ids.any?
-
-    conditions << "photos.id IN (:location_photo_ids)" if location_ids.any?
 
     conditions.join(" OR ")
   end

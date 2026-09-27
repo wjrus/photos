@@ -18,7 +18,8 @@ class SearchLocationFilterTest < ActionDispatch::IntegrationTest
     PhotoMetadata.insert_all!([ "44.774999", "44.775000", "44.775001" ].each_with_index.map do |latitude, index|
       { photo_id: @photos[index], latitude: latitude, longitude: "-85.575000", created_at: now, updated_at: now }
     end)
-    PhotoLocationPlace.create!(location_id: "1790_-3423", name: "Synthetic boundary place")
+    @place = assign_photo_place(Photo.find(@photos.first), name: "Synthetic boundary place")
+    assign_photo_place(Photo.find(@photos.second), place: @place)
   end
 
   teardown do
@@ -29,8 +30,8 @@ class SearchLocationFilterTest < ActionDispatch::IntegrationTest
   test "named place menu and text search include boundary photos in their persisted location" do
     get search_path
     assert_response :success
-    place_id = css_select("select#place_id option").find { |option| option.text == "Synthetic boundary place" }&.[]("value")
-    assert_equal PhotoLocation.place_id_for_name("Synthetic boundary place"), place_id
+    place_id = css_select("select#place_id option").find { |option| option.text.start_with?("Synthetic boundary place") }&.[]("value")
+    assert_equal PhotoLocation.id_for_place(@place), place_id
 
     [ { place_id: place_id }, { q: "Synthetic boundary place" } ].each do |filters|
       get search_path(filters)

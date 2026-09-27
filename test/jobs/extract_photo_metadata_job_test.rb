@@ -14,6 +14,46 @@ class ExtractPhotoMetadataJobTest < ActiveJob::TestCase
     assert_predicate metadata.extracted_at, :present?
   end
 
+  test "metadata re-extraction preserves manual place and coordinates while refreshing camera data" do
+    photo = attached_png
+    metadata = PhotoManualLocationAssigner.assign!(photo: photo, address: "Owner venue", result: {
+      latitude: 44.75, longitude: -85.5, name: "Owner venue", identity_key: "google:manual-venue"
+    })
+    place = metadata.photo_place
+    image = FakeVipsImage.new({
+      "exif-ifd0-Make" => "Updated camera",
+      "exif-ifd3-GPSLatitude" => "10 0 0",
+      "exif-ifd3-GPSLatitudeRef" => "N",
+      "exif-ifd3-GPSLongitude" => "20 0 0",
+      "exif-ifd3-GPSLongitudeRef" => "E"
+    })
+    job = ExtractPhotoMetadataJob.new
+    job.define_singleton_method(:vips_image) { |_path| image }
+
+    job.perform(photo)
+
+    metadata.reload
+    assert_equal [ BigDecimal("44.75"), BigDecimal("-85.5") ], [ metadata.latitude, metadata.longitude ]
+    assert_equal place, metadata.photo_place
+    assert_equal "manual", metadata.location_source
+    assert_equal "Owner venue", metadata.raw.dig("manual_location", "address")
+    assert_equal "Updated camera", metadata.camera_make
+    assert_equal "Updated camera", metadata.raw["Make"]
+  end
+
+  test "re-extracting an image without EXIF retains legacy manual provenance" do
+    photo = attached_png
+    metadata = photo.create_metadata!(latitude: 40, longitude: -80, raw: {
+      "manual_location" => { "source" => "owner", "address" => "Known venue", "geocoded_name" => "Known venue" }
+    })
+
+    ExtractPhotoMetadataJob.perform_now(photo)
+
+    assert_equal "manual", metadata.reload.location_source
+    assert_equal [ 40, -80 ], [ metadata.latitude, metadata.longitude ]
+    assert_equal "Known venue", metadata.raw.dig("manual_location", "address")
+  end
+
   test "queues openrouter after metadata when the display derivative is already ready" do
     AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENROUTER_ENABLED, true)
     AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENROUTER_AUTO_NEW_ENABLED, true)

@@ -181,7 +181,7 @@ module ApplicationHelper
   def photo_location_place(metadata)
     return unless metadata&.location?
 
-    PhotoLocationPlace.find_by(location_id: PhotoLocation.id_for_coordinates(metadata.latitude, metadata.longitude))
+    metadata.photo_place
   end
 
   def google_maps_api_key

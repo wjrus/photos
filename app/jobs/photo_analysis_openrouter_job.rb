@@ -206,8 +206,7 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
     context[:capture_date] = captured_at.to_date.iso8601 if captured_at
 
     if metadata&.location?
-      location_id = PhotoLocation.id_for_coordinates(metadata.latitude, metadata.longitude)
-      place = PhotoLocationPlace.find_by(location_id: location_id)
+      place = metadata.photo_place
       location_name = approximate_location_name(place)
       context[:approximate_location] = location_name if location_name
     end
@@ -245,7 +244,7 @@ class PhotoAnalysisOpenrouterJob < ApplicationJob
   end
 
   def approximate_location_name(place)
-    return unless place && !place.plus_code_name?
+    return unless place && place.place_type != "coordinate" && !LocationReverseGeocoder.plus_code_name?(place.name)
 
     components = place.raw.fetch("address_components", [])
     locality = component_name(components, %w[locality postal_town administrative_area_level_3 administrative_area_level_2])

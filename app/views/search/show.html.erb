@@ -66,8 +66,7 @@
                     <select id="place_id" name="place_id" class="mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/15">
                       <option value="">Any place</option>
                       <% @filter_options[:places].each do |place| %>
-                        <% place_id = PhotoLocation.place_id_for_name(place.name) %>
-                        <option value="<%= place_id %>" <%= "selected" if @search_params[:place_id].to_s == place_id %>><%= place.name %></option>
+                        <option value="<%= place.id %>" <%= "selected" if @search_params[:place_id].to_s == place.id %>><%= place.title %> · <%= PhotoLocation.title_for(place.latitude, place.longitude) %></option>
                       <% end %>
                     </select>
                   </div>

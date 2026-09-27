@@ -1,78 +1,68 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT"
+usage() {
+  cat <<'USAGE'
+Usage:
+  ./scripts/geocode-locations [--refresh] [limit] [service]
 
-source "$ROOT/scripts/lib/compose_env"
-load_compose_env
+Examples:
+  ./scripts/geocode-locations
+  ./scripts/geocode-locations 100
+  ./scripts/geocode-locations --refresh 100
 
-REFRESH="${GEOCODE_REFRESH:-0}"
+Queues one bounded per-photo place-resolution batch (default 100, maximum 1000).
+Known manual assignments are preserved. Legacy owner-entered photo locations
+are restored from their own metadata without a Google request. Other unresolved
+photos use throttled, cached reverse geocoding when an API key is configured.
+--refresh also rematches automatic assignments; it never deletes saved places,
+legacy names, or manual edits. Refresh selects the oldest metadata first and
+successful matches advance the next batch. Wait for each batch's photo jobs to
+finish before repeating it; failed lookups remain retryable. No further batches
+are queued automatically.
+USAGE
+}
 
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+REFRESH="0"
 if [[ "${1:-}" == "--refresh" ]]; then
   REFRESH="1"
   shift
 fi
 
-LIMIT="${1:-all}"
-SERVICE="${2:-web}"
-SCAN_LIMIT="${GEOCODE_SCAN_LIMIT:-$LIMIT}"
-
-if [[ "$LIMIT" == "-h" || "$LIMIT" == "--help" ]]; then
-  cat <<'USAGE'
-Usage:
-  ./scripts/geocode-locations [--refresh] [limit|all] [service]
-
-Examples:
-  ./scripts/geocode-locations
-  ./scripts/geocode-locations 100
-  ./scripts/geocode-locations --refresh
-  ./scripts/geocode-locations --refresh all
-
-Queues missing location-name lookups. Results are stored in
-photo_location_places, so completed names persist. Use --refresh to replace
-stored place names and location tag hierarchies. By default this scans and
-queues all grouped photo locations; pass a number for a bounded run.
-USAGE
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
   exit 0
 fi
+
+LIMIT="${1:-100}"
+SERVICE="${2:-web}"
+if [[ ! "$LIMIT" =~ ^[0-9]{1,4}$ ]] || (( 10#$LIMIT < 1 || 10#$LIMIT > 1000 )) || (( $# > 2 )); then
+  printf '%s\n' 'Limit must be an integer from 1 to 1000.' >&2
+  exit 2
+fi
+if [[ ! "$SERVICE" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ ]]; then
+  printf '%s\n' 'Service must be a Compose service name.' >&2
+  exit 2
+fi
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+source "$ROOT/scripts/lib/compose_env"
+load_compose_env
 
 docker compose exec -T \
   -e GEOCODE_LIMIT="$LIMIT" \
   -e GEOCODE_REFRESH="$REFRESH" \
-  -e GEOCODE_SCAN_LIMIT="$SCAN_LIMIT" \
   "$SERVICE" bin/rails runner "$(cat <<'RUBY'
-limit_value = ENV.fetch("GEOCODE_LIMIT", "all")
+limit = Integer(ENV.fetch("GEOCODE_LIMIT", "100"), 10)
 refresh = ENV.fetch("GEOCODE_REFRESH", "0") == "1"
-scan_limit_value = ENV.fetch("GEOCODE_SCAN_LIMIT", limit_value)
-limit = limit_value == "all" ? nil : Integer(limit_value)
-scan_limit = scan_limit_value == "all" ? nil : Integer(scan_limit_value)
-
-abort "GOOGLE_MAPS_GEOCODING_API_KEY, GOOGLE_GEOCODING_API_KEY, or GOOGLE_MAPS_EMBED_API_KEY is not set; cannot geocode locations." if LocationReverseGeocoder.api_key.blank?
-
-scope = Photo
-  .not_archived
-  .where(restricted: false)
-  .joins(:metadata)
-  .where.not(photo_metadata: { latitude: nil, longitude: nil })
-
-rows = PhotoLocation.rows(scope, limit: scan_limit).to_a
-ids = rows.map { |row| PhotoLocation.id_for_coordinates(row.latitude, row.longitude) }
-deleted = refresh ? PhotoLocationPlace.where(location_id: ids).delete_all : 0
-existing_ids = refresh ? [] : PhotoLocationPlace.where(location_id: ids).pluck(:location_id)
-queued = 0
-
-rows.each do |row|
-  location_id = PhotoLocation.id_for_coordinates(row.latitude, row.longitude)
-  next if existing_ids.include?(location_id)
-
-  GeocodePhotoLocationJob.perform_later(location_id, row.latitude, row.longitude)
-  queued += 1
-  break if limit && queued >= limit
-end
-
-puts "Deleted #{deleted} existing location #{'row'.pluralize(deleted)}." if refresh
-puts "Scanned #{rows.size} grouped photo #{'location'.pluralize(rows.size)}."
-puts "Queued #{queued} location geocode #{'job'.pluralize(queued)}."
+GeocodeMissingPhotoLocationsJob.perform_later(limit: limit, refresh: refresh)
+puts "Queued a place-resolution batch for up to #{limit} photos#{refresh ? ' including automatic rematches' : ''}."
+puts "External lookups require a configured geocoding key; manual restoration does not."
 RUBY
 )"

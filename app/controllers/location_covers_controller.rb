@@ -18,6 +18,12 @@ class LocationCoversController < ApplicationController
   def set_location
     @location_id = params[:location_id].to_s
     raise ActiveRecord::RecordNotFound unless PhotoLocation.valid_id?(@location_id)
+    if PhotoLocation.legacy_place_id?(@location_id)
+      candidates = PhotoLocation.legacy_groups(geotagged_photos, @location_id)
+      raise ActiveRecord::RecordNotFound unless candidates.one?
+
+      @location_id = candidates.first.id
+    end
   end
 
   def location_photo_scope

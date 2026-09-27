@@ -18,10 +18,7 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
   test "owner can browse photo locations" do
     photo = attached_photo(title: "Downtown")
     geotag(photo, latitude: 44.7622, longitude: -85.5980)
-    PhotoLocationPlace.create!(
-      location_id: location_id_for(photo),
-      name: "Traverse City, Michigan"
-    )
+    place = assign_photo_place(photo, name: "Traverse City, Michigan")
 
     get locations_path
 
@@ -30,29 +27,25 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Traverse City, Michigan"
     assert_includes response.body, "1 photo location"
     assert_includes response.body, "1 photo"
-    assert_select "a[href='#{location_path(PhotoLocation.place_id_for_name("Traverse City, Michigan"))}']"
+    assert_select "a[href='#{location_path(PhotoLocation.id_for_place(place))}']"
   end
 
-  test "locations index groups cells with the same place name" do
+  test "locations index groups cells assigned to the same place" do
     first = attached_photo(title: "First place cell")
     geotag(first, latitude: 44.7622, longitude: -85.5980)
     second = attached_photo(title: "Second place cell")
     geotag(second, latitude: 44.8022, longitude: -85.6380)
     place_name = "Traverse City, Michigan"
 
-    [ first, second ].each do |photo|
-      PhotoLocationPlace.create!(
-        location_id: location_id_for(photo),
-        name: place_name
-      )
-    end
+    place = assign_photo_place(first, name: place_name)
+    assign_photo_place(second, place: place)
 
     get locations_path
 
     assert_response :success
     assert_includes response.body, "1 photo location"
     assert_includes response.body, "2 photos"
-    assert_select "a[href='#{location_path(PhotoLocation.place_id_for_name(place_name))}']"
+    assert_select "a[href='#{location_path(PhotoLocation.id_for_place(place))}']"
   end
 
   test "incomplete coordinates do not create extra locations or inflate the zero cell" do
@@ -67,7 +60,7 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "1 photo location"
     assert_select "article", count: 1
-    assert_select "a[href='#{location_path("0_0")}']"
+    assert_select "a[href='#{location_path(PhotoLocation.id_for_area("0_0"))}']"
 
     get location_path("0_0")
     assert_response :success
@@ -83,8 +76,9 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     geotag(first, latitude: "44.774999", longitude: "-85.575000")
     geotag(boundary, latitude: "44.775000", longitude: "-85.575000")
     geotag(outside, latitude: "44.775001", longitude: "-85.575000")
-    PhotoLocationPlace.create!(location_id: location_id_for(boundary), name: "Boundary town")
-    named_id = PhotoLocation.place_id_for_name("Boundary town")
+    place = assign_photo_place(first, name: "Boundary town")
+    assign_photo_place(boundary, place: place)
+    named_id = PhotoLocation.id_for_place(place)
 
     get locations_path
     assert_response :success
@@ -105,10 +99,8 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     geotag(photo, latitude: 44.7622, longitude: -85.5980)
     video = attached_video(title: "Place video")
     geotag(video, latitude: 44.7623, longitude: -85.5981)
-    PhotoLocationPlace.create!(
-      location_id: location_id_for(photo),
-      name: "Traverse City, Michigan"
-    )
+    place = assign_photo_place(photo, name: "Traverse City, Michigan")
+    assign_photo_place(video, place: place)
 
     get locations_path
 
@@ -166,14 +158,10 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     geotag(outside, latitude: 45.5, longitude: -86.5)
     place_name = "Traverse City, Michigan"
 
-    [ first, second ].each do |photo|
-      PhotoLocationPlace.create!(
-        location_id: location_id_for(photo),
-        name: place_name
-      )
-    end
+    place = assign_photo_place(first, name: place_name)
+    assign_photo_place(second, place: place)
 
-    get location_path(PhotoLocation.place_id_for_name(place_name))
+    get location_path(PhotoLocation.id_for_place(place))
 
     assert_response :success
     assert_includes response.body, "First grouped place"
@@ -185,12 +173,9 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     photo = attached_photo(title: "Paris photo")
     geotag(photo, latitude: 48.8566, longitude: 2.3522)
     place_name = "Paris, Île-de-France"
-    PhotoLocationPlace.create!(
-      location_id: location_id_for(photo),
-      name: place_name
-    )
+    place = assign_photo_place(photo, name: place_name)
 
-    get location_path(PhotoLocation.place_id_for_name(place_name))
+    get location_path(PhotoLocation.id_for_place(place))
 
     assert_response :success
     assert_includes response.body, place_name
@@ -212,17 +197,14 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
   test "location page shows matching photos as a stream" do
     inside = attached_photo(title: "Inside location")
     geotag(inside, latitude: 44.7622, longitude: -85.5980)
-    PhotoLocationPlace.create!(
-      location_id: location_id_for(inside),
-      name: "Traverse City, Michigan"
-    )
+    assign_photo_place(inside, name: "Traverse City, Michigan")
     outside = attached_photo(title: "Outside location")
     geotag(outside, latitude: 45.5, longitude: -86.5)
 
     get location_path(location_id_for(inside))
 
     assert_response :success
-    assert_includes response.body, "Traverse City, Michigan"
+    assert_includes response.body, "44.7622, -85.5980"
     assert_includes response.body, "Inside location"
     refute_includes response.body, "Outside location"
     assert_select "a[href*='#{map_path}'][href*='location_id=#{location_id_for(inside)}'][href*='north=44.802200'][href*='south=44.722200'][href*='east=-85.558000'][href*='west=-85.638000']", text: "Map"
@@ -334,12 +316,12 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_select "p", text: /1 photo, 1 video/
   end
 
-  test "location detail may enqueue only its missing geocode" do
+  test "browsing an unmatched area does not launch additional geocoding" do
     ENV["GOOGLE_MAPS_EMBED_API_KEY"] = "test-key"
     inside = attached_photo(title: "Specific ungeocoded")
     geotag(inside, latitude: 44.7622, longitude: -85.5980)
 
-    assert_enqueued_with(job: GeocodePhotoLocationJob) do
+    assert_no_enqueued_jobs only: GeocodePhotoLocationJob do
       get location_path(location_id_for(inside))
     end
 
@@ -390,9 +372,9 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
   test "location pagination does not recalculate location summaries" do
     photo = attached_photo(title: "Location page photo")
     geotag(photo, latitude: 40, longitude: -80)
-    place = PhotoLocationPlace.create!(location_id: location_id_for(photo), name: "Synthetic place")
+    place = assign_photo_place(photo, name: "Synthetic place")
 
-    [ location_id_for(photo), PhotoLocation.place_id_for_name(place.name) ].each do |location_id|
+    [ location_id_for(photo), PhotoLocation.id_for_place(place) ].each do |location_id|
       queries = []
       subscriber = ->(event) { queries << event.payload[:sql] unless event.payload[:cached] }
 

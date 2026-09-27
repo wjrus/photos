@@ -226,15 +226,14 @@ class RepositoryStatusController < ApplicationController
   end
 
   def location_status
-    rows = PhotoLocation.rows(geotagged_photos, limit: GeocodeMissingPhotoLocationsJob::MAX_LIMIT).to_a
-    location_ids = rows.map { |row| PhotoLocation.id_for_coordinates(row.latitude, row.longitude) }
-    places = PhotoLocationPlace.where(location_id: location_ids).to_a
-    named_count = places.count { |place| !place.plus_code_name? }
+    scope = geotagged_photos
+    matched_count = scope.where.not(photo_metadata: { photo_place_id: nil }).count
+    missing_count = scope.where(photo_metadata: { photo_place_id: nil }).count
 
     {
-      buckets: rows.size,
-      named: named_count,
-      missing: [ rows.size - named_count, 0 ].max,
+      buckets: matched_count + missing_count,
+      named: matched_count,
+      missing: missing_count,
       geocoder_configured: LocationReverseGeocoder.api_key.present?
     }
   end

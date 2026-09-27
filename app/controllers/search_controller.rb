@@ -72,10 +72,8 @@ class SearchController < ApplicationController
   end
 
   def place_filter_options(metadata)
-    location_ids = metadata
-      .geotagged
-      .select(Arel.sql(PhotoLocation.coordinate_id_sql))
-
-    PhotoLocationPlace.where(location_id: location_ids).select(:name).distinct.order(:name)
+    scope = Photo.where(id: metadata.geotagged.select(:photo_id)).joins(:metadata)
+      .where.not(photo_metadata: { photo_place_id: nil })
+    PhotoLocation.groups(scope).sort_by { |place| [ place.title.downcase, place.id ] }
   end
 end

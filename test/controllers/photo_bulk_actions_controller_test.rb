@@ -132,7 +132,7 @@ class PhotoBulkActionsControllerTest < ActionDispatch::IntegrationTest
       assert_equal "Traverse City, MI", metadata.raw.dig("manual_location", "address")
     end
     assert_equal "kept", first.metadata.raw.dig("camera")
-    place = PhotoLocationPlace.find_by!(location_id: PhotoLocation.id_for_coordinates(44.760800, -85.622800))
+    place = first.reload.metadata.photo_place
     assert_equal "Traverse City, MI, USA", place.name
   end
 
