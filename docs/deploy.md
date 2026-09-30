@@ -129,7 +129,7 @@ docker compose exec worker bin/rails console
 
 ### September 2026 Dependency Update
 
-This update uses Ruby 3.4.10, Bundler 4.0.21, nginx 1.30.5, current compatible
+This update uses Ruby 3.4.10, Rails 8.1.4, Bundler 4.0.21, nginx 1.30.5, current compatible
 Ruby dependencies, and a universal Python dependency lock. Normal
 `./scripts/deploy` builds the analysis image automatically and applies pulled
 proxy images. No additional database migration is required.
@@ -139,8 +139,8 @@ fresh sign-in; valid remember-me cookies can establish a new session. Subsequent
 password changes revoke existing sessions and remember-me tokens. Login and
 password-reset rate limits use the shared Rails cache in production.
 
-JSON stays on 2.21.x because Rails 8.1.3.1 passes positional parser options
-removed by JSON 3. Marcel and Retriable remain on the versions allowed by Rails
+JSON remains pinned to 2.21.x; its major-version upgrade is outside this update.
+Marcel and Retriable remain on the versions allowed by Rails
 and the Google API client. Do not bypass these upstream constraints.
 
 Solid Queue 1.7 remains compatible with the existing queue schema. Its optional
