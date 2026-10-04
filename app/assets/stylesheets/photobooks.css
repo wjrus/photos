@@ -71,6 +71,9 @@
 .photobook-drop-zone:focus-visible, .is-dragging .photobook-drop-zone, .photobook-drop-zone.is-drag-over { border-color: var(--theme-accent); }
 .photobook-drop-zone:focus-visible span, .is-dragging .photobook-drop-zone span { opacity: 1; }
 .photobook-drop-zone.is-drag-over { background: #fafafa90; }
+.photobook-drop-zone.is-repositionable { cursor: grab; touch-action: none; user-select: none; }
+.photobook-drop-zone.is-repositioning { cursor: grabbing; }
+.photobook-drop-zone.is-repositioning span { opacity: 0; }
 .photobook-photo-slot { border: 1px solid var(--theme-border); border-radius: 8px; padding: 10px; }
 .photobook-photo-slot h3 { margin-bottom: 8px; }
 /* Keep Save in place when preview status changes as an input loses focus. */

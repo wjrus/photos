@@ -13,7 +13,7 @@
         <% style = PhotoBookTypography.resolve(book.cover_style, full: book.cover_layout == "full", color: book.text_color) %>
         <%= link_to photo_book_path(book), class: "photobook-card photobook-book-card" do %>
           <div class="photobook-book-cover photobook-book-cover--<%= book.cover_layout %> photobook-book-cover--<%= style.fetch("position") %>" style="background-color: <%= book.background_color %>; color: <%= style.fetch("color") %>; font-family: '<%= PhotoBookTypography::FONTS.fetch(style.fetch("font")).fetch(:family) %>'; text-align: <%= style.fetch("alignment") %>; font-size: <%= style.fetch("size") / 36.0 * 1.6 %>rem">
-            <%= image_tag display_photo_path(@covers.fetch(book.cover_photo_id)), alt: "", loading: "lazy", class: "photobook-book-cover-photo" if @covers.key?(book.cover_photo_id) %>
+            <%= image_tag display_photo_path(@covers.fetch(book.cover_photo_id)), alt: "", loading: "lazy", class: "photobook-book-cover-photo", style: book.cover_layout == "full" ? "object-position: #{book.cover_focus_x}% #{book.cover_focus_y}%" : nil if @covers.key?(book.cover_photo_id) %>
             <span style="<%= "text-shadow: 1px 1px #{style.fetch('shadow_color')}" if style.fetch("shadow") %>"><%= book.cover_title.presence || book.title %></span>
           </div>
           <h2><%= book.title %></h2><p><%= book.dimensions.fetch(:label) %> · Layflat</p>

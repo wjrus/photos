@@ -178,6 +178,84 @@ class PhotobooksTest < ApplicationSystemTestCase
     assert_selector "#photobook-preview text", text: "At sunset."
   end
 
+  test "full-cover photos can be dragged bounded centered and saved with keyboard adjustments" do
+    @book.update!(cover_photo: @photo, cover_layout: "full")
+    visit photo_book_path(@book)
+    assert_selector "#photobook-preview button[data-cover-reposition='true']"
+    assert_field "Cover photo horizontal position", with: "50"
+    assert_equal(-52.5, find("#photobook-preview image")["x"].to_f)
+    stale_preview = page.evaluate_script("document.querySelector('#photobook-preview').outerHTML")
+    bounds = cover_center
+    mouse_cover("mousePressed", bounds)
+    mouse_cover("mouseMoved", bounds.merge("x" => bounds.fetch("x") + 70))
+    assert_selector "#photobook-preview button.is-repositioning"
+    position = find_field("Cover photo horizontal position").value.to_i
+    assert_operator position, :<, 50
+    assert_equal 50, @book.reload.cover_focus_x
+    assert_in_delta(-105 * position / 100.0, find("#photobook-preview image")["x"].to_f, 0.01)
+    page.evaluate_async_script("const done = arguments[arguments.length - 1]; window.Turbo.renderStreamMessage('<turbo-stream action=\"replace\" target=\"photobook-preview\"><template>' + arguments[0] + '</template></turbo-stream>'); requestAnimationFrame(() => requestAnimationFrame(done))", stale_preview)
+    assert_selector "#photobook-preview button.is-repositioning"
+    assert_in_delta(-105 * position / 100.0, find("#photobook-preview image")["x"].to_f, 0.01)
+    mouse_cover("mouseMoved", bounds.merge("x" => bounds.fetch("x") + 270))
+    mouse_cover("mouseReleased", bounds.merge("x" => bounds.fetch("x") + 270))
+    assert_field "Cover photo horizontal position", with: "0"
+    assert_selector "#photobook-preview image[x='0.0']"
+    find("#photobook-preview button[data-cover-reposition='true']").send_keys(:arrow_left)
+    assert_field "Cover photo horizontal position", with: "1"
+    assert_selector "#photobook-preview image[x='-1.05']"
+    assert_selector "#photobook-preview button:focus"
+    click_button "Save cover"
+    assert_text "Book settings saved."
+    assert_equal 1, @book.reload.cover_focus_x
+    assert_equal 50, @book.back_focus_x
+    assert_selector "#photobook-preview image[x='-1.05']"
+    click_button "Center photo"
+    assert_field "Cover photo horizontal position", with: "50"
+    assert_selector "#photobook-preview image[x='-52.5']"
+    select "Whole photo with whitespace", from: "Cover photo layout"
+    assert_no_field "Cover photo horizontal position"
+    assert_no_selector "#photobook-preview button[data-cover-reposition='true']"
+    select "Full cover photo", from: "Cover photo layout"
+    assert_selector "#photobook-preview button[data-cover-reposition='true']"
+    page.save_screenshot(Rails.root.join("tmp/screenshots/photobook-cover-position.png"))
+    assert_axe_clean
+  end
+
+  test "touch can position a portrait back cover and cancellation restores the crop" do
+    portrait = book_photo(width: 1600, height: 2400)
+    @book.add_photos!([ portrait ])
+    @book.update!(back_photo: portrait, cover_layout: "full", cover_focus_x: 25)
+    page.driver.browser.manage.window.resize_to(390, 844)
+    page.driver.browser.execute_cdp("Emulation.setDeviceMetricsOverride", width: 390, height: 844, deviceScaleFactor: 1, mobile: true)
+    page.driver.browser.execute_cdp("Emulation.setTouchEmulationEnabled", enabled: true)
+    visit photo_book_path(@book, page_id: "back")
+    assert_selector "#photobook-preview button[data-cover-reposition='true']"
+    page.execute_script("document.querySelector('#photobook-preview button').scrollIntoView({ block: 'center' })")
+    bounds = cover_center
+    touch_cover("touchStart", bounds)
+    touch_cover("touchMove", bounds.merge("y" => bounds.fetch("y") + 30))
+    assert_selector "#photobook-preview button.is-repositioning"
+    assert_operator find_field("Cover photo vertical position").value.to_i, :<, 50
+    touch_cover("touchCancel")
+    assert_field "Cover photo vertical position", with: "50"
+    assert_in_delta(-52.5, find("#photobook-preview image")["y"].to_f, 0.01)
+    touch_cover("touchStart", bounds)
+    touch_cover("touchMove", bounds.merge("y" => bounds.fetch("y") - 30))
+    position = find_field("Cover photo vertical position").value.to_i
+    assert_operator position, :>, 50
+    touch_cover("touchEnd")
+    assert_selector "#photobook-preview image[y='#{-105 * position / 100.0}']"
+    assert_operator page.evaluate_script("document.documentElement.scrollWidth"), :<=, 390
+    page.save_screenshot(Rails.root.join("tmp/screenshots/photobook-cover-position-mobile.png"))
+    click_button "Save cover"
+    assert_text "Book settings saved."
+    assert_equal position, @book.reload.back_focus_y
+    assert_equal 25, @book.cover_focus_x
+    assert_axe_clean
+  ensure
+    page.driver.browser.execute_cdp("Emulation.setTouchEmulationEnabled", enabled: false)
+  end
+
   test "a delayed tray render cannot make a newly placed photo available again" do
     visit photo_book_path(@book, page_id: @book.pages.to_a[1].id)
     stale_tray = page.evaluate_async_script("const done = arguments[arguments.length - 1]; fetch(arguments[0], { headers: { Accept: 'text/vnd.turbo-stream.html' } }).then(response => response.text()).then(done)", tray_photo_book_path(@book))
@@ -275,6 +353,18 @@ class PhotobooksTest < ApplicationSystemTestCase
   end
 
   private
+
+  def cover_center
+    page.evaluate_script("(() => { const r = document.querySelector('#photobook-preview button').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 } })()")
+  end
+
+  def mouse_cover(type, point)
+    page.driver.browser.execute_cdp("Input.dispatchMouseEvent", type: type, x: point.fetch("x"), y: point.fetch("y"), button: "left", buttons: type == "mouseReleased" ? 0 : 1, clickCount: 1)
+  end
+
+  def touch_cover(type, point = nil)
+    page.driver.browser.execute_cdp("Input.dispatchTouchEvent", type: type, touchPoints: point ? [ { x: point.fetch("x"), y: point.fetch("y"), id: 0 } ] : [])
+  end
 
   def set_color(id, color)
     page.execute_script("const input = document.getElementById(arguments[0]); input.value = arguments[1]; input.dispatchEvent(new Event('input', { bubbles: true }))", id, color)

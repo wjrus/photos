@@ -4,7 +4,7 @@ const PHOTO_DRAG_TYPE = "application/x-photos-photobook"
 const TWO_PHOTO_LAYOUTS = ["two_horizontal", "two_vertical"]
 
 export default class extends Controller {
-  static targets = ["form", "layout", "primary", "secondary", "caption", "crop", "fit", "status", "photoInput", "slot", "primaryCaption", "secondaryCaption", "addPhoto", "tray", "trayPhoto", "captionToggle", "showCaptions", "secondaryCaptionField", "textStyle"]
+  static targets = ["form", "layout", "primary", "secondary", "caption", "crop", "fit", "status", "photoInput", "slot", "primaryCaption", "secondaryCaption", "addPhoto", "tray", "trayPhoto", "captionToggle", "showCaptions", "secondaryCaptionField", "textStyle", "coverPosition", "coverFocusX", "coverFocusY", "coverCropHandle"]
   static values = { previewUrl: String, trayUrl: String }
 
   connect() {
@@ -18,6 +18,7 @@ export default class extends Controller {
   }
 
   disconnect() {
+    this.coverDrag = null
     clearTimeout(this.previewTimer)
     this.previewRequest?.abort()
     this.trayRequest?.abort()
@@ -41,6 +42,12 @@ export default class extends Controller {
     if (this.dirty && !window.confirm("This page has unsaved changes. Leave without saving?")) event.preventDefault()
   }
 
+  beforePreviewRender(event) {
+    // A preview already queued by Turbo must not replace the captured pointer
+    // while positioning a cover. Releasing the pointer requests a fresh preview.
+    if (this.coverDrag && event.target.getAttribute("target") === "photobook-preview") event.preventDefault()
+  }
+
   schedulePreview(event) {
     this.dirty = true
     this.updateCoverColors(event)
@@ -59,7 +66,11 @@ export default class extends Controller {
   }
 
   updateFields() {
-    if (!this.hasLayoutTarget || this.isCover) return
+    if (!this.hasLayoutTarget) return
+    if (this.isCover) {
+      this.coverPositionTarget.hidden = this.layoutTarget.value !== "full" || !this.activePhotoIds().length
+      return
+    }
     const layout = this.layoutTarget.value
     const twoPhotos = TWO_PHOTO_LAYOUTS.includes(layout)
     const captionLayout = twoPhotos || layout === "caption"
@@ -168,13 +179,124 @@ export default class extends Controller {
   }
 
   chooseSlot(event) {
+    if (performance.now() < (this.ignoreClickUntil || 0)) return
     if (this.selectedPhoto) this.placePhoto(this.selectedPhoto, event.currentTarget.dataset.photoSlot)
+    else if (event.currentTarget.dataset.coverReposition === "true") this.statusTarget.textContent = "Drag the photo to position it, or use the position sliders. Select a tray photo to replace it."
     else this.statusTarget.textContent = "Select a photo in the tray first, or drag a photo into this area."
+  }
+
+  coverCropHandleTargetConnected(handle) {
+    if (this.restoreCoverFocus) {
+      if (document.activeElement === document.body) handle.focus({ preventScroll: true })
+      this.restoreCoverFocus = false
+    }
+  }
+
+  coverGeometry(handle) {
+    if (!this.isCover || this.layoutTarget.value !== "full" || handle.dataset.coverReposition !== "true" || this.selectedPhoto || this.draggedPhoto) return null
+    const svg = handle.parentElement.querySelector("svg")
+    const image = svg?.querySelector("image")
+    if (!image || image.dataset.photoId !== this.photoInputTargets[0].value) return null
+    const box = svg.getBoundingClientRect()
+    const view = svg.viewBox.baseVal
+    return {
+      image, scaleX: view.width / box.width, scaleY: view.height / box.height,
+      overflowX: Math.max(0, Number(image.getAttribute("width")) - view.width),
+      overflowY: Math.max(0, Number(image.getAttribute("height")) - view.height)
+    }
+  }
+
+  setCoverPosition(x, y, geometry) {
+    this.coverFocusXTarget.value = Math.round(Math.max(0, Math.min(100, x)))
+    this.coverFocusYTarget.value = Math.round(Math.max(0, Math.min(100, y)))
+    if (geometry) {
+      geometry.image.setAttribute("x", -geometry.overflowX * Number(this.coverFocusXTarget.value) / 100)
+      geometry.image.setAttribute("y", -geometry.overflowY * Number(this.coverFocusYTarget.value) / 100)
+    }
+  }
+
+  startCoverDrag(event) {
+    if (!event.isPrimary || event.button !== 0) return
+    const geometry = this.coverGeometry(event.currentTarget)
+    if (!geometry || (!geometry.overflowX && !geometry.overflowY)) return
+    clearTimeout(this.previewTimer)
+    this.previewRequest?.abort()
+    this.coverDrag = {
+      ...geometry, handle: event.currentTarget, pointerId: event.pointerId,
+      startX: event.clientX, startY: event.clientY,
+      focusX: Number(this.coverFocusXTarget.value), focusY: Number(this.coverFocusYTarget.value),
+      dirty: this.dirty, status: this.statusTarget.textContent, moved: false
+    }
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  moveCoverDrag(event) {
+    const drag = this.coverDrag
+    if (!drag || event.pointerId !== drag.pointerId) return
+    const dx = event.clientX - drag.startX
+    const dy = event.clientY - drag.startY
+    if (!drag.moved && Math.hypot(dx, dy) < 3) return
+    event.preventDefault()
+    drag.moved = true
+    drag.handle.classList.add("is-repositioning")
+    this.setCoverPosition(
+      drag.overflowX ? drag.focusX - dx * drag.scaleX / drag.overflowX * 100 : drag.focusX,
+      drag.overflowY ? drag.focusY - dy * drag.scaleY / drag.overflowY * 100 : drag.focusY,
+      drag
+    )
+    this.dirty = true
+    this.statusTarget.textContent = "Unsaved photo position. Save to keep your changes."
+  }
+
+  endCoverDrag(event) {
+    const drag = this.coverDrag
+    if (!drag || event.pointerId !== drag.pointerId) return
+    this.releaseCoverDrag(drag)
+    if (drag.moved) this.ignoreClickUntil = performance.now() + 300
+    if (drag.moved || drag.dirty) this.schedulePreview()
+  }
+
+  cancelCoverDrag(event) {
+    const drag = this.coverDrag
+    if (!drag || event.pointerId !== drag.pointerId) return
+    this.setCoverPosition(drag.focusX, drag.focusY, drag)
+    this.dirty = drag.dirty
+    this.statusTarget.textContent = drag.status
+    this.releaseCoverDrag(drag)
+    if (drag.dirty) this.schedulePreview()
+  }
+
+  releaseCoverDrag(drag) {
+    this.coverDrag = null
+    drag.handle.classList.remove("is-repositioning")
+    if (drag.handle.hasPointerCapture(drag.pointerId)) drag.handle.releasePointerCapture(drag.pointerId)
+  }
+
+  nudgeCoverPhoto(event) {
+    const directions = { ArrowLeft: [1, 0], ArrowRight: [-1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }
+    const direction = directions[event.key]
+    const geometry = direction && this.coverGeometry(event.currentTarget)
+    if (!geometry) return
+    event.preventDefault()
+    const step = event.shiftKey ? 10 : 1
+    this.setCoverPosition(
+      Number(this.coverFocusXTarget.value) + (geometry.overflowX ? direction[0] * step : 0),
+      Number(this.coverFocusYTarget.value) + (geometry.overflowY ? direction[1] * step : 0),
+      geometry
+    )
+    this.restoreCoverFocus = true
+    this.schedulePreview()
+  }
+
+  centerCoverPhoto() {
+    this.setCoverPosition(50, 50, this.hasCoverCropHandleTarget ? this.coverGeometry(this.coverCropHandleTarget) : null)
+    this.schedulePreview()
   }
 
   placePhoto(photo, slot) {
     const input = this.photoInputTargets.find((field) => field.dataset.photoSlot === slot)
     if (!input) return
+    if (this.isCover && input.value !== photo.id) this.setCoverPosition(50, 50)
     if (!this.isCover) {
       if (["blank", "text"].includes(this.layoutTarget.value)) this.layoutTarget.value = "caption"
       if (slot === "secondary" && !TWO_PHOTO_LAYOUTS.includes(this.layoutTarget.value)) this.layoutTarget.value = "two_horizontal"

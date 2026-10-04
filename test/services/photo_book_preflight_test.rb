@@ -132,4 +132,25 @@ class PhotoBookPreflightTest < ActiveSupport::TestCase
     assert_equal "sans", cover.fetch(:texts).first.fetch(:font)
     assert_equal 24, cover.fetch(:texts).first.fetch(:size)
   end
+
+  test "cover crops stay filled at either edge and fit artwork stays centered" do
+    book, photo = book_with_photo
+    portrait = book_photo(width: 1600, height: 2400)
+    book.add_photos!([ portrait ])
+    book.update!(cover_photo: photo, back_photo: portrait, cover_layout: "full", cover_focus_x: 0, back_focus_y: 100)
+    layout = PhotoBookLayout.new(book.design_snapshot)
+    assert_equal({ x: 0.0, y: 0.0, width: 315.0, height: 210.0 }, layout.image_box(layout.pages.first.fetch(:images).first, width: 2400, height: 1600))
+    assert_equal({ x: 0.0, y: -105.0, width: 210.0, height: 315.0 }, layout.image_box(layout.pages.last.fetch(:images).first, width: 1600, height: 2400))
+    book.update!(cover_focus_x: 100, back_focus_y: 0)
+    layout = PhotoBookLayout.new(book.design_snapshot)
+    assert_equal(-105.0, layout.image_box(layout.pages.first.fetch(:images).first, width: 2400, height: 1600).fetch(:x))
+    assert_equal 0.0, layout.image_box(layout.pages.last.fetch(:images).first, width: 1600, height: 2400).fetch(:y)
+    old_snapshot = book.design_snapshot.except(*PhotoBook::COVER_POSITION_ATTRIBUTES)
+    old_layout = PhotoBookLayout.new(old_snapshot)
+    assert_equal(-52.5, old_layout.image_box(old_layout.pages.first.fetch(:images).first, width: 2400, height: 1600).fetch(:x))
+    book.update!(cover_layout: "fit")
+    fit_layout = PhotoBookLayout.new(book.design_snapshot)
+    assert_equal [ 50, 50 ], fit_layout.pages.first.fetch(:images).first.values_at(:focus_x, :focus_y)
+    assert_equal [ 50, 50 ], fit_layout.pages.last.fetch(:images).first.values_at(:focus_x, :focus_y)
+  end
 end

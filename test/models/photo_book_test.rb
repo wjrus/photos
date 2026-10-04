@@ -109,4 +109,19 @@ class PhotoBookTest < ActiveSupport::TestCase
     book.back_style = { font: "unknown" }
     assert_not book.valid?
   end
+
+  test "cover positions default to centered and are bounded independently" do
+    book, = book_with_photo
+    assert_equal [ 50, 50, 50, 50 ], book.attributes.values_at(*PhotoBook::COVER_POSITION_ATTRIBUTES)
+    digest = book.design_digest
+    book.update!(cover_focus_x: 0, cover_focus_y: 100, back_focus_x: 90, back_focus_y: 10)
+    assert_not_equal digest, book.design_digest
+    assert_equal [ 0, 100, 90, 10 ], book.design_snapshot.values_at(*PhotoBook::COVER_POSITION_ATTRIBUTES)
+    PhotoBook::COVER_POSITION_ATTRIBUTES.each do |attribute|
+      [ -1, 101, nil, 2.5 ].each do |value|
+        book.reload[attribute] = value
+        assert_not book.valid?, "#{attribute}=#{value.inspect}"
+      end
+    end
+  end
 end

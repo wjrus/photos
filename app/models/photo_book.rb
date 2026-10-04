@@ -9,6 +9,7 @@ class PhotoBook < ApplicationRecord
   MIN_PRINTED_PAGES = 20
   MAX_PRINTED_PAGES = 122
   DEFAULT_INSIDE_PAGES = 4
+  COVER_POSITION_ATTRIBUTES = %w[cover_focus_x cover_focus_y back_focus_x back_focus_y].freeze
 
   belongs_to :owner, class_name: "User", inverse_of: :photo_books
   belongs_to :cover_photo, class_name: "Photo", optional: true
@@ -26,6 +27,7 @@ class PhotoBook < ApplicationRecord
   validates :cover_title, :cover_subtitle, :spine_text, length: { maximum: 200 }
   validates :back_text, length: { maximum: 2000 }
   validates :background_color, :text_color, format: { with: /\A#[0-9a-fA-F]{6}\z/ }
+  validates(*COVER_POSITION_ATTRIBUTES, numericality: { only_integer: true, in: 0..100 })
   validate :cover_photos_are_in_book
   validate :valid_cover_typography
   after_create :create_initial_pages
@@ -88,7 +90,7 @@ class PhotoBook < ApplicationRecord
       width, height = self.class.oriented_dimensions(photo)
       { "id" => photo.id, "blob_id" => photo.original.blob&.id, "width" => width, "height" => height }
     end
-    attributes.slice("title", "format", "cover_layout", "cover_title", "cover_subtitle", "back_text", "spine_text", "background_color", "text_color", "cover_photo_id", "back_photo_id", "cover_style", "back_style")
+    attributes.slice("title", "format", "cover_layout", "cover_title", "cover_subtitle", "back_text", "spine_text", "background_color", "text_color", "cover_photo_id", "back_photo_id", "cover_style", "back_style", *COVER_POSITION_ATTRIBUTES)
       .merge("version" => 2, "pages" => page_data, "photos" => photo_data.sort_by { |photo| photo.fetch("id") })
   end
 

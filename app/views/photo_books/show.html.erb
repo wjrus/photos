@@ -1,6 +1,6 @@
 <% content_for :title, "#{@book.title} · Photobooks" %>
 <%= render "shared/site_header" %>
-<main class="photobook photobook-designer" data-controller="photobook-designer" data-photobook-designer-preview-url-value="<%= preview_photo_book_path(@book) %>" data-photobook-designer-tray-url-value="<%= tray_photo_book_path(@book) %>" data-action="turbo:before-visit@document->photobook-designer#beforeVisit">
+<main class="photobook photobook-designer" data-controller="photobook-designer" data-photobook-designer-preview-url-value="<%= preview_photo_book_path(@book) %>" data-photobook-designer-tray-url-value="<%= tray_photo_book_path(@book) %>" data-action="turbo:before-visit@document->photobook-designer#beforeVisit turbo:before-stream-render@document->photobook-designer#beforePreviewRender">
   <%= link_to "← Photobooks", photo_books_path, class: "photobook-back" %>
   <div class="photobook-heading">
     <div><p class="photobook-eyebrow">Layflat book</p><h1><%= @book.title %></h1><p><%= @book.dimensions.fetch(:label) %> · <%= @layout.pages.size - 2 %> inside pages + 2 covers</p></div>

@@ -5,6 +5,12 @@
     <%= form.hidden_field :lock_version %><%= hidden_field_tag :preview_key, @selected_key %>
     <div><%= form.label :cover_layout, "Cover photo layout" %><%= form.select :cover_layout, [["Whole photo with whitespace", "fit"], ["Full cover photo", "full"]], {}, data: { photobook_designer_target: "layout" } %></div>
     <div data-photobook-designer-target="primary"><%= render "photo_slot", form: form, field: back ? :back_photo_id : :cover_photo_id, slot: "primary", label: "Cover photo", photo: @preview_photos[back ? @book.back_photo_id : @book.cover_photo_id] %></div>
+    <div class="photobook-focus" data-photobook-designer-target="coverPosition">
+      <p class="photobook-note">Drag the photo on the preview to position it. Use these sliders for precise adjustments, or focus the photo and use arrow keys. Movement is limited to the cropped edges so the cover stays filled.</p>
+      <%= form.label back ? :back_focus_x : :cover_focus_x, "Cover photo horizontal position" %><%= form.range_field back ? :back_focus_x : :cover_focus_x, min: 0, max: 100, step: 1, data: { photobook_designer_target: "coverFocusX" } %>
+      <%= form.label back ? :back_focus_y : :cover_focus_y, "Cover photo vertical position" %><%= form.range_field back ? :back_focus_y : :cover_focus_y, min: 0, max: 100, step: 1, data: { photobook_designer_target: "coverFocusY" } %>
+      <button type="button" class="photobook-button" data-action="photobook-designer#centerCoverPhoto">Center photo</button>
+    </div>
     <% if back %>
       <div><%= form.label :back_text, "Back cover text" %><%= form.text_area :back_text, rows: 4, maxlength: 2000 %></div>
     <% else %>

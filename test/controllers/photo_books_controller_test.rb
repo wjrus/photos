@@ -116,6 +116,26 @@ class PhotoBooksControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Beside the lake.", source.caption
   end
 
+  test "cover positioning previews without saving and persists independently" do
+    @book.update!(cover_photo: @photo, back_photo: @photo, cover_layout: "full")
+    post preview_photo_book_path(@book), params: { preview_key: "front", photo_book: { cover_focus_x: "0", cover_focus_y: "25" } }, headers: { "Accept" => "text/vnd.turbo-stream.html" }
+    assert_response :success
+    assert_select "svg image[x='0.0'][y='0.0']", 1
+    assert_equal 50, @book.reload.cover_focus_x
+    patch photo_book_path(@book), params: { photo_book: { cover_focus_x: "0", cover_focus_y: "25", lock_version: @book.lock_version } }
+    assert_redirected_to photo_book_path(@book, page_id: "front")
+    assert_equal [ 0, 25, 50, 50 ], @book.reload.attributes.values_at(*PhotoBook::COVER_POSITION_ATTRIBUTES)
+    patch photo_book_path(@book), params: { preview_key: "back", photo_book: { back_focus_x: "100", back_focus_y: "75", lock_version: @book.lock_version } }
+    assert_equal [ 0, 25, 100, 75 ], @book.reload.attributes.values_at(*PhotoBook::COVER_POSITION_ATTRIBUTES)
+    get photo_book_path(@book, page_id: "back")
+    assert_select "#photobook-preview image[x='-105.0']", 1
+    post preview_photo_book_path(@book), params: { photo_book: { cover_focus_x: "101" } }
+    assert_response :unprocessable_entity
+    patch photo_book_path(@book), params: { photo_book: { back_focus_y: "-1", lock_version: @book.lock_version } }
+    assert_response :unprocessable_entity
+    assert_equal 75, @book.reload.back_focus_y
+  end
+
   test "page editing detects stale forms and reordering persists" do
     page = @book.pages.first
     version = page.lock_version

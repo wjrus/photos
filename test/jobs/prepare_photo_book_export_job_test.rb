@@ -52,6 +52,31 @@ class PreparePhotoBookExportJobTest < ActiveSupport::TestCase
     assert_equal "garamond_italic", export.snapshot.fetch("cover_style").fetch("font")
   end
 
+  test "export embeds the independently cropped cover artwork from its queued snapshot" do
+    book, = book_with_photo(print_ready: true)
+    photo = book_photo(width: 4800, height: 2400)
+    red = Vips::Image.black(2400, 2400, bands: 3).new_from_image([ 240, 20, 20 ])
+    blue = red.new_from_image([ 20, 20, 240 ])
+    photo.original.attach(io: StringIO.new(red.join(blue, :horizontal).pngsave_buffer), filename: "synthetic-two-colors.png", content_type: "image/png")
+    book.add_photos!([ photo ])
+    book.pages.each { |page| page.update!(layout: "blank") }
+    book.update!(cover_photo: photo, back_photo: photo, cover_layout: "full", cover_focus_x: 0, back_focus_x: 100)
+    export = pending_book_export(book)
+    book.update!(cover_focus_x: 100, back_focus_x: 0)
+    PreparePhotoBookExportJob.perform_now(export)
+    assert export.reload.ready?, export.error
+    # Inspect the JPEG artwork embedded in the completed PDF, rather than the
+    # requested crop alone. Opposite halves of the same source must stay distinct.
+    artwork = export.document.download.scan(/\xFF\xD8.*?\xFF\xD9/mn).map { |bytes| Vips::Image.new_from_buffer(bytes, "") }
+    assert_equal 2, artwork.size
+    front, back = artwork.map { |image| image.getpoint(image.width / 2, image.height / 2) }
+    assert_operator front[0], :>, 220
+    assert_operator front[2], :<, 30
+    assert_operator back[2], :>, 220
+    assert_operator back[0], :<, 30
+    artwork.each { |image| assert_equal image.width, image.height }
+  end
+
   test "actual original resolution is checked even when metadata claims higher resolution" do
     book, photo = book_with_photo(print_ready: true)
     photo.metadata.update!(width: 12000, height: 8000)

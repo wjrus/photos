@@ -66,7 +66,9 @@ class PhotoBookLayout
     photo_id = snapshot[front ? "cover_photo_id" : "back_photo_id"]
     full = snapshot.fetch("cover_layout") == "full"
     if photo_id
-      canvas[:images] << image(photo_id, full ? [ 0, 0, @width, @height ] : [ 10, 10, @width - 20, @height * 0.65 - 10 ], fit: full ? "fill" : "fit")
+      canvas[:images] << image(photo_id, full ? [ 0, 0, @width, @height ] : [ 10, 10, @width - 20, @height * 0.65 - 10 ], fit: full ? "fill" : "fit",
+        focus_x: full ? snapshot.fetch(front ? "cover_focus_x" : "back_focus_x", 50) : 50,
+        focus_y: full ? snapshot.fetch(front ? "cover_focus_y" : "back_focus_y", 50) : 50)
     end
     if snapshot.fetch("version", 1) >= 2
       style = PhotoBookTypography.resolve(snapshot.fetch(front ? "cover_style" : "back_style", {}), full: full,

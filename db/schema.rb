@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_04_160000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_04_170000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -331,9 +331,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_04_160000) do
     t.integer "lock_version", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "cover_focus_x", default: 50, null: false
+    t.integer "cover_focus_y", default: 50, null: false
+    t.integer "back_focus_x", default: 50, null: false
+    t.integer "back_focus_y", default: 50, null: false
     t.index ["back_photo_id"], name: "index_photo_books_on_back_photo_id"
     t.index ["cover_photo_id"], name: "index_photo_books_on_cover_photo_id"
     t.index ["owner_id"], name: "index_photo_books_on_owner_id"
+    t.check_constraint "back_focus_x >= 0 AND back_focus_x <= 100", name: "photo_books_back_focus_x"
+    t.check_constraint "back_focus_y >= 0 AND back_focus_y <= 100", name: "photo_books_back_focus_y"
+    t.check_constraint "cover_focus_x >= 0 AND cover_focus_x <= 100", name: "photo_books_cover_focus_x"
+    t.check_constraint "cover_focus_y >= 0 AND cover_focus_y <= 100", name: "photo_books_cover_focus_y"
     t.check_constraint "jsonb_typeof(back_style) = 'object'::text", name: "photo_books_back_style_object"
     t.check_constraint "jsonb_typeof(cover_style) = 'object'::text", name: "photo_books_cover_style_object"
     t.check_constraint "cover_layout::text = ANY (ARRAY['full'::character varying, 'fit'::character varying]::text[])", name: "photo_books_cover_layout"
