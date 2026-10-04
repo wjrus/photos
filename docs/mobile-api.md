@@ -256,7 +256,9 @@ Photo summaries return bearer-authenticated media paths:
 - `/photos/:id/media/thumbnail`: stripped JPEG thumbnail or video preview.
 - `/photos/:id/media/display`: stripped display JPEG for still images.
 - `/photos/:id/media/video`: generated playable video, once available.
-- `/photos/:id/media/original`: preserved original, owner-only.
+- `/photos/:id/media/original`: preserved original, owner-only download, served
+  with `Content-Disposition: attachment` to avoid rendering untrusted originals
+  such as SVG documents in the server's browser origin.
 
 These endpoints stream bounded storage chunks. Single HTTP byte ranges and suffix
 ranges are supported for video seeking or downloads. Multiple/unsatisfiable

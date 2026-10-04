@@ -68,7 +68,8 @@ module Api
         response.set_header("Content-Type", blob.content_type || "application/octet-stream")
         response.set_header("Content-Length", (last - first + 1).to_s)
         extension = variant == "original" ? File.extname(photo.original_filename) : (photo.video? && variant == "video" ? ".mp4" : ".jpg")
-        response.set_header("Content-Disposition", ActionDispatch::Http::ContentDisposition.format(disposition: "inline", filename: "photo-#{photo.id}#{extension}"))
+        disposition = variant == "original" ? "attachment" : "inline"
+        response.set_header("Content-Disposition", ActionDispatch::Http::ContentDisposition.format(disposition: disposition, filename: "photo-#{photo.id}#{extension}"))
         self.response_body = Enumerator.new do |stream|
           offset = first
           while offset <= last
