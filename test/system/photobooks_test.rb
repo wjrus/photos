@@ -301,25 +301,32 @@ class PhotobooksTest < ApplicationSystemTestCase
   end
 
   test "every page has a larger single preview and a marker for its place in the book" do
+    page.driver.browser.manage.window.resize_to(1706, 1289)
+    @book.update!(format: "landscape_a4", cover_photo: @photo, cover_layout: "full")
     second_page = @book.pages.to_a[1]
     second_page.update!(layout: "spread", primary_photo: @photo)
     visit photo_book_path(@book)
     assert_selector "#photobook-preview svg", count: 1
     assert_selector ".photobook-page-position", text: "Front cover"
-    assert_operator find("#photobook-preview svg").native.rect.width, :>, 560
+    artwork = find("#photobook-preview svg").native.rect
+    preview = find("#photobook-preview").native.rect
+    assert_operator artwork.width.to_f / preview.width, :>, 0.95
+    assert_in_delta 297.0 / 210, artwork.width.to_f / artwork.height, 0.01
+    assert_operator preview.y, :<, 350
+    page.save_screenshot(Rails.root.join("tmp/screenshots/photobook-compact-landscape-cover.png"))
     click_link "Back cover", exact: true
     assert_selector ".photobook-page-position", text: "Back cover"
     assert_selector "#photobook-preview svg", count: 1
     click_link "Page 2", exact: true
     assert_selector ".photobook-page-position", text: "Page 2 · Left page"
-    assert_selector "#photobook-preview svg[viewBox='0.0 0 210.0 210.0']", count: 1
+    assert_selector "#photobook-preview svg[viewBox='0.0 0 297.0 210.0']", count: 1
     click_link "Page 3", exact: true
     assert_selector ".photobook-page-position", text: "Page 3 · Right page"
     assert_selector ".photobook-page-link.is-active", count: 1, text: "Page 3"
-    assert_selector "#photobook-preview svg[viewBox='210.0 0 210.0 210.0']", count: 1
+    assert_selector "#photobook-preview svg[viewBox='297.0 0 297.0 210.0']", count: 1
     page.execute_script("const field = document.getElementById('photo_book_page_primary_focus_x'); field.value = 10; field.dispatchEvent(new Event('input', { bubbles: true }))")
     assert_selector ".photobook-page-position", text: "Page 3 · Right page"
-    assert_selector "#photobook-preview svg[viewBox='210.0 0 210.0 210.0']", count: 1
+    assert_selector "#photobook-preview svg[viewBox='297.0 0 297.0 210.0']", count: 1
     click_button "Facing pages"
     assert_selector "#photobook-preview svg", count: 2
     assert_field "First photo horizontal position", with: "10"

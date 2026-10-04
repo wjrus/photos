@@ -1,6 +1,6 @@
 <%= turbo_frame_tag "photobook-tray", data: { photobook_designer_target: "tray", turbo: false } do %>
   <div class="photobook-tray-heading"><h2>Photo tray</h2><p class="photobook-note"><%= @tray_unused_count %> unused <%= "photo".pluralize(@tray_unused_count) %></p></div>
-  <p class="photobook-note">Drag onto a photo area. On touch screens or with a keyboard, select a photo, then select its destination.</p>
+  <p class="photobook-note">Drag onto the page, or select a photo then its photo area.</p>
   <%= form_with url: tray_photo_book_path(@book), method: :get, class: "photobook-tray-search", data: { action: "submit->photobook-designer#searchTray" } do %>
     <%= hidden_field_tag :preview_key, @selected_key %>
     <%= hidden_field_tag :page_id, @selected_page.id if @selected_page %>

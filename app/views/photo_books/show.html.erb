@@ -3,7 +3,7 @@
 <main class="photobook photobook-designer" data-controller="photobook-designer" data-photobook-designer-preview-url-value="<%= preview_photo_book_path(@book) %>" data-photobook-designer-tray-url-value="<%= tray_photo_book_path(@book) %>" data-action="turbo:before-visit@document->photobook-designer#beforeVisit turbo:before-stream-render@document->photobook-designer#beforePreviewRender">
   <%= link_to "← Photobooks", photo_books_path, class: "photobook-back" %>
   <div class="photobook-heading">
-    <div><p class="photobook-eyebrow">Layflat book</p><h1><%= @book.title %></h1><p><%= @book.dimensions.fetch(:label) %> · <%= @layout.pages.size - 2 %> inside pages + 2 covers</p></div>
+    <div><h1><%= @book.title %></h1><p><%= @book.dimensions.fetch(:label) %> · <%= @layout.pages.size - 2 %> inside pages + 2 covers</p></div>
     <%= link_to "Book settings & covers", edit_photo_book_path(@book), class: "photobook-button" %>
   </div>
   <nav class="photobook-tabs" aria-label="Photobook sections">
@@ -25,7 +25,7 @@
       <div class="photobook-workspace">
       <div>
         <%= render "preview", layout: @layout, preview_pages: @preview_pages, preview_mode: @preview_mode, photos: @preview_photos, book: @book, selected_key: @selected_key %>
-        <p class="photobook-note">Drag a tray photo onto the selected page, or select a photo and then a photo area. Save your changes before switching pages.</p>
+        <p class="photobook-note">Save your changes before switching pages.</p>
         <div class="photobook-add-pages">
           <%= button_to "Add blank page", photo_book_pages_path(@book), params: { layout: "blank", view: @preview_mode }, class: "photobook-button" %>
           <%= button_to "Add two-page photo", photo_book_pages_path(@book), params: { layout: "spread", view: @preview_mode }, class: "photobook-button" %>
