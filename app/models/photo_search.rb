@@ -8,14 +8,15 @@ class PhotoSearch
 
   attr_reader :params, :user
 
-  def initialize(params:, user:, semantic: true)
+  def initialize(params:, user:, semantic: true, scope: nil)
     @params = params.symbolize_keys.slice(*self.class.filter_params_for(user))
     @user = user
     @semantic = semantic
+    @scope = scope || Photo.visible_to(user)
   end
 
   def results
-    scope = Photo.visible_to(user)
+    scope = @scope
       .left_outer_joins(:metadata)
 
     scope = apply_text(scope)

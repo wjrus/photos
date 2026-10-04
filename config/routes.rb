@@ -1,4 +1,40 @@
 Rails.application.routes.draw do
+  namespace :api do
+    namespace :v1 do
+      get "capabilities", to: "capabilities#show"
+      get "me", to: "capabilities#me"
+      resource :session, only: %i[create destroy] do
+        post :refresh
+      end
+      resources :devices, only: %i[index destroy]
+      resource :restricted_access, only: %i[create destroy]
+      resources :photos, only: %i[index show update destroy] do
+        get :timeline, on: :collection
+        post :bulk, on: :collection
+        get :navigation, on: :member
+        get :info, on: :member
+        post :media_url, on: :member
+        get "media/:variant", on: :member, action: :show, controller: "media", as: :media
+        resources :people_tags, only: %i[create destroy]
+      end
+      resources :albums do
+        post :bulk, on: :collection
+        put :cover, on: :member
+        post :photos, on: :member, action: :add_photos
+        delete :photos, on: :member, action: :remove_photos
+      end
+      resources :photo_books, only: %i[index create]
+      get "people", to: "people_tags#index"
+      get "map", to: "maps#show"
+      resources :locations, only: :index
+      resources :uploads, only: %i[index create show destroy] do
+        put "chunks/:position", on: :member, action: :chunk
+        put :file, on: :member
+        post :complete, on: :member
+      end
+    end
+  end
+
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.

@@ -48,6 +48,7 @@ The owner can upload, import, publish, unpublish, archive, restore, tag people, 
 - **Takeout imports**: Google Photos Takeout ZIP imports for backfilling the library and imported albums.
 - **Repository health**: owner-only patrol jobs that read originals, verify size/checksums, report problems, record important activity, and can optionally heal from Drive.
 - **Photo analysis**: opt-in provider pipelines for local embeddings, object detection, and external Qwen vision captions. See [Photo Analysis](docs/photo-analysis.md).
+- **Mobile API**: versioned device authentication, photo/album browsing, navigation, metadata/maps, bulk operations, scoped media URLs, and durable original uploads. See [Mobile API v1](docs/mobile-api.md).
 - **App settings**: runtime toggles stored in the database and managed from Repository Status. Environment files are for secrets and deploy wiring, not feature switches.
 
 ## Guest Album Links

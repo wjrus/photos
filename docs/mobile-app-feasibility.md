@@ -4,6 +4,11 @@ Reviewed October 4, 2026. This is a feasibility assessment, not an implementatio
 plan or a claim that native behavior has been tested. No mobile app has been
 started.
 
+The server API has subsequently been implemented. See [Mobile API v1](mobile-api.md)
+for its authentication, browsing, metadata/maps, bulk operations, media delivery,
+and upload contract. Native app behavior and the platform questions below remain
+to be validated.
+
 ## Proposed experience
 
 A reusable mobile client would connect to an independently hosted installation

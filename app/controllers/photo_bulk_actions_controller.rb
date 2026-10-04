@@ -8,101 +8,19 @@ class PhotoBulkActionsController < ApplicationController
   def create
     photos = selected_photos.to_a
     return redirect_to safe_return_path, alert: "Select at least one photo." if photos.empty?
-
-    case params[:bulk_action]
-    when "publish"
-      count = photos.size
-      return_path = bulk_return_path(photos)
-      photos.each(&:publish!)
-      redirect_to return_path, notice: "Published #{count} #{'photo'.pluralize(count)}."
-    when "unpublish"
-      count = photos.size
-      return_path = bulk_return_path(photos, removing_from_stream: public_return_path?)
-      photos.each(&:unpublish!)
-      redirect_to return_path, notice: "Unpublished #{count} #{'photo'.pluralize(count)}."
-    when "archive"
-      count = photos.size
-      return_path = bulk_return_path(photos, removing_from_stream: true)
-      photos.each(&:archive!)
-      redirect_to return_path, notice: "Archived #{count} #{'photo'.pluralize(count)}."
-    when "restrict"
-      count = photos.size
-      return_path = bulk_return_path(photos, removing_from_stream: true)
-      photos.each(&:restrict!)
-      redirect_to return_path, notice: "Moved #{count} #{'photo'.pluralize(count)} to Private."
-    when "restore"
-      count = photos.size
-      return_path = bulk_return_path(photos, removing_from_stream: true)
-      photos.each(&:restore!)
-      redirect_to return_path, notice: "Restored #{count} #{'photo'.pluralize(count)} to the stream."
-    when "remove_from_album"
-      album = context_album
-      return redirect_to safe_return_path, alert: "Open an album before removing photos from it." unless album
-
-      return_path = bulk_return_path(photos, removing_from_stream: true)
-      removed = remove_photos_from_album(photos, album)
-      redirect_to return_path, notice: "Removed #{removed} #{'photo'.pluralize(removed)} from #{album.title}."
-    when "set_album_cover"
-      album = context_album
-      return redirect_to safe_return_path, alert: "Open an album before setting its cover." unless album
-      return redirect_to safe_return_path, alert: "Select exactly one photo to use as the album cover." unless photos.one?
-
-      photo = album.photos.visible_to(current_user).find(photos.first.id)
-      album.update!(cover_photo: photo)
-      redirect_to bulk_return_path(photos), notice: "Album cover updated."
-    when "delete"
-      count = photos.size
-      return_path = bulk_return_path(photos, removing_from_stream: true)
-      photos.each(&:destroy!)
-      redirect_to return_path, notice: "Removed #{count} #{'photo'.pluralize(count)}."
-    when "add_to_album"
-      album = target_album
-      return redirect_to safe_return_path, alert: "Choose an album or name a new one." unless album
-
-      added = add_photos_to_album(photos, album)
-      redirect_to bulk_return_path(photos), notice: "Added #{added} #{'photo'.pluralize(added)} to #{album.title}."
-    when "add_to_photo_book"
-      add_to_photo_book(photos)
-    when "set_location"
-      address = params[:location_address].to_s.squish
-      return redirect_to safe_return_path, alert: "Enter an address or place name." if address.blank?
-
-      image_photos = photos.select(&:image?)
-      return redirect_to safe_return_path, alert: "Select at least one image photo." if image_photos.empty?
-
-      result = LocationAddressGeocoder.new.geocode(address: address)
-      unless result&.fetch(:latitude, nil).present? && result&.fetch(:longitude, nil).present?
-        return redirect_to safe_return_path, alert: "Location not found."
-      end
-
-      image_photos.each do |photo|
-        PhotoManualLocationAssigner.assign!(photo: photo, address: address, result: result)
-      end
-
-      skipped_count = photos.size - image_photos.size
-      notice = "Set location for #{image_photos.size} #{'photo'.pluralize(image_photos.size)}."
-      notice = "#{notice} Skipped #{skipped_count} non-image #{'item'.pluralize(skipped_count)}." if skipped_count.positive?
-      redirect_to bulk_return_path(image_photos), notice: notice
-    else
-      redirect_to safe_return_path, alert: "Choose an action."
-    end
-  end
-
-  private
-
-  def add_to_photo_book(photos)
-    book = if params[:new_photo_book_title].present?
-      current_user.photo_books.create!(title: params[:new_photo_book_title], cover_title: params[:new_photo_book_title])
-    elsif params[:photo_book_id].present?
-      current_user.photo_books.find(params[:photo_book_id])
-    end
-    return redirect_to safe_return_path, alert: "Choose a photobook or name a new one." unless book
-
-    added = book.add_photos!(photos)
-    redirect_to bulk_return_path(photos), notice: "Added #{added} #{'photo'.pluralize(added)} to #{book.title}. Videos and photos already in the book are skipped."
+    removing = %w[archive restore restrict delete remove_from_album].include?(params[:bulk_action]) ||
+      (params[:bulk_action] == "unpublish" && public_return_path?)
+    focused = params[:bulk_action] == "set_location" ? photos.select(&:image?) : photos
+    return_path = bulk_return_path(focused, removing_from_stream: removing)
+    result = PhotoBulkOperation.new(owner: current_user, photos: photos, action: params[:bulk_action], attributes: params).call
+    redirect_to return_path, notice: result[:message]
+  rescue PhotoBulkOperation::InvalidAction => error
+    redirect_to safe_return_path, alert: error.message
   rescue ActiveRecord::RecordInvalid => error
     redirect_to safe_return_path, alert: error.record.errors.full_messages.to_sentence
   end
+
+  private
 
   def selected_photo_ids
     Array(params[:photo_ids]).compact_blank
@@ -119,7 +37,7 @@ class PhotoBulkActionsController < ApplicationController
 
   def bulk_return_path(photos, removing_from_stream: false)
     return_path = safe_return_path
-    return return_path if params[:return_to].blank?
+    return return_path if params[:return_to].blank? || photos.empty?
 
     if removing_from_stream
       photo_stream_return_path_after_removing(photos, return_path: return_path)
@@ -138,35 +56,5 @@ class PhotoBulkActionsController < ApplicationController
     URI.parse(safe_return_path).path == public_photos_path
   rescue URI::InvalidURIError
     false
-  end
-
-  def target_album
-    if params[:new_album_title].present?
-      current_user.photo_albums.create!(title: params[:new_album_title].strip, source: "manual")
-    elsif params[:album_id].present?
-      current_user.photo_albums.find(params[:album_id])
-    end
-  end
-
-  def add_photos_to_album(photos, album)
-    photos.count do |photo|
-      PhotoAlbumMembership.find_or_create_by!(photo: photo, photo_album: album).previously_new_record?
-    end
-  end
-
-  def context_album
-    current_user.photo_albums.find_by(id: params[:context_album_id])
-  end
-
-  def remove_photos_from_album(photos, album)
-    removed_photo_ids = []
-    album.photo_album_memberships.where(photo_id: photos.map(&:id)).find_each do |membership|
-      removed_photo_ids << membership.photo_id
-      membership.destroy!
-    end
-    if removed_photo_ids.include?(album.cover_photo_id)
-      album.update!(cover_photo: album.replacement_cover(excluding_photo_ids: removed_photo_ids))
-    end
-    removed_photo_ids.size
   end
 end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_04_170000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_04_180000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -83,6 +83,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_04_170000) do
     t.index ["key"], name: "index_app_settings_on_key", unique: true
   end
 
+  create_table "device_sessions", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "name", null: false
+    t.string "platform", null: false
+    t.string "token_digest", null: false
+    t.string "refresh_token_digest", null: false
+    t.string "authentication_fingerprint", null: false
+    t.datetime "expires_at", null: false
+    t.datetime "refresh_expires_at", null: false
+    t.datetime "last_used_at"
+    t.datetime "revoked_at"
+    t.datetime "restricted_unlocked_until"
+    t.string "restricted_password_digest"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["refresh_token_digest"], name: "index_device_sessions_on_refresh_token_digest", unique: true
+    t.index ["token_digest"], name: "index_device_sessions_on_token_digest", unique: true
+    t.index ["user_id"], name: "index_device_sessions_on_user_id"
+  end
+
   create_table "drive_archive_objects", force: :cascade do |t|
     t.datetime "archived_at"
     t.datetime "created_at", null: false
@@ -153,6 +173,37 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_04_170000) do
     t.index ["sha256"], name: "index_google_takeout_imports_on_sha256"
     t.index ["status"], name: "index_google_takeout_imports_on_status"
     t.index ["zip_path", "entry_name"], name: "index_google_takeout_imports_on_zip_path_and_entry_name", unique: true
+  end
+
+  create_table "mobile_upload_chunks", force: :cascade do |t|
+    t.bigint "mobile_upload_id", null: false
+    t.integer "position", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["mobile_upload_id", "position"], name: "index_mobile_upload_chunks_on_mobile_upload_id_and_position", unique: true
+    t.index ["mobile_upload_id"], name: "index_mobile_upload_chunks_on_mobile_upload_id"
+    t.check_constraint "\"position\" >= 0 AND \"position\" < 1024", name: "mobile_upload_chunks_position"
+  end
+
+  create_table "mobile_uploads", force: :cascade do |t|
+    t.bigint "device_session_id", null: false
+    t.bigint "photo_id"
+    t.string "client_asset_id", null: false
+    t.string "filename", null: false
+    t.string "content_type", null: false
+    t.bigint "byte_size", null: false
+    t.string "checksum_sha256", null: false
+    t.datetime "captured_at"
+    t.datetime "expires_at", null: false
+    t.datetime "completed_at"
+    t.boolean "duplicate", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["device_session_id", "client_asset_id"], name: "index_mobile_uploads_on_device_session_id_and_client_asset_id", unique: true
+    t.index ["device_session_id"], name: "index_mobile_uploads_on_device_session_id"
+    t.index ["expires_at"], name: "index_mobile_uploads_on_expires_at"
+    t.index ["photo_id"], name: "index_mobile_uploads_on_photo_id"
+    t.check_constraint "byte_size > 0 AND byte_size <= '8589934592'::bigint", name: "mobile_uploads_byte_size"
   end
 
   create_table "photo_album_memberships", force: :cascade do |t|
@@ -576,11 +627,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_04_170000) do
   add_foreign_key "album_access_links", "users", column: "created_by_id"
   add_foreign_key "album_downloads", "photo_albums"
   add_foreign_key "album_downloads", "users"
+  add_foreign_key "device_sessions", "users"
   add_foreign_key "drive_archive_objects", "photos"
   add_foreign_key "file_health_checks", "active_storage_blobs"
   add_foreign_key "file_health_checks", "photos"
   add_foreign_key "google_takeout_import_runs", "users", column: "owner_id"
   add_foreign_key "google_takeout_imports", "photos", on_delete: :nullify
+  add_foreign_key "mobile_upload_chunks", "mobile_uploads"
+  add_foreign_key "mobile_uploads", "device_sessions"
+  add_foreign_key "mobile_uploads", "photos", on_delete: :nullify
   add_foreign_key "photo_album_memberships", "photo_albums"
   add_foreign_key "photo_album_memberships", "photos"
   add_foreign_key "photo_album_shares", "photo_albums"

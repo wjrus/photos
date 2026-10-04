@@ -5,6 +5,8 @@ class User < ApplicationRecord
 
   has_secure_password validations: false
 
+  has_many :device_sessions, dependent: :destroy
+
   has_many :photos, foreign_key: :owner_id, dependent: :restrict_with_exception, inverse_of: :owner
   has_many :photo_albums, foreign_key: :owner_id, dependent: :restrict_with_exception, inverse_of: :owner
   has_many :photo_books, foreign_key: :owner_id, dependent: :restrict_with_exception, inverse_of: :owner
@@ -68,8 +70,8 @@ class User < ApplicationRecord
   end
 
   def self.authenticate_by_email(email, password)
-    user = find_by(email: email)
-    return unless user&.authenticate(password)
+    user = authenticate_by(email: email, password: password)
+    return unless user
 
     user.update!(last_signed_in_at: Time.current, invite_accepted_at: Time.current) if user.invited?
     user
