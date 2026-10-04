@@ -110,6 +110,21 @@ class PhotobooksTest < ApplicationSystemTestCase
     assert_equal "The end.", @book.back_text
   end
 
+  test "a delayed tray render cannot make a newly placed photo available again" do
+    visit photo_book_path(@book, page_id: @book.pages.to_a[1].id)
+    stale_tray = page.evaluate_async_script("const done = arguments[arguments.length - 1]; fetch(arguments[0], { headers: { Accept: 'text/vnd.turbo-stream.html' } }).then(response => response.text()).then(done)", tray_photo_book_path(@book))
+    find("button[aria-label='Select Synthetic sunset']").click
+    find("#photobook-preview button[data-photo-slot='primary']").click
+    within "#photobook-tray" do
+      assert_text "0 unused photos"
+    end
+    page.driver.browser.execute_async_script("const done = arguments[arguments.length - 1]; window.Turbo.renderStreamMessage(arguments[0]); requestAnimationFrame(() => requestAnimationFrame(done))", stale_tray)
+    within "#photobook-tray" do
+      assert_no_selector "button[data-photo-id='#{@second.id}']"
+    end
+    assert_selector "#photobook-preview image"
+  end
+
   test "new books start with four pages and pages can be added and removed" do
     visit new_photo_book_path
     fill_in "Book name", with: "New travel book"
@@ -166,6 +181,7 @@ class PhotobooksTest < ApplicationSystemTestCase
     select "Two photos stacked", from: "Page layout"
     find("button[aria-label='Select Synthetic sunset']").send_keys(:space)
     find("button[aria-label='Place or replace second photo']").send_keys(:space)
+    assert_selector "input[name='photo_book_page[secondary_photo_id]'][value='#{@second.id}']", visible: :all
     fill_in "Second photo caption", with: "A second memory."
     assert_selector "#photobook-preview text", text: "A second memory."
     assert_no_selector "#photobook-tray button[data-photo-id='#{@second.id}']"

@@ -24,6 +24,9 @@ export default class extends Controller {
 
   trayPhotoTargetConnected(button) {
     button.setAttribute("aria-pressed", String(button.dataset.photoId === this.selectedPhoto?.id))
+    // Turbo renders streams asynchronously. A response already queued before an
+    // edit must not put a newly placed photo back into the unused tray.
+    if (this.placementKey !== undefined && !this.showUsed && this.activePhotoIds().includes(button.dataset.photoId)) button.hidden = true
   }
 
   saving() {
@@ -70,8 +73,15 @@ export default class extends Controller {
   }
 
   currentPlacementKey() {
-    if (!this.hasFormTarget) return ""
-    return JSON.stringify([this.layoutTarget.value, ...this.photoInputTargets.map((input) => input.value)])
+    return JSON.stringify(this.activePhotoIds())
+  }
+
+  activePhotoIds() {
+    if (!this.hasFormTarget) return []
+    const layout = this.layoutTarget.value
+    if (!this.isCover && ["blank", "text"].includes(layout)) return []
+    const inputs = this.isCover || TWO_PHOTO_LAYOUTS.includes(layout) ? this.photoInputTargets : this.photoInputTargets.filter((input) => input.dataset.photoSlot === "primary")
+    return [...new Set(inputs.map((input) => input.value).filter(Boolean))].sort()
   }
 
   photoData(button) {
@@ -164,8 +174,7 @@ export default class extends Controller {
 
   syncTray() {
     if (this.showUsed) return
-    const activeInputs = this.isCover ? this.photoInputTargets : ["blank", "text"].includes(this.layoutTarget.value) ? [] : TWO_PHOTO_LAYOUTS.includes(this.layoutTarget.value) ? this.photoInputTargets : this.photoInputTargets.filter((input) => input.dataset.photoSlot === "primary")
-    const placed = activeInputs.map((input) => input.value).filter(Boolean)
+    const placed = this.activePhotoIds()
     this.trayPhotoTargets.forEach((button) => { if (placed.includes(button.dataset.photoId)) button.hidden = true })
   }
 
