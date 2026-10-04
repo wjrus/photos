@@ -29,6 +29,7 @@ class Photo < ApplicationRecord
   has_one :metadata, class_name: "PhotoMetadata", dependent: :destroy, inverse_of: :photo
   # Cards and map markers need dimensions/coordinates, not the potentially large EXIF payload.
   has_one :display_metadata, -> { select(:id, :photo_id, :width, :height, :latitude, :longitude, :photo_place_id).readonly }, class_name: "PhotoMetadata"
+  has_one :print_metadata, -> { select(:id, :photo_id, :width, :height, Arel.sql("raw ->> 'Orientation' AS orientation")).readonly }, class_name: "PhotoMetadata"
   has_one :drive_archive_object, dependent: :destroy
   has_many :file_health_checks, dependent: :destroy
   has_many :analysis_runs, class_name: "PhotoAnalysisRun", dependent: :destroy
@@ -37,6 +38,8 @@ class Photo < ApplicationRecord
   has_many :embeddings, class_name: "PhotoEmbedding", dependent: :destroy
   has_many :photo_album_memberships, dependent: :destroy
   has_many :photo_albums, through: :photo_album_memberships
+  has_many :photo_book_memberships, dependent: :destroy
+  has_many :photo_books, through: :photo_book_memberships
   has_many :covered_photo_albums, class_name: "PhotoAlbum", foreign_key: :cover_photo_id, inverse_of: :cover_photo
   has_many :photo_location_covers, foreign_key: :cover_photo_id, dependent: :destroy, inverse_of: :cover_photo
   has_many :photo_people_tags, dependent: :destroy
@@ -83,6 +86,10 @@ class Photo < ApplicationRecord
     end
   }
   scope :restricted, -> { where(restricted: true) }
+  scope :still_images, -> {
+    where("photos.content_type LIKE :image_type OR LOWER(photos.original_filename) ~ :extensions",
+      image_type: "image/%", extensions: "(#{STILL_IMAGE_EXTENSIONS.map { |extension| Regexp.escape(extension) }.join('|')})$")
+  }
   scope :archived, -> { where(restricted: false).where.not(archived_at: nil) }
   scope :not_archived, -> { where(archived_at: nil) }
   scope :publicly_visible, -> { where(visibility: "public", restricted: false, archived_at: nil) }

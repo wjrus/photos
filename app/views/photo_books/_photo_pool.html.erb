@@ -1,0 +1,33 @@
+<section class="photobook-card photobook-pool-intro">
+  <h2>Photos for this book</h2><p>Choose photos in the stream, search results, or an album and use “Add to photobook.” You can also add an entire album here. Adding photos does not place them on pages.</p>
+  <%= link_to "Choose photos in the library", root_path, class: "photobook-button" %>
+  <% if @albums.any? %>
+    <%= form_with url: photo_book_memberships_path(@book), class: "photobook-inline-form" do %>
+      <%= label_tag :book_album_id, "Add photos from an album" %>
+      <%= select_tag :album_id, options_from_collection_for_select(@albums, :id, :title), id: "book_album_id", include_blank: "Choose album", required: true %>
+      <%= submit_tag "Add album photos", class: "photobook-button" %>
+    <% end %>
+  <% end %>
+</section>
+<%= form_with url: photo_book_path(@book), method: :get, class: "photobook-inline-form" do %>
+  <%= hidden_field_tag :tab, "photos" %>
+  <%= label_tag :photo_search, "Find a book photo" %><%= search_field_tag :photo_search, @photo_search, placeholder: "Photo name" %>
+  <%= submit_tag "Search photos", class: "photobook-button" %>
+<% end %>
+<% if @pool_photos.empty? %>
+  <div class="photobook-empty"><h2><%= @photo_search.present? ? "No matching photos." : "Add your first photos." %></h2><p>Only available still photos appear here. Photos in Archive or Private cannot be used in a print export.</p></div>
+<% else %>
+  <div class="photobook-photo-grid">
+    <% @pool_photos.each do |photo| %>
+      <article class="photobook-card photobook-pool-photo">
+        <%= link_to photo_path(photo, return_to: photo_book_path(@book, tab: "photos")) do %><%= image_tag stream_photo_path(photo), alt: photo.title, loading: "lazy", decoding: "async" %><% end %>
+        <h3><%= photo.title %></h3>
+        <%= button_to "Remove from book", photo_book_membership_path(@book, photo.id), method: :delete, class: "photobook-button", data: { turbo_confirm: "Remove this photo from the book and all its page placements? It will stay in your library." } %>
+      </article>
+    <% end %>
+  </div>
+<% end %>
+<div class="photobook-pagination">
+  <%= link_to "Previous photos", photo_book_path(@book, tab: "photos", photo_search: @photo_search, photo_page: @photo_page - 1), class: "photobook-button" if @photo_page > 1 %>
+  <%= link_to "More photos", photo_book_path(@book, tab: "photos", photo_search: @photo_search, photo_page: @next_photo_page), class: "photobook-button" if @next_photo_page %>
+</div>

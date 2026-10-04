@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="<%= page.fetch(:offset) %> 0 <%= page.fetch(:width) %> <%= page.fetch(:height) %>" role="img" aria-label="<%= page.fetch(:label) %> artwork" class="photobook-artwork">
+  <rect x="<%= page.fetch(:offset) %>" y="0" width="<%= page.fetch(:width) %>" height="<%= page.fetch(:height) %>" fill="<%= page.fetch(:background) %>" />
+  <% page.fetch(:images).each_with_index do |image, index| %>
+    <% photo = photos[image.fetch(:photo_id)] %>
+    <% clip_id = "#{prefix}-image-#{index}" %>
+    <defs><clipPath id="<%= clip_id %>"><rect x="<%= image.fetch(:x) %>" y="<%= image.fetch(:y) %>" width="<%= image.fetch(:width) %>" height="<%= image.fetch(:height) %>" /></clipPath></defs>
+    <% if photo %>
+      <% width, height = PhotoBook.oriented_dimensions(photo) %>
+      <% box = layout.image_box(image, width: width.to_f, height: height.to_f) %>
+      <image href="<%= display_photo_path(photo) %>" x="<%= box.fetch(:x) %>" y="<%= box.fetch(:y) %>" width="<%= box.fetch(:width) %>" height="<%= box.fetch(:height) %>" preserveAspectRatio="xMidYMid <%= image.fetch(:fit) == "fit" ? "meet" : "slice" %>" clip-path="url(#<%= clip_id %>)" />
+    <% else %>
+      <rect x="<%= image.fetch(:x) %>" y="<%= image.fetch(:y) %>" width="<%= image.fetch(:width) %>" height="<%= image.fetch(:height) %>" fill="#e4e4e7" />
+      <text x="<%= image.fetch(:x) + 5 %>" y="<%= image.fetch(:y) + 12 %>" fill="#52525b" font-size="5">Choose a photo</text>
+    <% end %>
+  <% end %>
+  <% page.fetch(:panels).each do |panel| %>
+    <rect x="<%= panel.fetch(:x) %>" y="<%= panel.fetch(:y) %>" width="<%= panel.fetch(:width) %>" height="<%= panel.fetch(:height) %>" fill="<%= page.fetch(:background) %>" />
+  <% end %>
+  <% page.fetch(:texts).each do |text| %>
+    <% text.fetch(:lines).each_with_index do |line, index| %>
+      <text x="<%= text.fetch(:x) %>" y="<%= text.fetch(:y) + text.fetch(:size) / PhotoBookLayout::POINTS_PER_MM + index * text.fetch(:line_height) %>" fill="<%= page.fetch(:color) %>" font-size="<%= text.fetch(:size) / PhotoBookLayout::POINTS_PER_MM %>" font-family="Photobook Noto Sans"><%= line %></text>
+    <% end %>
+  <% end %>
+</svg>

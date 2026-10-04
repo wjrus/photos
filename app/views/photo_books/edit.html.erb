@@ -1,0 +1,11 @@
+<% content_for :title, "Book settings · Photos" %>
+<%= render "shared/site_header" %>
+<main class="photobook photobook-form-page">
+  <%= link_to "← Back to designer", photo_book_path(@book), class: "photobook-back" %>
+  <h1>Book settings & covers</h1>
+  <%= render "form", book: @book %>
+  <section class="photobook-card photobook-danger">
+    <h2>Remove this book</h2><p>Its design and exported PDFs will be removed. The photos stay in your library.</p>
+    <%= button_to "Remove photobook", photo_book_path(@book), method: :delete, class: "photobook-button", data: { turbo_confirm: "Remove this photobook and its saved design?" } %>
+  </section>
+</main>
