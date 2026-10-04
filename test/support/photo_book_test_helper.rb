@@ -10,8 +10,9 @@ module PhotoBookTestHelper
     photo
   end
 
-  def book_with_photo
+  def book_with_photo(print_ready: false)
     book = users(:one).photo_books.create!(title: "Synthetic journeys", cover_title: "Synthetic journeys")
+    14.times { book.append_page! } if print_ready
     photo = book_photo
     book.add_photos!([ photo ])
     book.pages.first.update!(layout: "caption", primary_photo: photo, caption: "Beside the lake.")

@@ -1,0 +1,9 @@
+<div class="photobook-photo-slot" data-photobook-designer-target="slot" data-photo-slot="<%= slot %>">
+  <%= form.hidden_field field, data: { photobook_designer_target: "photoInput", photo_slot: slot } %>
+  <h3><%= label %></h3>
+  <button type="button" class="photobook-slot-button" data-photo-slot="<%= slot %>" data-action="click->photobook-designer#chooseSlot dragover->photobook-designer#dragOver dragleave->photobook-designer#dragLeave drop->photobook-designer#dropPhoto" aria-label="Place or replace <%= label.downcase %>">
+    <%= tag.img(**(photo ? { src: stream_photo_path(photo) } : {}), alt: "", hidden: photo.nil?, class: "photobook-slot-image") %>
+    <span class="photobook-slot-title"><%= photo ? photo.title : form.object[field].present? ? "Photo unavailable" : "Drop a photo here" %></span>
+  </button>
+  <button type="button" class="photobook-remove-photo" data-photo-slot="<%= slot %>" data-action="photobook-designer#removePhoto" <%= "hidden" unless form.object[field].present? %>>Remove <%= label.downcase %></button>
+</div>

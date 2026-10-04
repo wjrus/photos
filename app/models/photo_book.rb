@@ -8,6 +8,7 @@ class PhotoBook < ApplicationRecord
   # This conservative range fits both the product and file-guide page counts.
   MIN_PRINTED_PAGES = 20
   MAX_PRINTED_PAGES = 122
+  DEFAULT_INSIDE_PAGES = 4
 
   belongs_to :owner, class_name: "User", inverse_of: :photo_books
   belongs_to :cover_photo, class_name: "Photo", optional: true
@@ -103,7 +104,7 @@ class PhotoBook < ApplicationRecord
   private
 
   def create_initial_pages
-    18.times { |position| pages.create!(position: position) }
+    DEFAULT_INSIDE_PAGES.times { |position| pages.create!(position: position) }
   end
 
   def next_position
@@ -112,7 +113,7 @@ class PhotoBook < ApplicationRecord
 
   def cover_photos_are_in_book
     [ :cover_photo_id, :back_photo_id ].each do |attribute|
-      next if self[attribute].blank?
+      next if self[attribute].blank? || !will_save_change_to_attribute?(attribute)
 
       errors.add(attribute, "must be an available photo assigned to this book") unless eligible_photos.exists?(id: self[attribute])
     end

@@ -1,29 +1,30 @@
 <section class="photobook-card photobook-page-editor">
-  <h2><%= PhotoBookPage::LAYOUTS.fetch(page.layout) %></h2>
-  <%= form_with model: page, url: photo_book_page_path(@book, page), class: "photobook-fields", data: { photobook_designer_target: "form", action: "input->photobook-designer#schedulePreview change->photobook-designer#schedulePreview" } do |form| %>
+  <h2>Design page</h2>
+  <%= form_with model: page, url: photo_book_page_path(@book, page), class: "photobook-fields", data: { photobook_designer_target: "form", action: "input->photobook-designer#schedulePreview change->photobook-designer#schedulePreview submit->photobook-designer#saving" } do |form| %>
     <%= form.hidden_field :lock_version %>
     <%= hidden_field_tag :page_id, page.id %><%= hidden_field_tag :preview_key, @selected_key %>
     <div><%= form.label :layout, "Page layout" %><%= form.select :layout, PhotoBookPage::LAYOUTS.map { |key, label| [ label, key ] }, {}, data: { photobook_designer_target: "layout" } %></div>
     <div data-photobook-designer-target="primary">
-      <%= form.label :primary_photo_id, "First photo" %><%= form.select :primary_photo_id, @photo_options, { include_blank: "Choose a book photo" } %>
+      <%= render "photo_slot", form: form, field: :primary_photo_id, slot: "primary", label: "First photo", photo: @preview_photos[page.primary_photo_id] %>
       <div class="photobook-focus" data-photobook-designer-target="crop">
         <p class="photobook-note">Crop position</p>
         <%= form.label :primary_focus_x, "First photo horizontal position" %><%= form.range_field :primary_focus_x, min: 0, max: 100, step: 1 %>
         <%= form.label :primary_focus_y, "First photo vertical position" %><%= form.range_field :primary_focus_y, min: 0, max: 100, step: 1 %>
       </div>
     </div>
-    <div data-photobook-designer-target="caption"><%= form.label :caption, "Caption or page text" %><%= form.text_area :caption, rows: 4, maxlength: 2000 %></div>
+    <button type="button" class="photobook-button" data-photobook-designer-target="addPhoto" data-action="photobook-designer#addSecondPhoto">Add a second photo</button>
+    <div data-photobook-designer-target="caption"><%= form.label :caption, "Caption or page text" %><%= form.text_area :caption, rows: 4, maxlength: 2000, data: { photobook_designer_target: "primaryCaption" } %></div>
     <div data-photobook-designer-target="secondary">
-      <%= form.label :secondary_photo_id, "Second photo" %><%= form.select :secondary_photo_id, @photo_options, { include_blank: "Choose a book photo" } %>
+      <%= render "photo_slot", form: form, field: :secondary_photo_id, slot: "secondary", label: "Second photo", photo: @preview_photos[page.secondary_photo_id] %>
       <div class="photobook-focus">
         <%= form.label :secondary_focus_x, "Second photo horizontal position" %><%= form.range_field :secondary_focus_x, min: 0, max: 100, step: 1 %>
         <%= form.label :secondary_focus_y, "Second photo vertical position" %><%= form.range_field :secondary_focus_y, min: 0, max: 100, step: 1 %>
       </div>
-      <%= form.label :secondary_caption, "Second photo caption" %><%= form.text_area :secondary_caption, rows: 3, maxlength: 2000 %>
+      <%= form.label :secondary_caption, "Second photo caption" %><%= form.text_area :secondary_caption, rows: 3, maxlength: 2000, data: { photobook_designer_target: "secondaryCaption" } %>
     </div>
     <div data-photobook-designer-target="fit"><%= form.label :image_fit, "Photo sizing" %><%= form.select :image_fit, [["Fill photo area (crop)", "fill"], ["Fit whole photo", "fit"]] %></div>
     <p class="photobook-note" data-photobook-designer-target="status" role="status">The preview updates as you edit. Save to keep your changes.</p>
-    <% if @photo_options.empty? %><p class="photobook-note"><%= link_to "Add photos to this book", photo_book_path(@book, tab: "photos") %> to start designing.</p><% end %>
+    <% if @photo_count.zero? %><p class="photobook-note"><%= link_to "Add photos to this book", photo_book_path(@book, tab: "photos") %> to start designing.</p><% end %>
     <%= form.submit "Save page", class: "photobook-button photobook-button-primary" %>
   <% end %>
   <div class="photobook-page-actions">

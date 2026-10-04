@@ -4,8 +4,15 @@ require_relative "../support/photo_book_test_helper"
 class PhotoBookPreflightTest < ActiveSupport::TestCase
   include PhotoBookTestHelper
 
-  test "caption layout is printable and low resolution is reported" do
+  test "four-page designs stay small while print checks enforce the printer minimum" do
     book, = book_with_photo
+    assert_includes PhotoBookPreflight.new(book).errors.join, "20–122"
+    assert_equal 4, book.pages.count
+    assert_equal 6, PhotoBookLayout.new(book.design_snapshot).pages.size
+  end
+
+  test "caption layout is printable and low resolution is reported" do
+    book, = book_with_photo(print_ready: true)
     preflight = PhotoBookPreflight.new(book)
     assert preflight.ready?, preflight.errors.join
     assert preflight.warnings.any? { |warning| warning.include?("DPI") }
@@ -15,7 +22,7 @@ class PhotoBookPreflightTest < ActiveSupport::TestCase
   end
 
   test "page count and spread alignment are checked independently" do
-    book, photo = book_with_photo
+    book, photo = book_with_photo(print_ready: true)
     book.pages.first.update!(layout: "spread", primary_photo: photo)
     errors = PhotoBookPreflight.new(book).errors.join
     assert_includes errors, "left-hand"
@@ -25,7 +32,7 @@ class PhotoBookPreflightTest < ActiveSupport::TestCase
   end
 
   test "text overflow and unsupported glyphs are blocked" do
-    book, = book_with_photo
+    book, = book_with_photo(print_ready: true)
     book.pages.first.update!(caption: "Long caption " * 120)
     assert_includes PhotoBookPreflight.new(book).errors.join, "does not fit"
     book.pages.first.update!(caption: "Emoji 🚀")
@@ -33,7 +40,7 @@ class PhotoBookPreflightTest < ActiveSupport::TestCase
   end
 
   test "private and archived sources cannot be exported" do
-    book, photo = book_with_photo
+    book, photo = book_with_photo(print_ready: true)
     photo.update!(restricted: true)
     assert_not PhotoBookPreflight.new(book).ready?
     photo.update!(restricted: false, archived_at: Time.current)
@@ -41,7 +48,7 @@ class PhotoBookPreflightTest < ActiveSupport::TestCase
   end
 
   test "two-photo layouts include both captions and use safe margins" do
-    book, photo = book_with_photo
+    book, photo = book_with_photo(print_ready: true)
     second = book_photo(title: "Second photo")
     book.add_photos!([ second ])
     %w[two_horizontal two_vertical].each do |kind|

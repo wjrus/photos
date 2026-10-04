@@ -55,6 +55,7 @@ Rails.application.routes.draw do
   resource :photo_bulk_actions, only: :create
   resources :photo_books do
     post :preview, on: :member
+    get :tray, on: :member
     resources :pages, only: %i[create update destroy], controller: :photo_book_pages do
       patch :move, on: :member
     end

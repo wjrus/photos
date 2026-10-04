@@ -31,13 +31,26 @@ class PhotoBooksController < ApplicationController
     prepare_designer
   end
 
+  def tray
+    snapshot = draft_snapshot
+    return head :unprocessable_entity unless snapshot
+
+    prepare_tray(PhotoBookLayout.new(snapshot))
+    if request.format.turbo_stream?
+      render turbo_stream: turbo_stream.replace("photobook-tray", partial: "photo_books/photo_tray")
+    else
+      render partial: "photo_books/photo_tray"
+    end
+  end
+
   def edit
     @photo_options = @book.eligible_photos.order(:id).pluck(:title, :id)
   end
 
   def update
     if @book.update(book_params)
-      redirect_to photo_book_path(@book, page_id: "front"), notice: "Book settings saved."
+      key = %w[front back].include?(params[:preview_key]) ? params[:preview_key] : "front"
+      redirect_to photo_book_path(@book, page_id: key), notice: "Book settings saved."
     else
       edit
       render :edit, status: :unprocessable_entity
@@ -52,18 +65,13 @@ class PhotoBooksController < ApplicationController
   end
 
   def preview
-    snapshot = @book.design_snapshot
-    if params[:page_id].present?
-      page = @book.pages.find(params[:page_id])
-      page.assign_attributes(params.require(:photo_book_page).permit(*PhotoBookPage::DESIGN_ATTRIBUTES))
-      return head :unprocessable_entity unless page.valid?
+    snapshot = draft_snapshot
+    return head :unprocessable_entity unless snapshot
 
-      snapshot["pages"].find { |source| source.fetch("id") == page.id }.merge!(page.attributes.slice(*PhotoBookPage::DESIGN_ATTRIBUTES))
-    end
     layout = PhotoBookLayout.new(snapshot)
     photos = preview_photos(snapshot)
     render turbo_stream: turbo_stream.replace("photobook-preview", partial: "photo_books/preview", locals: {
-      layout: layout, preview_pages: layout.facing_pages(params[:preview_key].to_s), photos: photos, book: @book
+      layout: layout, preview_pages: layout.facing_pages(@selected_key), photos: photos, book: @book, selected_key: @selected_key
     })
   end
 
@@ -83,6 +91,43 @@ class PhotoBooksController < ApplicationController
       :background_color, :text_color, :cover_photo_id, :back_photo_id, :lock_version)
   end
 
+  def draft_snapshot
+    snapshot = @book.design_snapshot
+    if params[:page_id].present?
+      page = @book.pages.find(params[:page_id])
+      @selected_page = page
+      page.assign_attributes(params.fetch(:photo_book_page, {}).permit(*PhotoBookPage::DESIGN_ATTRIBUTES)) if params[:photo_book_page]
+      return unless page.valid?
+
+      snapshot["pages"].find { |source| source.fetch("id") == page.id }.merge!(page.attributes.slice(*PhotoBookPage::DESIGN_ATTRIBUTES))
+      @selected_key = "#{page.id}-0"
+    else
+      @selected_key = params[:preview_key] == "back" ? "back" : "front"
+      if params[:photo_book]
+        attributes = params.require(:photo_book).permit(:cover_photo_id, :back_photo_id, :cover_layout, :cover_title, :cover_subtitle, :back_text)
+        @book.assign_attributes(attributes)
+        return unless @book.valid?
+
+        snapshot.merge!(@book.attributes.slice(*attributes.keys))
+      end
+    end
+    snapshot
+  end
+
+  def prepare_tray(layout)
+    @tray_used_ids = layout.pages.flat_map { |page| page.fetch(:images).pluck(:photo_id) }.compact.uniq
+    @tray_show_used = params[:show_used] == "1"
+    @tray_search = params[:tray_search].to_s.strip.first(200)
+    @tray_page = [ params[:tray_page].to_i, 1 ].max
+    scope = @book.eligible_photos
+    @tray_unused_count = scope.where.not(id: @tray_used_ids).count
+    scope = scope.where.not(id: @tray_used_ids) unless @tray_show_used
+    scope = scope.where("photos.title ILIKE ?", "%#{Photo.sanitize_sql_like(@tray_search)}%") if @tray_search.present?
+    @tray_photos = scope.chronological_order.with_original_variant_records.offset((@tray_page - 1) * 24).limit(25).to_a
+    @tray_next_page = @tray_page + 1 if @tray_photos.size > 24
+    @tray_photos = @tray_photos.first(24)
+  end
+
   def prepare_designer
     @snapshot = @book.design_snapshot
     @preflight = PhotoBookPreflight.new(@book, snapshot: @snapshot)
@@ -93,20 +138,19 @@ class PhotoBooksController < ApplicationController
     @preview_pages = @layout.facing_pages(@selected_key)
     @preview_photos = preview_photos(@snapshot)
     @photo_count = @book.eligible_photos.count
-    @photo_options = @book.eligible_photos.order(:id).limit(250).pluck(:title, :id)
-    if @selected_page
-      selected_ids = [ @selected_page.primary_photo_id, @selected_page.secondary_photo_id ].compact - @photo_options.map(&:last)
-      @photo_options.concat(@book.eligible_photos.where(id: selected_ids).pluck(:title, :id)) if selected_ids.any?
-    end
     @tab = params[:tab] == "photos" ? "photos" : "design"
-    @photo_page = [ params[:photo_page].to_i, 1 ].max
-    @photo_search = params[:photo_search].to_s.strip.first(200)
-    scope = @book.eligible_photos
-    scope = scope.where("photos.title ILIKE ?", "%#{Photo.sanitize_sql_like(@photo_search)}%") if @photo_search.present?
-    @pool_photos = scope.chronological_order.with_original_variant_records.offset((@photo_page - 1) * 24).limit(25).to_a
-    @next_photo_page = @photo_page + 1 if @pool_photos.size > 24
-    @pool_photos = @pool_photos.first(24)
-    @albums = current_user.photo_albums.display_order if @tab == "photos"
+    if @tab == "photos"
+      @photo_page = [ params[:photo_page].to_i, 1 ].max
+      @photo_search = params[:photo_search].to_s.strip.first(200)
+      scope = @book.eligible_photos
+      scope = scope.where("photos.title ILIKE ?", "%#{Photo.sanitize_sql_like(@photo_search)}%") if @photo_search.present?
+      @pool_photos = scope.chronological_order.with_original_variant_records.offset((@photo_page - 1) * 24).limit(25).to_a
+      @next_photo_page = @photo_page + 1 if @pool_photos.size > 24
+      @pool_photos = @pool_photos.first(24)
+      @albums = current_user.photo_albums.display_order
+    else
+      prepare_tray(@layout)
+    end
     @exports = @book.exports.limit(3)
   end
 

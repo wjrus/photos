@@ -4,12 +4,12 @@ require_relative "../support/photo_book_test_helper"
 class PhotoBookTest < ActiveSupport::TestCase
   include PhotoBookTestHelper
 
-  test "new books start with 18 inside pages and assigning photos is idempotent" do
+  test "new books start with four inside pages and assigning photos is idempotent" do
     book, photo = book_with_photo
-    assert_equal 18, book.pages.count
+    assert_equal 4, book.pages.count
     assert_equal 0, book.add_photos!([ photo ])
     assert_equal 1, book.photos.count
-    assert_equal 20, PhotoBookLayout.new(book.design_snapshot).pages.size
+    assert_equal 6, PhotoBookLayout.new(book.design_snapshot).pages.size
   end
 
   test "assignment excludes another owner, videos, private and archived photos" do
@@ -51,12 +51,24 @@ class PhotoBookTest < ActiveSupport::TestCase
     assert photo.reload.original.attached?
   end
 
+  test "unavailable covers can be repaired individually without blocking other edits" do
+    book, photo = book_with_photo
+    book.update!(cover_photo: photo, back_photo: photo)
+    photo.update!(restricted: true)
+    book.update!(cover_photo: nil, cover_title: "Repairing the cover")
+    assert_equal photo.id, book.reload.back_photo_id
+    book.cover_photo = photo
+    assert_not book.valid?
+    book.reload.update!(back_photo: nil)
+    assert_nil book.reload.back_photo_id
+  end
+
   test "a new spread gets a right-hand blank page when necessary" do
     book, = book_with_photo
     spread = book.append_page!(layout: "spread")
     layout = PhotoBookLayout.new(book.design_snapshot)
     assert_equal "blank", book.pages.to_a[-2].layout
-    assert_equal [ 20, 21 ], layout.pages.select { |page| page[:source_id] == spread.id }.map { |page| page[:number] }
+    assert_equal [ 6, 7 ], layout.pages.select { |page| page[:source_id] == spread.id }.map { |page| page[:number] }
     assert layout.errors.empty?
   end
 

@@ -2,9 +2,21 @@
   <div class="photobook-preview-pages">
     <% preview_pages.each_with_index do |page, index| %>
       <% if page %>
+        <% editable = page.fetch(:key).split("-").first == selected_key.to_s.split("-").first %>
         <div class="photobook-preview-leaf">
-          <%= link_to photo_book_path(book, page_id: page.fetch(:key)), aria: { label: "Edit #{page.fetch(:label).downcase}" }, class: "photobook-preview-page" do %>
-            <%= render "page_artwork", page: page, layout: layout, photos: photos, prefix: "preview-#{index}" %>
+          <% if editable %>
+            <div class="photobook-preview-page is-selected" aria-label="<%= page.fetch(:label) %> selected">
+              <%= render "page_artwork", page: page, layout: layout, photos: photos, prefix: "preview-#{index}" %>
+              <% areas = page.fetch(:images).presence || [{ x: page.fetch(:offset), y: 0, width: page.fetch(:width), height: page.fetch(:height), photo_id: nil }] %>
+              <% areas.each_with_index do |area, slot_index| %>
+                <% left = [area.fetch(:x) - page.fetch(:offset), 0].max; right = [area.fetch(:x) + area.fetch(:width) - page.fetch(:offset), page.fetch(:width)].min %>
+                <button type="button" class="photobook-drop-zone <%= "is-filled" if photos[area[:photo_id]] %>" style="left: <%= left / page.fetch(:width) * 100 %>%; top: <%= area.fetch(:y) / page.fetch(:height) * 100 %>%; width: <%= (right - left) / page.fetch(:width) * 100 %>%; height: <%= area.fetch(:height) / page.fetch(:height) * 100 %>%" data-photo-slot="<%= slot_index.zero? ? "primary" : "secondary" %>" data-action="click->photobook-designer#chooseSlot dragover->photobook-designer#dragOver dragleave->photobook-designer#dragLeave drop->photobook-designer#dropPhoto" aria-label="Place or replace <%= slot_index.zero? ? "first" : "second" %> photo on <%= page.fetch(:label).downcase %>"><span><%= slot_index.zero? ? "Drop a photo here" : "Drop second photo here" %></span></button>
+              <% end %>
+            </div>
+          <% else %>
+            <%= link_to photo_book_path(book, page_id: page.fetch(:key)), aria: { label: "Edit #{page.fetch(:label).downcase}" }, class: "photobook-preview-page" do %>
+              <%= render "page_artwork", page: page, layout: layout, photos: photos, prefix: "preview-#{index}" %>
+            <% end %>
           <% end %>
           <p><%= page.fetch(:label) %><%= page[:side] ? " · #{page[:side]}" : "" %></p>
         </div>

@@ -5,7 +5,7 @@ class PreparePhotoBookExportJobTest < ActiveSupport::TestCase
   include PhotoBookTestHelper
 
   test "export embeds fonts and RGB original artwork at the exact book size" do
-    book, photo = book_with_photo
+    book, photo = book_with_photo(print_ready: true)
     book.update!(cover_photo: photo)
     export = pending_book_export(book)
     PreparePhotoBookExportJob.perform_now(export)
@@ -25,7 +25,7 @@ class PreparePhotoBookExportJobTest < ActiveSupport::TestCase
   end
 
   test "export captures saved captions and fails if sources become private" do
-    book, photo = book_with_photo
+    book, photo = book_with_photo(print_ready: true)
     export = pending_book_export(book)
     book.pages.first.update!(caption: "Changed after queuing")
     assert_equal "Beside the lake.", export.snapshot.fetch("pages").first.fetch("caption")
@@ -36,7 +36,7 @@ class PreparePhotoBookExportJobTest < ActiveSupport::TestCase
   end
 
   test "actual original resolution is checked even when metadata claims higher resolution" do
-    book, photo = book_with_photo
+    book, photo = book_with_photo(print_ready: true)
     photo.metadata.update!(width: 12000, height: 8000)
     export = pending_book_export(book, allow_low_resolution: false)
     PreparePhotoBookExportJob.perform_now(export)
@@ -45,7 +45,7 @@ class PreparePhotoBookExportJobTest < ActiveSupport::TestCase
   end
 
   test "a retried processing export recovers and completes" do
-    book, = book_with_photo
+    book, = book_with_photo(print_ready: true)
     export = pending_book_export(book)
     export.update!(status: "processing")
     PreparePhotoBookExportJob.perform_now(export)
@@ -53,7 +53,7 @@ class PreparePhotoBookExportJobTest < ActiveSupport::TestCase
   end
 
   test "an export becomes ready only after its PDF has uploaded" do
-    book, = book_with_photo
+    book, = book_with_photo(print_ready: true)
     export = pending_book_export(book)
     checked_upload = ->(_event) do
       assert_equal "processing", export.reload.status
@@ -67,7 +67,7 @@ class PreparePhotoBookExportJobTest < ActiveSupport::TestCase
   end
 
   test "deleting a book during upload discards the export and its uploaded PDF" do
-    book, = book_with_photo
+    book, = book_with_photo(print_ready: true)
     export = pending_book_export(book)
     uploaded_blob = nil
     delete_during_upload = ->(event) do

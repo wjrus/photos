@@ -17,7 +17,7 @@ class PhotoBooksControllerTest < ActionDispatch::IntegrationTest
       post photo_books_path, params: { photo_book: { title: "New story", format: "landscape_a4" } }
     end
     book = users(:one).photo_books.order(:id).last
-    assert_equal 18, book.pages.count
+    assert_equal 4, book.pages.count
     assert_redirected_to photo_book_path(book)
     get photo_book_path(@book, page_id: @book.pages.first.id)
     assert_response :success
@@ -58,7 +58,7 @@ class PhotoBooksControllerTest < ActionDispatch::IntegrationTest
     assert_difference "PhotoBookMembership.count", 1 do
       post photo_bulk_actions_path, params: { bulk_action: "add_to_photo_book", photo_ids: [ @photo.id ], new_photo_book_title: "Bulk book" }
     end
-    assert_equal 18, users(:one).photo_books.find_by!(title: "Bulk book").pages.count
+    assert_equal 4, users(:one).photo_books.find_by!(title: "Bulk book").pages.count
     assert_no_difference "PhotoBookMembership.count" do
       post photo_bulk_actions_path, params: { bulk_action: "add_to_photo_book", photo_ids: [ @photo.id ], photo_book_id: @book.id }
     end
@@ -101,7 +101,75 @@ class PhotoBooksControllerTest < ActionDispatch::IntegrationTest
     assert_equal page.id, @book.pages.reload.to_a[1].id
   end
 
+  test "tray tracks visible placements across pages and covers and supports reuse" do
+    second = book_photo(title: "Unused scene")
+    @book.add_photos!([ second ])
+    get tray_photo_book_path(@book)
+    assert_response :success
+    assert_select "button[data-photo-id='#{@photo.id}']", 0
+    assert_select "button[data-photo-id='#{second.id}']", 1
+    get tray_photo_book_path(@book), params: { show_used: "1" }
+    assert_select "button[data-photo-id='#{@photo.id}'] .photobook-tray-used", "Used in book"
+    @book.update!(back_photo: second)
+    @book.pages.first.update!(layout: "text")
+    get tray_photo_book_path(@book)
+    assert_select "button[data-photo-id='#{@photo.id}']", 1
+    assert_select "button[data-photo-id='#{second.id}']", 0
+    @book.pages.first.update!(layout: "two_vertical", secondary_photo: second)
+    get tray_photo_book_path(@book)
+    assert_select "button[data-photo-id]", 0
+  end
+
+  test "tray uses unsaved page and cover placements without mutating the design" do
+    second = book_photo(title: "Replacement scene")
+    @book.add_photos!([ second ])
+    page = @book.pages.first
+    get tray_photo_book_path(@book), params: { page_id: page.id, photo_book_page: { primary_photo_id: second.id } }, headers: { "Accept" => "text/vnd.turbo-stream.html" }
+    assert_response :success
+    assert_select "turbo-stream[action='replace'][target='photobook-tray']"
+    assert_select "button[data-photo-id='#{@photo.id}']", 1
+    assert_select "button[data-photo-id='#{second.id}']", 0
+    assert_equal @photo.id, page.reload.primary_photo_id
+    assert_equal "private, no-store", response.headers["Cache-Control"]
+    get tray_photo_book_path(@book), params: { preview_key: "back", photo_book: { back_photo_id: second.id } }
+    assert_select "button[data-photo-id='#{second.id}']", 0
+    assert_nil @book.reload.back_photo_id
+    post preview_photo_book_path(@book), params: { preview_key: "back", photo_book: { back_photo_id: second.id, back_text: "Draft cover" } }
+    assert_response :success
+    assert_includes response.body, "Draft cover"
+    assert_nil @book.reload.back_photo_id
+    patch photo_book_path(@book), params: { preview_key: "back", photo_book: { back_photo_id: second.id, lock_version: @book.lock_version } }
+    assert_redirected_to photo_book_path(@book, page_id: "back")
+    assert_equal second.id, @book.reload.back_photo_id
+  end
+
+  test "tray search pagination and authorization stay scoped to eligible book photos" do
+    25.times do |index|
+      photo = users(:one).photos.create!(title: "Tray scene #{index}") { |record| record.original.attach(@photo.original.blob) }
+      @book.add_photos!([ photo ])
+    end
+    @photo.update!(restricted: true)
+    get tray_photo_book_path(@book), params: { show_used: "1", tray_search: "Tray scene" }
+    assert_select "button[data-photo-id]", 24
+    assert_select "a", "More photos"
+    get tray_photo_book_path(@book), params: { show_used: "1", tray_search: "Tray scene", tray_page: 2 }
+    assert_select "button[data-photo-id]", 1
+    get tray_photo_book_path(@book), params: { show_used: "1", tray_search: "%" }
+    assert_select "button[data-photo-id]", 0
+    get tray_photo_book_path(@book), params: { show_used: "1", tray_search: @photo.title }
+    assert_select "button[data-photo-id]", 0
+    other = book_photo(title: "Not assigned")
+    get tray_photo_book_path(@book), params: { page_id: @book.pages.first.id, photo_book_page: { primary_photo_id: other.id } }
+    assert_response :unprocessable_entity
+    other_book = users(:two).photo_books.create!(title: "Other book")
+    get tray_photo_book_path(other_book)
+    assert_response :not_found
+    get tray_photo_book_path(@book), params: { page_id: other_book.pages.first.id }
+    assert_response :not_found
+  end
+
   test "export checks warnings, queues one snapshot and protects downloads" do
+    14.times { @book.append_page! }
     assert_no_difference "PhotoBookExport.count" do
       post photo_book_exports_path(@book)
     end
