@@ -1,0 +1,19 @@
+<%= turbo_frame_tag "photobook-picker" do %>
+  <%= form_with url: photo_book_path(@book), method: :get, class: "photobook-inline-form", data: { turbo_frame: "photobook-picker" } do %>
+    <%= hidden_field_tag :page_id, @selected_page.id %>
+    <%= label_tag :picker_photo_search, "Find a book photo" %><%= search_field_tag :photo_search, @photo_search, id: "picker_photo_search", placeholder: "Photo name" %>
+    <%= submit_tag "Find", class: "photobook-button" %>
+  <% end %>
+  <div class="photobook-picker-grid">
+    <% @pool_photos.each do |photo| %>
+      <button type="button" class="photobook-picker-photo" data-action="photobook-designer#choosePhoto" data-photo-id="<%= photo.id %>" data-photo-title="<%= photo.title %>" data-caption="<%= photo.description.to_s.first(2000) %>" aria-label="Use <%= photo.title %>">
+        <%= image_tag stream_photo_path(photo), alt: "", loading: "lazy", decoding: "async" %><span><%= photo.title %></span>
+      </button>
+    <% end %>
+  </div>
+  <% if @pool_photos.empty? %><p class="photobook-note">No book photos found. <%= link_to "Add photos", photo_book_path(@book, tab: "photos"), data: { turbo_frame: "_top" } %> to start designing.</p><% end %>
+  <div class="photobook-pagination">
+    <%= link_to "Previous", photo_book_path(@book, page_id: @selected_page.id, photo_search: @photo_search, photo_page: @photo_page - 1), class: "photobook-button" if @photo_page > 1 %>
+    <%= link_to "More photos", photo_book_path(@book, page_id: @selected_page.id, photo_search: @photo_search, photo_page: @next_photo_page), class: "photobook-button" if @next_photo_page %>
+  </div>
+<% end %>

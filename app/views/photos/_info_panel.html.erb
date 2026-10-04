@@ -36,6 +36,7 @@
   <% end %>
 
   <% if current_user&.owner? %>
+    <%= render "photos/info_panel_photo_books", photo: photo, return_to: return_to %>
     <%= render "photos/info_panel_archive", photo: photo, return_to: return_to %>
   <% end %>
 

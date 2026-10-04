@@ -43,6 +43,28 @@
       <% unless local_assigns[:archive_context] %>
         <details class="relative" data-controller="menu" data-bulk-selection-target="action">
           <summary class="ui-tooltip flex size-10 cursor-pointer list-none items-center justify-center rounded-lg text-zinc-800 transition hover:bg-zinc-100"
+                   aria-label="Add selected photos to a photobook" data-tooltip="Add to photobook" data-action="click->bulk-selection#guard">
+            <%= app_icon(:book_open) %>
+            <span class="sr-only">Add selected photos to a photobook</span>
+          </summary>
+          <div class="absolute right-0 z-40 mt-2 w-[min(92vw,340px)] rounded-lg border border-zinc-200 bg-white p-4 text-zinc-950 shadow-2xl">
+            <div class="space-y-3">
+              <div>
+                <label for="bulk_photo_book_id" class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Existing photobook</label>
+                <%= select_tag :photo_book_id, options_from_collection_for_select(current_user.photo_books.order(:title, :id), :id, :title),
+                      include_blank: "Choose photobook", id: "bulk_photo_book_id", class: "mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm" %>
+              </div>
+              <div>
+                <label for="bulk_new_photo_book_title" class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">New photobook</label>
+                <%= text_field_tag :new_photo_book_title, nil, id: "bulk_new_photo_book_title", maxlength: 120, placeholder: "Book name", class: "mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm" %>
+              </div>
+              <button type="submit" name="bulk_action" value="add_to_photo_book" disabled data-bulk-selection-target="action"
+                      class="w-full rounded-lg bg-zinc-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:bg-zinc-300">Add to photobook</button>
+            </div>
+          </div>
+        </details>
+        <details class="relative" data-controller="menu" data-bulk-selection-target="action">
+          <summary class="ui-tooltip flex size-10 cursor-pointer list-none items-center justify-center rounded-lg text-zinc-800 transition hover:bg-zinc-100"
                    aria-label="Add selected photos to an album"
                    data-tooltip="Add to album"
                    data-action="click->bulk-selection#guard">

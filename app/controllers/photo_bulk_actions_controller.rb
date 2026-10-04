@@ -61,6 +61,8 @@ class PhotoBulkActionsController < ApplicationController
 
       added = add_photos_to_album(photos, album)
       redirect_to bulk_return_path(photos), notice: "Added #{added} #{'photo'.pluralize(added)} to #{album.title}."
+    when "add_to_photo_book"
+      add_to_photo_book(photos)
     when "set_location"
       address = params[:location_address].to_s.squish
       return redirect_to safe_return_path, alert: "Enter an address or place name." if address.blank?
@@ -87,6 +89,20 @@ class PhotoBulkActionsController < ApplicationController
   end
 
   private
+
+  def add_to_photo_book(photos)
+    book = if params[:new_photo_book_title].present?
+      current_user.photo_books.create!(title: params[:new_photo_book_title], cover_title: params[:new_photo_book_title])
+    elsif params[:photo_book_id].present?
+      current_user.photo_books.find(params[:photo_book_id])
+    end
+    return redirect_to safe_return_path, alert: "Choose a photobook or name a new one." unless book
+
+    added = book.add_photos!(photos)
+    redirect_to bulk_return_path(photos), notice: "Added #{added} #{'photo'.pluralize(added)} to #{book.title}. Videos and photos already in the book are skipped."
+  rescue ActiveRecord::RecordInvalid => error
+    redirect_to safe_return_path, alert: error.record.errors.full_messages.to_sentence
+  end
 
   def selected_photo_ids
     Array(params[:photo_ids]).compact_blank

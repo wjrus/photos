@@ -1,0 +1,51 @@
+# Photobook designer
+
+Photobooks are private, owner-only designs. Open **Photobooks** in site navigation, create a book, and assign photos using the library's bulk **Add to photobook** control, the photo details panel, or **Book photos → Add album photos**. Membership is separate from albums and photo storage. Removing a photo from a book clears its placements and covers, but preserves the library original.
+
+New books have 18 blank inside pages. Adding photos creates a pool to choose from; it does not automatically place them. In **Design pages**, choose a numbered page and its layout, select photos through the thumbnail picker or dropdown, edit captions and crop positions, and **Save page**. Preview edits are not saved until that button is used. Page text and captions are independent of the library photo's caption; selecting a thumbnail copies the existing photo description into an empty caption field.
+
+Layouts: blank, full-page photo, whole photo with whitespace, photo with caption, two photos side by side, two photos stacked, text, and one photo across two pages. Independently designed facing pages support arrangements such as a full-page image opposite a bordered image and caption. Book settings control size, front and back photos, cover text, background and text colors, and the saved spine label.
+
+## Prodigi layflat artwork
+
+Source: [Prodigi layflat file setup guidelines](https://support.prodigi.com/hc/en-us/articles/17150478672540-Layflat-photo-books-File-set-up-guidelines), checked October 3, 2026. Supported sizes:
+
+| Format | Single page size |
+| --- | --- |
+| Square | 210 × 210 mm |
+| Large square | 297 × 297 mm |
+| A4 landscape | 297 × 210 mm |
+
+The first PDF page is the front cover. The second PDF page is inside page 1, on the right. Inside pages 2 and 3 form the first facing spread. The final PDF page is the back cover. The inside covers are unprinted and added by the printer. A two-page image shares one crop and is exported as two individual PDF pages, with no bleed or crop marks. Print checks reject a spread starting on a right-hand page; adding a new spread inserts a blank page first when necessary. Converting or reordering existing pages can require adjustment to restore spread alignment and an even page count.
+
+This first version supports 18–120 inside pages, producing 20–122 PDF pages including covers. That conservative range stays within the advertised 18–122-page product and file guide while their exact page-count convention is confirmed for quoting/ordering. The exported PDF's actual count is shown explicitly.
+
+Original files are decoded with libvips, oriented using EXIF, converted to RGB, flattened when transparent, stripped of embedded metadata, and downsampled only when above the 300 DPI target. Crops use the saved horizontal and vertical focus. Preview dimensions project only EXIF orientation and pixel dimensions rather than loading the entire metadata document. The bundled SIL OFL Noto Sans font is embedded; unsupported glyphs, including many emoji, block export. Text wrapping and page geometry are shared between preview and PDF. All caption and cover text boxes stay inside the 10 mm safety area.
+
+**Print checks & PDF → Generate print PDF** queues a snapshot of the saved design. Missing/unavailable photos, text overflow, invalid spread placement, and page-count errors block generation. Low resolution needs explicit acknowledgement; unknown dimensions are checked against the decoded original during export. An unexpected resolution failure can be retried with acknowledgement from its failed-export entry.
+
+The output meets the guide's embedded-font and flattened-transparency alternative; it does not assert certified PDF/X-4 conformance. Representative PDFs have been rendered and checked locally for dimensions, font embedding, Unicode text, page order, captions, and spreads. A real Prodigi sample and vendor acceptance remain to be verified before automated ordering.
+
+## Covers, spine, and future ordering
+
+Front/back covers are included in the PDF. The spine label is stored in the design and export snapshot, but is **not spine artwork**. For manual orders, enter that label and the desired spine colors in Prodigi's order form. API spine artwork requires dimensions based on page count and the selected production lab; it will be generated when that integration is added. No Prodigi credentials, uploads, charges, or orders are involved in this feature.
+
+## Operations and deployment
+
+The migration adds four tables and foreign keys; it does not backfill or change existing photo/album data. Use the normal Rails image/deployment process and database migration. No new environment variables or analysis-service rebuild are needed. Prawn and its dependencies are locked in Gemfile.lock; Noto Sans is bundled with its license. Asset precompilation includes the preview font.
+
+`PreparePhotoBookExportJob` uses the existing default queue and limits PDF generation to one job at a time in Solid Queue to bound memory consumption. PDFs are stored with Active Storage. Progress and export history appear on the book page. Retried jobs can recover a processing export, duplicate completed deliveries do not regenerate it, and deleting a book discards its queued exports. Removing a book also removes its PDF attachments through the normal Active Storage lifecycle.
+
+Download bytes are streamed through an owner-authorized controller, without public Active Storage links. Downloads and generation recheck that source photos remain assigned, unrestricted, unarchived, and attached to the same original blob captured by the snapshot. Moving a used photo into Private/Archive or removing it from the book makes earlier PDFs unavailable. Previously downloaded files cannot be revoked.
+
+Verification commands:
+
+```sh
+rbenv exec bundle exec rails db:migrate
+rbenv exec bundle exec rails test
+rbenv exec bundle exec rails test:system
+rbenv exec bundle exec rubocop
+rbenv exec bundle exec ruby bin/brakeman --quiet --no-pager --exit-on-warn --exit-on-error
+rbenv exec bundle exec bundler-audit check --update
+rbenv exec bundle exec ruby bin/importmap audit
+```
