@@ -1,0 +1,25 @@
+<%= form_with model: book, class: "photobook-card photobook-fields" do |form| %>
+  <% if book.errors.any? %><div role="alert"><%= book.errors.full_messages.to_sentence %></div><% end %>
+  <%= form.hidden_field :lock_version if book.persisted? %>
+  <div><%= form.label :title, "Book name" %><%= form.text_field :title, required: true, maxlength: 120 %></div>
+  <div><%= form.label :format, "Book size" %><%= form.select :format, PhotoBook::FORMATS.map { |key, value| [ value.fetch(:label), key ] } %></div>
+  <p class="photobook-note">Layflat hardcover · Matte cover · Lustre photo paper</p>
+  <% if book.persisted? %>
+    <hr><h2>Front cover</h2>
+    <div><%= form.label :cover_photo_id, "Cover photo" %><%= form.select :cover_photo_id, @photo_options, include_blank: "Text only" %></div>
+    <div><%= form.label :cover_layout, "Cover photo layout" %><%= form.select :cover_layout, [["Whole photo with whitespace", "fit"], ["Full cover photo", "full"]] %></div>
+    <div><%= form.label :cover_title, "Cover title" %><%= form.text_area :cover_title, rows: 2, maxlength: 200 %></div>
+    <div><%= form.label :cover_subtitle, "Cover subtitle" %><%= form.text_area :cover_subtitle, rows: 2, maxlength: 200 %></div>
+    <hr><h2>Back cover</h2>
+    <div><%= form.label :back_photo_id, "Back cover photo" %><%= form.select :back_photo_id, @photo_options, include_blank: "No photo" %></div>
+    <div><%= form.label :back_text, "Back cover text" %><%= form.text_area :back_text, rows: 4, maxlength: 2000 %></div>
+    <hr><h2>Spine & colors</h2>
+    <div><%= form.label :spine_text, "Spine label" %><%= form.text_field :spine_text, maxlength: 200 %></div>
+    <p class="photobook-note">The spine label is saved with your design. For a manual Prodigi order, enter it in their order form. Exact spine artwork needs the printing lab’s dimensions and will be added with API integration.</p>
+    <div class="photobook-two-fields">
+      <div><%= form.label :background_color, "Page background" %><%= form.color_field :background_color %></div>
+      <div><%= form.label :text_color, "Text color" %><%= form.color_field :text_color %></div>
+    </div>
+  <% end %>
+  <%= form.submit book.persisted? ? "Save book settings" : "Create photobook", class: "photobook-button photobook-button-primary" %>
+<% end %>

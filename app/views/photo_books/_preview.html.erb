@@ -1,0 +1,17 @@
+<div id="photobook-preview" class="photobook-preview" aria-label="Facing-page preview">
+  <div class="photobook-preview-pages">
+    <% preview_pages.each_with_index do |page, index| %>
+      <% if page %>
+        <div class="photobook-preview-leaf">
+          <%= link_to photo_book_path(book, page_id: page.fetch(:key)), aria: { label: "Edit #{page.fetch(:label).downcase}" }, class: "photobook-preview-page" do %>
+            <%= render "page_artwork", page: page, layout: layout, photos: photos, prefix: "preview-#{index}" %>
+          <% end %>
+          <p><%= page.fetch(:label) %><%= page[:side] ? " · #{page[:side]}" : "" %></p>
+        </div>
+      <% else %>
+        <div class="photobook-preview-leaf"><div class="photobook-unprinted-page" style="aspect-ratio: <%= book.dimensions.fetch(:width) %> / <%= book.dimensions.fetch(:height) %>"></div><p>Inside cover · unprinted</p></div>
+      <% end %>
+    <% end %>
+  </div>
+  <% if layout.errors.any? %><p class="photobook-preview-warning" role="status"><%= layout.errors.uniq.to_sentence %></p><% end %>
+</div>

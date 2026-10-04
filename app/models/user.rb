@@ -7,6 +7,7 @@ class User < ApplicationRecord
 
   has_many :photos, foreign_key: :owner_id, dependent: :restrict_with_exception, inverse_of: :owner
   has_many :photo_albums, foreign_key: :owner_id, dependent: :restrict_with_exception, inverse_of: :owner
+  has_many :photo_books, foreign_key: :owner_id, dependent: :restrict_with_exception, inverse_of: :owner
   has_many :photo_location_covers, foreign_key: :owner_id, dependent: :destroy, inverse_of: :owner
   has_many :upload_batches, foreign_key: :owner_id, dependent: :restrict_with_exception, inverse_of: :owner
   has_many :album_downloads, dependent: :destroy

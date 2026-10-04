@@ -53,6 +53,16 @@ Rails.application.routes.draw do
   end
   resource :album_bulk_actions, only: :create
   resource :photo_bulk_actions, only: :create
+  resources :photo_books do
+    post :preview, on: :member
+    resources :pages, only: %i[create update destroy], controller: :photo_book_pages do
+      patch :move, on: :member
+    end
+    resources :memberships, only: %i[create destroy], controller: :photo_book_memberships
+    resources :exports, only: %i[create show], controller: :photo_book_exports do
+      get :file, on: :member
+    end
+  end
   resources :albums, only: %i[index show create update destroy] do
     patch :publish, on: :member
     patch :unpublish, on: :member
@@ -88,6 +98,7 @@ Rails.application.routes.draw do
     post :retry_archive, on: :member
     resource :file_health_check, only: :create, controller: :photo_file_health_checks
     resources :photo_album_memberships, only: :create, shallow: true
+    resources :photo_book_memberships, only: :create
     resources :photo_people_tags, only: :create
   end
   resources :photo_people_tags, only: :destroy
