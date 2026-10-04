@@ -1,0 +1,7 @@
+<% content_for :title, "New photobook · Photos" %>
+<%= render "shared/site_header" %>
+<main class="photobook photobook-form-page">
+  <%= link_to "← Photobooks", photo_books_path, class: "photobook-back" %>
+  <h1>New photobook</h1><p>Start with an 18-page layflat book. You can add, remove, and reorder pages as you design.</p>
+  <%= render "form", book: @book %>
+</main>

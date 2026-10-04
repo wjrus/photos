@@ -288,6 +288,7 @@ module ApplicationHelper
 
   def app_icon(name, classes: "size-5")
     paths = {
+      book_open: '<path d="M12 7v14"/><path d="M3 3h4a5 5 0 0 1 5 4 5 5 0 0 1 5-4h4v16h-4a5 5 0 0 0-5 2 5 5 0 0 0-5-2H3V3Z"/>',
       check_circle: '<path d="M9 12.75 11.25 15 15.5 9.5"/><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>',
       archive: '<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',
       chevron_down: '<path d="m6 9 6 6 6-6"/>',

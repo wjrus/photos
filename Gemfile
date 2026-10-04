@@ -63,6 +63,9 @@ gem "exifr"
 # entries out one at a time so originals are never loaded fully into memory.
 gem "rubyzip"
 
+# Generate print artwork directly, with embedded fonts and exact page dimensions.
+gem "prawn", "~> 2.5"
+
 group :development, :test do
   # Load local credentials from .env during development and tests.
   gem "dotenv-rails"

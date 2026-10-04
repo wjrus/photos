@@ -1,0 +1,26 @@
+<section id="print-checks" class="photobook-card photobook-print-checks">
+  <div class="photobook-heading"><div><p class="photobook-eyebrow">Before printing</p><h2>Print checks</h2></div><span class="photobook-badge"><%= @preflight.ready? ? "Ready to export" : "Design needs attention" %></span></div>
+  <p>The PDF contains the front cover, <%= @layout.pages.size - 2 %> inside pages, and the back cover, in that order. A spread is exported as two separate pages.</p>
+  <% if @preflight.errors.any? %><ul class="photobook-check-errors"><% @preflight.errors.each do |error| %><li><%= error %></li><% end %></ul><% end %>
+  <% if @preflight.warnings.any? %><ul class="photobook-check-warnings"><% @preflight.warnings.each do |warning| %><li><%= warning %></li><% end %></ul><% end %>
+  <%= form_with url: photo_book_exports_path(@book), class: "photobook-fields" do %>
+    <% if @preflight.warnings.any? %><label class="photobook-checkbox"><%= check_box_tag :allow_low_resolution, "1" %> I have reviewed the resolution warnings and want to export anyway.</label><% end %>
+    <%= submit_tag "Generate print PDF", disabled: !@preflight.ready?, class: "photobook-button photobook-button-primary" %>
+  <% end %>
+  <p class="photobook-note">RGB artwork · 300 DPI target · Embedded font · No bleed or crop marks. Low-resolution source photos cannot gain detail during export. <%= link_to "Prodigi file guidelines", "https://support.prodigi.com/hc/en-us/articles/17150478672540-Layflat-photo-books-File-set-up-guidelines", target: "_blank", rel: "noopener noreferrer" %></p>
+</section>
+<section id="book-exports" class="photobook-card">
+  <h2>Saved PDFs</h2><p>Each PDF captures the saved design at the time you generate it.</p>
+  <% if @exports.empty? %><p class="photobook-note">Your exported books will appear here.</p><% end %>
+  <% @exports.each do |export| %>
+    <article class="photobook-export" data-controller="photobook-export" data-photobook-export-url-value="<%= photo_book_export_path(@book, export) %>" data-photobook-export-status-value="<%= export.status %>">
+      <div><strong><%= export.filename %></strong><p><%= export.created_at.strftime("%b %-d, %Y · %-I:%M %p") %><%= " · Earlier design" if export.design_digest != Digest::SHA256.hexdigest(@snapshot.to_json) %></p></div>
+      <p data-photobook-export-target="status" role="status"><%= export.status == "failed" ? export.error : export.status.humanize %></p>
+      <%= link_to "Download PDF", file_photo_book_export_path(@book, export), class: "photobook-button", hidden: !export.ready?, data: { turbo: false, photobook_export_target: "download" } %>
+      <% if export.status == "failed" && export.error.to_s.include?("DPI") %>
+        <%= button_to "Retry and accept lower resolution", photo_book_exports_path(@book), params: { allow_low_resolution: "1" }, class: "photobook-button" %>
+      <% end %>
+    </article>
+  <% end %>
+  <p class="photobook-note">Printing and ordering are not connected yet. You can download a PDF for review or a manual Prodigi order. The saved spine label is entered separately for manual orders.</p>
+</section>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_26_020100) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_04_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -259,6 +259,82 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_26_020100) do
     t.index ["photo_id"], name: "index_photo_analysis_tags_on_photo_id"
   end
 
+  create_table "photo_book_exports", force: :cascade do |t|
+    t.bigint "photo_book_id", null: false
+    t.string "status", default: "pending", null: false
+    t.jsonb "snapshot", null: false
+    t.string "design_digest", null: false
+    t.string "filename", null: false
+    t.string "error"
+    t.integer "processed_pages", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["photo_book_id"], name: "index_photo_book_exports_on_photo_book_id"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'processing'::character varying, 'ready'::character varying, 'failed'::character varying]::text[])", name: "photo_book_exports_status"
+  end
+
+  create_table "photo_book_memberships", force: :cascade do |t|
+    t.bigint "photo_book_id", null: false
+    t.bigint "photo_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["photo_book_id", "photo_id"], name: "index_photo_book_memberships_on_photo_book_id_and_photo_id", unique: true
+    t.index ["photo_book_id"], name: "index_photo_book_memberships_on_photo_book_id"
+    t.index ["photo_id"], name: "index_photo_book_memberships_on_photo_id"
+  end
+
+  create_table "photo_book_pages", force: :cascade do |t|
+    t.bigint "photo_book_id", null: false
+    t.integer "position", null: false
+    t.string "layout", default: "blank", null: false
+    t.bigint "primary_photo_id"
+    t.bigint "secondary_photo_id"
+    t.text "caption", default: "", null: false
+    t.text "secondary_caption", default: "", null: false
+    t.string "image_fit", default: "fill", null: false
+    t.integer "primary_focus_x", default: 50, null: false
+    t.integer "primary_focus_y", default: 50, null: false
+    t.integer "secondary_focus_x", default: 50, null: false
+    t.integer "secondary_focus_y", default: 50, null: false
+    t.integer "lock_version", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["photo_book_id", "position"], name: "index_photo_book_pages_on_photo_book_id_and_position", unique: true
+    t.index ["photo_book_id"], name: "index_photo_book_pages_on_photo_book_id"
+    t.index ["primary_photo_id"], name: "index_photo_book_pages_on_primary_photo_id"
+    t.index ["secondary_photo_id"], name: "index_photo_book_pages_on_secondary_photo_id"
+    t.check_constraint "\"position\" >= 0", name: "photo_book_pages_position"
+    t.check_constraint "image_fit::text = ANY (ARRAY['fill'::character varying, 'fit'::character varying]::text[])", name: "photo_book_pages_image_fit"
+    t.check_constraint "layout::text = ANY (ARRAY['blank'::character varying, 'full'::character varying, 'fit'::character varying, 'caption'::character varying, 'two_horizontal'::character varying, 'two_vertical'::character varying, 'text'::character varying, 'spread'::character varying]::text[])", name: "photo_book_pages_layout"
+    t.check_constraint "primary_focus_x >= 0 AND primary_focus_x <= 100", name: "photo_book_pages_primary_focus_x"
+    t.check_constraint "primary_focus_y >= 0 AND primary_focus_y <= 100", name: "photo_book_pages_primary_focus_y"
+    t.check_constraint "secondary_focus_x >= 0 AND secondary_focus_x <= 100", name: "photo_book_pages_secondary_focus_x"
+    t.check_constraint "secondary_focus_y >= 0 AND secondary_focus_y <= 100", name: "photo_book_pages_secondary_focus_y"
+  end
+
+  create_table "photo_books", force: :cascade do |t|
+    t.bigint "owner_id", null: false
+    t.string "title", null: false
+    t.string "format", default: "square_210", null: false
+    t.string "cover_layout", default: "fit", null: false
+    t.string "cover_title", default: "", null: false
+    t.string "cover_subtitle", default: "", null: false
+    t.text "back_text", default: "", null: false
+    t.string "spine_text", default: "", null: false
+    t.string "background_color", default: "#ffffff", null: false
+    t.string "text_color", default: "#18181b", null: false
+    t.bigint "cover_photo_id"
+    t.bigint "back_photo_id"
+    t.integer "lock_version", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["back_photo_id"], name: "index_photo_books_on_back_photo_id"
+    t.index ["cover_photo_id"], name: "index_photo_books_on_cover_photo_id"
+    t.index ["owner_id"], name: "index_photo_books_on_owner_id"
+    t.check_constraint "cover_layout::text = ANY (ARRAY['full'::character varying, 'fit'::character varying]::text[])", name: "photo_books_cover_layout"
+    t.check_constraint "format::text = ANY (ARRAY['square_210'::character varying, 'square_297'::character varying, 'landscape_a4'::character varying]::text[])", name: "photo_books_format"
+  end
+
   create_table "photo_embeddings", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "dimensions", null: false
@@ -504,6 +580,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_26_020100) do
   add_foreign_key "photo_analysis_runs", "photos"
   add_foreign_key "photo_analysis_tags", "photo_analysis_runs"
   add_foreign_key "photo_analysis_tags", "photos"
+  add_foreign_key "photo_book_exports", "photo_books"
+  add_foreign_key "photo_book_memberships", "photo_books"
+  add_foreign_key "photo_book_memberships", "photos"
+  add_foreign_key "photo_book_pages", "photo_books"
+  add_foreign_key "photo_book_pages", "photos", column: "primary_photo_id", on_delete: :nullify
+  add_foreign_key "photo_book_pages", "photos", column: "secondary_photo_id", on_delete: :nullify
+  add_foreign_key "photo_books", "photos", column: "back_photo_id", on_delete: :nullify
+  add_foreign_key "photo_books", "photos", column: "cover_photo_id", on_delete: :nullify
+  add_foreign_key "photo_books", "users", column: "owner_id"
   add_foreign_key "photo_embeddings", "photo_analysis_runs"
   add_foreign_key "photo_embeddings", "photos"
   add_foreign_key "photo_location_covers", "photos", column: "cover_photo_id"

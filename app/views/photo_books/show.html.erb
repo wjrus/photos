@@ -1,0 +1,48 @@
+<% content_for :title, "#{@book.title} · Photobooks" %>
+<%= render "shared/site_header" %>
+<main class="photobook" data-controller="photobook-designer" data-photobook-designer-preview-url-value="<%= preview_photo_book_path(@book) %>">
+  <%= link_to "← Photobooks", photo_books_path, class: "photobook-back" %>
+  <div class="photobook-heading">
+    <div><p class="photobook-eyebrow">Layflat book</p><h1><%= @book.title %></h1><p><%= @book.dimensions.fetch(:label) %> · <%= @layout.pages.size - 2 %> inside pages + 2 covers</p></div>
+    <%= link_to "Book settings & covers", edit_photo_book_path(@book), class: "photobook-button" %>
+  </div>
+  <nav class="photobook-tabs" aria-label="Photobook sections">
+    <%= link_to "Design pages", photo_book_path(@book), class: @tab == "design" ? "is-active" : nil, aria: { current: @tab == "design" ? "page" : nil } %>
+    <%= link_to "Book photos (#{@photo_count})", photo_book_path(@book, tab: "photos"), class: @tab == "photos" ? "is-active" : nil, aria: { current: @tab == "photos" ? "page" : nil } %>
+    <%= link_to "Print checks & PDF", "#print-checks" %>
+  </nav>
+  <% if @tab == "photos" %>
+    <%= render "photo_pool" %>
+  <% else %>
+    <nav class="photobook-page-list" aria-label="Book pages">
+      <% @layout.pages.each do |book_page| %>
+        <% key = book_page.fetch(:key) %>
+        <%= link_to book_page.fetch(:label), photo_book_path(@book, page_id: key), class: ["photobook-page-link", ("is-active" if @selected_key == key || (@selected_page && book_page[:source_id] == @selected_page.id))], aria: { current: @selected_key == key ? "page" : nil } %>
+      <% end %>
+    </nav>
+    <div class="photobook-workspace">
+      <div>
+        <%= render "preview", layout: @layout, preview_pages: @preview_pages, photos: @preview_photos, book: @book %>
+        <p class="photobook-note">Select a page to edit it. The first inside page is on the right; a two-page photo starts on a left page.</p>
+        <% if @selected_page %>
+          <details class="photobook-picker-panel" open>
+            <summary>Choose from book photos</summary>
+            <label for="photobook-photo-slot">Use the chosen photo as</label>
+            <select id="photobook-photo-slot" data-photobook-designer-target="photoSlot"><option value="primary">First photo</option><option value="secondary">Second photo</option></select>
+            <%= render "photo_picker" %>
+          </details>
+        <% end %>
+        <div class="photobook-add-pages">
+          <%= button_to "Add blank page", photo_book_pages_path(@book), params: { layout: "blank" }, class: "photobook-button" %>
+          <%= button_to "Add two-page photo", photo_book_pages_path(@book), params: { layout: "spread" }, class: "photobook-button" %>
+        </div>
+      </div>
+      <% if @selected_page %>
+        <%= render "page_editor", page: @selected_page %>
+      <% else %>
+        <section class="photobook-card"><h2><%= @selected_key == "back" ? "Back cover" : "Front cover" %></h2><p>Choose the cover photo, text, and colors in book settings.</p><%= link_to "Edit covers", edit_photo_book_path(@book), class: "photobook-button" %></section>
+      <% end %>
+    </div>
+  <% end %>
+  <%= render "print_checks" %>
+</main>

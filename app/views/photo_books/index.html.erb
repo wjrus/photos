@@ -1,0 +1,28 @@
+<% content_for :title, "Photobooks · Photos" %>
+<%= render "shared/site_header" %>
+<main class="photobook">
+  <div class="photobook-heading">
+    <div><p class="photobook-eyebrow">Made from your library</p><h1>Photobooks</h1><p>Design a layflat book, one page or one spread at a time.</p></div>
+    <%= link_to "New photobook", new_photo_book_path, class: "photobook-button photobook-button-primary" %>
+  </div>
+  <% if @books.empty? %>
+    <section class="photobook-empty"><h2>Your next story starts here.</h2><p>Choose photos, arrange the pages, and download a print PDF when it is ready.</p><%= link_to "Create your first book", new_photo_book_path, class: "photobook-button" %></section>
+  <% else %>
+    <div class="photobook-grid">
+      <% @books.each do |book| %>
+        <%= link_to photo_book_path(book), class: "photobook-card photobook-book-card" do %>
+          <div class="photobook-book-cover" style="background-color: <%= book.background_color %>; color: <%= book.text_color %>">
+            <%= image_tag display_photo_path(@covers.fetch(book.cover_photo_id)), alt: "", loading: "lazy", class: "photobook-book-cover-photo" if @covers.key?(book.cover_photo_id) %>
+            <span><%= book.cover_title.presence || book.title %></span>
+          </div>
+          <h2><%= book.title %></h2><p><%= book.dimensions.fetch(:label) %> · Layflat</p>
+          <p><%= pluralize(@photo_counts.fetch(book.id, 0), "photo") %> · <%= @page_counts.fetch(book.id, 0) %> inside pages</p>
+        <% end %>
+      <% end %>
+    </div>
+    <div class="photobook-pagination">
+      <%= link_to "Previous books", photo_books_path(page: @page - 1), class: "photobook-button" if @page > 1 %>
+      <%= link_to "More books", photo_books_path(page: @next_page), class: "photobook-button" if @next_page %>
+    </div>
+  <% end %>
+</main>
