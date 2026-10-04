@@ -15,7 +15,7 @@ class PhotoBookPagesController < ApplicationController
       end
       @page = @book.append_page!(layout: layout)
     end
-    redirect_to photo_book_path(@book, page_id: @page.id), notice: "Page added."
+    redirect_to designer_path, notice: "Page added."
   end
 
   def update
@@ -23,11 +23,11 @@ class PhotoBookPagesController < ApplicationController
       @page.update!(page_params)
       @book.touch
     end
-    redirect_to photo_book_path(@book, page_id: @page.id), notice: "Page saved."
+    redirect_to designer_path, notice: "Page saved."
   rescue ActiveRecord::RecordInvalid => error
-    redirect_to photo_book_path(@book, page_id: @page.id), alert: error.record.errors.full_messages.to_sentence
+    redirect_to designer_path, alert: error.record.errors.full_messages.to_sentence
   rescue ActiveRecord::StaleObjectError
-    redirect_to photo_book_path(@book, page_id: @page.id), alert: "This page changed in another tab. Reload it before saving."
+    redirect_to designer_path, alert: "This page changed in another tab. Reload it before saving."
   end
 
   def move
@@ -45,7 +45,7 @@ class PhotoBookPagesController < ApplicationController
         @book.touch
       end
     end
-    redirect_to photo_book_path(@book, page_id: @page.id), notice: "Page order saved."
+    redirect_to designer_path, notice: "Page order saved."
   end
 
   def destroy
@@ -57,6 +57,11 @@ class PhotoBookPagesController < ApplicationController
   end
 
   private
+
+  def designer_path
+    key = @page.layout == "spread" && params[:preview_key] == "#{@page.id}-1" ? params[:preview_key] : @page.id
+    photo_book_path(@book, page_id: key, view: params[:view] == "spread" ? "spread" : "page")
+  end
 
   def set_book
     @book = current_user.photo_books.find(params[:photo_book_id])

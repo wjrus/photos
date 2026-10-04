@@ -61,7 +61,17 @@
 .photobook-design-shell .photobook-workspace { grid-template-columns: minmax(0, 1fr) 280px; gap: 20px; min-width: 0; }
 .photobook-preview { background: var(--theme-panel-soft); border: 1px solid var(--theme-border); border-radius: 12px; padding: 28px 16px 16px; }
 .photobook-preview-pages { display: flex; justify-content: center; align-items: flex-start; gap: 1px; }
-.photobook-preview-leaf { flex: 1; min-width: 0; max-width: 560px; }
+.photobook-preview-leaf { flex: 1; min-width: 0; max-width: 720px; }
+.photobook-preview-pages.is-spread .photobook-preview-leaf { max-width: 560px; }
+.photobook-preview-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; }
+.photobook-page-position { display: flex; align-items: center; gap: 10px; font-size: .8rem; color: var(--theme-muted); }
+.photobook-position-icon { display: flex; gap: 2px; }
+.photobook-position-icon span { display: block; width: 18px; height: 24px; border: 1px solid var(--theme-muted); border-radius: 2px; }
+.photobook-position-icon .is-active { background: var(--theme-accent-strong); border-color: var(--theme-accent-strong); }
+.photobook-position-icon.is-cover span { border-left: 3px double var(--theme-border); }
+.photobook-preview-switch { display: inline-flex; border: 1px solid var(--theme-border); border-radius: 7px; padding: 3px; gap: 3px; font-size: .75rem; }
+.photobook-preview-switch button { padding: 7px 10px; border-radius: 4px; cursor: pointer; }
+.photobook-preview-switch button[aria-pressed="true"] { color: var(--theme-accent-ink); background: var(--theme-accent-strong); }
 .photobook-preview-leaf p { text-align: center; font-size: .75rem; color: var(--theme-muted); }
 .photobook-preview-page { position: relative; display: block; border: 1px solid #d4d4d8; box-shadow: 0 5px 20px #00000012; overflow: hidden; background: white; }
 .photobook-preview-page.is-selected { border-color: var(--theme-accent); }

@@ -22,7 +22,8 @@ class PhotoBooksControllerTest < ActionDispatch::IntegrationTest
     get photo_book_path(@book, page_id: @book.pages.first.id)
     assert_response :success
     assert_select "svg.photobook-artwork", 1
-    assert_select ".photobook-unprinted-page", 1
+    assert_select ".photobook-unprinted-page", 0
+    assert_select ".photobook-page-position", "Page 1 · Right page"
     assert_select "input[value='Save page']"
     assert_equal "private, no-store", response.headers["Cache-Control"]
     patch photo_book_path(@book), params: { photo_book: { cover_title: "Updated cover", cover_photo_id: @photo.id, lock_version: @book.lock_version } }
@@ -88,6 +89,46 @@ class PhotoBooksControllerTest < ActionDispatch::IntegrationTest
     post preview_photo_book_path(@book), params: { page_id: page.id, photo_book_page: { primary_photo_id: other.id } }
     assert_response :unprocessable_entity
     assert_equal @photo.id, page.reload.primary_photo_id
+  end
+
+  test "single-page previews include every printed page and preserve the selected spread half" do
+    second = @book.pages.to_a[1]
+    second.update!(layout: "spread", primary_photo: @photo)
+    get photo_book_path(@book, page_id: "#{second.id}-1")
+    assert_response :success
+    assert_select "#photobook-preview svg", 1
+    assert_select "#photobook-preview svg[viewBox='210.0 0 210.0 210.0']", 1
+    assert_select ".photobook-page-position", "Page 3 · Right page"
+    assert_select ".photobook-page-link.is-active", "Page 3"
+    assert_select "input[name='preview_key'][value='#{second.id}-1']"
+    post preview_photo_book_path(@book), params: { page_id: second.id, preview_key: "#{second.id}-1", view: "page", photo_book_page: { primary_focus_x: 10 } }
+    assert_response :success
+    assert_select "#photobook-preview svg[viewBox='210.0 0 210.0 210.0']", 1
+    assert_equal 50, second.reload.primary_focus_x
+    post preview_photo_book_path(@book), params: { page_id: second.id, preview_key: "#{second.id}-1", view: "spread" }
+    assert_select "#photobook-preview svg", 2
+    assert_select "button[data-preview-view='spread'][aria-pressed='true']"
+    patch photo_book_page_path(@book, second), params: { preview_key: "#{second.id}-1", view: "spread", photo_book_page: { primary_focus_x: 10, lock_version: second.lock_version } }
+    assert_redirected_to photo_book_path(@book, page_id: "#{second.id}-1", view: "spread")
+    get photo_book_path(@book, page_id: "#{second.id}-999", view: "unsupported")
+    assert_select ".photobook-page-position", "Page 2 · Left page"
+    assert_select "#photobook-preview svg", 1
+    get photo_book_path(@book, page_id: @book.pages.first.id, view: "spread")
+    assert_select ".photobook-unprinted-page", 1
+  end
+
+  test "page removal uses an in-app confirmation with a CSRF protected delete form" do
+    page = @book.pages.first
+    get photo_book_path(@book, page_id: page.id)
+    assert_select "[data-turbo-confirm]", 0
+    assert_select "[role='dialog'][aria-labelledby='remove-book-page-#{page.id}-title']" do
+      assert_select "button[data-action='confirm-modal#close']", "Cancel"
+      assert_select "button[type='submit']", "Remove page"
+    end
+    assert_select "form#remove-book-page-#{page.id}-form[action='#{photo_book_page_path(@book, page)}'][method='post']" do
+      assert_select "input[name='_method'][value='delete']"
+    end
+    assert_select "[role='dialog'][aria-labelledby='leave-book-page-title']"
   end
 
   test "cover typography previews without saving and persists independently on each cover" do

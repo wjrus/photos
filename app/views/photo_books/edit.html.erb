@@ -6,6 +6,6 @@
   <%= render "form", book: @book %>
   <section class="photobook-card photobook-danger">
     <h2>Remove this book</h2><p>Its design and exported PDFs will be removed. The photos stay in your library.</p>
-    <%= button_to "Remove photobook", photo_book_path(@book), method: :delete, class: "photobook-button", data: { turbo_confirm: "Remove this photobook and its saved design?" } %>
+    <%= render "confirmation", id: "remove-book-#{@book.id}", button_label: "Remove photobook", title: "Remove this photobook?", body: "Its saved design and exported PDFs will be removed. The photos stay in your library.", url: photo_book_path(@book), confirm_label: "Remove photobook" %>
   </section>
 </main>

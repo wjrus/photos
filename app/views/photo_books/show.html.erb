@@ -17,18 +17,18 @@
     <nav class="photobook-page-list" aria-label="Book pages">
       <% @layout.pages.each do |book_page| %>
         <% key = book_page.fetch(:key) %>
-        <%= link_to book_page.fetch(:label), photo_book_path(@book, page_id: key), class: ["photobook-page-link", ("is-active" if @selected_key == key || (@selected_page && book_page[:source_id] == @selected_page.id))], aria: { current: @selected_key == key ? "page" : nil } %>
+        <%= link_to book_page.fetch(:label), photo_book_path(@book, page_id: key, view: @preview_mode), class: ["photobook-page-link", ("is-active" if @selected_key == key)], aria: { current: @selected_key == key ? "page" : nil } %>
       <% end %>
     </nav>
     <div class="photobook-design-shell">
       <aside class="photobook-card photobook-tray" aria-label="Book photo tray"><%= render "photo_tray" %></aside>
       <div class="photobook-workspace">
       <div>
-        <%= render "preview", layout: @layout, preview_pages: @preview_pages, photos: @preview_photos, book: @book, selected_key: @selected_key %>
+        <%= render "preview", layout: @layout, preview_pages: @preview_pages, preview_mode: @preview_mode, photos: @preview_photos, book: @book, selected_key: @selected_key %>
         <p class="photobook-note">Drag a tray photo onto the selected page, or select a photo and then a photo area. Save your changes before switching pages.</p>
         <div class="photobook-add-pages">
-          <%= button_to "Add blank page", photo_book_pages_path(@book), params: { layout: "blank" }, class: "photobook-button" %>
-          <%= button_to "Add two-page photo", photo_book_pages_path(@book), params: { layout: "spread" }, class: "photobook-button" %>
+          <%= button_to "Add blank page", photo_book_pages_path(@book), params: { layout: "blank", view: @preview_mode }, class: "photobook-button" %>
+          <%= button_to "Add two-page photo", photo_book_pages_path(@book), params: { layout: "spread", view: @preview_mode }, class: "photobook-button" %>
         </div>
       </div>
       <% if @selected_page %>
@@ -40,4 +40,7 @@
     </div>
   <% end %>
   <%= render "print_checks" %>
+  <% if @tab == "design" %>
+    <%= render "confirmation", id: "leave-book-page", button_label: nil, title: "Leave without saving?", body: "Your changes to this page have not been saved. Stay here to keep editing, or discard them and continue.", url: photo_book_path(@book), method: :get, confirm_label: "Discard changes", form_data: { action: "submit->photobook-designer#discardChanges" }, designer_target: "leaveConfirmation" %>
+  <% end %>
 </main>

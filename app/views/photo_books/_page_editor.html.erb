@@ -3,6 +3,7 @@
   <%= form_with model: page, url: photo_book_page_path(@book, page), class: "photobook-fields", data: { photobook_designer_target: "form", action: "input->photobook-designer#schedulePreview change->photobook-designer#schedulePreview submit->photobook-designer#saving" } do |form| %>
     <%= form.hidden_field :lock_version %>
     <%= hidden_field_tag :page_id, page.id %><%= hidden_field_tag :preview_key, @selected_key %>
+    <%= hidden_field_tag :view, @preview_mode, data: { photobook_designer_target: "previewView" } %>
     <div><%= form.label :layout, "Page layout" %><%= form.select :layout, PhotoBookPage::LAYOUTS.map { |key, label| [ label, key ] }, {}, data: { photobook_designer_target: "layout" } %></div>
     <div data-photobook-designer-target="primary">
       <%= render "photo_slot", form: form, field: :primary_photo_id, slot: "primary", label: "First photo", photo: @preview_photos[page.primary_photo_id] %>
@@ -29,8 +30,8 @@
     <%= form.submit "Save page", class: "photobook-button photobook-button-primary" %>
   <% end %>
   <div class="photobook-page-actions">
-    <%= button_to "Move earlier", move_photo_book_page_path(@book, page), method: :patch, params: { direction: "up" }, class: "photobook-button" %>
-    <%= button_to "Move later", move_photo_book_page_path(@book, page), method: :patch, params: { direction: "down" }, class: "photobook-button" %>
-    <%= button_to "Remove page", photo_book_page_path(@book, page), method: :delete, class: "photobook-button", data: { turbo_confirm: "Remove this page from the book? Its photos stay assigned to the book." } %>
+    <%= button_to "Move earlier", move_photo_book_page_path(@book, page), method: :patch, params: { direction: "up", view: @preview_mode, preview_key: @selected_key }, class: "photobook-button" %>
+    <%= button_to "Move later", move_photo_book_page_path(@book, page), method: :patch, params: { direction: "down", view: @preview_mode, preview_key: @selected_key }, class: "photobook-button" %>
+    <%= render "confirmation", id: "remove-book-page-#{page.id}", button_label: "Remove page", title: page.layout == "spread" ? "Remove this two-page photo?" : "Remove this page?", body: "This removes #{page.layout == 'spread' ? 'both pages of this photo' : 'this page'} from the book. Its photos stay assigned to the book and in your library.", url: photo_book_page_path(@book, page), confirm_label: "Remove page", form_data: { action: "submit->photobook-designer#saving" } %>
   </div>
 </section>

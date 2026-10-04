@@ -22,7 +22,7 @@
       <article class="photobook-card photobook-pool-photo">
         <%= link_to photo_path(photo, return_to: photo_book_path(@book, tab: "photos")) do %><%= image_tag stream_photo_path(photo), alt: photo.title, loading: "lazy", decoding: "async" %><% end %>
         <h3><%= photo.title %></h3>
-        <%= button_to "Remove from book", photo_book_membership_path(@book, photo.id), method: :delete, class: "photobook-button", data: { turbo_confirm: "Remove this photo from the book and all its page placements? It will stay in your library." } %>
+        <%= render "confirmation", id: "remove-book-photo-#{photo.id}", button_label: "Remove from book", title: "Remove this photo from the book?", body: "This clears its page and cover placements. The photo stays in your library.", url: photo_book_membership_path(@book, photo.id), confirm_label: "Remove photo" %>
       </article>
     <% end %>
   </div>

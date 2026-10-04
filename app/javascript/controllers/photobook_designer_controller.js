@@ -4,7 +4,7 @@ const PHOTO_DRAG_TYPE = "application/x-photos-photobook"
 const TWO_PHOTO_LAYOUTS = ["two_horizontal", "two_vertical"]
 
 export default class extends Controller {
-  static targets = ["form", "layout", "primary", "secondary", "caption", "crop", "fit", "status", "photoInput", "slot", "primaryCaption", "secondaryCaption", "addPhoto", "tray", "trayPhoto", "captionToggle", "showCaptions", "secondaryCaptionField", "textStyle", "coverPosition", "coverFocusX", "coverFocusY", "coverCropHandle"]
+  static targets = ["form", "layout", "primary", "secondary", "caption", "crop", "fit", "status", "photoInput", "slot", "primaryCaption", "secondaryCaption", "addPhoto", "tray", "trayPhoto", "captionToggle", "showCaptions", "secondaryCaptionField", "textStyle", "coverPosition", "coverFocusX", "coverFocusY", "coverCropHandle", "previewView", "previewToggle", "leaveConfirmation"]
   static values = { previewUrl: String, trayUrl: String }
 
   connect() {
@@ -39,13 +39,48 @@ export default class extends Controller {
   }
 
   beforeVisit(event) {
-    if (this.dirty && !window.confirm("This page has unsaved changes. Leave without saving?")) event.preventDefault()
+    if (!this.dirty) return
+    event.preventDefault()
+    this.pendingVisit = event.detail.url
+    this.application.getControllerForElementAndIdentifier(this.leaveConfirmationTarget, "confirm-modal").open()
+  }
+
+  discardChanges(event) {
+    event.preventDefault()
+    const destination = this.pendingVisit
+    this.saving()
+    this.application.getControllerForElementAndIdentifier(this.leaveConfirmationTarget, "confirm-modal").close()
+    window.Turbo.visit(destination)
   }
 
   beforePreviewRender(event) {
     // A preview already queued by Turbo must not replace the captured pointer
     // while positioning a cover. Releasing the pointer requests a fresh preview.
     if (this.coverDrag && event.target.getAttribute("target") === "photobook-preview") event.preventDefault()
+  }
+
+  changePreviewView(event) {
+    const view = event.currentTarget.dataset.previewView
+    if (this.previewViewTarget.value === view) return
+    this.previewViewTarget.value = view
+    this.restorePreviewView = view
+    this.element.querySelectorAll('.photobook-page-list a').forEach((link) => {
+      const url = new URL(link.href)
+      url.searchParams.set("view", view)
+      link.href = url.href
+    })
+    this.element.querySelectorAll('.photobook-add-pages input[name="view"], .photobook-page-actions input[name="view"]').forEach((input) => { input.value = view })
+    clearTimeout(this.previewTimer)
+    this.previewRequest?.abort()
+    this.statusTarget.textContent = "Updating page view…"
+    this.preview()
+  }
+
+  previewToggleTargetConnected(button) {
+    if (button.dataset.previewView === this.restorePreviewView) {
+      if (document.activeElement === document.body) button.focus({ preventScroll: true })
+      this.restorePreviewView = null
+    }
   }
 
   schedulePreview(event) {
@@ -395,7 +430,7 @@ export default class extends Controller {
       const html = await response.text()
       if (request.signal.aborted) return
       window.Turbo.renderStreamMessage(html)
-      this.statusTarget.textContent = "Preview updated. Save to keep your changes."
+      this.statusTarget.textContent = this.dirty ? "Preview updated. Save to keep your changes." : "Preview updated."
     } catch (error) {
       if (error.name !== "AbortError") this.statusTarget.textContent = "Preview could not update. Your changes are still in the form; try saving."
     }

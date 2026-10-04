@@ -3,6 +3,7 @@
   <h2><%= back ? "Back cover" : "Front cover" %></h2>
   <%= form_with model: @book, class: "photobook-fields", data: { photobook_designer_target: "form", action: "input->photobook-designer#schedulePreview change->photobook-designer#schedulePreview submit->photobook-designer#saving", cover: true } do |form| %>
     <%= form.hidden_field :lock_version %><%= hidden_field_tag :preview_key, @selected_key %>
+    <%= hidden_field_tag :view, @preview_mode, data: { photobook_designer_target: "previewView" } %>
     <div><%= form.label :cover_layout, "Cover photo layout" %><%= form.select :cover_layout, [["Whole photo with whitespace", "fit"], ["Full cover photo", "full"]], {}, data: { photobook_designer_target: "layout" } %></div>
     <div data-photobook-designer-target="primary"><%= render "photo_slot", form: form, field: back ? :back_photo_id : :cover_photo_id, slot: "primary", label: "Cover photo", photo: @preview_photos[back ? @book.back_photo_id : @book.cover_photo_id] %></div>
     <div class="photobook-focus" data-photobook-designer-target="coverPosition">

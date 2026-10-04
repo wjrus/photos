@@ -44,6 +44,8 @@ class PhotobooksTest < ApplicationSystemTestCase
     find("button[aria-label='Select Synthetic landscape']").drag_to(find("#photobook-preview button[data-photo-slot='primary']"))
     assert_select_value "Page layout", "caption"
     select "Photo across two pages", from: "Page layout"
+    assert_selector "#photobook-preview svg", count: 1
+    click_button "Facing pages", exact: true
     assert_selector "#photobook-preview svg", count: 2
     assert_selector "#photobook-preview image", count: 2
     click_button "Save page"
@@ -281,7 +283,10 @@ class PhotobooksTest < ApplicationSystemTestCase
     click_button "Add blank page"
     assert_text "Page added."
     assert_equal 5, book.pages.count
-    accept_confirm { click_button "Remove page" }
+    click_button "Remove page"
+    within "[role='dialog']", text: "Remove this page?" do
+      click_button "Remove page"
+    end
     assert_text "Page removed."
     assert_equal 4, book.pages.count
     visit root_path
@@ -293,6 +298,110 @@ class PhotobooksTest < ApplicationSystemTestCase
     click_button "Add to photobook"
     assert_text "Added 1 photo to New travel book"
     assert book.photos.exists?(@photo.id)
+  end
+
+  test "every page has a larger single preview and a marker for its place in the book" do
+    second_page = @book.pages.to_a[1]
+    second_page.update!(layout: "spread", primary_photo: @photo)
+    visit photo_book_path(@book)
+    assert_selector "#photobook-preview svg", count: 1
+    assert_selector ".photobook-page-position", text: "Front cover"
+    assert_operator find("#photobook-preview svg").native.rect.width, :>, 560
+    click_link "Back cover", exact: true
+    assert_selector ".photobook-page-position", text: "Back cover"
+    assert_selector "#photobook-preview svg", count: 1
+    click_link "Page 2", exact: true
+    assert_selector ".photobook-page-position", text: "Page 2 · Left page"
+    assert_selector "#photobook-preview svg[viewBox='0.0 0 210.0 210.0']", count: 1
+    click_link "Page 3", exact: true
+    assert_selector ".photobook-page-position", text: "Page 3 · Right page"
+    assert_selector ".photobook-page-link.is-active", count: 1, text: "Page 3"
+    assert_selector "#photobook-preview svg[viewBox='210.0 0 210.0 210.0']", count: 1
+    page.execute_script("const field = document.getElementById('photo_book_page_primary_focus_x'); field.value = 10; field.dispatchEvent(new Event('input', { bubbles: true }))")
+    assert_selector ".photobook-page-position", text: "Page 3 · Right page"
+    assert_selector "#photobook-preview svg[viewBox='210.0 0 210.0 210.0']", count: 1
+    click_button "Facing pages"
+    assert_selector "#photobook-preview svg", count: 2
+    assert_field "First photo horizontal position", with: "10"
+    assert_equal 50, second_page.reload.primary_focus_x
+    click_button "Single page"
+    assert_selector "#photobook-preview svg", count: 1
+    assert_field "First photo horizontal position", with: "10"
+    click_button "Save page"
+    assert_text "Page saved."
+    assert_selector ".photobook-page-position", text: "Page 3 · Right page"
+    assert_equal 10, second_page.reload.primary_focus_x
+    assert_axe_clean
+    page.save_screenshot(Rails.root.join("tmp/screenshots/photobook-single-page.png"))
+  end
+
+  test "page removal modal supports cancel escape focus trapping and deletion with unsaved edits on mobile" do
+    page.driver.browser.manage.window.resize_to(390, 844)
+    page.driver.browser.execute_cdp("Emulation.setDeviceMetricsOverride", width: 390, height: 844, deviceScaleFactor: 1, mobile: false)
+    visit photo_book_path(@book, page_id: @book.pages.first.id)
+    fill_in "Caption or page text", with: "A draft to discard only on removal."
+    click_button "Remove page"
+    dialog = find("[role='dialog']", text: "Remove this page?")
+    assert_selector "[role='dialog'] button:focus", text: /cancel/i
+    dialog.find_button("Cancel").send_keys(:escape)
+    assert_no_selector "[role='dialog']"
+    assert_field "Caption or page text", with: "A draft to discard only on removal."
+    assert_equal 4, @book.pages.count
+    assert_selector ".photobook-page-actions button:focus", text: "Remove page"
+    click_button "Remove page"
+    within "[role='dialog']", text: "Remove this page?" do
+      find_button("Cancel").send_keys([ :shift, :tab ])
+      assert_selector "button:focus", text: /remove page/i
+      find_button("Remove page").send_keys(:tab)
+      assert_selector "button:focus", text: /cancel/i
+      click_button "Cancel"
+    end
+    assert_no_selector "[role='dialog']"
+    click_button "Remove page"
+    assert_operator page.evaluate_script("document.documentElement.scrollWidth"), :<=, 390
+    assert_axe_clean
+    page.save_screenshot(Rails.root.join("tmp/screenshots/photobook-remove-page-modal-mobile.png"))
+    within "[role='dialog']", text: "Remove this page?" do
+      click_button "Remove page"
+    end
+    assert_text "Page removed."
+    assert_no_selector "[role='dialog']"
+    assert_equal 3, @book.pages.count
+    assert @book.photos.exists?(@photo.id)
+    assert @photo.reload.original.attached?
+  end
+
+  test "book and book photo removals use the same confirmation modal and preserve library originals" do
+    visit photo_book_path(@book, tab: "photos")
+    within "article", text: "Synthetic landscape" do
+      click_button "Remove from book"
+    end
+    within "[role='dialog']", text: "Remove this photo from the book?" do
+      click_button "Cancel"
+    end
+    assert @book.photos.exists?(@photo.id)
+    within "article", text: "Synthetic landscape" do
+      click_button "Remove from book"
+    end
+    within "[role='dialog']", text: "Remove this photo from the book?" do
+      click_button "Remove photo"
+    end
+    assert_text "Photo removed from the book and its page placements."
+    assert_not @book.photos.exists?(@photo.id)
+    assert @photo.reload.original.attached?
+    visit edit_photo_book_path(@book)
+    click_button "Remove photobook"
+    within "[role='dialog']", text: "Remove this photobook?" do
+      click_button "Cancel"
+    end
+    assert PhotoBook.exists?(@book.id)
+    click_button "Remove photobook"
+    within "[role='dialog']", text: "Remove this photobook?" do
+      click_button "Remove photobook"
+    end
+    assert_text "Photobook removed."
+    assert_not PhotoBook.exists?(@book.id)
+    assert @photo.reload.original.attached?
   end
 
   test "tray search and pagination preserve drafts and navigation warns before discarding them" do
@@ -312,12 +421,24 @@ class PhotobooksTest < ApplicationSystemTestCase
     end
     assert_field "Caption or page text", with: "Keep this draft."
     assert_equal "Beside the lake.", @book.pages.first.reload.caption
-    dismiss_confirm { click_link "Page 2", exact: true }
+    click_link "Page 2", exact: true
+    within "[role='dialog']", text: "Leave without saving?" do
+      click_button "Cancel"
+    end
     assert_field "Caption or page text", with: "Keep this draft."
     click_button "Save page"
     assert_text "Page saved."
     click_link "Page 2", exact: true
     assert_select_value "Page layout", "blank"
+    select "Text page", from: "Page layout"
+    fill_in "Caption or page text", with: "Another unsaved draft."
+    click_link "Page 3", exact: true
+    within "[role='dialog']", text: "Leave without saving?" do
+      click_button "Discard changes"
+    end
+    assert_selector ".photobook-page-link.is-active", text: "Page 3"
+    assert_select_value "Page layout", "blank"
+    assert_equal "blank", @book.pages.to_a[1].reload.layout
   end
 
   test "mobile and keyboard placement work without overflow and pass accessibility checks" do

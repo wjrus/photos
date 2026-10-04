@@ -1,5 +1,20 @@
-<div id="photobook-preview" class="photobook-preview" aria-label="Facing-page preview">
-  <div class="photobook-preview-pages">
+<% selected = preview_pages.compact.find { |page| page.fetch(:key) == selected_key } || preview_pages.compact.first %>
+<div id="photobook-preview" class="photobook-preview" aria-label="<%= preview_mode == 'spread' && selected[:number] ? 'Facing-page preview' : 'Single-page preview' %>">
+  <div class="photobook-preview-heading">
+    <div class="photobook-page-position" role="group" aria-label="Page position in book">
+      <span class="photobook-position-icon <%= selected[:number] ? 'is-open-book' : 'is-cover' %>" aria-hidden="true">
+        <% if selected[:number] %><span class="<%= 'is-active' if selected[:side] == 'left' %>"></span><span class="<%= 'is-active' if selected[:side] == 'right' %>"></span><% else %><span class="is-active"></span><% end %>
+      </span>
+      <span><%= selected.fetch(:label) %><%= " · #{selected.fetch(:side).capitalize} page" if selected[:number] %></span>
+    </div>
+    <% if selected[:number] %>
+      <div class="photobook-preview-switch" role="group" aria-label="Preview view">
+        <button type="button" data-action="photobook-designer#changePreviewView" data-photobook-designer-target="previewToggle" data-preview-view="page" aria-pressed="<%= preview_mode == 'page' %>">Single page</button>
+        <button type="button" data-action="photobook-designer#changePreviewView" data-photobook-designer-target="previewToggle" data-preview-view="spread" aria-pressed="<%= preview_mode == 'spread' %>">Facing pages</button>
+      </div>
+    <% end %>
+  </div>
+  <div class="photobook-preview-pages <%= 'is-spread' if preview_pages.size > 1 %>">
     <% preview_pages.each_with_index do |page, index| %>
       <% if page %>
         <% editable = page.fetch(:key).split("-").first == selected_key.to_s.split("-").first %>
@@ -20,7 +35,7 @@
               <%= render "page_artwork", page: page, layout: layout, photos: photos, prefix: "preview-#{index}" %>
             <% end %>
           <% end %>
-          <p><%= page.fetch(:label) %><%= page[:side] ? " · #{page[:side]}" : "" %></p>
+          <% if preview_pages.size > 1 %><p><%= page.fetch(:label) %><%= page[:side] ? " · #{page[:side]}" : "" %></p><% end %>
         </div>
       <% else %>
         <div class="photobook-preview-leaf"><div class="photobook-unprinted-page" style="aspect-ratio: <%= book.dimensions.fetch(:width) %> / <%= book.dimensions.fetch(:height) %>"></div><p>Inside cover · unprinted</p></div>

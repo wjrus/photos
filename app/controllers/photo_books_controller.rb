@@ -70,8 +70,9 @@ class PhotoBooksController < ApplicationController
 
     layout = PhotoBookLayout.new(snapshot)
     photos = preview_photos(snapshot)
+    prepare_preview(layout)
     render turbo_stream: turbo_stream.replace("photobook-preview", partial: "photo_books/preview", locals: {
-      layout: layout, preview_pages: layout.facing_pages(@selected_key), photos: photos, book: @book, selected_key: @selected_key
+      layout: layout, preview_pages: @preview_pages, preview_mode: @preview_mode, photos: photos, book: @book, selected_key: @selected_key
     })
   end
 
@@ -101,7 +102,7 @@ class PhotoBooksController < ApplicationController
       return unless page.valid?
 
       snapshot["pages"].find { |source| source.fetch("id") == page.id }.merge!(page.attributes.slice(*PhotoBookPage::DESIGN_ATTRIBUTES))
-      @selected_key = "#{page.id}-0"
+      @selected_key = page_preview_key(page, params[:preview_key])
     else
       @selected_key = params[:preview_key] == "back" ? "back" : "front"
       if params[:photo_book]
@@ -136,8 +137,8 @@ class PhotoBooksController < ApplicationController
     @layout = @preflight.layout
     key = params[:page_id].presence || "front"
     @selected_page = @book.pages.find_by(id: key.to_s.split("-").first) unless %w[front back].include?(key)
-    @selected_key = @selected_page ? "#{@selected_page.id}-0" : %w[front back].include?(key) ? key : "front"
-    @preview_pages = @layout.facing_pages(@selected_key)
+    @selected_key = @selected_page ? page_preview_key(@selected_page, key) : %w[front back].include?(key) ? key : "front"
+    prepare_preview(@layout)
     @preview_photos = preview_photos(@snapshot)
     @photo_count = @book.eligible_photos.count
     @tab = params[:tab] == "photos" ? "photos" : "design"
@@ -159,5 +160,15 @@ class PhotoBooksController < ApplicationController
   def preview_photos(snapshot)
     ids = [ snapshot["cover_photo_id"], snapshot["back_photo_id"] ] + snapshot.fetch("pages").flat_map { |page| page.values_at("primary_photo_id", "secondary_photo_id") }
     @book.eligible_photos.where(id: ids.compact).includes(:print_metadata).index_by(&:id)
+  end
+
+  def page_preview_key(page, key)
+    half = page.layout == "spread" && key == "#{page.id}-1" ? 1 : 0
+    "#{page.id}-#{half}"
+  end
+
+  def prepare_preview(layout)
+    @preview_mode = params[:view] == "spread" ? "spread" : "page"
+    @preview_pages = @preview_mode == "spread" ? layout.facing_pages(@selected_key) : [ layout.pages.find { |page| page.fetch(:key) == @selected_key } || layout.pages.first ]
   end
 end
