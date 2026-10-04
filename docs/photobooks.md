@@ -45,7 +45,7 @@ rbenv exec bundle exec rails db:migrate
 rbenv exec bundle exec rails test
 rbenv exec bundle exec rails test:system
 rbenv exec bundle exec rubocop
-rbenv exec bundle exec brakeman --quiet --no-pager --exit-on-warn --exit-on-error
+rbenv exec bundle exec ruby bin/brakeman --quiet --no-pager --exit-on-warn --exit-on-error
 rbenv exec bundle exec bundler-audit check --update
 rbenv exec bundle exec ruby bin/importmap audit
 ```
