@@ -17,7 +17,7 @@ Rails.application.routes.draw do
         get "media/:variant", on: :member, action: :show, controller: "media", as: :media
         resources :people_tags, only: %i[create destroy]
       end
-      resources :albums do
+      resources :albums, only: %i[index show create update destroy] do
         post :bulk, on: :collection
         put :cover, on: :member
         post :photos, on: :member, action: :add_photos
