@@ -8,9 +8,9 @@
     <div data-photobook-designer-target="primary">
       <%= render "photo_slot", form: form, field: :primary_photo_id, slot: "primary", label: "First photo", photo: @preview_photos[page.primary_photo_id] %>
       <div class="photobook-focus" data-photobook-designer-target="crop">
-        <p class="photobook-note">Crop position</p>
-        <%= form.label :primary_focus_x, "First photo horizontal position" %><%= form.range_field :primary_focus_x, min: 0, max: 100, step: 1 %>
-        <%= form.label :primary_focus_y, "First photo vertical position" %><%= form.range_field :primary_focus_y, min: 0, max: 100, step: 1 %>
+        <p class="photobook-note">Drag the preview photo to position it, or use the sliders. Only cropped edges can move.</p>
+        <%= form.label :primary_focus_x, "First photo horizontal position" %><%= form.range_field :primary_focus_x, min: 0, max: 100, step: 1, data: { crop_slot: "primary", crop_axis: "x" } %>
+        <%= form.label :primary_focus_y, "First photo vertical position" %><%= form.range_field :primary_focus_y, min: 0, max: 100, step: 1, data: { crop_slot: "primary", crop_axis: "y" } %>
       </div>
     </div>
     <button type="button" class="photobook-button" data-photobook-designer-target="addPhoto" data-action="photobook-designer#addSecondPhoto">Add a second photo</button>
@@ -18,9 +18,9 @@
     <div data-photobook-designer-target="caption"><%= form.label :caption, "Caption or page text" %><%= form.text_area :caption, rows: 4, maxlength: 2000, data: { photobook_designer_target: "primaryCaption" } %></div>
     <div data-photobook-designer-target="secondary">
       <%= render "photo_slot", form: form, field: :secondary_photo_id, slot: "secondary", label: "Second photo", photo: @preview_photos[page.secondary_photo_id] %>
-      <div class="photobook-focus">
-        <%= form.label :secondary_focus_x, "Second photo horizontal position" %><%= form.range_field :secondary_focus_x, min: 0, max: 100, step: 1 %>
-        <%= form.label :secondary_focus_y, "Second photo vertical position" %><%= form.range_field :secondary_focus_y, min: 0, max: 100, step: 1 %>
+      <div class="photobook-focus" data-photobook-designer-target="crop">
+        <%= form.label :secondary_focus_x, "Second photo horizontal position" %><%= form.range_field :secondary_focus_x, min: 0, max: 100, step: 1, data: { crop_slot: "secondary", crop_axis: "x" } %>
+        <%= form.label :secondary_focus_y, "Second photo vertical position" %><%= form.range_field :secondary_focus_y, min: 0, max: 100, step: 1, data: { crop_slot: "secondary", crop_axis: "y" } %>
       </div>
       <div data-photobook-designer-target="secondaryCaptionField"><%= form.label :secondary_caption, "Second photo caption" %><%= form.text_area :secondary_caption, rows: 3, maxlength: 2000, data: { photobook_designer_target: "secondaryCaption" } %></div>
     </div>

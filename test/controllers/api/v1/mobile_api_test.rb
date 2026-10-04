@@ -180,6 +180,7 @@ class MobileApiTest < ActionDispatch::IntegrationTest
     assert_response :partial_content
     assert_equal File.binread(Rails.root.join("public/icon.png"))[0, 10], response.body
     assert_equal "bytes 0-9/#{item.byte_size}", response.headers["Content-Range"]
+    assert_match(/\Aattachment;/, response.headers["Content-Disposition"])
     head url
     assert_response :success
     assert_empty response.body

@@ -27,6 +27,8 @@ class PhotoZoomTest < ApplicationSystemTestCase
     fill_in "Email", with: user.email
     fill_in "Password", with: "password12"
     click_button "Sign in"
+    assert_current_path root_path
+    assert_selector "summary[aria-label='Account menu']"
   end
 
   def attached_photo(title:)

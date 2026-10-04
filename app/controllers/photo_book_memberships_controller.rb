@@ -30,7 +30,19 @@ class PhotoBookMembershipsController < ApplicationController
 
   def destroy
     book = current_user.photo_books.find(params[:photo_book_id])
-    book.remove_photo!(params[:id])
-    redirect_to photo_book_path(book, tab: "photos"), notice: "Photo removed from the book and its page placements. It remains in your library."
+    versions = book.with_lock do
+      page = book.pages.find(params[:page_id]) if params[:page_id].present?
+      before_book = book.lock_version
+      before_page = page&.lock_version
+      book.remove_photo!(params[:id])
+      { book: { before: before_book, after: book.lock_version }, page: page && { before: before_page, after: page.reload.lock_version } }
+    end
+    respond_to do |format|
+      format.html { redirect_to photo_book_path(book, tab: "photos"), notice: "Photo removed from the book and its page placements. It remains in your library." }
+      format.json do
+        response.set_header("Cache-Control", "private, no-store")
+        render json: versions
+      end
+    end
   end
 end

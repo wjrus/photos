@@ -9,10 +9,13 @@
   <% end %>
   <div class="photobook-tray-grid">
     <% @tray_photos.each do |photo| %>
-      <button type="button" draggable="true" class="photobook-tray-photo" data-photobook-designer-target="trayPhoto" data-action="click->photobook-designer#selectPhoto dragstart->photobook-designer#dragStart dragend->photobook-designer#dragEnd" data-photo-id="<%= photo.id %>" data-photo-title="<%= photo.title %>" data-image-url="<%= stream_photo_path(photo) %>" data-caption="<%= photo.description.to_s.first(2000) %>" aria-label="Select <%= photo.title %>" aria-pressed="false">
-        <%= image_tag stream_photo_path(photo), alt: "", loading: "lazy", decoding: "async", draggable: false %><span><%= photo.title %></span>
-        <% if @tray_used_ids.include?(photo.id) %><span class="photobook-tray-used">Used in book</span><% end %>
-      </button>
+      <div class="photobook-tray-item">
+        <button type="button" draggable="true" class="photobook-tray-photo" data-photobook-designer-target="trayPhoto" data-action="click->photobook-designer#selectPhoto dragstart->photobook-designer#dragStart dragend->photobook-designer#dragEnd" data-photo-id="<%= photo.id %>" data-photo-title="<%= photo.title %>" data-image-url="<%= stream_photo_path(photo) %>" data-caption="<%= photo.description.to_s.first(2000) %>" aria-label="Select <%= photo.title %>" aria-pressed="false">
+          <%= image_tag stream_photo_path(photo), alt: "", loading: "lazy", decoding: "async", draggable: false %><span><%= photo.title %></span>
+          <% if @tray_used_ids.include?(photo.id) %><span class="photobook-tray-used">Used in book</span><% end %>
+        </button>
+        <%= render "confirmation", id: "remove-tray-photo-#{photo.id}", button_label: "Remove", title: "Remove this photo from the book?", body: "This removes #{photo.title} from the tray and clears its page and cover placements. The photo stays in your library. Your other unsaved page edits are kept.", url: photo_book_membership_path(@book, photo.id), confirm_label: "Remove photo", form_data: { action: "submit->photobook-designer#removeTrayPhoto", photo_id: photo.id } %>
+      </div>
     <% end %>
   </div>
   <% if @tray_photos.empty? %><p class="photobook-note"><%= @tray_search.present? ? "No matching photos." : @tray_show_used ? "No photos assigned yet." : "All available photos are placed, or no photos have been added yet." %> <%= link_to "Add book photos", photo_book_path(@book, tab: "photos"), data: { turbo_frame: "_top" } %><%= " or show used photos to reuse one." unless @tray_show_used %></p><% end %>
