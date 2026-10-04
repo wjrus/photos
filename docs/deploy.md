@@ -75,8 +75,13 @@ The deploy script also enables the Compose `analysis` profile, starts
 its `/health` check. Provider feature flags still default off in the app, so
 deploying the sidecar does not start broad analysis by itself.
 
-The local analysis image is intentionally large because it can use GPU-capable
-PyTorch builds. Every deploy runs `docker compose build --pull analysis-local`.
+The local analysis image uses CPU-only PyTorch and TorchVision wheels on Linux,
+matching the server's CPU-only hardware. The explicit PyTorch CPU index in
+`services/analysis_local/pyproject.toml` keeps CUDA, NVIDIA, and Triton packages
+out of the locked Linux dependency set. macOS and Windows retain their PyPI
+builds. Model names, pretrained weights, and persisted embeddings are unchanged.
+
+Every deploy runs `docker compose build --pull analysis-local`.
 Docker reuses unchanged dependency layers, while sidecar code, the checked-in
 `uv.lock`, and base-image updates are applied automatically. The old
 `REBUILD_ANALYSIS` flag is no longer needed.

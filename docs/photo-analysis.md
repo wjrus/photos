@@ -51,6 +51,13 @@ startup. Set `OPENCLIP_WARM_ON_START=false` to disable that warmup. Rails caches
 semantic query results briefly so returning from a photo to the same search is
 fast.
 
+The Linux sidecar installs CPU-only PyTorch and TorchVision wheels from the
+explicit PyTorch CPU index. CUDA, NVIDIA, and Triton libraries are not needed
+on the production server. This changes dependency packaging without changing
+the OpenCLIP model or existing embedding index. CI checks CPU image/text
+inference and TorchVision operations without downloading pretrained weights,
+and audits vendor CPU package versions through OSV in addition to PyPI checks.
+
 ## YOLO
 
 The Rails job, persistence model, feature flag, and sidecar route exist, but

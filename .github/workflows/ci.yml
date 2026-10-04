@@ -58,6 +58,9 @@ jobs:
         run: |
           uv export --locked --no-dev --no-emit-project --format requirements-txt --output-file /tmp/analysis-requirements.txt
           uv run --locked --only-dev pip-audit --disable-pip --require-hashes -r /tmp/analysis-requirements.txt
+          # Vendor +cpu releases are not published on PyPI. Audit them through
+          # OSV as well; uv verifies the locked wheel hashes during installation.
+          uv run --locked --only-dev pip-audit --vulnerability-service osv --disable-pip --require-hashes -r /tmp/analysis-requirements.txt
           uv run --locked --only-dev pip-audit
 
   check_containers:
@@ -82,11 +85,41 @@ jobs:
       - name: Build production images
         run: docker build --tag ${{ matrix.tag }} ${{ matrix.context }}
 
-      - name: Check analysis runtime imports without downloading model weights
+      - name: Check CPU analysis runtime without downloading model weights
         if: matrix.image == 'analysis'
-        run: >-
-          docker run --rm --env OPENCLIP_WARM_ON_START=false photos-analysis-local:ci
-          python -c 'import open_clip, torch; from app.main import health; assert health()["status"] == "ok"'
+        run: |
+          docker run --rm -i --env OPENCLIP_WARM_ON_START=false photos-analysis-local:ci python - <<'PY'
+          from importlib.metadata import distributions
+
+          import open_clip
+          import torch
+          from PIL import Image
+          from torchvision.ops import nms
+          from app.main import health
+
+          assert torch.version.cuda is None
+          assert not torch.cuda.is_available()
+          gpu_packages = [
+              package.metadata["Name"] for package in distributions()
+              if package.metadata["Name"].lower().startswith(("nvidia-", "cuda-"))
+              or package.metadata["Name"].lower() == "triton"
+          ]
+          assert not gpu_packages, gpu_packages
+          assert health()["status"] == "ok"
+          assert nms(torch.tensor([[0., 0., 1., 1.]]), torch.tensor([1.]), 0.5).tolist() == [0]
+
+          torch.set_num_threads(2)
+          model, _, preprocess = open_clip.create_model_and_transforms("ViT-B-32", pretrained=None, device="cpu")
+          model.eval()
+          tokens = open_clip.get_tokenizer("ViT-B-32")(["synthetic test photo"])
+          with torch.inference_mode():
+              image_features = model.encode_image(preprocess(Image.new("RGB", (32, 32))).unsqueeze(0))
+              text_features = model.encode_text(tokens)
+          for features in (image_features, text_features):
+              assert features.shape == (1, 512)
+              assert features.device.type == "cpu"
+              assert torch.isfinite(features).all()
+          PY
 
       - name: Check deployment script syntax
         run: bash -n scripts/deploy

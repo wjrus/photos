@@ -10,7 +10,19 @@ dependencies = [
     "open-clip-torch>=3.3.0,<4.0",
     "pillow>=12.3.0,<13.0",
     "torch>=2.14.0,<3.0",
+    "torchvision>=0.29.0,<1.0",
 ]
+
+# The Linux production sidecar runs on CPU. Use matching CPU wheels for both
+# packages; macOS/Windows retain their existing PyPI builds.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+torchvision = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [dependency-groups]
 # Tests exercise the service and index without downloading model weights or CUDA.
