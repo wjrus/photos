@@ -10,6 +10,7 @@
     <div><%= form.label :cover_layout, "Cover photo layout" %><%= form.select :cover_layout, [["Whole photo with whitespace", "fit"], ["Full cover photo", "full"]] %></div>
     <div><%= form.label :cover_title, "Cover title" %><%= form.text_area :cover_title, rows: 2, maxlength: 200 %></div>
     <div><%= form.label :cover_subtitle, "Cover subtitle" %><%= form.text_area :cover_subtitle, rows: 2, maxlength: 200 %></div>
+    <p class="photobook-note">Choose fonts, colors, shadows, and text placement in the front and back cover designers.</p>
     <hr><h2>Back cover</h2>
     <div><%= form.label :back_photo_id, "Back cover photo" %><%= form.select :back_photo_id, @photo_options, include_blank: "No photo" %></div>
     <div><%= form.label :back_text, "Back cover text" %><%= form.text_area :back_text, rows: 4, maxlength: 2000 %></div>

@@ -88,7 +88,8 @@ class PhotoBooksController < ApplicationController
 
   def book_params
     params.require(:photo_book).permit(:title, :format, :cover_layout, :cover_title, :cover_subtitle, :back_text, :spine_text,
-      :background_color, :text_color, :cover_photo_id, :back_photo_id, :lock_version)
+      :background_color, :text_color, :cover_photo_id, :back_photo_id, :lock_version,
+      cover_style: PhotoBookTypography::KEYS, back_style: PhotoBookTypography::KEYS)
   end
 
   def draft_snapshot
@@ -104,7 +105,8 @@ class PhotoBooksController < ApplicationController
     else
       @selected_key = params[:preview_key] == "back" ? "back" : "front"
       if params[:photo_book]
-        attributes = params.require(:photo_book).permit(:cover_photo_id, :back_photo_id, :cover_layout, :cover_title, :cover_subtitle, :back_text)
+        attributes = params.require(:photo_book).permit(:cover_photo_id, :back_photo_id, :cover_layout, :cover_title, :cover_subtitle, :back_text,
+          cover_style: PhotoBookTypography::KEYS, back_style: PhotoBookTypography::KEYS)
         @book.assign_attributes(attributes)
         return unless @book.valid?
 

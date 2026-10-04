@@ -18,7 +18,11 @@
   <% end %>
   <% page.fetch(:texts).each do |text| %>
     <% text.fetch(:lines).each_with_index do |line, index| %>
-      <text x="<%= text.fetch(:x) %>" y="<%= text.fetch(:y) + text.fetch(:size) / PhotoBookLayout::POINTS_PER_MM + index * text.fetch(:line_height) %>" fill="<%= page.fetch(:color) %>" font-size="<%= text.fetch(:size) / PhotoBookLayout::POINTS_PER_MM %>" font-family="Photobook Noto Sans"><%= line %></text>
+      <% x = text.fetch(:line_x)[index]; baseline = text.fetch(:y) + text.fetch(:size) / PhotoBookLayout::POINTS_PER_MM + index * text.fetch(:line_height) %>
+      <% if text[:shadow_color] %>
+        <text x="<%= x + 0.45 %>" y="<%= baseline + 0.45 %>" fill="<%= text.fetch(:shadow_color) %>" font-size="<%= text.fetch(:size) / PhotoBookLayout::POINTS_PER_MM %>" font-family="<%= PhotoBookTypography::FONTS.fetch(text.fetch(:font)).fetch(:family) %>" aria-hidden="true" class="photobook-text-shadow"><%= line %></text>
+      <% end %>
+      <text x="<%= x %>" y="<%= baseline %>" fill="<%= text.fetch(:color) %>" font-size="<%= text.fetch(:size) / PhotoBookLayout::POINTS_PER_MM %>" font-family="<%= PhotoBookTypography::FONTS.fetch(text.fetch(:font)).fetch(:family) %>" data-font="<%= text.fetch(:font) %>"><%= line %></text>
     <% end %>
   <% end %>
 </svg>

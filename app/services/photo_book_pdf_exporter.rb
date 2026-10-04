@@ -52,9 +52,16 @@ class PhotoBookPdfExporter
     end
     @pdf.fill_color(page.fetch(:color).delete_prefix("#"))
     page.fetch(:texts).each do |text|
+      @pdf.font(PhotoBookTypography.font_path(text.fetch(:font)).to_s)
       text.fetch(:lines).each_with_index do |line, index|
         baseline = text.fetch(:y) + text.fetch(:size) / PhotoBookLayout::POINTS_PER_MM + index * text.fetch(:line_height)
-        @pdf.draw_text(line, at: [ points(text.fetch(:x)), points(page.fetch(:height) - baseline) ], size: text.fetch(:size))
+        x = text.fetch(:line_x)[index]
+        if text[:shadow_color]
+          @pdf.fill_color(text.fetch(:shadow_color).delete_prefix("#"))
+          @pdf.draw_text(line, at: [ points(x + 0.45), points(page.fetch(:height) - baseline - 0.45) ], size: text.fetch(:size), kerning: @snapshot.fetch("version", 1) < 2)
+        end
+        @pdf.fill_color(text.fetch(:color).delete_prefix("#"))
+        @pdf.draw_text(line, at: [ points(x), points(page.fetch(:height) - baseline) ], size: text.fetch(:size), kerning: @snapshot.fetch("version", 1) < 2)
       end
     end
   end

@@ -35,6 +35,23 @@ class PreparePhotoBookExportJobTest < ActiveSupport::TestCase
     assert_not export.document.attached?
   end
 
+  test "styled covers embed their selected fonts and a queued export keeps its typography" do
+    book, photo = book_with_photo(print_ready: true)
+    book.update!(cover_photo: photo, cover_layout: "full", back_text: "Summer · Été",
+      cover_style: { font: "garamond_italic", size: 42, color: "#fff5e1", shadow: true, shadow_color: "#112233" },
+      back_style: { font: "serif", size: 20, shadow: false })
+    book.pages.first.update!(show_captions: false, caption: "Hidden text 🚀")
+    export = pending_book_export(book)
+    book.update!(cover_style: { font: "lato", size: 20 })
+    PreparePhotoBookExportJob.perform_now(export)
+    assert export.reload.ready?, export.error
+    bytes = export.document.download
+    assert_includes bytes, "CormorantGaramond-Italic"
+    assert_includes bytes, "NotoSerif-Regular"
+    assert_not_includes bytes, "Lato-Light"
+    assert_equal "garamond_italic", export.snapshot.fetch("cover_style").fetch("font")
+  end
+
   test "actual original resolution is checked even when metadata claims higher resolution" do
     book, photo = book_with_photo(print_ready: true)
     photo.metadata.update!(width: 12000, height: 8000)

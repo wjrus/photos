@@ -6,6 +6,11 @@
   font-display: swap;
 }
 
+@font-face { font-family: "Photobook Garamond"; src: url("CormorantGaramond-Regular.ttf") format("truetype"); font-display: swap; }
+@font-face { font-family: "Photobook Garamond Italic"; src: url("CormorantGaramond-Italic.ttf") format("truetype"); font-display: swap; }
+@font-face { font-family: "Photobook Noto Serif"; src: url("NotoSerif-Regular.ttf") format("truetype"); font-display: swap; }
+@font-face { font-family: "Photobook Lato Light"; src: url("Lato-Light.ttf") format("truetype"); font-display: swap; }
+
 .photobook { max-width: 1280px; margin: 0 auto; padding: 28px 24px 64px; color: var(--theme-text); }
 .photobook h1 { font-size: clamp(1.8rem, 4vw, 2.5rem); font-weight: 650; letter-spacing: -0.035em; line-height: 1.2; overflow-wrap: anywhere; }
 .photobook h2 { font-size: 1.15rem; font-weight: 650; margin-bottom: 10px; overflow-wrap: anywhere; }
@@ -25,7 +30,10 @@
 .photobook-book-card:hover { border-color: var(--theme-accent); }
 .photobook-book-cover { position: relative; aspect-ratio: 1; border: 1px solid #ccc; display: flex; align-items: flex-end; padding: 22px; margin-bottom: 20px; box-shadow: inset 7px 0 5px #00000010, 3px 4px 8px #00000015; font-family: "Photobook Noto Sans", sans-serif; font-size: 1.6rem; overflow-wrap: anywhere; }
 .photobook-book-cover-photo { position: absolute; inset: 5% 5% auto; width: 90%; height: 60%; object-fit: contain; }
-.photobook-book-cover span { position: relative; }
+.photobook-book-cover span { position: relative; width: 100%; }
+.photobook-book-cover--full .photobook-book-cover-photo { inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.photobook-book-cover--top { align-items: flex-start; }
+.photobook-book-cover--middle { align-items: center; }
 .photobook-empty { text-align: center; padding: 64px 24px; border: 1px dashed var(--theme-border); border-radius: 12px; }
 .photobook-empty .photobook-button { margin-top: 20px; }
 .photobook-pagination, .photobook-add-pages, .photobook-page-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0; }
@@ -72,7 +80,15 @@
 .photobook-slot-image { width: 64px; height: 64px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
 .photobook-remove-photo { color: var(--theme-accent-label); font-size: .8rem; margin-top: 8px; padding: 6px 0; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .photobook-artwork { display: block; width: 100%; height: auto; overflow: hidden; }
-.photobook-artwork text { font-family: "Photobook Noto Sans", sans-serif; }
+.photobook-artwork text { font-kerning: none; font-variant-ligatures: none; }
+.photobook-typography { display: grid; gap: 14px; border-top: 1px solid var(--theme-border); margin-top: 8px; padding-top: 16px; min-width: 0; }
+.photobook-typography legend { font-size: .9rem; font-weight: 650; padding-right: 12px; }
+.photobook-style-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.photobook-style-preset { padding: 16px 4px; border: 1px solid var(--theme-border); border-radius: 6px; background: var(--theme-panel-soft); cursor: pointer; font-size: 1.05rem; }
+.photobook-style-preset:hover { border-color: var(--theme-accent); }
+.photobook-style-classic { font-family: "Photobook Garamond", serif; }
+.photobook-style-editorial { font-family: "Photobook Noto Serif", serif; }
+.photobook-style-minimal { font-family: "Photobook Lato Light", sans-serif; }
 .photobook-unprinted-page { background: #fff; border: 1px solid #d4d4d8; }
 .photobook-preview-warning { color: var(--theme-danger); font-size: .8rem; }
 .photobook-focus { margin: 16px 0; }

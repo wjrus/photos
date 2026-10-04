@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_04_010000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_04_160000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -291,6 +291,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_04_010000) do
     t.bigint "secondary_photo_id"
     t.text "caption", default: "", null: false
     t.text "secondary_caption", default: "", null: false
+    t.boolean "show_captions", default: true, null: false
     t.string "image_fit", default: "fill", null: false
     t.integer "primary_focus_x", default: 50, null: false
     t.integer "primary_focus_y", default: 50, null: false
@@ -321,6 +322,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_04_010000) do
     t.string "cover_subtitle", default: "", null: false
     t.text "back_text", default: "", null: false
     t.string "spine_text", default: "", null: false
+    t.jsonb "back_style", default: {}, null: false
+    t.jsonb "cover_style", default: {}, null: false
     t.string "background_color", default: "#ffffff", null: false
     t.string "text_color", default: "#18181b", null: false
     t.bigint "cover_photo_id"
@@ -331,6 +334,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_04_010000) do
     t.index ["back_photo_id"], name: "index_photo_books_on_back_photo_id"
     t.index ["cover_photo_id"], name: "index_photo_books_on_cover_photo_id"
     t.index ["owner_id"], name: "index_photo_books_on_owner_id"
+    t.check_constraint "jsonb_typeof(back_style) = 'object'::text", name: "photo_books_back_style_object"
+    t.check_constraint "jsonb_typeof(cover_style) = 'object'::text", name: "photo_books_cover_style_object"
     t.check_constraint "cover_layout::text = ANY (ARRAY['full'::character varying, 'fit'::character varying]::text[])", name: "photo_books_cover_layout"
     t.check_constraint "format::text = ANY (ARRAY['square_210'::character varying, 'square_297'::character varying, 'landscape_a4'::character varying]::text[])", name: "photo_books_format"
   end

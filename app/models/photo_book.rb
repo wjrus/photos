@@ -27,6 +27,7 @@ class PhotoBook < ApplicationRecord
   validates :back_text, length: { maximum: 2000 }
   validates :background_color, :text_color, format: { with: /\A#[0-9a-fA-F]{6}\z/ }
   validate :cover_photos_are_in_book
+  validate :valid_cover_typography
   after_create :create_initial_pages
 
   def eligible_photos
@@ -87,8 +88,8 @@ class PhotoBook < ApplicationRecord
       width, height = self.class.oriented_dimensions(photo)
       { "id" => photo.id, "blob_id" => photo.original.blob&.id, "width" => width, "height" => height }
     end
-    attributes.slice("title", "format", "cover_layout", "cover_title", "cover_subtitle", "back_text", "spine_text", "background_color", "text_color", "cover_photo_id", "back_photo_id")
-      .merge("version" => 1, "pages" => page_data, "photos" => photo_data.sort_by { |photo| photo.fetch("id") })
+    attributes.slice("title", "format", "cover_layout", "cover_title", "cover_subtitle", "back_text", "spine_text", "background_color", "text_color", "cover_photo_id", "back_photo_id", "cover_style", "back_style")
+      .merge("version" => 2, "pages" => page_data, "photos" => photo_data.sort_by { |photo| photo.fetch("id") })
   end
 
   def design_digest
@@ -102,6 +103,12 @@ class PhotoBook < ApplicationRecord
   end
 
   private
+
+  def valid_cover_typography
+    %w[cover_style back_style].each do |attribute|
+      PhotoBookTypography.errors(self[attribute]).each { |message| errors.add(attribute, message) }
+    end
+  end
 
   def create_initial_pages
     DEFAULT_INSIDE_PAGES.times { |position| pages.create!(position: position) }

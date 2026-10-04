@@ -93,4 +93,20 @@ class PhotoBookTest < ActiveSupport::TestCase
     photo.update_columns(content_type: "application/octet-stream")
     assert book.eligible_photos.exists?(photo.id)
   end
+
+  test "cover typography is bounded and changes the saved design digest" do
+    book, = book_with_photo
+    digest = book.design_digest
+    book.update!(cover_style: { font: "garamond_italic", color: "#fff5e1", size: "42", shadow: "1", shadow_color: "#242424", alignment: "right", position: "top" })
+    assert_not_equal digest, book.design_digest
+    assert_equal "garamond_italic", book.design_snapshot.fetch("cover_style").fetch("font")
+    [ { font: "../../untrusted.ttf" }, { color: "red; background: url(example.org)" }, { size: "900" },
+      { alignment: "untrusted" }, { position: "outside" }, { shadow: "perhaps" }, { shadow_color: "#fff" }, [] ].each do |style|
+      book.cover_style = style
+      assert_not book.valid?, style.inspect
+    end
+    book.cover_style = {}
+    book.back_style = { font: "unknown" }
+    assert_not book.valid?
+  end
 end

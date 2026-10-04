@@ -13,6 +13,7 @@
       </div>
     </div>
     <button type="button" class="photobook-button" data-photobook-designer-target="addPhoto" data-action="photobook-designer#addSecondPhoto">Add a second photo</button>
+    <div data-photobook-designer-target="captionToggle"><%= form.label :show_captions, class: "photobook-checkbox" do %><%= form.check_box :show_captions, data: { photobook_designer_target: "showCaptions" } %> Show photo captions<% end %><p class="photobook-note">Turn off to give the space back to your photos. Saved caption text is kept.</p></div>
     <div data-photobook-designer-target="caption"><%= form.label :caption, "Caption or page text" %><%= form.text_area :caption, rows: 4, maxlength: 2000, data: { photobook_designer_target: "primaryCaption" } %></div>
     <div data-photobook-designer-target="secondary">
       <%= render "photo_slot", form: form, field: :secondary_photo_id, slot: "secondary", label: "Second photo", photo: @preview_photos[page.secondary_photo_id] %>
@@ -20,7 +21,7 @@
         <%= form.label :secondary_focus_x, "Second photo horizontal position" %><%= form.range_field :secondary_focus_x, min: 0, max: 100, step: 1 %>
         <%= form.label :secondary_focus_y, "Second photo vertical position" %><%= form.range_field :secondary_focus_y, min: 0, max: 100, step: 1 %>
       </div>
-      <%= form.label :secondary_caption, "Second photo caption" %><%= form.text_area :secondary_caption, rows: 3, maxlength: 2000, data: { photobook_designer_target: "secondaryCaption" } %>
+      <div data-photobook-designer-target="secondaryCaptionField"><%= form.label :secondary_caption, "Second photo caption" %><%= form.text_area :secondary_caption, rows: 3, maxlength: 2000, data: { photobook_designer_target: "secondaryCaption" } %></div>
     </div>
     <div data-photobook-designer-target="fit"><%= form.label :image_fit, "Photo sizing" %><%= form.select :image_fit, [["Fill photo area (crop)", "fill"], ["Fit whole photo", "fit"]] %></div>
     <p class="photobook-note" data-photobook-designer-target="status" role="status">The preview updates as you edit. Save to keep your changes.</p>

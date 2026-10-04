@@ -1,0 +1,25 @@
+<% key = back ? :back_style : :cover_style %>
+<% raw_style = book.public_send(key) %>
+<% style = PhotoBookTypography.resolve(raw_style, full: book.cover_layout == "full", color: book.text_color, size: back ? 20 : 36) %>
+<fieldset class="photobook-typography" data-photobook-designer-target="textStyle" data-auto-color="<%= !raw_style.key?("color") %>" data-auto-shadow="<%= !raw_style.key?("shadow") %>" data-page-text-color="<%= book.text_color %>" data-back="<%= back %>">
+  <legend>Cover typography</legend>
+  <p class="photobook-note">Text sits directly on the cover. Choose a starting style, then make it yours.</p>
+  <div class="photobook-style-presets" aria-label="Cover style presets">
+    <button type="button" class="photobook-style-preset photobook-style-classic" data-style-preset="classic" data-action="photobook-designer#applyTextPreset">Classic</button>
+    <button type="button" class="photobook-style-preset photobook-style-editorial" data-style-preset="editorial" data-action="photobook-designer#applyTextPreset">Editorial</button>
+    <button type="button" class="photobook-style-preset photobook-style-minimal" data-style-preset="minimal" data-action="photobook-designer#applyTextPreset">Minimal</button>
+  </div>
+  <%= form.fields_for key do |type| %>
+    <div><%= type.label :font, "Cover font" %><%= type.select :font, PhotoBookTypography::FONTS.map { |value, font| [font.fetch(:label), value] }, { selected: style.fetch("font") }, data: { style_setting: "font" } %></div>
+    <div class="photobook-two-fields">
+      <div><%= type.label :size, back ? "Back text size" : "Title size" %><%= type.select :size, PhotoBookTypography::SIZES.map { |size| ["#{size} pt", size] }, { selected: style.fetch("size") }, data: { style_setting: "size" } %></div>
+      <div><%= type.label :position, "Text placement" %><%= type.select :position, [["Top", "top"], ["Middle", "middle"], ["Bottom", "bottom"]], { selected: style.fetch("position") }, data: { style_setting: "position" } %></div>
+    </div>
+    <div><%= type.label :alignment, "Text alignment" %><%= type.select :alignment, [["Left", "left"], ["Center", "center"], ["Right", "right"]], { selected: style.fetch("alignment") }, data: { style_setting: "alignment" } %></div>
+    <div class="photobook-two-fields">
+      <div><%= type.label :color, "Cover text color" %><%= type.color_field :color, value: style.fetch("color"), data: { style_setting: "color" } %></div>
+      <div><%= type.label :shadow_color, "Shadow color" %><%= type.color_field :shadow_color, value: style.fetch("shadow_color"), data: { style_setting: "shadow_color" } %></div>
+    </div>
+    <%= type.label :shadow, class: "photobook-checkbox" do %><%= type.check_box :shadow, checked: style.fetch("shadow"), data: { style_setting: "shadow" } %> Add a subtle text shadow<% end %>
+  <% end %>
+</fieldset>

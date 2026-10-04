@@ -90,6 +90,32 @@ class PhotoBooksControllerTest < ActionDispatch::IntegrationTest
     assert_equal @photo.id, page.reload.primary_photo_id
   end
 
+  test "cover typography previews without saving and persists independently on each cover" do
+    style = { font: "garamond_italic", size: "42", color: "#fff5e1", shadow: "1", shadow_color: "#112233", alignment: "right", position: "top" }
+    post preview_photo_book_path(@book), params: { preview_key: "front", photo_book: { cover_layout: "full", cover_style: style } }, headers: { "Accept" => "text/vnd.turbo-stream.html" }
+    assert_response :success
+    assert_select "text[data-font='garamond_italic'][fill='#fff5e1']"
+    assert_select "text.photobook-text-shadow[fill='#112233']"
+    assert_empty @book.reload.cover_style
+    patch photo_book_path(@book), params: { photo_book: { cover_style: style, lock_version: @book.lock_version } }
+    assert_equal "garamond_italic", @book.reload.cover_style.fetch("font")
+    assert_empty @book.back_style
+    post preview_photo_book_path(@book), params: { photo_book: { cover_style: { font: "untrusted.ttf" } } }
+    assert_response :unprocessable_entity
+    assert_equal "garamond_italic", @book.reload.cover_style.fetch("font")
+  end
+
+  test "caption visibility previews then saves without deleting caption text" do
+    source = @book.pages.first
+    post preview_photo_book_path(@book), params: { page_id: source.id, photo_book_page: { show_captions: "0" } }, headers: { "Accept" => "text/vnd.turbo-stream.html" }
+    assert_response :success
+    assert_select "svg text", 0
+    assert source.reload.show_captions?
+    patch photo_book_page_path(@book, source), params: { photo_book_page: { show_captions: "0", lock_version: source.lock_version } }
+    assert_not source.reload.show_captions?
+    assert_equal "Beside the lake.", source.caption
+  end
+
   test "page editing detects stale forms and reordering persists" do
     page = @book.pages.first
     version = page.lock_version

@@ -11,6 +11,7 @@
       <div><%= form.label :cover_title, "Cover title" %><%= form.text_area :cover_title, rows: 2, maxlength: 200 %></div>
       <div><%= form.label :cover_subtitle, "Cover subtitle" %><%= form.text_area :cover_subtitle, rows: 2, maxlength: 200 %></div>
     <% end %>
+    <%= render "cover_typography", form: form, book: @book, back: back %>
     <p class="photobook-note" data-photobook-designer-target="status" role="status">Drag a photo from the tray, then edit the cover text and layout.</p>
     <%= form.submit "Save cover", class: "photobook-button photobook-button-primary" %>
   <% end %>

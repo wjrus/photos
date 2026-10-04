@@ -110,6 +110,74 @@ class PhotobooksTest < ApplicationSystemTestCase
     assert_equal "The end.", @book.back_text
   end
 
+  test "cover typography overlays the photo and preserves separate front and back styles" do
+    visit photo_book_path(@book)
+    find("button[aria-label='Select Synthetic sunset']").drag_to(find("#photobook-preview button[data-photo-slot='primary']"))
+    select "Full cover photo", from: "Cover photo layout"
+    assert_selector "#photobook-preview text[data-font='garamond'][fill='#ffffff']"
+    assert_selector "#photobook-preview .photobook-text-shadow"
+    click_button "Minimal", exact: true
+    assert_selector "#photobook-preview text[data-font='lato']"
+    assert_field "Text placement", with: "top"
+    select "Cormorant Garamond Italic · lyrical", from: "Cover font"
+    select "48 pt", from: "Title size"
+    select "Right", from: "Text alignment"
+    set_color("photo_book_cover_style_color", "#fff5e1")
+    set_color("photo_book_cover_style_shadow_color", "#112233")
+    assert_selector "#photobook-preview text[data-font='garamond_italic'][fill='#fff5e1']"
+    assert_selector "#photobook-preview .photobook-text-shadow[fill='#112233']"
+    select "Whole photo with whitespace", from: "Cover photo layout"
+    assert_field "Cover text color", with: "#fff5e1"
+    select "Full cover photo", from: "Cover photo layout"
+    assert_selector "#photobook-preview text[data-font='garamond_italic'][fill='#fff5e1']"
+    assert_selector "#photobook-preview svg > rect", count: 1
+    assert_empty @book.reload.cover_style
+    click_button "Save cover"
+    assert_text "Book settings saved."
+    assert_equal "#fff5e1", @book.reload.cover_style.fetch("color")
+    assert_equal "garamond_italic", @book.cover_style.fetch("font")
+    page.save_screenshot(Rails.root.join("tmp/screenshots/photobook-cover-typography.png"))
+    click_link "Back cover", exact: true
+    fill_in "Back cover text", with: "The end."
+    click_button "Editorial", exact: true
+    uncheck "Add a subtle text shadow"
+    assert_selector "#photobook-preview text[data-font='serif']"
+    assert_no_selector "#photobook-preview .photobook-text-shadow"
+    click_button "Save cover"
+    assert_text "Book settings saved."
+    assert_equal "serif", @book.reload.back_style.fetch("font")
+    assert_equal "garamond_italic", @book.cover_style.fetch("font")
+    page.driver.browser.manage.window.resize_to(390, 844)
+    page.driver.browser.execute_cdp("Emulation.setDeviceMetricsOverride", width: 390, height: 844, deviceScaleFactor: 1, mobile: false)
+    visit photo_book_path(@book)
+    assert_operator page.evaluate_script("document.documentElement.scrollWidth"), :<=, 390
+    assert_axe_clean
+    page.save_screenshot(Rails.root.join("tmp/screenshots/photobook-cover-mobile.png"))
+    page.execute_script("document.querySelector('.photobook-typography').scrollIntoView({ block: 'start' })")
+    page.save_screenshot(Rails.root.join("tmp/screenshots/photobook-cover-mobile-controls.png"))
+  end
+
+  test "hiding inside-page captions gives space to the photos and keeps the text" do
+    visit photo_book_path(@book, page_id: @book.pages.first.id)
+    select "Two photos side by side", from: "Page layout"
+    find("button[aria-label='Select Synthetic sunset']").click
+    find("button[aria-label='Place or replace second photo']").click
+    assert_selector "#photobook-preview text", text: "At sunset."
+    height_with_captions = find("#photobook-preview clipPath rect", match: :first, visible: :all)["height"].to_f
+    uncheck "Show photo captions"
+    assert_no_selector "#photobook-preview text"
+    assert_no_field "Caption or page text"
+    assert_no_field "Second photo caption"
+    assert_operator find("#photobook-preview clipPath rect", match: :first, visible: :all)["height"].to_f, :>, height_with_captions
+    click_button "Save page"
+    assert_text "Page saved."
+    assert_not @book.pages.first.reload.show_captions?
+    assert_equal "Beside the lake.", @book.pages.first.caption
+    check "Show photo captions"
+    assert_selector "#photobook-preview text", text: "Beside the lake."
+    assert_selector "#photobook-preview text", text: "At sunset."
+  end
+
   test "a delayed tray render cannot make a newly placed photo available again" do
     visit photo_book_path(@book, page_id: @book.pages.to_a[1].id)
     stale_tray = page.evaluate_async_script("const done = arguments[arguments.length - 1]; fetch(arguments[0], { headers: { Accept: 'text/vnd.turbo-stream.html' } }).then(response => response.text()).then(done)", tray_photo_book_path(@book))
@@ -207,6 +275,10 @@ class PhotobooksTest < ApplicationSystemTestCase
   end
 
   private
+
+  def set_color(id, color)
+    page.execute_script("const input = document.getElementById(arguments[0]); input.value = arguments[1]; input.dispatchEvent(new Event('input', { bubbles: true }))", id, color)
+  end
 
   def assert_select_value(label, value)
     assert_field label, with: value

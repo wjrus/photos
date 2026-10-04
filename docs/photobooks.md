@@ -12,6 +12,10 @@ Preview edits are not saved until the Save button is used. Switching pages warns
 
 Layouts: blank, full-page photo, whole photo with whitespace, photo with caption, two photos side by side, two photos stacked, text, and one photo across two pages. Independently designed facing pages support arrangements such as a full-page image opposite a bordered image and caption. Book settings control size, front and back photos, cover text, background and text colors, and the saved spine label.
 
+Cover text overlays the artwork directly, with no solid caption panel. Each cover has its own **Cover typography** settings: five embedded fonts (Cormorant Garamond, its italic, Noto Serif, Lato Light, and Noto Sans), text size, text color, shadow color, optional shadow, alignment, and top/middle/bottom placement. **Classic**, **Editorial**, and **Minimal** presets provide starting compositions. Full-photo covers start with white type and a subtle dark shadow; whitespace covers use the book's text color. Changing colors manually preserves them when changing the photo layout. Title and subtitle share the cover style, with a proportionally smaller subtitle.
+
+On photo-with-caption and two-photo pages, turn off **Show photo captions** to remove the caption areas and expand the photos. Caption text remains saved and returns when enabled again. Full-page, fitted-photo, and spread layouts already omit captions; text pages always retain their page text.
+
 ## Prodigi layflat artwork
 
 Source: [Prodigi layflat file setup guidelines](https://support.prodigi.com/hc/en-us/articles/17150478672540-Layflat-photo-books-File-set-up-guidelines), checked October 3, 2026. Supported sizes:
@@ -26,7 +30,7 @@ The first PDF page is the front cover. The second PDF page is inside page 1, on 
 
 Print exports support 18–120 inside pages, producing 20–122 PDF pages including covers. Smaller designs remain editable without adding filler pages; the minimum and even page count are enforced when generating a print PDF. That conservative range stays within the advertised 18–122-page product and file guide while their exact page-count convention is confirmed for quoting/ordering. The exported PDF's actual count is shown explicitly.
 
-Original files are decoded with libvips, oriented using EXIF, converted to RGB, flattened when transparent, stripped of embedded metadata, and downsampled only when above the 300 DPI target. Crops use the saved horizontal and vertical focus. Preview dimensions project only EXIF orientation and pixel dimensions rather than loading the entire metadata document. The bundled SIL OFL Noto Sans font is embedded; unsupported glyphs, including many emoji, block export. Text wrapping and page geometry are shared between preview and PDF. All caption and cover text boxes stay inside the 10 mm safety area.
+Original files are decoded with libvips, oriented using EXIF, converted to RGB, flattened when transparent, stripped of embedded metadata, and downsampled only when above the 300 DPI target. Crops use the saved horizontal and vertical focus. Preview dimensions project only EXIF orientation and pixel dimensions rather than loading the entire metadata document. The selected bundled SIL OFL fonts are embedded; characters unsupported by the selected font, including many emoji, block export. Text wrapping, alignment, color, vector shadow offsets, and page geometry are shared between preview and PDF. All caption and cover text boxes stay inside the 10 mm safety area. Already queued version-one export snapshots retain their original cover panels and font.
 
 **Print checks & PDF → Generate print PDF** queues a snapshot of the saved design. Missing/unavailable photos, text overflow, invalid spread placement, and page-count errors block generation. Low resolution needs explicit acknowledgement; unknown dimensions are checked against the decoded original during export. An unexpected resolution failure can be retried with acknowledgement from its failed-export entry.
 
@@ -38,7 +42,7 @@ Front/back covers are included in the PDF. The spine label is stored in the desi
 
 ## Operations and deployment
 
-The migration adds four tables and foreign keys; it does not backfill or change existing photo/album data. Use the normal Rails image/deployment process and database migration. No new environment variables or analysis-service rebuild are needed. Prawn and its dependencies are locked in Gemfile.lock; Noto Sans is bundled with its license. Asset precompilation includes the preview font.
+The initial migration adds four tables and foreign keys; it does not backfill or change existing photo/album data. The typography migration adds front/back style JSON objects and a caption visibility flag defaulting to enabled. Existing books keep their captions. Use the normal Rails image/deployment process and database migration. No new environment variables or analysis-service rebuild are needed. Prawn and its dependencies are locked in Gemfile.lock; all fonts are bundled with their licenses under `vendor/fonts`. Asset precompilation includes the preview fonts.
 
 `PreparePhotoBookExportJob` uses the existing default queue and limits PDF generation to one job at a time in Solid Queue to bound memory consumption. PDFs are stored with Active Storage. Progress and export history appear on the book page. Retried jobs can recover a processing export, duplicate completed deliveries do not regenerate it, and deleting a book discards its queued exports. Removing a book also removes its PDF attachments through the normal Active Storage lifecycle.
 

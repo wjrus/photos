@@ -4,7 +4,7 @@ const PHOTO_DRAG_TYPE = "application/x-photos-photobook"
 const TWO_PHOTO_LAYOUTS = ["two_horizontal", "two_vertical"]
 
 export default class extends Controller {
-  static targets = ["form", "layout", "primary", "secondary", "caption", "crop", "fit", "status", "photoInput", "slot", "primaryCaption", "secondaryCaption", "addPhoto", "tray", "trayPhoto"]
+  static targets = ["form", "layout", "primary", "secondary", "caption", "crop", "fit", "status", "photoInput", "slot", "primaryCaption", "secondaryCaption", "addPhoto", "tray", "trayPhoto", "captionToggle", "showCaptions", "secondaryCaptionField", "textStyle"]
   static values = { previewUrl: String, trayUrl: String }
 
   connect() {
@@ -12,6 +12,7 @@ export default class extends Controller {
     this.trayPage = 1
     this.traySearch = ""
     this.showUsed = false
+    this.previousCoverLayout = this.hasLayoutTarget ? this.layoutTarget.value : null
     this.updateFields()
     this.placementKey = this.currentPlacementKey()
   }
@@ -40,8 +41,9 @@ export default class extends Controller {
     if (this.dirty && !window.confirm("This page has unsaved changes. Leave without saving?")) event.preventDefault()
   }
 
-  schedulePreview() {
+  schedulePreview(event) {
     this.dirty = true
+    this.updateCoverColors(event)
     this.updateFields()
     clearTimeout(this.previewTimer)
     this.previewRequest?.abort()
@@ -60,12 +62,48 @@ export default class extends Controller {
     if (!this.hasLayoutTarget || this.isCover) return
     const layout = this.layoutTarget.value
     const twoPhotos = TWO_PHOTO_LAYOUTS.includes(layout)
+    const captionLayout = twoPhotos || layout === "caption"
+    this.captionToggleTarget.hidden = !captionLayout
     this.primaryTarget.hidden = layout === "blank" || layout === "text"
     this.secondaryTarget.hidden = !twoPhotos
-    this.captionTarget.hidden = !twoPhotos && layout !== "caption" && layout !== "text"
+    this.captionTarget.hidden = layout !== "text" && (!captionLayout || !this.showCaptionsTarget.checked)
+    this.secondaryCaptionFieldTarget.hidden = !this.showCaptionsTarget.checked
     this.fitTarget.hidden = !twoPhotos && layout !== "caption"
     this.cropTarget.hidden = layout === "fit"
     this.addPhotoTarget.hidden = twoPhotos || layout === "blank" || layout === "text"
+  }
+
+  updateCoverColors(event) {
+    if (!this.isCover || !this.hasTextStyleTarget) return
+    const style = this.textStyleTarget
+    const setting = event?.target?.dataset.styleSetting
+    if (setting === "color") style.dataset.autoColor = "false"
+    if (setting === "shadow") style.dataset.autoShadow = "false"
+    if (this.previousCoverLayout !== this.layoutTarget.value) {
+      const full = this.layoutTarget.value === "full"
+      if (style.dataset.autoColor === "true") style.querySelector('[data-style-setting="color"]').value = full ? "#ffffff" : style.dataset.pageTextColor
+      if (style.dataset.autoShadow === "true") style.querySelector('[data-style-setting="shadow"]').checked = full
+      this.previousCoverLayout = this.layoutTarget.value
+    }
+  }
+
+  applyTextPreset(event) {
+    const style = this.textStyleTarget
+    const preset = event.currentTarget.dataset.stylePreset
+    const full = this.layoutTarget.value === "full"
+    const values = {
+      font: { classic: "garamond", editorial: "serif", minimal: "lato" }[preset],
+      size: style.dataset.back === "true" ? "20" : preset === "editorial" ? "32" : "42",
+      alignment: preset === "editorial" ? "left" : "center",
+      position: preset === "minimal" ? "top" : "bottom",
+      color: full ? "#ffffff" : style.dataset.pageTextColor,
+      shadow_color: "#000000"
+    }
+    Object.entries(values).forEach(([key, value]) => { style.querySelector(`[data-style-setting="${key}"]`).value = value })
+    style.querySelector('[data-style-setting="shadow"]').checked = full
+    style.dataset.autoColor = "true"
+    style.dataset.autoShadow = "true"
+    this.schedulePreview()
   }
 
   get isCover() {

@@ -64,4 +64,72 @@ class PhotoBookPreflightTest < ActiveSupport::TestCase
       end
     end
   end
+
+  test "cover text overlays use selected fonts colors placement and alignment without panels" do
+    book, photo = book_with_photo(print_ready: true)
+    book.update!(cover_photo: photo, cover_layout: "full", cover_subtitle: "Summer · Été",
+      cover_style: { font: "garamond_italic", size: 42, color: "#fff5e1", shadow: true, shadow_color: "#112233", alignment: "right", position: "top" },
+      back_text: "The end", back_style: { font: "lato", size: 20, color: "#223344", shadow: false, alignment: "left", position: "bottom" })
+    layout = PhotoBookLayout.new(book.design_snapshot)
+    assert_empty layout.errors
+    cover = layout.pages.first
+    assert_empty cover.fetch(:panels)
+    assert_equal 210, cover.fetch(:images).first.fetch(:width)
+    title = cover.fetch(:texts).first
+    assert_equal "garamond_italic", title.fetch(:font)
+    assert_equal "#fff5e1", title.fetch(:color)
+    assert_equal "#112233", title.fetch(:shadow_color)
+    assert_equal 15, title.fetch(:y)
+    assert_operator title.fetch(:line_x).first, :>, 15
+    back = layout.pages.last.fetch(:texts).first
+    assert_equal "lato", back.fetch(:font)
+    assert_nil back.fetch(:shadow_color)
+    assert_equal [ 15 ], back.fetch(:line_x)
+    assert_operator back.fetch(:y), :>, 150
+  end
+
+  test "all bundled fonts measure print text and full-cover defaults contrast without a panel" do
+    book, = book_with_photo
+    book.update!(cover_layout: "full", cover_title: "Summer · Été")
+    PhotoBookTypography::FONTS.each_key do |font|
+      book.update!(cover_style: { font: font })
+      layout = PhotoBookLayout.new(book.design_snapshot)
+      assert_empty layout.errors, font
+      title = layout.pages.first.fetch(:texts).first
+      assert_equal font, title.fetch(:font)
+      assert_equal "#ffffff", title.fetch(:color)
+      assert_equal "#000000", title.fetch(:shadow_color)
+    end
+  end
+
+  test "hidden photo captions preserve text and reclaim space in every caption layout" do
+    book, photo = book_with_photo(print_ready: true)
+    %w[caption two_horizontal two_vertical].each do |kind|
+      source = book.pages.first.reload
+      source.update!(layout: kind, secondary_photo: photo, show_captions: true)
+      original = PhotoBookLayout.new(book.design_snapshot).pages[1]
+      source.update!(show_captions: false, caption: "Hidden text 🚀", secondary_caption: "Still saved")
+      layout = PhotoBookLayout.new(book.design_snapshot)
+      assert_empty layout.errors
+      page = layout.pages[1]
+      assert_empty page.fetch(:texts)
+      assert_operator page.fetch(:images).first.fetch(:height), :>, original.fetch(:images).first.fetch(:height)
+      assert_equal "Hidden text 🚀", source.reload.caption
+      source.update!(caption: "Visible text")
+    end
+    book.pages.first.reload.update!(layout: "text", caption: "Keep page text", show_captions: false)
+    assert_equal [ "Keep page text" ], PhotoBookLayout.new(book.design_snapshot).pages[1].fetch(:texts).first.fetch(:lines)
+  end
+
+  test "version-one export snapshots retain their original cover design" do
+    book, = book_with_photo
+    snapshot = book.design_snapshot.merge("version" => 1)
+    snapshot.delete("cover_style")
+    snapshot.delete("back_style")
+    snapshot.fetch("pages").each { |page| page.delete("show_captions") }
+    cover = PhotoBookLayout.new(snapshot).pages.first
+    assert_equal 1, cover.fetch(:panels).size
+    assert_equal "sans", cover.fetch(:texts).first.fetch(:font)
+    assert_equal 24, cover.fetch(:texts).first.fetch(:size)
+  end
 end
