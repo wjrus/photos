@@ -79,6 +79,41 @@ class PhotoBooksControllerTest < ActionDispatch::IntegrationTest
     assert Photo.exists?(second.id)
   end
 
+  test "tray removal returns only versions and stays scoped to the owner's book and page" do
+    page = @book.pages.first
+    @book.update!(cover_photo: @photo, back_photo: @photo)
+    old_book = @book.lock_version
+    old_page = page.lock_version
+    delete photo_book_membership_path(@book, @photo.id), params: { page_id: page.id }, headers: { "Accept" => "application/json" }
+    assert_response :success
+    data = response.parsed_body
+    assert_equal({ "before" => old_book, "after" => @book.reload.lock_version }, data.fetch("book"))
+    assert_equal({ "before" => old_page, "after" => page.reload.lock_version }, data.fetch("page"))
+    assert_equal "private, no-store", response.headers["Cache-Control"]
+    assert_nil page.primary_photo_id
+    assert_nil @book.cover_photo_id
+    assert_nil @book.back_photo_id
+    assert @photo.reload.original.attached?
+    @book.add_photos!([ @photo ])
+    other = users(:two).photo_books.create!(title: "Other book")
+    delete photo_book_membership_path(@book, @photo.id), params: { page_id: other.pages.first.id }, headers: { "Accept" => "application/json" }
+    assert_response :not_found
+    assert @book.photos.exists?(@photo.id)
+    delete photo_book_membership_path(other, @photo.id), headers: { "Accept" => "application/json" }
+    assert_response :not_found
+    unassigned = book_photo(title: "Unassigned")
+    assert_no_difference "PhotoBookMembership.count" do
+      delete photo_book_membership_path(@book, unassigned.id), headers: { "Accept" => "application/json" }
+    end
+    assert_response :not_found
+    assert Photo.exists?(unassigned.id)
+    sign_in_book_owner(users(:two))
+    assert_no_difference "PhotoBookMembership.count" do
+      delete photo_book_membership_path(@book, @photo.id), headers: { "Accept" => "application/json" }
+    end
+    assert_response :forbidden
+  end
+
   test "live preview does not save changes and rejects unassigned photos" do
     page = @book.pages.first
     post preview_photo_book_path(@book), params: { page_id: page.id, preview_key: "#{page.id}-0", photo_book_page: { caption: "Preview only" } }, headers: { "Accept" => "text/vnd.turbo-stream.html" }

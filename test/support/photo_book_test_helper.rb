@@ -1,8 +1,13 @@
 require "vips"
 
 module PhotoBookTestHelper
-  def book_photo(title: "Synthetic landscape", owner: users(:one), width: 2400, height: 1600, color: [ 30, 110, 160 ])
-    bytes = Vips::Image.black(width, height, bands: 3).new_from_image(color).pngsave_buffer
+  def book_photo(title: "Synthetic landscape", owner: users(:one), width: 2400, height: 1600, color: [ 30, 110, 160 ], patterned: false)
+    image = Vips::Image.black(width, height, bands: 3).new_from_image(color)
+    if patterned
+      patch = Vips::Image.black(width / 3, height, bands: 3).new_from_image([ 180, 60, 30 ])
+      image = image.insert(patch, 0, 0).insert(patch.invert, width - width / 3, 0)
+    end
+    bytes = image.pngsave_buffer
     photo = owner.photos.create!(title: title) do |record|
       record.original.attach(io: StringIO.new(bytes), filename: "synthetic-landscape.png", content_type: "image/png")
     end

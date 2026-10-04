@@ -4,11 +4,12 @@ const PHOTO_DRAG_TYPE = "application/x-photos-photobook"
 const TWO_PHOTO_LAYOUTS = ["two_horizontal", "two_vertical"]
 
 export default class extends Controller {
-  static targets = ["form", "layout", "primary", "secondary", "caption", "crop", "fit", "status", "photoInput", "slot", "primaryCaption", "secondaryCaption", "addPhoto", "tray", "trayPhoto", "captionToggle", "showCaptions", "secondaryCaptionField", "textStyle", "coverPosition", "coverFocusX", "coverFocusY", "coverCropHandle", "previewView", "previewToggle", "leaveConfirmation"]
+  static targets = ["form", "layout", "primary", "secondary", "caption", "crop", "fit", "status", "photoInput", "slot", "primaryCaption", "secondaryCaption", "addPhoto", "tray", "trayPhoto", "captionToggle", "showCaptions", "secondaryCaptionField", "textStyle", "coverPosition", "cropHandle", "previewView", "previewToggle", "leaveConfirmation"]
   static values = { previewUrl: String, trayUrl: String }
 
   connect() {
     this.dirty = false
+    this.removedPhotoIds = new Set()
     this.trayPage = 1
     this.traySearch = ""
     this.showUsed = false
@@ -18,17 +19,24 @@ export default class extends Controller {
   }
 
   disconnect() {
-    this.coverDrag = null
+    this.photoDrag = null
     clearTimeout(this.previewTimer)
     this.previewRequest?.abort()
     this.trayRequest?.abort()
+  }
+
+  trayTargetConnected(tray) {
+    if (this.restoreTrayFocus) {
+      if (document.activeElement === document.body) tray.querySelector('[type="search"]')?.focus({ preventScroll: true })
+      this.restoreTrayFocus = false
+    }
   }
 
   trayPhotoTargetConnected(button) {
     button.setAttribute("aria-pressed", String(button.dataset.photoId === this.selectedPhoto?.id))
     // Turbo renders streams asynchronously. A response already queued before an
     // edit must not put a newly placed photo back into the unused tray.
-    if (this.placementKey !== undefined && !this.showUsed && this.activePhotoIds().includes(button.dataset.photoId)) button.hidden = true
+    if (this.placementKey !== undefined && !this.showUsed && this.activePhotoIds().includes(button.dataset.photoId)) button.closest(".photobook-tray-item").hidden = true
   }
 
   saving() {
@@ -55,8 +63,13 @@ export default class extends Controller {
 
   beforePreviewRender(event) {
     // A preview already queued by Turbo must not replace the captured pointer
-    // while positioning a cover. Releasing the pointer requests a fresh preview.
-    if (this.coverDrag && event.target.getAttribute("target") === "photobook-preview") event.preventDefault()
+    // while positioning a photo. Releasing the pointer requests a fresh preview.
+    const target = event.target.getAttribute("target")
+    if (this.photoDrag && target === "photobook-preview") event.preventDefault()
+    if (["photobook-preview", "photobook-tray"].includes(target) && this.removedPhotoIds?.size) {
+      const photos = event.target.querySelector("template")?.content.querySelectorAll("[data-photo-id]") || []
+      if ([...photos].some((photo) => this.removedPhotoIds.has(photo.dataset.photoId))) event.preventDefault()
+    }
   }
 
   changePreviewView(event) {
@@ -85,6 +98,7 @@ export default class extends Controller {
 
   schedulePreview(event) {
     this.dirty = true
+    this.syncCropSlider(event)
     this.updateCoverColors(event)
     this.updateFields()
     clearTimeout(this.previewTimer)
@@ -115,7 +129,8 @@ export default class extends Controller {
     this.captionTarget.hidden = layout !== "text" && (!captionLayout || !this.showCaptionsTarget.checked)
     this.secondaryCaptionFieldTarget.hidden = !this.showCaptionsTarget.checked
     this.fitTarget.hidden = !twoPhotos && layout !== "caption"
-    this.cropTarget.hidden = layout === "fit"
+    const fitted = layout === "fit" || (captionLayout && this.formTarget.querySelector("[name=\"photo_book_page[image_fit]\"]").value === "fit")
+    this.cropTargets.forEach((crop) => { crop.hidden = fitted })
     this.addPhotoTarget.hidden = twoPhotos || layout === "blank" || layout === "text"
   }
 
@@ -216,57 +231,101 @@ export default class extends Controller {
   chooseSlot(event) {
     if (performance.now() < (this.ignoreClickUntil || 0)) return
     if (this.selectedPhoto) this.placePhoto(this.selectedPhoto, event.currentTarget.dataset.photoSlot)
-    else if (event.currentTarget.dataset.coverReposition === "true") this.statusTarget.textContent = "Drag the photo to position it, or use the position sliders. Select a tray photo to replace it."
+    else if (event.currentTarget.dataset.photoReposition === "true") this.statusTarget.textContent = "Drag the photo to position it, or use the position sliders. Select a tray photo to replace it."
     else this.statusTarget.textContent = "Select a photo in the tray first, or drag a photo into this area."
   }
 
-  coverCropHandleTargetConnected(handle) {
-    if (this.restoreCoverFocus) {
+  cropHandleTargetConnected(handle) {
+    const geometry = this.cropGeometry(handle)
+    if (geometry) {
+      this.updateCropAxis(geometry.fields.x, geometry.overflowX < 0.001)
+      this.updateCropAxis(geometry.fields.y, geometry.overflowY < 0.001)
+    }
+    if (this.restoreCropFocus === handle.dataset.photoSlot) {
       if (document.activeElement === document.body) handle.focus({ preventScroll: true })
-      this.restoreCoverFocus = false
+      this.restoreCropFocus = null
     }
   }
 
-  coverGeometry(handle) {
-    if (!this.isCover || this.layoutTarget.value !== "full" || handle.dataset.coverReposition !== "true" || this.selectedPhoto || this.draggedPhoto) return null
+  updateCropAxis(field, disabled) {
+    field.disabled = disabled
+    let value = field.parentElement.querySelector(`input[type="hidden"][data-crop-value="${field.id}"]`)
+    if (disabled) {
+      if (!value) {
+        value = document.createElement("input")
+        value.type = "hidden"
+        value.name = field.name
+        value.dataset.cropValue = field.id
+        field.after(value)
+      }
+      value.value = field.value
+    } else value?.remove()
+  }
+
+  cropFields(slot) {
+    return {
+      x: this.formTarget.querySelector(`[data-crop-slot="${slot}"][data-crop-axis="x"]`),
+      y: this.formTarget.querySelector(`[data-crop-slot="${slot}"][data-crop-axis="y"]`)
+    }
+  }
+
+  cropGeometry(handle) {
+    if (handle.dataset.photoReposition !== "true") return null
+    const slot = handle.dataset.photoSlot
     const svg = handle.parentElement.querySelector("svg")
-    const image = svg?.querySelector("image")
-    if (!image || image.dataset.photoId !== this.photoInputTargets[0].value) return null
+    const image = svg?.querySelector(`image[data-photo-slot="${slot}"]`)
+    const input = this.photoInputTargets.find((field) => field.dataset.photoSlot === slot)
+    if (!image || image.dataset.photoId !== input?.value) return null
     const box = svg.getBoundingClientRect()
     const view = svg.viewBox.baseVal
+    const area = { x: Number(handle.dataset.cropX), y: Number(handle.dataset.cropY), width: Number(handle.dataset.cropWidth), height: Number(handle.dataset.cropHeight) }
+    // A spread shares one image canvas across both leaves. Two-photo layouts
+    // instead have an independent canvas and focus for each slot.
+    const images = this.element.querySelectorAll(`#photobook-preview .is-selected image[data-photo-slot="${slot}"]`)
     return {
-      image, scaleX: view.width / box.width, scaleY: view.height / box.height,
-      overflowX: Math.max(0, Number(image.getAttribute("width")) - view.width),
-      overflowY: Math.max(0, Number(image.getAttribute("height")) - view.height)
+      images, fields: this.cropFields(slot), slot, area,
+      scaleX: view.width / box.width, scaleY: view.height / box.height,
+      overflowX: Math.max(0, Number((Number(image.getAttribute("width")) - area.width).toFixed(6))),
+      overflowY: Math.max(0, Number((Number(image.getAttribute("height")) - area.height).toFixed(6)))
     }
   }
 
-  setCoverPosition(x, y, geometry) {
-    this.coverFocusXTarget.value = Math.round(Math.max(0, Math.min(100, x)))
-    this.coverFocusYTarget.value = Math.round(Math.max(0, Math.min(100, y)))
-    if (geometry) {
-      geometry.image.setAttribute("x", -geometry.overflowX * Number(this.coverFocusXTarget.value) / 100)
-      geometry.image.setAttribute("y", -geometry.overflowY * Number(this.coverFocusYTarget.value) / 100)
-    }
+  setPhotoPosition(x, y, geometry, slot = "primary") {
+    const fields = geometry?.fields || this.cropFields(slot)
+    fields.x.value = Math.round(Math.max(0, Math.min(100, x)))
+    fields.y.value = Math.round(Math.max(0, Math.min(100, y)))
+    Object.values(fields).forEach((field) => this.updateCropAxis(field, field.disabled))
+    geometry?.images.forEach((image) => {
+      image.setAttribute("x", geometry.area.x - geometry.overflowX * Number(fields.x.value) / 100)
+      image.setAttribute("y", geometry.area.y - geometry.overflowY * Number(fields.y.value) / 100)
+    })
   }
 
-  startCoverDrag(event) {
-    if (!event.isPrimary || event.button !== 0) return
-    const geometry = this.coverGeometry(event.currentTarget)
+  syncCropSlider(event) {
+    const slot = event?.target?.dataset.cropSlot
+    if (!slot) return
+    const handle = this.cropHandleTargets.find((area) => area.dataset.photoSlot === slot)
+    const geometry = handle && this.cropGeometry(handle)
+    if (geometry) this.setPhotoPosition(Number(geometry.fields.x.value), Number(geometry.fields.y.value), geometry)
+  }
+
+  startPhotoDrag(event) {
+    if (!event.isPrimary || event.button !== 0 || this.selectedPhoto || this.draggedPhoto) return
+    const geometry = this.cropGeometry(event.currentTarget)
     if (!geometry || (!geometry.overflowX && !geometry.overflowY)) return
     clearTimeout(this.previewTimer)
     this.previewRequest?.abort()
-    this.coverDrag = {
+    this.photoDrag = {
       ...geometry, handle: event.currentTarget, pointerId: event.pointerId,
       startX: event.clientX, startY: event.clientY,
-      focusX: Number(this.coverFocusXTarget.value), focusY: Number(this.coverFocusYTarget.value),
+      focusX: Number(geometry.fields.x.value), focusY: Number(geometry.fields.y.value),
       dirty: this.dirty, status: this.statusTarget.textContent, moved: false
     }
     event.currentTarget.setPointerCapture(event.pointerId)
   }
 
-  moveCoverDrag(event) {
-    const drag = this.coverDrag
+  movePhotoDrag(event) {
+    const drag = this.photoDrag
     if (!drag || event.pointerId !== drag.pointerId) return
     const dx = event.clientX - drag.startX
     const dy = event.clientY - drag.startY
@@ -274,7 +333,7 @@ export default class extends Controller {
     event.preventDefault()
     drag.moved = true
     drag.handle.classList.add("is-repositioning")
-    this.setCoverPosition(
+    this.setPhotoPosition(
       drag.overflowX ? drag.focusX - dx * drag.scaleX / drag.overflowX * 100 : drag.focusX,
       drag.overflowY ? drag.focusY - dy * drag.scaleY / drag.overflowY * 100 : drag.focusY,
       drag
@@ -283,55 +342,55 @@ export default class extends Controller {
     this.statusTarget.textContent = "Unsaved photo position. Save to keep your changes."
   }
 
-  endCoverDrag(event) {
-    const drag = this.coverDrag
+  endPhotoDrag(event) {
+    const drag = this.photoDrag
     if (!drag || event.pointerId !== drag.pointerId) return
-    this.releaseCoverDrag(drag)
+    this.releasePhotoDrag(drag)
     if (drag.moved) this.ignoreClickUntil = performance.now() + 300
     if (drag.moved || drag.dirty) this.schedulePreview()
   }
 
-  cancelCoverDrag(event) {
-    const drag = this.coverDrag
+  cancelPhotoDrag(event) {
+    const drag = this.photoDrag
     if (!drag || event.pointerId !== drag.pointerId) return
-    this.setCoverPosition(drag.focusX, drag.focusY, drag)
+    this.setPhotoPosition(drag.focusX, drag.focusY, drag)
     this.dirty = drag.dirty
     this.statusTarget.textContent = drag.status
-    this.releaseCoverDrag(drag)
+    this.releasePhotoDrag(drag)
     if (drag.dirty) this.schedulePreview()
   }
 
-  releaseCoverDrag(drag) {
-    this.coverDrag = null
+  releasePhotoDrag(drag) {
+    this.photoDrag = null
     drag.handle.classList.remove("is-repositioning")
     if (drag.handle.hasPointerCapture(drag.pointerId)) drag.handle.releasePointerCapture(drag.pointerId)
   }
 
-  nudgeCoverPhoto(event) {
+  nudgePhoto(event) {
     const directions = { ArrowLeft: [1, 0], ArrowRight: [-1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }
     const direction = directions[event.key]
-    const geometry = direction && this.coverGeometry(event.currentTarget)
+    const geometry = direction && this.cropGeometry(event.currentTarget)
     if (!geometry) return
     event.preventDefault()
     const step = event.shiftKey ? 10 : 1
-    this.setCoverPosition(
-      Number(this.coverFocusXTarget.value) + (geometry.overflowX ? direction[0] * step : 0),
-      Number(this.coverFocusYTarget.value) + (geometry.overflowY ? direction[1] * step : 0),
+    this.setPhotoPosition(
+      Number(geometry.fields.x.value) + (geometry.overflowX ? direction[0] * step : 0),
+      Number(geometry.fields.y.value) + (geometry.overflowY ? direction[1] * step : 0),
       geometry
     )
-    this.restoreCoverFocus = true
+    this.restoreCropFocus = geometry.slot
     this.schedulePreview()
   }
 
   centerCoverPhoto() {
-    this.setCoverPosition(50, 50, this.hasCoverCropHandleTarget ? this.coverGeometry(this.coverCropHandleTarget) : null)
+    this.setPhotoPosition(50, 50, this.hasCropHandleTarget ? this.cropGeometry(this.cropHandleTarget) : null)
     this.schedulePreview()
   }
 
   placePhoto(photo, slot) {
     const input = this.photoInputTargets.find((field) => field.dataset.photoSlot === slot)
     if (!input) return
-    if (this.isCover && input.value !== photo.id) this.setCoverPosition(50, 50)
+    if (input.value !== photo.id) this.setPhotoPosition(50, 50, null, slot)
     if (!this.isCover) {
       if (["blank", "text"].includes(this.layoutTarget.value)) this.layoutTarget.value = "caption"
       if (slot === "secondary" && !TWO_PHOTO_LAYOUTS.includes(this.layoutTarget.value)) this.layoutTarget.value = "two_horizontal"
@@ -361,6 +420,51 @@ export default class extends Controller {
     this.schedulePreview()
   }
 
+  async removeTrayPhoto(event) {
+    event.preventDefault()
+    const form = event.target
+    const modal = this.application.getControllerForElementAndIdentifier(form.querySelector('[data-controller="confirm-modal"]'), "confirm-modal")
+    const id = form.dataset.photoId
+    if (this.removingPhoto) return
+    this.removingPhoto = true
+    clearTimeout(this.previewTimer)
+    this.previewRequest?.abort()
+    this.trayRequest?.abort()
+    modal.close()
+    this.statusTarget.textContent = "Removing photo from the book…"
+    const data = new FormData(form)
+    const pageId = this.formTarget.querySelector('[name="page_id"]')?.value
+    if (pageId) data.set("page_id", pageId)
+    try {
+      const response = await fetch(form.action, { method: "POST", body: data, headers: { Accept: "application/json" } })
+      if (!response.ok) throw new Error("Removal failed")
+      const result = await response.json()
+      this.removedPhotoIds.add(id)
+      this.restoreTrayFocus = true
+      if (this.selectedPhoto?.id === id) this.selectedPhoto = null
+      this.photoInputTargets.filter((input) => input.value === id).forEach((input) => {
+        const tile = this.slotTargets.find((area) => area.dataset.photoSlot === input.dataset.photoSlot)
+        this.removePhoto({ currentTarget: tile.querySelector(".photobook-remove-photo") })
+      })
+      // Advance the form version only if it matched the version we removed from.
+      // A concurrently edited page must still raise the usual stale-save warning.
+      const lock = this.formTarget.querySelector('[name$="[lock_version]"]')
+      const version = this.isCover ? result.book : result.page
+      if (lock && version && Number(lock.value) === version.before) lock.value = version.after
+      this.placementKey = this.currentPlacementKey()
+      this.trayPage = 1
+      clearTimeout(this.previewTimer)
+      this.previewRequest?.abort()
+      await this.preview()
+      await this.refreshTray()
+      this.statusTarget.textContent = `Photo removed from the book. It remains in your library.${this.dirty ? " Save to keep your page edits." : ""}`
+    } catch (error) {
+      this.statusTarget.textContent = "The photo could not be removed. Your page edits are still in the form. Try again."
+    } finally {
+      this.removingPhoto = false
+    }
+  }
+
   addSecondPhoto() {
     this.layoutTarget.value = "two_horizontal"
     this.schedulePreview()
@@ -370,7 +474,7 @@ export default class extends Controller {
   syncTray() {
     if (this.showUsed) return
     const placed = this.activePhotoIds()
-    this.trayPhotoTargets.forEach((button) => { if (placed.includes(button.dataset.photoId)) button.hidden = true })
+    this.trayPhotoTargets.forEach((button) => { if (placed.includes(button.dataset.photoId)) button.closest(".photobook-tray-item").hidden = true })
   }
 
   searchTray(event) {

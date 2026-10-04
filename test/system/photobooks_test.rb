@@ -183,7 +183,7 @@ class PhotobooksTest < ApplicationSystemTestCase
   test "full-cover photos can be dragged bounded centered and saved with keyboard adjustments" do
     @book.update!(cover_photo: @photo, cover_layout: "full")
     visit photo_book_path(@book)
-    assert_selector "#photobook-preview button[data-cover-reposition='true']"
+    assert_selector "#photobook-preview button[data-photo-reposition='true']"
     assert_field "Cover photo horizontal position", with: "50"
     assert_equal(-52.5, find("#photobook-preview image")["x"].to_f)
     stale_preview = page.evaluate_script("document.querySelector('#photobook-preview').outerHTML")
@@ -202,7 +202,7 @@ class PhotobooksTest < ApplicationSystemTestCase
     mouse_cover("mouseReleased", bounds.merge("x" => bounds.fetch("x") + 270))
     assert_field "Cover photo horizontal position", with: "0"
     assert_selector "#photobook-preview image[x='0.0']"
-    find("#photobook-preview button[data-cover-reposition='true']").send_keys(:arrow_left)
+    find("#photobook-preview button[data-photo-reposition='true']").send_keys(:arrow_left)
     assert_field "Cover photo horizontal position", with: "1"
     assert_selector "#photobook-preview image[x='-1.05']"
     assert_selector "#photobook-preview button:focus"
@@ -216,9 +216,9 @@ class PhotobooksTest < ApplicationSystemTestCase
     assert_selector "#photobook-preview image[x='-52.5']"
     select "Whole photo with whitespace", from: "Cover photo layout"
     assert_no_field "Cover photo horizontal position"
-    assert_no_selector "#photobook-preview button[data-cover-reposition='true']"
+    assert_no_selector "#photobook-preview button[data-photo-reposition='true']"
     select "Full cover photo", from: "Cover photo layout"
-    assert_selector "#photobook-preview button[data-cover-reposition='true']"
+    assert_selector "#photobook-preview button[data-photo-reposition='true']"
     page.save_screenshot(Rails.root.join("tmp/screenshots/photobook-cover-position.png"))
     assert_axe_clean
   end
@@ -231,7 +231,7 @@ class PhotobooksTest < ApplicationSystemTestCase
     page.driver.browser.execute_cdp("Emulation.setDeviceMetricsOverride", width: 390, height: 844, deviceScaleFactor: 1, mobile: true)
     page.driver.browser.execute_cdp("Emulation.setTouchEmulationEnabled", enabled: true)
     visit photo_book_path(@book, page_id: "back")
-    assert_selector "#photobook-preview button[data-cover-reposition='true']"
+    assert_selector "#photobook-preview button[data-photo-reposition='true']"
     page.execute_script("document.querySelector('#photobook-preview button').scrollIntoView({ block: 'center' })")
     bounds = cover_center
     touch_cover("touchStart", bounds)
@@ -256,6 +256,157 @@ class PhotobooksTest < ApplicationSystemTestCase
     assert_axe_clean
   ensure
     page.driver.browser.execute_cdp("Emulation.setTouchEmulationEnabled", enabled: false)
+  end
+
+  test "inside full-page photos respond immediately to sliders drag and keyboard then persist" do
+    landscape = book_photo(title: "Patterned landscape", patterned: true)
+    @book.add_photos!([ landscape ])
+    source = @book.pages.first
+    source.update!(layout: "full", primary_photo: landscape)
+    visit photo_book_path(@book, page_id: source.id)
+    assert_selector "#photobook-preview button[data-photo-reposition='true']"
+    assert_field "First photo vertical position", disabled: true
+    # Input updates the existing SVG synchronously, before the server preview.
+    result = page.evaluate_script("(() => { const field = document.getElementById('photo_book_page_primary_focus_x'); field.value = 20; field.dispatchEvent(new Event('input', { bubbles: true })); return document.querySelector('#photobook-preview image').getAttribute('x') })()")
+    assert_in_delta(-21, result.to_f, 0.001)
+    assert_selector "#photobook-preview image[x='-21.0']"
+    assert_equal 50, source.reload.primary_focus_x
+    bounds = cover_center
+    mouse_cover("mousePressed", bounds)
+    mouse_cover("mouseMoved", bounds.merge("x" => bounds.fetch("x") - 40))
+    position = find_field("First photo horizontal position").value.to_i
+    assert_operator position, :>, 20
+    mouse_cover("mouseReleased", bounds.merge("x" => bounds.fetch("x") - 40))
+    assert_selector "#photobook-preview image[x='#{-105 * position / 100.0}']"
+    find("#photobook-preview button[data-photo-reposition='true']").send_keys(:arrow_left)
+    assert_field "First photo horizontal position", with: (position + 1).to_s
+    click_button "Save page"
+    assert_text "Page saved."
+    assert_equal position + 1, source.reload.primary_focus_x
+    layout = PhotoBookLayout.new(@book.reload.design_snapshot)
+    area = layout.pages.find { |leaf| leaf[:source_id] == source.id }.fetch(:images).first
+    assert_in_delta(-105 * (position + 1) / 100.0, layout.image_box(area, width: 2400, height: 1600).fetch(:x), 0.001)
+    assert_axe_clean
+    page.save_screenshot(Rails.root.join("tmp/screenshots/photobook-inside-position.png"))
+  end
+
+  test "crop drag uses each photo area and both halves of a spread share one position" do
+    source = @book.pages.first
+    source.update!(layout: "two_horizontal", image_fit: "fill", secondary_photo: @second)
+    visit photo_book_path(@book, page_id: source.id)
+    assert_selector "#photobook-preview button[data-photo-reposition='true']", count: 2
+    second = find("#photobook-preview button[data-photo-slot='secondary']")
+    rect = second.native.rect
+    bounds = { "x" => rect.x + rect.width / 2, "y" => rect.y + rect.height / 2 }
+    mouse_cover("mousePressed", bounds)
+    mouse_cover("mouseMoved", bounds.merge("x" => bounds.fetch("x") + 25))
+    position = find_field("Second photo horizontal position").value.to_i
+    assert_operator position, :<, 50
+    assert_field "First photo horizontal position", with: "50"
+    mouse_cover("mouseReleased", bounds.merge("x" => bounds.fetch("x") + 25))
+    area = PhotoBookLayout.new(@book.design_snapshot).pages.find { |leaf| leaf[:source_id] == source.id }.fetch(:images).last
+    expected_x = area[:x] + (area[:width] - area[:height] * 1.5) * position / 100.0
+    assert_selector "#photobook-preview image[data-photo-slot='secondary']"
+    assert_in_delta expected_x, find("#photobook-preview image[data-photo-slot='secondary']")["x"].to_f, 0.001
+    click_button "Save page"
+    assert_text "Page saved."
+    assert_equal position, source.reload.secondary_focus_x
+    spread = @book.pages.to_a[1]
+    spread.update!(layout: "spread", primary_photo: @photo)
+    visit photo_book_path(@book, page_id: "#{spread.id}-1", view: "spread")
+    assert_selector "#photobook-preview image", count: 2
+    assert_field "First photo horizontal position", disabled: true
+    rect = find("#photobook-preview .photobook-preview-leaf:last-child button").native.rect
+    bounds = { "x" => rect.x + rect.width / 2, "y" => rect.y + rect.height / 2 }
+    mouse_cover("mousePressed", bounds)
+    mouse_cover("mouseMoved", bounds.merge("y" => bounds.fetch("y") - 35))
+    position = find_field("First photo vertical position").value.to_i
+    assert_operator position, :>, 50
+    assert_equal 1, all("#photobook-preview image").map { |image| image["y"] }.uniq.size
+    mouse_cover("mouseReleased", bounds.merge("y" => bounds.fetch("y") - 35))
+    assert_selector "#photobook-preview image[y='#{-70 * position / 100.0}']", count: 2
+    click_button "Save page"
+    assert_text "Page saved."
+    assert_equal position, spread.reload.primary_focus_y
+    assert_selector ".photobook-page-position", text: "Page 3 · Right page"
+  end
+
+  test "tray removal confirms preserves unsaved edits and clears saved placements without deleting originals" do
+    source = @book.pages.first
+    visit photo_book_path(@book, page_id: source.id)
+    fill_in "Caption or page text", with: "Keep my draft caption."
+    stale_tray = page.evaluate_script("document.querySelector('#photobook-tray').outerHTML")
+    within ".photobook-tray-item", text: "Synthetic sunset" do
+      click_button "Remove", exact: true
+    end
+    within "[role='dialog']", text: "Remove this photo from the book?" do
+      click_button "Cancel"
+    end
+    assert @book.photos.exists?(@second.id)
+    assert_field "Caption or page text", with: "Keep my draft caption."
+    within ".photobook-tray-item", text: "Synthetic sunset" do
+      click_button "Remove", exact: true
+    end
+    within "[role='dialog']", text: "Remove this photo from the book?" do
+      click_button "Remove photo"
+    end
+    assert_text "Photo removed from the book. It remains in your library."
+    assert_no_selector "#photobook-tray button[data-photo-id='#{@second.id}']"
+    assert_not @book.photos.exists?(@second.id)
+    assert @second.reload.original.attached?
+    assert_field "Caption or page text", with: "Keep my draft caption."
+    page.evaluate_async_script("const done = arguments[arguments.length - 1]; window.Turbo.renderStreamMessage('<turbo-stream action=\"replace\" target=\"photobook-tray\"><template>' + arguments[0] + '</template></turbo-stream>'); requestAnimationFrame(() => requestAnimationFrame(done))", stale_tray)
+    assert_no_selector "#photobook-tray button[data-photo-id='#{@second.id}']"
+    check "Show used photos"
+    within ".photobook-tray-item", text: "Synthetic landscape" do
+      click_button "Remove", exact: true
+    end
+    within "[role='dialog']", text: "Remove this photo from the book?" do
+      click_button "Remove photo"
+    end
+    assert_no_selector "#photobook-preview image"
+    assert_nil source.reload.primary_photo_id
+    assert_field "Caption or page text", with: "Keep my draft caption."
+    click_button "Save page"
+    assert_text "Page saved."
+    assert_equal "Keep my draft caption.", source.reload.caption
+    assert @photo.reload.original.attached?
+  end
+
+  test "tray removal keeps cover drafts and does not bypass stale page protection" do
+    @book.update!(cover_layout: "full", cover_photo: @second)
+    visit photo_book_path(@book)
+    fill_in "Cover title", with: "My unsaved cover title"
+    check "Show used photos"
+    within ".photobook-tray-item", text: "Synthetic sunset" do
+      click_button "Remove", exact: true
+    end
+    within "[role='dialog']", text: "Remove this photo from the book?" do
+      click_button "Remove photo"
+    end
+    assert_text "Photo removed from the book. It remains in your library."
+    assert_no_selector "#photobook-preview image"
+    assert_field "Cover title", with: "My unsaved cover title"
+    click_button "Save cover"
+    assert_text "Book settings saved."
+    assert_equal "My unsaved cover title", @book.reload.cover_title
+    assert_nil @book.cover_photo_id
+    source = @book.pages.first
+    visit photo_book_path(@book, page_id: source.id)
+    fill_in "Caption or page text", with: "A stale draft"
+    source.update!(caption: "Saved in another tab")
+    check "Show used photos"
+    within ".photobook-tray-item", text: "Synthetic landscape" do
+      click_button "Remove", exact: true
+    end
+    within "[role='dialog']", text: "Remove this photo from the book?" do
+      click_button "Remove photo"
+    end
+    assert_text "Photo removed from the book. It remains in your library."
+    assert_field "Caption or page text", with: "A stale draft"
+    click_button "Save page"
+    assert_text "This page changed in another tab."
+    assert_equal "Saved in another tab", source.reload.caption
   end
 
   test "a delayed tray render cannot make a newly placed photo available again" do
@@ -329,11 +480,11 @@ class PhotobooksTest < ApplicationSystemTestCase
     assert_selector "#photobook-preview svg[viewBox='297.0 0 297.0 210.0']", count: 1
     click_button "Facing pages"
     assert_selector "#photobook-preview svg", count: 2
-    assert_field "First photo horizontal position", with: "10"
+    assert_field "First photo horizontal position", with: "10", disabled: true
     assert_equal 50, second_page.reload.primary_focus_x
     click_button "Single page"
     assert_selector "#photobook-preview svg", count: 1
-    assert_field "First photo horizontal position", with: "10"
+    assert_field "First photo horizontal position", with: "10", disabled: true
     click_button "Save page"
     assert_text "Page saved."
     assert_selector ".photobook-page-position", text: "Page 3 · Right page"
@@ -483,7 +634,7 @@ class PhotobooksTest < ApplicationSystemTestCase
   private
 
   def cover_center
-    page.evaluate_script("(() => { const r = document.querySelector('#photobook-preview button').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 } })()")
+    page.evaluate_script("(() => { const r = document.querySelector('#photobook-preview .photobook-drop-zone').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 } })()")
   end
 
   def mouse_cover(type, point)

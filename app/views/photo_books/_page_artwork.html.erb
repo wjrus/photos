@@ -7,7 +7,7 @@
     <% if photo %>
       <% width, height = PhotoBook.oriented_dimensions(photo) %>
       <% box = layout.image_box(image, width: width.to_f, height: height.to_f) %>
-      <image href="<%= display_photo_path(photo) %>" data-photo-id="<%= photo.id %>" x="<%= box.fetch(:x) %>" y="<%= box.fetch(:y) %>" width="<%= box.fetch(:width) %>" height="<%= box.fetch(:height) %>" preserveAspectRatio="xMidYMid <%= image.fetch(:fit) == "fit" ? "meet" : "slice" %>" clip-path="url(#<%= clip_id %>)" />
+      <image href="<%= display_photo_path(photo) %>" data-photo-id="<%= photo.id %>" data-photo-slot="<%= index.zero? ? "primary" : "secondary" %>" x="<%= box.fetch(:x) %>" y="<%= box.fetch(:y) %>" width="<%= box.fetch(:width) %>" height="<%= box.fetch(:height) %>" preserveAspectRatio="xMidYMid <%= image.fetch(:fit) == "fit" ? "meet" : "slice" %>" clip-path="url(#<%= clip_id %>)" />
     <% else %>
       <rect x="<%= image.fetch(:x) %>" y="<%= image.fetch(:y) %>" width="<%= image.fetch(:width) %>" height="<%= image.fetch(:height) %>" fill="#e4e4e7" />
       <text x="<%= image.fetch(:x) + 5 %>" y="<%= image.fetch(:y) + 12 %>" fill="#52525b" font-size="5">Choose a photo</text>
