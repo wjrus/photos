@@ -132,6 +132,44 @@ docker compose exec worker bin/rails console
 ./scripts/deploy
 ```
 
+### Docker disk cleanup
+
+After web traffic has switched successfully and the worker is running, deploy
+prunes dangling images built by this Compose project that were created more
+than seven days ago. It discovers the project name from the worker container
+and uses the positive `com.docker.compose.project` image label added by Compose.
+If the project label cannot be verified, cleanup is skipped. Docker reports the
+space reclaimed, followed by a read-only `docker system df` summary for the
+shared host. Cleanup/reporting failures warn without failing a healthy release.
+
+The prune does not use `--all`: tagged images and images referenced by any
+container, including the stopped previous blue/green backend, are retained.
+It does not prune containers, volumes, networks, other projects' images, or the
+shared build cache. Pulled PostgreSQL, Redis, nginx, and base images without
+this project's build label are outside this cleanup. Extremely old images
+built without Compose labels also remain outside it.
+
+To temporarily skip image cleanup:
+
+```sh
+PHOTOS_DOCKER_CLEANUP=0 ./scripts/deploy
+```
+
+BuildKit's cache garbage collection should be configured at the shared-host
+level with an agreed disk budget. An app deploy must not run global
+`docker system prune` or `docker builder prune` on this server. Image cleanup
+is not a hard cap on total Docker disk usage, and shared cache can retain layers
+after an image is removed. Inspect current usage without deleting anything:
+
+```sh
+docker system df
+docker buildx ls
+docker buildx du
+```
+
+See Docker's [image-prune filters](https://docs.docker.com/reference/cli/docker/image/prune/)
+and [BuildKit garbage-collection policies](https://docs.docker.com/build/cache/garbage-collection/).
+
 ### September 2026 Dependency Update
 
 This update uses Ruby 3.4.10, Rails 8.1.4, Bundler 4.0.21, nginx 1.30.5, current compatible

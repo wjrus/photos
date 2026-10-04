@@ -209,9 +209,35 @@ wait_for_proxy_http() {
   fail "app_proxy did not route /up within ${timeout_seconds}s"
 }
 
+cleanup_old_images() {
+  local container_id
+  local project
+
+  if [[ "${PHOTOS_DOCKER_CLEANUP:-1}" == 0 ]]; then
+    printf "Photos image cleanup disabled for this deploy\n"
+    return
+  fi
+
+  # Discover the actual Compose project rather than assuming the checkout name.
+  # Positive labels keep cleanup away from other apps on this Docker host.
+  container_id="$(container_id_for worker)"
+  if ! project="$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.project" }}' "$container_id")" ||
+    [[ ! "$project" =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
+    printf "Warning: could not identify the Compose project; image cleanup skipped.\n" >&2
+    return
+  fi
+
+  # Without --all, only dangling images are eligible. Docker also preserves
+  # images referenced by stopped containers, including our previous backend.
+  if ! docker image prune --force --filter "label=com.docker.compose.project=$project" --filter "until=168h"; then
+    printf "Warning: Photos image cleanup failed; the healthy deployment is still complete.\n" >&2
+  fi
+}
+
 require_file ".env.production"
 require_file ".env.postgres"
 require_clean_tracked_worktree
+[[ "${PHOTOS_DOCKER_CLEANUP:-1}" =~ ^[01]$ ]] || fail "PHOTOS_DOCKER_CLEANUP must be 0 or 1"
 
 storage_path="$(env_value PHOTOS_STORAGE_PATH .env.production)"
 [[ -n "$storage_path" ]] || fail "PHOTOS_STORAGE_PATH must be set in .env.production"
@@ -290,6 +316,12 @@ log "Starting worker"
 compose up -d --no-deps worker --remove-orphans
 require_storage_mount worker
 wait_for_state worker running 120
+
+log "Cleaning old dangling Photos images (keeping the last seven days)"
+cleanup_old_images
+
+log "Docker disk usage (shared host)"
+docker system df || printf "Warning: Docker disk usage could not be reported.\n" >&2
 
 log "Current status"
 compose ps
