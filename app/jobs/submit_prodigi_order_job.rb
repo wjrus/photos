@@ -5,6 +5,9 @@ class SubmitProdigiOrderJob < ApplicationJob
   retry_on ProdigiClient::Error, wait: :polynomially_longer, attempts: 5 do |job, error|
     job.arguments.first.update!(error: error.message)
   end
+  # Retrying an identical rejected request cannot fix a validation error.
+  # Keep the frozen order and its error for an explicit retry after diagnosis.
+  discard_on ProdigiClient::RequestError
 
   def perform(order)
     order.reload

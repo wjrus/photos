@@ -102,4 +102,48 @@ class ProdigiClientTest < ActiveSupport::TestCase
     assert_includes output.string, '"http_status":"400"'
     assert_not_includes output.string, "PRIVATE_SYNTHETIC_ERROR_BODY"
   end
+
+  test "validation errors identify the operation safe fields and support trace without leaking values" do
+    output = StringIO.new
+    logger = ActiveSupport::Logger.new(output)
+    trace = "00-0123456789abcdef0123456789abcdef-0123456789abcdef-00"
+    body = { "statusText" => "PRIVATE_SYNTHETIC_MESSAGE", "traceParent" => trace,
+      "data" => { "errors" => { "recipient.email" => [ "PRIVATE_SYNTHETIC_EMAIL" ],
+        "items[0].assets[0].pageCount" => [ "PRIVATE_SYNTHETIC_URL" ],
+        "PRIVATE_SYNTHETIC_KEY" => [ "PRIVATE_SYNTHETIC_SECRET" ] } } }
+    response = Net::HTTPBadRequest.new("1.1", "400", "Bad Request")
+    response.define_singleton_method(:body) { body.to_json }
+    http = Object.new
+    http.define_singleton_method(:request) { |_request| response }
+    start = ->(*_args, **_options, &block) { block.call(http) }
+    with_prodigi_method(Rails, :logger, logger) do
+      with_prodigi_method(Net::HTTP, :start, start) do
+        error = assert_raises(ProdigiClient::RequestError) { ProdigiClient.new.create_order({}) }
+        assert_includes error.message, "order submission (HTTP 400)"
+        assert_includes error.message, "recipient.email"
+        assert_includes error.message, "items[0].assets[0].pageCount"
+        assert_includes error.message, trace
+        assert_not_includes error.message, "account configuration"
+        assert_not_includes error.message, "PRIVATE_SYNTHETIC"
+      end
+    end
+    assert_includes output.string, '"event":"response_error"'
+    assert_includes output.string, trace
+    assert_not_includes output.string, "PRIVATE_SYNTHETIC"
+  end
+
+  test "transient HTTP errors remain retryable and malformed bodies cannot leak through support traces" do
+    response = Net::HTTPTooManyRequests.new("1.1", "429", "Too Many Requests")
+    response["traceParent"] = "PRIVATE_SYNTHETIC_TRACE"
+    response.define_singleton_method(:body) { "PRIVATE_SYNTHETIC_BODY" }
+    http = Object.new
+    http.define_singleton_method(:request) { |_request| response }
+    start = ->(*_args, **_options, &block) { block.call(http) }
+    with_prodigi_method(Net::HTTP, :start, start) do
+      error = assert_raises(ProdigiClient::Error) { ProdigiClient.new.quote({}) }
+      assert_not error.is_a?(ProdigiClient::RequestError)
+      assert_includes error.message, "price quote (HTTP 429)"
+      assert_not_includes error.message, "PRIVATE_SYNTHETIC"
+    end
+  end
 end
