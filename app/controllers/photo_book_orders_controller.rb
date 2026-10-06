@@ -3,7 +3,7 @@ class PhotoBookOrdersController < ApplicationController
   owner_access_message "Only the owner can order photobooks."
   before_action :require_owner!
   before_action :set_book
-  before_action :set_order, only: %i[show edit update quote submit refresh spine destroy]
+  before_action :set_order, only: %i[show edit update shipping quote submit refresh spine destroy]
   before_action -> { response.set_header("Cache-Control", "private, no-store") }
   before_action :require_editable_order, only: %i[edit update]
 
@@ -71,6 +71,13 @@ class PhotoBookOrdersController < ApplicationController
     redirect_to photo_book_order_path(@book, @order), alert: error.message
   end
 
+  def shipping
+    @order.select_shipping!(method: params[:shipping_method], reviewed_quote: params[:reviewed_quote])
+    redirect_to photo_book_order_path(@book, @order), notice: "Shipping selected. Review the total before confirming."
+  rescue ProdigiClient::Error => error
+    redirect_to photo_book_order_path(@book, @order), alert: error.message
+  end
+
   def submit
     unless params[:confirm_order] == "1"
       return redirect_to photo_book_order_path(@book, @order), alert: "Review the PDF, address, and price, then confirm the order."
@@ -132,7 +139,7 @@ class PhotoBookOrdersController < ApplicationController
   end
 
   def order_params
-    params.require(:photo_book_order).permit(:copies, :shipping_method, :currency,
+    params.require(:photo_book_order).permit(:copies, :currency,
       recipient: [ *PhotoBookOrder::RECIPIENT_FIELDS, { address: PhotoBookOrder::ADDRESS_FIELDS } ])
   end
 

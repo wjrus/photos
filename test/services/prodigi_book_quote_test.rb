@@ -6,6 +6,99 @@ class ProdigiBookQuoteTest < ActiveSupport::TestCase
   setup { configure_prodigi }
   teardown { restore_prodigi }
 
+  test "all available methods are quoted once then selected locally with their own book and shipping prices" do
+    _, _, export = ready_order_export
+    order = draft_order(export)
+    client = quote_client(quote: synthetic_shipping_quotes)
+    ProdigiBookQuote.new(order, client: client).call
+    digest = order.quote_digest
+    order.reload
+    assert_equal digest, order.quote_digest
+    assert_equal %w[Budget Express], order.shipping_options.map { |option| option["shipmentMethod"] }
+    assert_not order.shipping_selected?
+    assert_raises(ProdigiClient::Error) { order.approve!(reviewed_quote: digest) }
+    order.select_shipping!(method: "Express", reviewed_quote: digest)
+    assert_equal BigDecimal("56.70"), order.quote_total
+    assert_equal [ { "name" => "Example Courier", "service" => "Tracked service" } ], order.quote["carriers"]
+    assert_equal %i[product spine quote], client.calls
+    assert_equal order.quote_digest, order.reload.quote_digest
+    assert_raises(ProdigiClient::Error) { order.approve!(reviewed_quote: digest) }
+    order.approve!(reviewed_quote: order.quote_digest)
+    assert_equal "Express", order.request_payload["shippingMethod"]
+  end
+
+  test "unavailable expired stale and confirmed shipping selections cannot change the order" do
+    _, _, export = ready_order_export
+    order = quoted_order(export)
+    original = order.quote.deep_dup
+    assert_raises(ProdigiClient::Error) { order.select_shipping!(method: "Overnight", reviewed_quote: order.quote_digest) }
+    assert_raises(ProdigiClient::Error) { order.select_shipping!(method: "Budget", reviewed_quote: "stale") }
+    order.update!(quoted_at: 2.hours.ago)
+    assert_raises(ProdigiClient::Error) { order.select_shipping!(method: "Budget", reviewed_quote: order.quote_digest) }
+    assert_equal original, order.reload.quote
+    order.update!(quoted_at: Time.current)
+    order.approve!(reviewed_quote: order.quote_digest)
+    assert_raises(ProdigiClient::Error) { order.select_shipping!(method: "Budget", reviewed_quote: order.quote_digest) }
+    assert_equal original, order.reload.quote
+  end
+
+  test "refresh retains an available selection and requires a new choice when it disappears" do
+    _, _, export = ready_order_export
+    order = quoted_order(export)
+    client = quote_client(quote: synthetic_shipping_quotes)
+    ProdigiBookQuote.new(order, client: client).call
+    assert order.shipping_selected?
+    order.select_shipping!(method: "Express", reviewed_quote: order.quote_digest)
+    ProdigiBookQuote.new(order, client: quote_client).call
+    assert_equal "Budget", order.shipping_method
+    assert_not order.shipping_selected?
+    assert_raises(ProdigiClient::Error) { order.approve!(reviewed_quote: order.quote_digest) }
+  end
+
+  test "malformed or ambiguous alternate prices block the whole quote" do
+    _, _, export = ready_order_export
+    [ "NaN", "-1.00" ].each do |amount|
+      response = synthetic_shipping_quotes
+      response["quotes"].first["costSummary"]["shipping"]["amount"] = amount
+      order = draft_order(export)
+      assert_raises(ProdigiClient::Error) { ProdigiBookQuote.new(order, client: quote_client(quote: response)).call }
+      assert_empty order.reload.quote
+    end
+    response = synthetic_quote
+    response["quotes"] *= 2
+    assert_raises(ProdigiClient::Error) { ProdigiBookQuote.new(draft_order(export), client: quote_client(quote: response)).call }
+    assert_raises(ProdigiClient::Error) { ProdigiBookQuote.new(draft_order(export), client: quote_client(quote: { "quotes" => [] })).call }
+  end
+
+  test "shipping method casing is normalized and older single method quotes remain usable" do
+    _, _, export = ready_order_export
+    order = draft_order(export)
+    response = synthetic_shipping_quotes
+    response["quotes"].first["shipmentMethod"] = "express"
+    ProdigiBookQuote.new(order, client: quote_client(quote: response)).call
+    assert_equal %w[Budget Express], order.shipping_options.map { |quote| quote["shipmentMethod"] }
+    order.update!(quote: synthetic_quote["quotes"].first)
+    assert order.shipping_selected?
+    assert_equal [ order.quote ], order.shipping_options
+    order.approve!(reviewed_quote: order.quote_digest)
+    assert_equal "Budget", order.request_payload["shippingMethod"]
+  end
+
+  test "a concurrent shipping selection is not overwritten by a quote refresh" do
+    _, _, export = ready_order_export
+    order = quoted_order(export)
+    ProdigiBookQuote.new(order, client: quote_client(quote: synthetic_shipping_quotes)).call
+    response = synthetic_shipping_quotes
+    client = quote_client
+    client.define_singleton_method(:quote) do |_payload|
+      PhotoBookOrder.find(order.id).select_shipping!(method: "Express", reviewed_quote: order.quote_digest)
+      response
+    end
+    assert_raises(ProdigiClient::Error) { ProdigiBookQuote.new(order, client: client).call }
+    assert_equal "Express", order.reload.shipping_method
+    assert_equal BigDecimal("56.70"), order.quote_total
+  end
+
   test "quote includes both covers and separate spine artwork without sharing an address or PDF URL" do
     book, _, export = ready_order_export
     order = quoted_order(export)

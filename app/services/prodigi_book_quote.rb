@@ -9,34 +9,63 @@ class ProdigiBookQuote
     raise ProdigiClient::Error, "The PDF or its source photos are no longer available." unless @order.artwork_available?
 
     quoted_inputs = @order.attributes.slice("photo_book_export_id", "environment", "sku", "copies", "shipping_method", "currency", "recipient").deep_dup
+    previous_quote = @order.quote.deep_dup
+    previously_selected = @order.shipping_selected?
     product = @client.product(@order.sku)
     validate_product!(product)
     prepare_spine!(product)
     item = @order.item.merge("attributes" => product.fetch("selectedAttributes"), "assets" => [ { "printArea" => "default", "pageCount" => @order.page_count } ] + (@spine_bytes ? [ { "printArea" => "spine" } ] : []))
-    response = @client.quote({ "shippingMethod" => @order.shipping_method, "destinationCountryCode" => country,
+    response = @client.quote({ "destinationCountryCode" => country,
       "currencyCode" => @order.currency, "items" => [ item ] })
-    quote = Array(response["quotes"]).find { |candidate| candidate["shipmentMethod"] == @order.shipping_method }
-    raise ProdigiClient::Error, "Prodigi has no quote for this shipping method and destination." unless quote
-
-    %w[items shipping].each do |key|
-      cost = quote.fetch("costSummary").fetch(key)
-      amount = BigDecimal(cost.fetch("amount"))
-      raise ProdigiClient::Error, "Prodigi returned an invalid price or currency." unless amount.finite? && amount >= 0 && cost.fetch("currency") == @order.currency
-    end
+    options = shipping_options(response)
+    quote = options.find { |candidate| candidate["shipmentMethod"] == @order.shipping_method }
+    selected = previously_selected && quote.present?
+    quote ||= options.first
     @order.with_lock do
       raise ProdigiClient::Error, "A confirmed order cannot be requoted." if @order.approved_at
-      unless @order.attributes.slice(*quoted_inputs.keys) == quoted_inputs
+      unless @order.attributes.slice(*quoted_inputs.keys) == quoted_inputs && @order.quote == previous_quote
         raise ProdigiClient::Error, "Order details changed while fetching the price. Get a new quote."
       end
 
       @order.spine_document.attach(io: StringIO.new(@spine_bytes), filename: "photobook-spine.pdf", content_type: "application/pdf") if @spine_bytes
-      @order.update!(quote: quote.slice("shipmentMethod", "costSummary"), product: product, quoted_at: Time.current, status: "quoted", error: nil)
+      @order.update!(shipping_method: quote.fetch("shipmentMethod"), quote: quote.merge("shippingOptions" => options, "shippingSelected" => selected),
+        product: product, quoted_at: Time.current, status: "quoted", error: nil)
     end
   rescue KeyError, ArgumentError, TypeError
     raise ProdigiClient::Error, "Prodigi returned incomplete product or price information."
   end
 
   private
+
+  def shipping_options(response)
+    options = Array(response["quotes"]).filter_map do |quote|
+      method = PhotoBookOrder::SHIPPING_METHODS.find { |name| name.casecmp?(quote.fetch("shipmentMethod")) }
+      next unless method
+
+      costs = %w[items shipping].index_with do |key|
+        cost = quote.fetch("costSummary").fetch(key)
+        amount = BigDecimal(cost.fetch("amount"))
+        unless amount.finite? && amount >= 0 && cost.fetch("currency") == @order.currency
+          raise ProdigiClient::Error, "Prodigi returned an invalid price or currency."
+        end
+        cost.slice("amount", "currency")
+      end
+      carriers = Array(quote["shipments"]).filter_map do |shipment|
+        carrier = shipment["carrier"]
+        next unless carrier.is_a?(Hash)
+
+        carrier.slice("name", "service").transform_values { |value| value.to_s.truncate(200) }
+      end.uniq
+      { "shipmentMethod" => method, "costSummary" => costs, "carriers" => carriers }
+    end
+    if options.empty?
+      raise ProdigiClient::Error, "Prodigi has no shipping quote for this book and destination."
+    end
+    unless options.map { |quote| quote.fetch("shipmentMethod") }.uniq.size == options.size
+      raise ProdigiClient::Error, "Prodigi returned ambiguous shipping prices. Refresh the quote."
+    end
+    options.sort_by { |quote| PhotoBookOrder::SHIPPING_METHODS.index(quote.fetch("shipmentMethod")) }
+  end
 
   def country
     @order.recipient.fetch("address").fetch("countryCode")

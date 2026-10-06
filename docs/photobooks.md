@@ -42,7 +42,7 @@ The output meets the guide's embedded-font and flattened-transparency alternativ
 
 ## Prodigi ordering
 
-Front/back covers are included in the book PDF. **Saved PDFs → Print with Prodigi** starts an order for that immutable export. Choose copies, delivery, and currency to get a quote. Review the downloadable book and spine PDFs, address, and estimated total, then confirm. Draft orders can be discarded using the app's confirmation modal. Confirmed orders and their books are retained for order history. Changing a book later does not change its export or order.
+Front/back covers are included in the book PDF. **Saved PDFs → Print with Prodigi** starts an order for that immutable export. Enter copies, delivery address, and currency to get quotes for all available shipping methods. Then choose shipping from the priced options, with service descriptions and carrier details where supplied. Each option shows its book price, shipping price, and full total; changing shipping uses the saved quotes without another API request. Review the downloadable book and spine PDFs, address, and selected total, then confirm. Draft orders can be discarded using the app's confirmation modal. Confirmed orders and their books are retained for order history. Changing a book later does not change its export or order.
 
 Prodigi's layflat product lookup advertises an optional `cover` artwork area alongside required `default` and optional `spine`. Photos supplies the combined book PDF as `default` and the generated spine PDF as `spine`. An optional extra area is omitted; any unsupported required area still blocks quoting.
 
@@ -52,7 +52,7 @@ Photos obtains the spine width from `/products/spine` using the exported PDF's a
 
 The optional `cover` area supports Prodigi's alternate API format: a combined front/back/spine cover file plus an inside-pages-only `default` file. Photos uses the standard combined book PDF with separate spine artwork described in [Prodigi's layflat guide](https://support.prodigi.com/hc/en-us/articles/17150478672540-Layflat-photo-books-File-set-up-guidelines).
 
-Quotes expire after one hour and include books and shipping. Taxes, duties, and exchange fees can add to the final amount. The reviewed quote is checked again during confirmation to prevent another tab's quote refresh from silently changing the price. Sandbox orders are not fulfilled or charged. Live orders are charged to your Prodigi account, so the live submit button explicitly says **Place paid order**.
+Quotes expire after one hour and include books and shipping. Taxes, duties, and exchange fees can add to the final amount. Shipping choice and order confirmation both check the reviewed quote to prevent another tab's changes from silently changing the price. Editing the delivery details or copies requires new quotes and a new shipping choice. Refreshing prices keeps the selected method if it remains available. Older drafts initially show their single saved method; refresh them to compare all methods. Delivery descriptions follow [Prodigi's shipping guidance](https://www.prodigi.com/faq/shipping/) and do not promise an arrival date: printing time is additional, and the API does not provide a guaranteed delivery window. Sandbox orders are not fulfilled or charged. Live orders are charged to your Prodigi account, so the live submit button explicitly says **Place paid order**.
 
 ### Server configuration
 

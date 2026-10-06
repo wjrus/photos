@@ -9,9 +9,8 @@
   <% if @order.errors.any? %><ul class="photobook-check-errors"><% @order.errors.full_messages.each do |message| %><li><%= message %></li><% end %></ul><% end %>
   <%= form_with model: @order, url: @order.persisted? ? photo_book_order_path(@book, @order) : photo_book_orders_path(@book, export_id: @export.id), class: "photobook-fields photobook-card" do |form| %>
     <h2>Delivery &amp; price</h2>
-    <p class="photobook-note">Get a quote first. Nothing is ordered until you review and confirm it.</p>
+    <p class="photobook-note">Enter your delivery details to compare shipping options and prices. You'll choose shipping after the quote. Nothing is ordered until you review and confirm it.</p>
     <div><%= form.label :copies %><%= form.number_field :copies, min: 1, max: 10, required: true %></div>
-    <div><%= form.label :shipping_method %><%= form.select :shipping_method, PhotoBookOrder::SHIPPING_METHODS.map { |method| [ method.titleize, method ] } %></div>
     <div><%= form.label :currency %><%= form.select :currency, PhotoBookOrder::CURRENCIES %></div>
     <%= form.fields_for :recipient, @order.recipient do |recipient| %>
       <% [["name", "Recipient name", "name"], ["email", "Email (optional)", "email"], ["phoneNumber", "Phone (optional)", "tel"]].each do |key, label, autocomplete| %>

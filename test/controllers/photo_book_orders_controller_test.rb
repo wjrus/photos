@@ -10,6 +10,31 @@ class PhotoBookOrdersControllerTest < ActionDispatch::IntegrationTest
   end
   teardown { restore_prodigi }
 
+  test "shipping comparison shows only quoted methods and selection cannot supply a price or bypass ownership" do
+    order = draft_order(@export)
+    ProdigiBookQuote.new(order, client: quote_client(quote: synthetic_shipping_quotes)).call
+    get photo_book_order_path(@book, order)
+    assert_select "input[name='shipping_method']", count: 2
+    assert_select "input[name='shipping_method'][value='Overnight']", count: 0
+    assert_includes response.body, "17.50 USD shipping"
+    assert_includes response.body, "Example Courier"
+    assert_no_enqueued_jobs(only: SubmitProdigiOrderJob) do
+      post submit_photo_book_order_path(@book, order), params: { confirm_order: "1", reviewed_quote: order.quote_digest }
+    end
+    digest = order.quote_digest
+    assert_no_enqueued_jobs(only: SubmitProdigiOrderJob) do
+      post shipping_photo_book_order_path(@book, order), params: { shipping_method: "Express", reviewed_quote: digest, amount: "0.00" }
+    end
+    assert_redirected_to photo_book_order_path(@book, order)
+    assert_equal "Express", order.reload.shipping_method
+    assert_equal BigDecimal("56.70"), order.quote_total
+    post shipping_photo_book_order_path(@book, order), params: { shipping_method: "Budget", reviewed_quote: digest }
+    assert_equal "Express", order.reload.shipping_method
+    other_book = users(:two).photo_books.create!(title: "Other owner")
+    post shipping_photo_book_order_path(other_book, order), params: { shipping_method: "Budget", reviewed_quote: order.quote_digest }
+    assert_response :not_found
+  end
+
   test "owner obtains a quote then separately confirms the reviewed price" do
     get new_photo_book_order_path(@book, export_id: @export.id)
     assert_response :success
@@ -27,6 +52,10 @@ class PhotoBookOrdersControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to photo_book_order_path(@book, order)
     get photo_book_order_path(@book, order)
     assert_response :success
+    assert_select "input[value='Submit sandbox test']", count: 0
+    post shipping_photo_book_order_path(@book, order), params: { shipping_method: "Budget", reviewed_quote: order.quote_digest }
+    order.reload
+    get photo_book_order_path(@book, order)
     assert_select "input[value='Submit sandbox test']"
     assert_select "a", text: "Review spine PDF"
     get photo_book_order_path(@book, order, format: :json)
@@ -67,7 +96,7 @@ class PhotoBookOrdersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "private, no-store", response.headers["Cache-Control"]
     assert_select "form[action=?] input[name='_method'][value='patch']", photo_book_order_path(@book, order)
     assert_select "input[name='photo_book_order[copies]'][value='3']"
-    assert_select "select[name='photo_book_order[shipping_method]'] option[selected][value='Express']"
+    assert_select "select[name='photo_book_order[shipping_method]']", count: 0
     assert_select "select[name='photo_book_order[currency]'] option[selected][value='CAD']"
     recipient.except("address").each { |key, value| assert_select "input[name=?][value=?]", "photo_book_order[recipient][#{key}]", value }
     recipient.fetch("address").each { |key, value| assert_select "input[name=?][value=?]", "photo_book_order[recipient][address][#{key}]", value }

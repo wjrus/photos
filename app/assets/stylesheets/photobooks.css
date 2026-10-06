@@ -149,6 +149,14 @@
 .photobook-tray-photo:hover, .photobook-tray-photo[aria-pressed="true"] { border-color: var(--theme-accent); }
 .photobook-tray-photo[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--theme-accent); }
 .photobook-tray-photo .photobook-tray-used { color: var(--theme-muted); font-size: .65rem; padding-top: 0; }
+.photobook-shipping-options { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 12px; }
+.photobook-shipping-options legend { font-weight: 600; margin-bottom: 12px; }
+.photobook-fields .photobook-shipping-option { display: flex; align-items: flex-start; gap: 12px; padding: 14px; border: 1px solid var(--theme-border); border-radius: 8px; cursor: pointer; font-weight: normal; }
+.photobook-shipping-option:has(input:checked) { border-color: var(--theme-accent); background: var(--theme-panel-soft); }
+.photobook-shipping-option:focus-within { outline: 2px solid var(--theme-accent); outline-offset: 2px; }
+.photobook-fields .photobook-shipping-option input[type="radio"] { flex: 0 0 auto; width: auto; margin-top: 4px; accent-color: var(--theme-accent); }
+.photobook-shipping-option > span { display: grid; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.photobook-shipping-option .photobook-note { margin: 0; }
 .photobook-tray-pagination { margin: 16px 0 0; }
 .photobook-tray-pagination .photobook-button { padding: 8px; font-size: .75rem; }
 .photobook-tray [aria-busy="true"] { opacity: .65; }

@@ -1,0 +1,27 @@
+<section class="photobook-card">
+  <h2>Choose shipping</h2>
+  <p class="photobook-note">These are the options quoted for your book, copies, and destination. Delivery speed starts after printing; it is not an arrival-date guarantee.</p>
+  <%= form_with url: shipping_photo_book_order_path(@book, @order), class: "photobook-fields" do %>
+    <%= hidden_field_tag :reviewed_quote, @order.quote_digest %>
+    <fieldset class="photobook-shipping-options">
+      <legend>Available shipping options</legend>
+      <% @order.shipping_options.each do |option| %>
+        <% method = option.fetch("shipmentMethod") %>
+        <label class="photobook-shipping-option">
+          <%= radio_button_tag :shipping_method, method, @order.shipping_selected? && @order.shipping_method == method, required: true %>
+          <span>
+            <strong><%= method.titleize %> · <%= number_with_precision(option.dig("costSummary", "shipping", "amount"), precision: 2) %> <%= @order.currency %> shipping</strong>
+            <span class="photobook-note"><%= prodigi_shipping_description(method) %></span>
+            <% Array(option["carriers"]).each do |carrier| %>
+              <% service = carrier.values_at("name", "service").compact_blank.join(" · ") %>
+              <% if service.present? %><span class="photobook-note">Carrier: <%= service %></span><% end %>
+            <% end %>
+            <span>Books: <%= number_with_precision(option.dig("costSummary", "items", "amount"), precision: 2) %> <%= @order.currency %> · Total: <strong><%= number_with_precision(@order.quote_total(option), precision: 2) %> <%= @order.currency %></strong></span>
+          </span>
+        </label>
+      <% end %>
+    </fieldset>
+    <% unless @order.quote.key?("shippingOptions") %><p class="photobook-note">This older quote contains one shipping method. Refresh the quote to compare all available options.</p><% end %>
+    <%= submit_tag "Use selected shipping", class: "photobook-button photobook-button-primary" %>
+  <% end %>
+</section>

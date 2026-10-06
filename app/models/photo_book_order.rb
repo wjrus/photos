@@ -36,12 +36,36 @@ class PhotoBookOrder < ApplicationRecord
       "assets" => [ { "printArea" => "default", "pageCount" => page_count } ] + (spine_document.attached? ? [ { "printArea" => "spine" } ] : []) }
   end
 
-  def quote_total
-    %w[items shipping].sum { |key| BigDecimal(quote.fetch("costSummary").fetch(key).fetch("amount")) }
+  def quote_total(price = quote)
+    %w[items shipping].sum { |key| BigDecimal(price.fetch("costSummary").fetch(key).fetch("amount")) }
+  end
+
+  def shipping_options
+    # Older saved quotes contain only the method that was originally requested.
+    quote.fetch("shippingOptions") { quote.present? ? [ quote.slice("shipmentMethod", "costSummary") ] : [] }
+  end
+
+  def shipping_selected?
+    quote.present? && quote.fetch("shippingSelected", true)
+  end
+
+  def select_shipping!(method:, reviewed_quote:)
+    with_lock do
+      raise ProdigiClient::Error, "Confirmed orders cannot be edited." if approved_at
+      raise ProdigiClient::Error, "Refresh the quote before choosing shipping." unless quote_current?
+      raise ProdigiClient::Error, "The quote changed. Review its current prices before choosing shipping." unless reviewed_quote == quote_digest
+      raise ProdigiClient::Error, "The PDF or its source photos are no longer available." unless artwork_available?
+
+      selected = shipping_options.find { |option| option["shipmentMethod"] == method }
+      raise ProdigiClient::Error, "Choose a shipping option from this quote." unless selected
+
+      update!(shipping_method: method, quote: quote.merge(selected).merge("shippingSelected" => true), error: nil)
+    end
   end
 
   def quote_digest
-    Digest::SHA256.hexdigest([ reference, quoted_at&.iso8601(6), quote, recipient, copies, sku ].to_json)
+    # JSONB can reorder object keys when saving; review tokens must survive a reload.
+    Digest::SHA256.hexdigest(canonical_quote_data([ reference, quoted_at&.iso8601(6), quote, recipient, copies, sku ]).to_json)
   end
 
   # Approval freezes both the reviewed price and the exact idempotent request.
@@ -51,6 +75,7 @@ class PhotoBookOrder < ApplicationRecord
       return false if approved_at.present?
 
       raise ProdigiClient::Error, "Refresh the quote before confirming this order." unless quote_current?
+      raise ProdigiClient::Error, "Choose shipping before confirming this order." unless shipping_selected?
       raise ProdigiClient::Error, "The quote changed. Review its current price before confirming." unless reviewed_quote == quote_digest
       raise ProdigiClient::Error, "The PDF or its source photos are no longer available." unless artwork_available?
       ProdigiConfiguration.allow_submission!(environment)
@@ -98,6 +123,14 @@ class PhotoBookOrder < ApplicationRecord
   end
 
   private
+
+  def canonical_quote_data(value)
+    case value
+    when Hash then value.sort.to_h.transform_values { |item| canonical_quote_data(item) }
+    when Array then value.map { |item| canonical_quote_data(item) }
+    else value
+    end
+  end
 
   def normalize_recipient
     return unless recipient.is_a?(Hash) && recipient["address"].is_a?(Hash)

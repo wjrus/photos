@@ -102,6 +102,7 @@ Rails.application.routes.draw do
       get :file, on: :member
     end
     resources :orders, only: %i[new create show edit update destroy], controller: :photo_book_orders do
+      post :shipping, on: :member
       post :quote, on: :member
       post :submit, on: :member
       post :refresh, on: :member

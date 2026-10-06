@@ -49,6 +49,14 @@ module ProdigiTestHelper
       "items" => { "amount" => amount, "currency" => "USD" }, "shipping" => { "amount" => "8.50", "currency" => "USD" } } } ] }
   end
 
+  def synthetic_shipping_quotes
+    budget = synthetic_quote.fetch("quotes").first
+    express = budget.deep_merge("shipmentMethod" => "Express", "costSummary" => {
+      "items" => { "amount" => "39.20" }, "shipping" => { "amount" => "17.50" } })
+    express["shipments"] = [ { "carrier" => { "name" => "Example Courier", "service" => "Tracked service", "private" => "not retained" } } ]
+    { "quotes" => [ express, budget ] }
+  end
+
   def quote_client(product: synthetic_product, quote: synthetic_quote)
     test = self
     calls = []
@@ -69,6 +77,7 @@ module ProdigiTestHelper
       calls << :quote
       test.assert_equal [ { "printArea" => "default", "pageCount" => 20 }, { "printArea" => "spine" } ], payload["items"].first["assets"]
       test.assert_not payload.key?("recipient")
+      test.assert_not payload.key?("shippingMethod")
       test.assert_not payload.to_json.include?("https://")
       quote.deep_dup
     end
@@ -90,6 +99,7 @@ module ProdigiTestHelper
     client = quote_client
     ProdigiBookQuote.new(order, client: client).call
     assert_equal %i[product spine quote], client.calls
+    order.select_shipping!(method: "Budget", reviewed_quote: order.quote_digest)
     order.reload
   end
 
