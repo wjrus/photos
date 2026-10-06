@@ -3,6 +3,7 @@ require_relative "photo_book_test_helper"
 module ProdigiTestHelper
   include PhotoBookTestHelper
   CONFIGURATION = {
+    "PHOTOS_HOST" => "photos.example.invalid",
     "PRODIGI_ENVIRONMENT" => "sandbox", "PRODIGI_SANDBOX_API_KEY" => "synthetic-sandbox-key",
     "PRODIGI_LIVE_API_KEY" => "synthetic-live-key", "PRODIGI_LIVE_ORDERING_ENABLED" => "false",
     "PRODIGI_PUBLIC_BASE_URL" => "https://photos.example.invalid", "PRODIGI_WEBHOOK_SECRET" => "synthetic-webhook-secret-32-characters",

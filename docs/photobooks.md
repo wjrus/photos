@@ -59,7 +59,6 @@ PRODIGI_ENVIRONMENT=sandbox
 PRODIGI_SANDBOX_API_KEY=
 PRODIGI_LIVE_API_KEY=
 PRODIGI_LIVE_ORDERING_ENABLED=false
-PRODIGI_PUBLIC_BASE_URL=https://photos.example.com
 PRODIGI_WEBHOOK_SECRET=
 PRODIGI_SKU_LANDSCAPE_A4=BOOK-FE-A4-L-LF-G
 PRODIGI_SKU_SQUARE_210=
@@ -67,7 +66,7 @@ PRODIGI_SKU_SQUARE_297=
 ```
 
 1. Sign in to the [Prodigi sandbox dashboard](https://sandbox-beta-dashboard.pwinty.com/) using the same login details as your live Prodigi account. Obtain its API key from the dashboard's API settings and put it in `PRODIGI_SANDBOX_API_KEY`. Your normal Prodigi dashboard key belongs in `PRODIGI_LIVE_API_KEY`; sandbox and live API keys are separate and cannot be used interchangeably. These account and environment details are documented in [Prodigi's API reference](https://www.prodigi.com/print-api/docs/reference/#environments) and [API FAQ](https://www.prodigi.com/faq/print-api/). Live quotes can be requested with `PRODIGI_ENVIRONMENT=live` while paid ordering remains disabled.
-2. Set `PRODIGI_PUBLIC_BASE_URL` to Photos' externally reachable HTTPS origin, without a path or trailing query. This is configured on the server and never inferred from an incoming request's Host header.
+2. Artwork and webhook URLs automatically use `https://` plus your existing `PHOTOS_HOST`. No additional URL setting is needed for production. For a different public origin (such as a development tunnel), optionally set `PRODIGI_PUBLIC_BASE_URL` to an externally reachable HTTPS origin without a path, query, or fragment. Both settings are server configuration; incoming request Host headers never determine these URLs.
 3. Generate a webhook secret locally with `ruby -rsecurerandom -e 'puts SecureRandom.hex(32)'` and put the result in `PRODIGI_WEBHOOK_SECRET`.
 4. Deploy through the normal authorized release process, including the new order-table migration. In **Print with Prodigi → Prodigi webhook setup**, copy the generated URL into **Prodigi → Settings → API → Webhook URL** for the matching environment. The URL has the form `https://photos.example.com/webhooks/prodigi/sandbox?token=YOUR_SECRET`. Each submitted order also supplies this callback URL automatically.
 5. Confirm a sandbox order and check its status and artwork acceptance. Only after testing, set `PRODIGI_ENVIRONMENT=live` and `PRODIGI_LIVE_ORDERING_ENABLED=true` for paid ordering. Existing sandbox orders retain their sandbox identity and credentials even after switching to live. No order is submitted merely by configuring keys or fetching a quote.

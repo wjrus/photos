@@ -17,13 +17,15 @@ class ProdigiConfiguration
   end
 
   def self.public_base_url
-    uri = URI.parse(ENV.fetch("PRODIGI_PUBLIC_BASE_URL", ""))
+    base_url = ENV["PRODIGI_PUBLIC_BASE_URL"].presence
+    base_url ||= "https://#{ENV['PHOTOS_HOST']}" if ENV["PHOTOS_HOST"].present?
+    uri = URI.parse(base_url.to_s)
     unless uri.is_a?(URI::HTTPS) && uri.host.present? && uri.userinfo.nil? && uri.query.nil? && uri.fragment.nil? && [ "", "/" ].include?(uri.path)
-      raise ProdigiClient::Error, "Set PRODIGI_PUBLIC_BASE_URL to the public HTTPS address of Photos."
+      raise ProdigiClient::Error, "Set PHOTOS_HOST to the public hostname of Photos, or override it with PRODIGI_PUBLIC_BASE_URL (HTTPS only)."
     end
     uri.to_s.delete_suffix("/")
   rescue URI::InvalidURIError
-    raise ProdigiClient::Error, "Set PRODIGI_PUBLIC_BASE_URL to the public HTTPS address of Photos."
+    raise ProdigiClient::Error, "Set PHOTOS_HOST to the public hostname of Photos, or override it with PRODIGI_PUBLIC_BASE_URL (HTTPS only)."
   end
 
   def self.webhook_url(environment = self.environment)

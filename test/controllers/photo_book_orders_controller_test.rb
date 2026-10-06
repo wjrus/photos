@@ -78,6 +78,7 @@ class PhotoBookOrdersControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "public artwork access requires confirmation, correct signature and available sources" do
+    ENV.delete("PRODIGI_PUBLIC_BASE_URL")
     order = quoted_order(@export)
     token = order.signed_id(purpose: :prodigi_artwork, expires_in: 30.days)
     delete sign_out_path
@@ -86,6 +87,9 @@ class PhotoBookOrdersControllerTest < ActionDispatch::IntegrationTest
     order.approve!(reviewed_quote: order.quote_digest)
     asset_url = order.request_payload.fetch("items").first.fetch("assets").first.fetch("url")
     uri = URI(asset_url)
+    assert_equal "https", uri.scheme
+    assert_equal CONFIGURATION.fetch("PHOTOS_HOST"), uri.host
+    assert order.request_payload.fetch("callbackUrl").start_with?("https://#{CONFIGURATION.fetch('PHOTOS_HOST')}/webhooks/prodigi/sandbox?")
     get "#{uri.path}?#{uri.query}"
     assert_response :success
     assert_equal "application/pdf", response.media_type
