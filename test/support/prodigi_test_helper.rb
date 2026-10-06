@@ -7,7 +7,8 @@ module ProdigiTestHelper
     "PRODIGI_ENVIRONMENT" => "sandbox", "PRODIGI_SANDBOX_API_KEY" => "synthetic-sandbox-key",
     "PRODIGI_LIVE_API_KEY" => "synthetic-live-key", "PRODIGI_LIVE_ORDERING_ENABLED" => "false",
     "PRODIGI_PUBLIC_BASE_URL" => "https://photos.example.invalid", "PRODIGI_WEBHOOK_SECRET" => "synthetic-webhook-secret-32-characters",
-    "PRODIGI_SKU_SQUARE_210" => "BOOK-FE-SYNTHETIC-LF-G"
+    "PRODIGI_SKU_LANDSCAPE_A4" => nil, "PRODIGI_SKU_SQUARE_210" => "BOOK-FE-SYNTHETIC-LF-G",
+    "PRODIGI_SKU_SQUARE_297" => nil
   }.freeze
 
   def configure_prodigi

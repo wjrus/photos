@@ -1,5 +1,10 @@
 class ProdigiConfiguration
   ENDPOINTS = { "sandbox" => "https://api.sandbox.prodigi.com/v4.0", "live" => "https://api.prodigi.com/v4.0" }.freeze
+  DEFAULT_SKUS = {
+    "landscape_a4" => "BOOK-FE-A4-L-LF-G",
+    "square_210" => "BOOK-FE-8_3-SQ-LF-G",
+    "square_297" => "BOOK-FE-11_7-SQ-LF-G"
+  }.freeze
 
   def self.environment
     ENV.fetch("PRODIGI_ENVIRONMENT", "sandbox")
@@ -13,7 +18,7 @@ class ProdigiConfiguration
 
   def self.sku(format)
     name = "PRODIGI_SKU_#{format.upcase}"
-    ENV[name].presence || ("BOOK-FE-A4-L-LF-G" if format == "landscape_a4") || raise(ProdigiClient::Error, "Configure #{name} with the layflat product code from your Prodigi catalogue.")
+    ENV[name].presence || DEFAULT_SKUS[format] || raise(ProdigiClient::Error, "Configure #{name} with the layflat product code from your Prodigi catalogue.")
   end
 
   def self.public_base_url

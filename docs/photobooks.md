@@ -60,10 +60,17 @@ PRODIGI_SANDBOX_API_KEY=
 PRODIGI_LIVE_API_KEY=
 PRODIGI_LIVE_ORDERING_ENABLED=false
 PRODIGI_WEBHOOK_SECRET=
-PRODIGI_SKU_LANDSCAPE_A4=BOOK-FE-A4-L-LF-G
-PRODIGI_SKU_SQUARE_210=
-PRODIGI_SKU_SQUARE_297=
 ```
+
+The supported layflat product codes are built in, so SKU settings are optional:
+
+| Book format | Default product code | Optional override |
+| --- | --- | --- |
+| A4 landscape | `BOOK-FE-A4-L-LF-G` | `PRODIGI_SKU_LANDSCAPE_A4` |
+| Square · 210 × 210 mm | `BOOK-FE-8_3-SQ-LF-G` | `PRODIGI_SKU_SQUARE_210` |
+| Large square · 297 × 297 mm | `BOOK-FE-11_7-SQ-LF-G` | `PRODIGI_SKU_SQUARE_297` |
+
+These are the catalogue variants with gloss 190gsm paper, a hard cover, and a matte cover finish. Prodigi labels the square sizes 8×8 and 12×12 inches in its catalogue; the exact metric artwork sizes remain 210×210 and 297×297 mm. Quoting validates the API product dimensions against the saved book before proceeding. A4 portrait is available from Prodigi but is not currently a supported Photos book format.
 
 1. Sign in to the [Prodigi sandbox dashboard](https://sandbox-beta-dashboard.pwinty.com/) using the same login details as your live Prodigi account. Obtain its API key from the dashboard's API settings and put it in `PRODIGI_SANDBOX_API_KEY`. Your normal Prodigi dashboard key belongs in `PRODIGI_LIVE_API_KEY`; sandbox and live API keys are separate and cannot be used interchangeably. These account and environment details are documented in [Prodigi's API reference](https://www.prodigi.com/print-api/docs/reference/#environments) and [API FAQ](https://www.prodigi.com/faq/print-api/). Live quotes can be requested with `PRODIGI_ENVIRONMENT=live` while paid ordering remains disabled.
 2. Artwork and webhook URLs automatically use `https://` plus your existing `PHOTOS_HOST`. No additional URL setting is needed for production. For a different public origin (such as a development tunnel), optionally set `PRODIGI_PUBLIC_BASE_URL` to an externally reachable HTTPS origin without a path, query, or fragment. Both settings are server configuration; incoming request Host headers never determine these URLs.
