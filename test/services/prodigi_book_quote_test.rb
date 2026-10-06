@@ -20,7 +20,21 @@ class ProdigiBookQuoteTest < ActiveSupport::TestCase
     assert_in_delta 8 * 72 / 25.4, box[2], 0.01
     assert_in_delta 210 * 72 / 25.4, box[3], 0.01
     assert_equal "Synthetic journeys · Été", export.snapshot["spine_text"]
+    assert_equal({ "cover" => { "required" => false }, "default" => { "required" => true }, "spine" => { "required" => false } }, order.product["printAreas"])
+    assert_equal %w[default spine], order.item.fetch("assets").map { |asset| asset.fetch("printArea") }
     assert_not book.destroy
+  end
+
+  test "unknown artwork areas must be explicitly optional before they can be omitted" do
+    _, _, export = ready_order_export
+    [ true, nil, "false" ].each do |required|
+      product = synthetic_product.deep_merge("printAreas" => { "extra" => { "required" => required } })
+      client = quote_client(product: product)
+      order = draft_order(export)
+      assert_raises(ProdigiClient::Error) { ProdigiBookQuote.new(order, client: client).call }
+      assert_equal [ :product ], client.calls
+      assert_nil order.reload.quoted_at
+    end
   end
 
   test "product dimensions, destination, unsupported areas and multiple finishes block quoting" do

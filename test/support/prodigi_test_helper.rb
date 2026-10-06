@@ -40,7 +40,7 @@ module ProdigiTestHelper
 
   def synthetic_product
     { "sku" => CONFIGURATION.fetch("PRODIGI_SKU_SQUARE_210"), "productDimensions" => { "width" => 210, "height" => 210, "units" => "mm" },
-      "printAreas" => { "default" => { "required" => true }, "spine" => { "required" => true } },
+      "printAreas" => { "cover" => { "required" => false }, "default" => { "required" => true }, "spine" => { "required" => false } },
       "variants" => [ { "attributes" => {}, "shipsTo" => [ "US", "GB" ] } ] }
   end
 

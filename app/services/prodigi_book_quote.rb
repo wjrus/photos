@@ -48,9 +48,12 @@ class ProdigiBookQuote
       raise ProdigiClient::Error, "The configured Prodigi product does not match this PDF's page size."
     end
     areas = product.fetch("printAreas")
-    unless areas.key?("default") && (areas.keys - %w[default spine]).empty?
-      raise ProdigiClient::Error, "This product requires unsupported artwork. Choose a layflat photo book."
+    # Layflat products also advertise an optional cover area. Our book PDF
+    # already contains both covers; only unknown required areas must block it.
+    supported_areas = areas.is_a?(Hash) && areas.key?("default") && areas.all? do |name, area|
+      area.is_a?(Hash) && [ true, false ].include?(area["required"]) && (%w[default spine].include?(name) || area["required"] == false)
     end
+    raise ProdigiClient::Error, "This product requires unsupported artwork. Choose a layflat photo book." unless supported_areas
     if @order.photo_book_export.snapshot["spine_text"].present? && !areas.key?("spine")
       raise ProdigiClient::Error, "This product does not accept the book's spine artwork."
     end

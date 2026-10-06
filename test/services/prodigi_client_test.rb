@@ -40,4 +40,66 @@ class ProdigiClientTest < ActiveSupport::TestCase
     assert_raises(ProdigiClient::Error) { ProdigiClient.new.product("../orders") }
     assert_raises(ProdigiClient::Error) { ProdigiClient.new(environment: "unknown") }
   end
+
+  test "catalogue square SKUs with underscores reach the product endpoint" do
+    requested = []
+    response = Net::HTTPOK.new("1.1", "200", "OK")
+    response.define_singleton_method(:body) { { outcome: "Ok", product: { sku: "BOOK-FE-8_3-SQ-LF-G" } }.to_json }
+    http = Object.new
+    http.define_singleton_method(:request) { |request| requested << request.path; response }
+    start = ->(*_args, **_options, &block) { block.call(http) }
+    with_prodigi_method(Net::HTTP, :start, start) do
+      %w[BOOK-FE-8_3-SQ-LF-G BOOK-FE-11_7-SQ-LF-G].each { |sku| ProdigiClient.new.product(sku) }
+    end
+    assert_equal %w[/v4.0/products/BOOK-FE-8_3-SQ-LF-G /v4.0/products/BOOK-FE-11_7-SQ-LF-G], requested
+  end
+
+  test "sandbox diagnostics expose artwork requirements and omit private request and response fields" do
+    output = StringIO.new
+    logger = ActiveSupport::Logger.new(output)
+    private_value = "PRIVATE_SYNTHETIC_VALUE"
+    result = { "outcome" => "Ok", "product" => synthetic_product.merge("description" => private_value),
+      "quotes" => synthetic_quote["quotes"], "order" => { "id" => "ord_synthetic", "recipient" => private_value,
+        "assets" => private_value, "status" => { "stage" => "InProgress", "issues" => private_value } }, "message" => private_value }
+    response = Net::HTTPOK.new("1.1", "200", "OK")
+    response.define_singleton_method(:body) { result.to_json }
+    http = Object.new
+    http.define_singleton_method(:request) { |_request| response }
+    start = ->(*_args, **_options, &block) { block.call(http) }
+    payload = { "recipient" => private_value, "callbackUrl" => private_value, "metadata" => private_value,
+      "items" => [ { "sku" => "BOOK-FE-A4-L-LF-G", "copies" => 1,
+        "assets" => [ { "printArea" => "default", "pageCount" => 24, "url" => private_value } ] } ] }
+    with_prodigi_method(Rails, :logger, logger) do
+      with_prodigi_method(Net::HTTP, :start, start) { ProdigiClient.new.create_order(payload) }
+    end
+    assert_includes output.string, '"printAreas":{"cover":{"required":false},"default":{"required":true},"spine":{"required":false}}'
+    assert_includes output.string, '"pageCount":24'
+    assert_includes output.string, '"http_status":"200"'
+    assert_not_includes output.string, private_value
+    assert_not_includes output.string, CONFIGURATION.fetch("PRODIGI_SANDBOX_API_KEY")
+
+    output.truncate(0)
+    output.rewind
+    with_prodigi_method(Rails, :logger, logger) do
+      with_prodigi_method(Net::HTTP, :start, start) { ProdigiClient.new(environment: "live").create_order(payload) }
+    end
+    assert_empty output.string
+  end
+
+  test "failed sandbox responses log only HTTP metadata without vendor error bodies" do
+    output = StringIO.new
+    logger = ActiveSupport::Logger.new(output)
+    response = Net::HTTPBadRequest.new("1.1", "400", "Bad Request")
+    response.define_singleton_method(:body) { "PRIVATE_SYNTHETIC_ERROR_BODY" }
+    http = Object.new
+    http.define_singleton_method(:request) { |_request| response }
+    start = ->(*_args, **_options, &block) { block.call(http) }
+    with_prodigi_method(Rails, :logger, logger) do
+      with_prodigi_method(Net::HTTP, :start, start) do
+        assert_raises(ProdigiClient::Error) { ProdigiClient.new.create_order({}) }
+      end
+    end
+    assert_includes output.string, '"http_status":"400"'
+    assert_not_includes output.string, "PRIVATE_SYNTHETIC_ERROR_BODY"
+  end
 end
