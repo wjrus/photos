@@ -1,0 +1,15 @@
+<h3>Production &amp; delivery</h3>
+<dl class="photobook-order-progress">
+  <% PhotoBookOrdersHelper::PRODIGI_PROGRESS_STEPS.each do |key, label| %>
+    <div><dt><%= label %></dt><dd><%= prodigi_status_label(@order.remote_status.dig("details", key)) %></dd></div>
+  <% end %>
+</dl>
+<% if @order.remote_status["assets"].present? %>
+  <h3>Artwork status</h3>
+  <dl class="photobook-order-progress">
+    <% @order.remote_status["assets"].each do |asset| %>
+      <div><dt><%= PhotoBookOrdersHelper::PRODIGI_ARTWORK_LABELS.fetch(asset["printArea"]) %></dt><dd><%= prodigi_status_label(asset["status"]) %></dd></div>
+    <% end %>
+  </dl>
+<% end %>
+<% if @order.environment == "sandbox" %><p class="photobook-note">Sandbox orders are not printed or shipped.</p><% end %>

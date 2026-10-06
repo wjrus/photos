@@ -112,6 +112,7 @@ class PhotoBookOrder < ApplicationRecord
       # back from the vendor response.
       self.remote_status = data.fetch("status", {}).slice("stage", "details").merge(
         "hasIssues" => data.dig("status", "issues").present?,
+        "assets" => remote_artwork_status(data),
         "shipments" => Array(data["shipments"]).map { |shipment| shipment.slice("id", "status", "tracking") })
       self.remote_updated_at = updated if updated
       self.refreshed_at = Time.current
@@ -123,6 +124,18 @@ class PhotoBookOrder < ApplicationRecord
   end
 
   private
+
+  def remote_artwork_status(data)
+    Array(data["items"]).flat_map do |item|
+      next [] unless item.is_a?(Hash)
+
+      Array(item["assets"]).filter_map do |asset|
+        next unless asset.is_a?(Hash) && %w[default spine].include?(asset["printArea"])
+
+        asset.slice("printArea", "status")
+      end
+    end.uniq
+  end
 
   def canonical_quote_data(value)
     case value

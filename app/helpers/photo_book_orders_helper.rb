@@ -1,4 +1,17 @@
 module PhotoBookOrdersHelper
+  PRODIGI_PROGRESS_STEPS = {
+    "downloadAssets" => "Download artwork",
+    "allocateProductionLocation" => "Choose printing lab",
+    "printReadyAssetsPrepared" => "Prepare artwork for printing",
+    "inProduction" => "Print book",
+    "shipping" => "Ship book"
+  }.freeze
+  PRODIGI_ARTWORK_LABELS = { "default" => "Book PDF", "spine" => "Spine PDF" }.freeze
+
+  def prodigi_status_label(value, fallback: "Not reported")
+    value.is_a?(String) && value.present? ? value.titleize : fallback
+  end
+
   def prodigi_shipping_description(method)
     case method
     when "Budget"

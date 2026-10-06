@@ -30,15 +30,19 @@
   <% if @order.approved_at %>
     <section class="photobook-card" <% unless %w[Complete Cancelled].include?(@order.remote_status["stage"]) %>data-controller="prodigi-order" data-prodigi-order-url-value="<%= photo_book_order_path(@book, @order, format: :json) %>" data-prodigi-order-version-value="<%= @order.updated_at.iso8601(6) %>"<% end %>>
       <h2>Order status</h2>
-      <p role="status"><%= @order.remote_status["stage"].presence || "Submitting to Prodigi" %><%= " · Needs attention in Prodigi" if @order.remote_status["hasIssues"] %></p>
+      <div role="status">
+        <h3 class="photobook-order-stage"><%= prodigi_status_label(@order.remote_status["stage"], fallback: "Submitting to Prodigi") %></h3>
+        <% if @order.remote_status["hasIssues"] %><p class="photobook-check-errors">Needs attention in Prodigi</p><% end %>
+      </div>
       <% if @order.remote_id %>
         <p><%= @order.remote_id %><%= " · Checked #{@order.refreshed_at.strftime('%b %-d · %-I:%M %p')}" if @order.refreshed_at %></p>
+        <%= render "progress" %>
         <%= button_to "Refresh status", refresh_photo_book_order_path(@book, @order), class: "photobook-button" %>
       <% else %>
         <p class="photobook-note">If submission was interrupted, retry this same order to avoid creating a second charge.</p>
         <%= button_to "Retry same order", submit_photo_book_order_path(@book, @order), params: { confirm_order: "1" }, class: "photobook-button" %>
       <% end %>
-      <% Array(@order.remote_status["shipments"]).each do |shipment| %><p>Shipment <%= shipment["id"] %>: <%= shipment["status"] %></p><% end %>
+      <% Array(@order.remote_status["shipments"]).each do |shipment| %><p>Shipment <%= shipment["id"] %>: <%= prodigi_status_label(shipment["status"]) %></p><% end %>
     </section>
   <% else %>
     <div class="photobook-inline-form">

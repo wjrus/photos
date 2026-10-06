@@ -19,6 +19,7 @@ class ProdigiOrderingTest < ApplicationSystemTestCase
 
   teardown do
     restore_prodigi
+    page.driver.browser.execute_cdp("Emulation.clearDeviceMetricsOverride")
     page.driver.browser.manage.window.resize_to(1400, 1400)
   end
 
@@ -60,6 +61,10 @@ class ProdigiOrderingTest < ApplicationSystemTestCase
     assert_equal "Express", @export.orders.first.request_payload["shippingMethod"]
     assert_no_button "Place paid order"
     order = @export.orders.first
+    order.record_remote!(remote_order(order, stage: "InProgress"))
+    assert_selector "h3.photobook-order-stage", text: "In Progress", wait: 15
+    assert_no_text "InProgress"
+    assert_axe_clean
     order.record_remote!(remote_order(order, stage: "Complete"))
     assert_text "Complete", wait: 15
     assert_button "Refresh status"
@@ -70,6 +75,8 @@ class ProdigiOrderingTest < ApplicationSystemTestCase
     order = draft_order(@export)
     ProdigiBookQuote.new(order, client: quote_client(quote: synthetic_shipping_quotes)).call
     page.driver.browser.manage.window.resize_to(390, 844)
+    page.driver.browser.execute_cdp("Emulation.setDeviceMetricsOverride", width: 390, height: 844, deviceScaleFactor: 1, mobile: false)
+    assert_equal 390, page.evaluate_script("window.innerWidth")
     visit photo_book_order_path(@book, order)
     assert_text "Express · 17.50 USD shipping"
     assert_no_button "Submit sandbox test"
@@ -97,6 +104,8 @@ class ProdigiOrderingTest < ApplicationSystemTestCase
   test "changing copies retains the delivery form and updates the same draft on desktop and phone" do
     [ 1400, 390 ].each do |width|
       page.driver.browser.manage.window.resize_to(width, 900)
+      page.driver.browser.execute_cdp("Emulation.setDeviceMetricsOverride", width: width, height: 900, deviceScaleFactor: 1, mobile: false)
+      assert_equal width, page.evaluate_script("window.innerWidth")
       order = quoted_order(@export)
       visit photo_book_order_path(@book, order)
       click_link "Change delivery or copies"
@@ -124,6 +133,35 @@ class ProdigiOrderingTest < ApplicationSystemTestCase
       click_link "Change delivery or copies"
       assert_field "Copies", with: "2"
       assert_field "Recipient name", with: "Synthetic Recipient"
+    end
+  end
+
+  test "production and PDF progress are readable and accessible on desktop and phone" do
+    order = quoted_order(@export)
+    order.approve!(reviewed_quote: order.quote_digest)
+    order.record_remote!(remote_order(order, details: {
+      "downloadAssets" => "Complete", "allocateProductionLocation" => "InProgress",
+      "printReadyAssetsPrepared" => "NotStarted", "inProduction" => "NotStarted", "shipping" => "NotStarted" },
+      assets: [ { "printArea" => "default", "status" => "Complete" }, { "printArea" => "spine", "status" => "Complete" } ]))
+    [ 1400, 390 ].each do |width|
+      page.driver.browser.manage.window.resize_to(width, 900)
+      page.driver.browser.execute_cdp("Emulation.setDeviceMetricsOverride", width: width, height: 900, deviceScaleFactor: 1, mobile: false)
+      assert_equal width, page.evaluate_script("window.innerWidth")
+      visit photo_book_order_path(@book, order)
+      assert_selector "h3.photobook-order-stage", text: "In Progress"
+      assert_text "Production & delivery"
+      assert_text "Download artwork"
+      assert_text "Choose printing lab"
+      assert_text "Prepare artwork for printing"
+      assert_text "Not Started"
+      assert_text "Book PDF"
+      assert_text "Spine PDF"
+      assert_no_text "NotStarted"
+      assert page.evaluate_script("document.documentElement.scrollWidth <= window.innerWidth")
+      assert_axe_clean
+      scroll_to(find("h2", text: "Order status"), align: :top)
+      page.execute_script("window.scrollBy(0, -100)")
+      page.save_screenshot(Rails.root.join("tmp/screenshots/prodigi-progress-#{width}.png"))
     end
   end
 

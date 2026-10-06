@@ -33,6 +33,16 @@ class ProdigiClient
   end
 
   def create_order(payload)
+    # Prodigi accepts absent optional fields but rejects explicitly empty ones.
+    # Normalise a copy so older approved orders can retry with the same key.
+    payload = payload.deep_dup
+    if payload["recipient"].is_a?(Hash)
+      recipient = payload.fetch("recipient")
+      %w[email phoneNumber].each { |field| recipient.delete(field) if recipient[field].blank? }
+      if recipient["address"].is_a?(Hash)
+        %w[line2 stateOrCounty].each { |field| recipient["address"].delete(field) if recipient["address"][field].blank? }
+      end
+    end
     object_response(request(:post, "/orders", payload), "order")
   end
 
@@ -98,7 +108,7 @@ class ProdigiClient
     trace = [ response["traceParent"], result["traceParent"] ].find do |candidate|
       candidate.is_a?(String) && /\A[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}\z/i.match?(candidate)
     end
-    details = { "fields" => validation_fields(result["data"] || result["errors"]) }
+    details = { "fields" => validation_fields([ result["data"], result["errors"], result["failures"] ]) }
     details["traceParent"] = trace if trace
     details
   end
@@ -120,9 +130,12 @@ class ProdigiClient
 
   def safe_field_path(value)
     return false unless value.is_a?(String) && value.length <= 200
-    return false unless /\A(?:\$\.)?[a-zA-Z]+(?:\[\d{1,3}\])?(?:\.[a-zA-Z]+(?:\[\d{1,3}\])?)*\z/.match?(value)
+    return false unless /\A(?:\$\.)?[a-zA-Z][a-zA-Z0-9]*(?:\[\d{1,3}\])?(?:\.[a-zA-Z][a-zA-Z0-9]*(?:\[\d{1,3}\])?)*\z/.match?(value)
 
-    value.scan(/[a-zA-Z]+/).all? { |part| VALIDATION_FIELDS.any? { |field| field.casecmp?(part) } }
+    value.split(".").reject { |part| part == "$" }.all? do |part|
+      name = part.sub(/\[\d+\]\z/, "")
+      VALIDATION_FIELDS.any? { |field| field.casecmp?(name) }
+    end
   end
 
   # Sandbox diagnostics are an allowlist: vendor responses can echo delivery

@@ -103,8 +103,9 @@ module ProdigiTestHelper
     order.reload
   end
 
-  def remote_order(order, stage: "InProgress", updated: Time.current.iso8601(6))
+  def remote_order(order, stage: "InProgress", updated: Time.current.iso8601(6), details: {}, assets: [])
     { "id" => "ord_synthetic_123", "merchantReference" => order.reference, "lastUpdated" => updated,
-      "status" => { "stage" => stage, "issues" => [] }, "shipments" => [], "recipient" => synthetic_recipient }
+      "status" => { "stage" => stage, "issues" => [], "details" => details }, "shipments" => [],
+      "items" => [ { "assets" => assets } ], "recipient" => synthetic_recipient }
   end
 end

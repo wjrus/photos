@@ -15,6 +15,11 @@
 .photobook h1 { font-size: clamp(1.8rem, 4vw, 2.5rem); font-weight: 650; letter-spacing: -0.035em; line-height: 1.2; overflow-wrap: anywhere; }
 .photobook h2 { font-size: 1.15rem; font-weight: 650; margin-bottom: 10px; overflow-wrap: anywhere; }
 .photobook h3 { font-size: .9rem; font-weight: 600; overflow-wrap: anywhere; }
+.photobook .photobook-order-stage { font-size: 1.4rem; font-weight: 650; margin: 10px 0; }
+.photobook-order-progress { display: grid; gap: 10px; margin: 12px 0 20px; }
+.photobook-order-progress > div { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; border-bottom: 1px solid var(--theme-border); padding-bottom: 8px; }
+.photobook-order-progress dt { min-width: 0; }
+.photobook-order-progress dd { flex-shrink: 0; margin: 0; font-size: .85rem; font-weight: 600; }
 .photobook p { margin: 8px 0; line-height: 1.6; }
 .photobook-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin: 20px 0 24px; }
 .photobook-eyebrow { color: var(--theme-accent-label); font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .15em; }

@@ -10,6 +10,26 @@ class PhotoBookOrdersControllerTest < ActionDispatch::IntegrationTest
   end
   teardown { restore_prodigi }
 
+  test "order status shows readable workflow and artwork states with missing information marked unreported" do
+    order = quoted_order(@export)
+    order.approve!(reviewed_quote: order.quote_digest)
+    order.record_remote!(remote_order(order, details: { "downloadAssets" => "Complete", "inProduction" => "InProgress", "shipping" => "NotStarted" },
+      assets: [ { "printArea" => "default", "status" => "Complete" }, { "printArea" => "spine", "status" => "InProgress" } ]))
+    get photo_book_order_path(@book, order)
+    assert_select "h3.photobook-order-stage", text: "In Progress"
+    assert_select ".photobook-order-progress > div" do |rows|
+      pairs = rows.map { |row| [ row.at_css("dt").text, row.at_css("dd").text ] }.to_h
+      assert_equal "Complete", pairs["Download artwork"]
+      assert_equal "Not reported", pairs["Choose printing lab"]
+      assert_equal "In Progress", pairs["Print book"]
+      assert_equal "Not Started", pairs["Ship book"]
+      assert_equal "Complete", pairs["Book PDF"]
+      assert_equal "In Progress", pairs["Spine PDF"]
+    end
+    assert_includes response.body, "Sandbox orders are not printed or shipped."
+    assert_not_includes response.body, "NotStarted"
+  end
+
   test "shipping comparison shows only quoted methods and selection cannot supply a price or bypass ownership" do
     order = draft_order(@export)
     ProdigiBookQuote.new(order, client: quote_client(quote: synthetic_shipping_quotes)).call

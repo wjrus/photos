@@ -93,4 +93,15 @@ class ProdigiOrdersTest < ActiveSupport::TestCase
     assert_equal "Complete", @order.reload.remote_status["stage"]
     assert_raises(ProdigiClient::Error) { @order.record_remote!(remote_order(@order).merge("id" => "ord_other")) }
   end
+
+  test "artwork progress retains only file areas and states without copying private asset URLs" do
+    @order.approve!(reviewed_quote: @order.quote_digest)
+    data = remote_order(@order).merge("items" => [ { "assets" => [
+      { "printArea" => "default", "status" => "Complete", "url" => "PRIVATE_SYNTHETIC_URL", "thumbnailUrl" => "PRIVATE_SYNTHETIC_THUMBNAIL" },
+      { "printArea" => "spine", "status" => "InProgress", "url" => "PRIVATE_SYNTHETIC_URL" },
+      { "printArea" => "unknown", "status" => "Complete", "url" => "PRIVATE_SYNTHETIC_URL" } ] } ])
+    @order.record_remote!(data)
+    assert_equal [ { "printArea" => "default", "status" => "Complete" }, { "printArea" => "spine", "status" => "InProgress" } ], @order.remote_status["assets"]
+    assert_not_includes @order.remote_status.to_json, "PRIVATE_SYNTHETIC"
+  end
 end

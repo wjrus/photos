@@ -132,6 +132,51 @@ class ProdigiClientTest < ActiveSupport::TestCase
     assert_not_includes output.string, "PRIVATE_SYNTHETIC"
   end
 
+  test "Prodigi failures with numbered address fields are identified without exposing descriptions" do
+    body = { "outcome" => "ValidationFailed", "failures" => {
+      "recipient.address.line2" => [ { "code" => "MustNotBeEmpty", "description" => "PRIVATE_SYNTHETIC_VALUE" } ] } }
+    response = Net::HTTPBadRequest.new("1.1", "400", "Bad Request")
+    response.define_singleton_method(:body) { body.to_json }
+    http = Object.new
+    http.define_singleton_method(:request) { |_request| response }
+    start = ->(*_args, **_options, &block) { block.call(http) }
+    with_prodigi_method(Net::HTTP, :start, start) do
+      error = assert_raises(ProdigiClient::RequestError) { ProdigiClient.new.create_order({}) }
+      assert_includes error.message, "recipient.address.line2"
+      assert_not_includes error.message, "PRIVATE_SYNTHETIC_VALUE"
+    end
+  end
+
+  test "submission omits blank optional recipient fields and serializes identical retries without changing the approved payload" do
+    payload = { "idempotencyKey" => "synthetic-reference", "recipient" => synthetic_recipient.deep_merge(
+      "email" => "", "phoneNumber" => "", "address" => { "line2" => "" }) }
+    original = payload.deep_dup
+    requests = []
+    response = Net::HTTPOK.new("1.1", "200", "OK")
+    response.define_singleton_method(:body) { { "outcome" => "Created", "order" => { "id" => "ord_synthetic" } }.to_json }
+    http = Object.new
+    http.define_singleton_method(:request) { |request| requests << request.body; response }
+    start = ->(*_args, **_options, &block) { block.call(http) }
+    with_prodigi_method(Net::HTTP, :start, start) do
+      2.times { ProdigiClient.new.create_order(payload) }
+      submitted = JSON.parse(requests.first)
+      assert_equal original, payload
+      assert_equal requests.first, requests.second
+      assert_equal original["idempotencyKey"], submitted["idempotencyKey"]
+      assert_equal original.dig("recipient", "name"), submitted.dig("recipient", "name")
+      assert_equal original.dig("recipient", "address").except("line2"), submitted.dig("recipient", "address")
+      assert_not submitted.fetch("recipient").key?("email")
+      assert_not submitted.fetch("recipient").key?("phoneNumber")
+      payload["recipient"] = synthetic_recipient.deep_merge("phoneNumber" => "+15555550100", "address" => { "line2" => "Unit Example" })
+      ProdigiClient.new.create_order(payload)
+      assert_equal payload, JSON.parse(requests.last)
+      payload["recipient"]["address"]["countryCode"] = "GB"
+      payload["recipient"]["address"]["stateOrCounty"] = ""
+      ProdigiClient.new.create_order(payload)
+      assert_not JSON.parse(requests.last).dig("recipient", "address").key?("stateOrCounty")
+    end
+  end
+
   test "transient HTTP errors remain retryable and malformed bodies cannot leak through support traces" do
     response = Net::HTTPTooManyRequests.new("1.1", "429", "Too Many Requests")
     response["traceParent"] = "PRIVATE_SYNTHETIC_TRACE"

@@ -17,8 +17,8 @@ class SubmitProdigiOrderJob < ApplicationJob
     raise ProdigiClient::Error, "Artwork access has expired. Check this order in Prodigi before placing another." if order.asset_expires_at <= Time.current
     raise ProdigiClient::Error, "The PDF or its source photos are no longer available. Check this order in Prodigi before placing another." unless order.artwork_available?
 
-    # Even after a timeout or a process crash, every retry sends exactly the
-    # approved body and idempotency key. Prodigi remembers that key indefinitely.
+    # Even after a timeout or a process crash, every retry serializes the same
+    # approved payload and idempotency key. Prodigi remembers that key indefinitely.
     data = ProdigiClient.new(environment: order.environment).create_order(order.request_payload)
     order.record_remote!(data)
     RefreshProdigiOrderJob.perform_later(order)
