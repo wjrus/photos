@@ -40,13 +40,49 @@ Original files are decoded with libvips, oriented using EXIF, converted to RGB, 
 
 The output meets the guide's embedded-font and flattened-transparency alternative; it does not assert certified PDF/X-4 conformance. Representative PDFs have been rendered and checked locally for dimensions, font embedding, Unicode text, page order, captions, and spreads. A real Prodigi sample and vendor acceptance remain to be verified before automated ordering.
 
-## Covers, spine, and future ordering
+## Prodigi ordering
 
-Front/back covers are included in the PDF. The spine label is stored in the design and export snapshot, but is **not spine artwork**. For manual orders, enter that label and the desired spine colors in Prodigi's order form. API spine artwork requires dimensions based on page count and the selected production lab; it will be generated when that integration is added. No Prodigi credentials, uploads, charges, or orders are involved in this feature.
+Front/back covers are included in the book PDF. **Saved PDFs → Print with Prodigi** starts an order for that immutable export. Choose copies, delivery, and currency to get a quote. Review the downloadable book and spine PDFs, address, and estimated total, then confirm. Draft orders can be discarded using the app's confirmation modal. Confirmed orders and their books are retained for order history. Changing a book later does not change its export or order.
+
+Quotes fetch current product details and validate dimensions, destination, finish, and print areas. The A4 landscape default is Prodigi's published `BOOK-FE-A4-L-LF-G` layflat sample code. Square sizes require the exact layflat SKU from your account catalogue; do not guess these codes. Products needing additional artwork or an ambiguous finish are rejected. No API calls occur just from viewing a book or order: quotes and status refreshes are explicit, and webhooks also refresh status.
+
+Where the product accepts a spine, Photos obtains its width from `/products/spine` using the exported PDF's actual page count and destination. It generates a separate PDF at that width and the book's height, with the saved spine label and book background/text colors, embedded Noto Sans, and text rotated along the spine. The font shrinks to fit. Unsupported characters block quoting. Review the spine PDF before submission; actual vendor acceptance still needs a sandbox test and a printed sample. For manual ordering, use Prodigi's spine tool instead.
+
+Quotes expire after one hour and include books and shipping. Taxes, duties, and exchange fees can add to the final amount. The reviewed quote is checked again during confirmation to prevent another tab's quote refresh from silently changing the price. Sandbox orders are not fulfilled or charged. Live orders are charged to your Prodigi account, so the live submit button explicitly says **Place paid order**.
+
+### Server configuration
+
+Keep credentials in the server's ignored `.env.production` (or ignored local `.env` for development), never in Git or browser JavaScript. Compose already passes `.env.production` to both web services and the worker. No separate service or analysis rebuild is needed.
+
+```dotenv
+PRODIGI_ENVIRONMENT=sandbox
+PRODIGI_SANDBOX_API_KEY=
+PRODIGI_LIVE_API_KEY=
+PRODIGI_LIVE_ORDERING_ENABLED=false
+PRODIGI_PUBLIC_BASE_URL=https://photos.example.com
+PRODIGI_WEBHOOK_SECRET=
+PRODIGI_SKU_LANDSCAPE_A4=BOOK-FE-A4-L-LF-G
+PRODIGI_SKU_SQUARE_210=
+PRODIGI_SKU_SQUARE_297=
+```
+
+1. Obtain the sandbox key from your [Prodigi sandbox account](https://dashboard.sandbox.prodigi.com/) and put it in `PRODIGI_SANDBOX_API_KEY`. Your normal Prodigi dashboard key belongs in `PRODIGI_LIVE_API_KEY`; the environments may use different credentials. Live quotes can be requested with `PRODIGI_ENVIRONMENT=live` while paid ordering remains disabled.
+2. Set `PRODIGI_PUBLIC_BASE_URL` to Photos' externally reachable HTTPS origin, without a path or trailing query. This is configured on the server and never inferred from an incoming request's Host header.
+3. Generate a webhook secret locally with `ruby -rsecurerandom -e 'puts SecureRandom.hex(32)'` and put the result in `PRODIGI_WEBHOOK_SECRET`.
+4. Deploy through the normal authorized release process, including the new order-table migration. In **Print with Prodigi → Prodigi webhook setup**, copy the generated URL into **Prodigi → Settings → API → Webhook URL** for the matching environment. The URL has the form `https://photos.example.com/webhooks/prodigi/sandbox?token=YOUR_SECRET`. Each submitted order also supplies this callback URL automatically.
+5. Confirm a sandbox order and check its status and artwork acceptance. Only after testing, set `PRODIGI_ENVIRONMENT=live` and `PRODIGI_LIVE_ORDERING_ENABLED=true` for paid ordering. Existing sandbox orders retain their sandbox identity and credentials even after switching to live. No order is submitted merely by configuring keys or fetching a quote.
+
+The existing default Solid Queue worker handles submission and authenticated status refreshes. The account key never reaches the browser. Open order pages check only cached database state and refresh the screen when a job or webhook updates it. On confirmation, the exact API body and a durable UUID idempotency key are frozen. All retries use that same body and key, including after a timeout. **Retry same order** also recovers an interrupted enqueue; do not create a new order to recover an uncertain submission. Errors never expose vendor response bodies or private artwork URLs. Manage cancellations or manufacturing issues in the Prodigi dashboard.
+
+Artwork remains behind the normal owner download route before confirmation. After confirmation, Prodigi receives purpose-bound signed URLs for only that order's book/spine PDFs, valid for 30 days. These routes stream bytes and recheck original-source privacy/availability. Moving source photos into Private/Archive, replacing originals, or removing them from the book revokes subsequent downloads; files already fetched by the printer cannot be recalled. Expired or unavailable assets block new submission attempts. The webhook uses a secret URL and treats callback content only as a notification: it fetches known orders from the fixed authenticated API endpoint rather than trusting callback status or source URLs. Duplicate notifications are harmless. Unknown orders and other-environment callbacks do not trigger API requests.
+
+Delivery details, callback URLs, and artwork tokens are filtered from Rails parameter logs. The bundled Photos proxy's access log omits query strings and referer URLs. Keep upstream/error logs private and configure any external reverse proxy to redact query strings for these endpoints. Rotating `PRODIGI_WEBHOOK_SECRET` requires updating dashboard settings; older confirmed orders retain their original callback URL, so use explicit status refresh for them. Rotating Rails signing keys invalidates outstanding artwork URLs and requires reconciling affected orders in Prodigi before placing replacements.
+
+API contract: [Prodigi v4 reference](https://www.prodigi.com/print-api/docs/reference/). Account-specific quotes, webhook delivery, artwork acceptance, and billing have not been verified without configured credentials. Test fakes cover these paths without creating vendor orders.
 
 ## Operations and deployment
 
-The initial migration adds four tables and foreign keys; it does not backfill or change existing photo/album data. The typography migration adds front/back style JSON objects and a caption visibility flag defaulting to enabled. Existing books keep their captions. The cover-position migration adds four bounded position values, defaulting to centered so existing covers retain their crops. Use the normal Rails image/deployment process and database migration. No new environment variables or analysis-service rebuild are needed. Prawn and its dependencies are locked in Gemfile.lock; all fonts are bundled with their licenses under `vendor/fonts`. Asset precompilation includes the preview fonts.
+The initial migration adds four tables and foreign keys; it does not backfill or change existing photo/album data. The typography migration adds front/back style JSON objects and a caption visibility flag defaulting to enabled. Existing books keep their captions. The cover-position migration adds four bounded position values, defaulting to centered so existing covers retain their crops. The order migration adds one table with a unique idempotency reference and environment-scoped remote order identifier. Use the normal Rails image/deployment process and database migration. Prodigi configuration is optional for designing/downloading books; no analysis-service rebuild is needed. Prawn and its dependencies are locked in Gemfile.lock; all fonts are bundled with their licenses under `vendor/fonts`. Asset precompilation includes the preview fonts.
 
 `PreparePhotoBookExportJob` uses the existing default queue and limits PDF generation to one job at a time in Solid Queue to bound memory consumption. PDFs are stored with Active Storage. Progress and export history appear on the book page. Retried jobs can recover a processing export, duplicate completed deliveries do not regenerate it, and deleting a book discards its queued exports. Removing a book also removes its PDF attachments through the normal Active Storage lifecycle.
 

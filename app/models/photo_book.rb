@@ -18,6 +18,8 @@ class PhotoBook < ApplicationRecord
   has_many :photos, through: :photo_book_memberships
   has_many :pages, -> { order(:position) }, class_name: "PhotoBookPage", dependent: :destroy, inverse_of: :photo_book
   has_many :exports, -> { order(created_at: :desc, id: :desc) }, class_name: "PhotoBookExport", dependent: :destroy, inverse_of: :photo_book
+  has_many :orders, through: :exports
+  before_destroy :preserve_order_history, prepend: true
 
   normalizes :title, with: ->(title) { title.to_s.strip }
   normalizes :cover_title, :cover_subtitle, :back_text, :spine_text, with: ->(text) { text.to_s }, apply_to_nil: true
@@ -105,6 +107,13 @@ class PhotoBook < ApplicationRecord
   end
 
   private
+
+  def preserve_order_history
+    return unless orders.exists?
+
+    errors.add(:base, "Books with print orders are kept to preserve order history.")
+    throw :abort
+  end
 
   def valid_cover_typography
     %w[cover_style back_style].each do |attribute|

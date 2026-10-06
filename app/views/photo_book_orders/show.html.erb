@@ -1,0 +1,57 @@
+<% content_for :title, "Photobook order · Photos" %>
+<%= render "shared/site_header" %>
+<main class="photobook photobook-form-page">
+  <%= link_to "← #{@book.title}", photo_book_path(@book, anchor: "book-orders"), class: "photobook-back" %>
+  <div class="photobook-heading"><h1><%= @order.approved_at ? "Photobook order" : "Review your order" %></h1><span class="photobook-badge"><%= @order.environment.capitalize %></span></div>
+  <p><%= @export.filename %> · <%= @order.page_count %> PDF pages · <%= pluralize(@order.copies, "copy", plural: "copies") %></p>
+  <%= render "configuration" unless @order.approved_at %>
+  <% if @order.error %><p class="photobook-check-errors" role="status"><%= @order.error %></p><% end %>
+  <section class="photobook-card">
+    <h2>Artwork &amp; delivery</h2>
+    <p>This order uses the saved PDF, including its front and back covers. Later edits to the book won't change this order.</p>
+    <%= link_to "Review book PDF", file_photo_book_export_path(@book, @export), class: "photobook-button", data: { turbo: false } %>
+    <% if @order.spine_document.attached? %><%= link_to "Review spine PDF", spine_photo_book_order_path(@book, @order), class: "photobook-button", data: { turbo: false } %><% end %>
+    <% address = @order.recipient.fetch("address") %>
+    <p><strong><%= @order.recipient["name"] %></strong><br>
+      <%= address["line1"] %><br><% if address["line2"].present? %><%= address["line2"] %><br><% end %>
+      <%= address.values_at("townOrCity", "stateOrCounty").compact_blank.join(", ") %> <%= address["postalOrZipCode"] %><br><%= address["countryCode"] %>
+    </p>
+    <p><%= @order.shipping_method.titleize %> delivery</p>
+    <% unless @order.approved_at %><%= link_to "Change delivery or copies", new_photo_book_order_path(@book, export_id: @export.id), class: "photobook-back" %><% end %>
+  </section>
+  <% if @order.quote.present? %>
+    <section class="photobook-card">
+      <h2>Price quote</h2>
+      <p>Books: <%= @order.quote.dig("costSummary", "items", "amount") %> <%= @order.currency %><br>Shipping: <%= @order.quote.dig("costSummary", "shipping", "amount") %> <%= @order.currency %><br><strong>Estimated total: <%= number_with_precision(@order.quote_total, precision: 2) %> <%= @order.currency %></strong></p>
+      <p class="photobook-note">Taxes, duties, or currency conversion may add to the final charge. Quoted <%= @order.quoted_at.strftime("%b %-d · %-I:%M %p") %>.</p>
+    </section>
+  <% end %>
+  <% if @order.approved_at %>
+    <section class="photobook-card" <% unless %w[Complete Cancelled].include?(@order.remote_status["stage"]) %>data-controller="prodigi-order" data-prodigi-order-url-value="<%= photo_book_order_path(@book, @order, format: :json) %>" data-prodigi-order-version-value="<%= @order.updated_at.iso8601(6) %>"<% end %>>
+      <h2>Order status</h2>
+      <p role="status"><%= @order.remote_status["stage"].presence || "Submitting to Prodigi" %><%= " · Needs attention in Prodigi" if @order.remote_status["hasIssues"] %></p>
+      <% if @order.remote_id %>
+        <p><%= @order.remote_id %><%= " · Checked #{@order.refreshed_at.strftime('%b %-d · %-I:%M %p')}" if @order.refreshed_at %></p>
+        <%= button_to "Refresh status", refresh_photo_book_order_path(@book, @order), class: "photobook-button" %>
+      <% else %>
+        <p class="photobook-note">If submission was interrupted, retry this same order to avoid creating a second charge.</p>
+        <%= button_to "Retry same order", submit_photo_book_order_path(@book, @order), params: { confirm_order: "1" }, class: "photobook-button" %>
+      <% end %>
+      <% Array(@order.remote_status["shipments"]).each do |shipment| %><p>Shipment <%= shipment["id"] %>: <%= shipment["status"] %></p><% end %>
+    </section>
+  <% else %>
+    <div class="photobook-inline-form">
+      <%= render "photo_books/confirmation", id: "discard-order", url: photo_book_order_path(@book, @order), button_label: "Discard draft", title: "Discard this order draft?", body: "No order has been placed. Your saved book PDF will remain available.", confirm_label: "Discard draft" %>
+      <%= button_to "Refresh quote", quote_photo_book_order_path(@book, @order), class: "photobook-button" %>
+    </div>
+    <% if @order.quote_current? %>
+      <% if @submission_error %><p class="photobook-check-errors" role="status"><%= @submission_error %></p><% end %>
+      <%= form_with url: submit_photo_book_order_path(@book, @order), class: "photobook-card photobook-fields" do %>
+        <%= hidden_field_tag :reviewed_quote, @order.quote_digest %>
+        <p><%= @order.environment == "sandbox" ? "Sandbox test: no printing or charge." : "Confirming places a paid order with Prodigi. Your PDF and delivery details will be sent to the printer." %></p>
+        <label class="photobook-checkbox"><%= check_box_tag :confirm_order, "1", false, required: true %> I have reviewed the book and spine PDFs, delivery address, and estimated price.</label>
+        <%= submit_tag @order.environment == "sandbox" ? "Submit sandbox test" : "Place paid order", class: "photobook-button photobook-button-primary", disabled: @submission_error.present? %>
+      <% end %>
+    <% else %><p class="photobook-note">Get a current quote before confirming. Quotes are valid for one hour.</p><% end %>
+  <% end %>
+</main>

@@ -1,0 +1,11 @@
+<% if @configuration_error %>
+  <p class="photobook-check-errors" role="status"><%= @configuration_error %> See <code>docs/photobooks.md</code> for server configuration.</p>
+<% end %>
+<% if @webhook_url %>
+  <details class="photobook-card">
+    <summary>Prodigi webhook setup</summary>
+    <p>Paste this URL into the Webhook URL field in Prodigi → Settings → API. It lets Photos update order status automatically.</p>
+    <label for="prodigi-webhook-url">Webhook URL (<%= @order.environment %>)</label>
+    <input id="prodigi-webhook-url" class="photobook-webhook-url" type="text" readonly value="<%= @webhook_url %>" autocomplete="off">
+  </details>
+<% end %>

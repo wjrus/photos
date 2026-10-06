@@ -39,7 +39,7 @@ The owner can upload, import, publish, unpublish, archive, restore, tag people, 
 - **Stream**: the default chronological view of visible photos, grouped by day.
 - **Timeline**: right-side stream navigation by month/year.
 - **Albums**: manual or imported groupings. Photos remain in the stream when added to albums. Private albums can be shared with invited users or through revocable guest links.
-- **Photobooks**: owner-only layflat book designs with a separate photo pool, editable page layouts and captions, facing-page previews, covers and a saved spine label, and background print PDF exports. See [the photobook guide](docs/photobooks.md) for workflow, print specifications, and deployment details. Prodigi ordering is not connected yet.
+- **Photobooks**: owner-only layflat book designs with a separate photo pool, editable page layouts and captions, facing-page previews, covers, and background print PDF exports. Prodigi integration adds price review, separate spine artwork, confirmed sandbox/live ordering, and webhook status updates. See [the photobook guide](docs/photobooks.md) for workflow, print specifications, and server configuration. Live ordering is disabled by default.
 - **Archive**: owner-only secondary stream for non-photo items that should be hidden from the main stream.
 - **Map**: Google Maps view of geotagged photos, with album filtering and clustered markers.
 - **Locations**: auto-generated geotagged galleries based on coordinate buckets. Dense map clusters link here.

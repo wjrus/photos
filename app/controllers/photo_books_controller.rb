@@ -60,8 +60,11 @@ class PhotoBooksController < ApplicationController
   end
 
   def destroy
-    @book.destroy!
-    redirect_to photo_books_path, notice: "Photobook removed. Its photos remain in your library."
+    if @book.destroy
+      redirect_to photo_books_path, notice: "Photobook removed. Its photos remain in your library."
+    else
+      redirect_to photo_book_path(@book), alert: @book.errors.full_messages.to_sentence
+    end
   end
 
   def preview
@@ -155,6 +158,7 @@ class PhotoBooksController < ApplicationController
       prepare_tray(@layout)
     end
     @exports = @book.exports.limit(3)
+    @orders = @book.orders.order(created_at: :desc).limit(10)
   end
 
   def preview_photos(snapshot)

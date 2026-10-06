@@ -30,8 +30,10 @@ class PhotoBookExportsController < ApplicationController
   end
 
   def show
+    available = @export.ready? && @export.source_photos_available?
     render json: { status: @export.status, processed_pages: @export.processed_pages, total_pages: PhotoBookLayout.new(@export.snapshot).pages.size,
-      error: @export.error, file_url: (file_photo_book_export_path(@book, @export) if @export.ready? && @export.source_photos_available?) }
+      error: @export.error, file_url: (file_photo_book_export_path(@book, @export) if available),
+      order_url: (new_photo_book_order_path(@book, export_id: @export.id) if available) }
   end
 
   def file

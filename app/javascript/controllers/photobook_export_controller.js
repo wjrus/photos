@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["status", "download"]
+  static targets = ["status", "download", "order"]
   static values = { url: String, status: String }
 
   connect() {
@@ -25,6 +25,10 @@ export default class extends Controller {
       if (result.file_url) {
         this.downloadTarget.href = result.file_url
         this.downloadTarget.hidden = false
+      }
+      if (result.order_url && this.hasOrderTarget) {
+        this.orderTarget.href = result.order_url
+        this.orderTarget.hidden = false
       }
       if (["pending", "processing"].includes(result.status) && !this.disconnected) this.pollTimer = setTimeout(() => this.poll(), 2000)
     } catch (error) {

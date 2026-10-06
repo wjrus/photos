@@ -40,6 +40,8 @@ Rails.application.routes.draw do
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
   # Can be used by load balancers and uptime monitors to verify that the app is live.
   get "up" => "rails/health#show", as: :rails_health_check
+  post "/webhooks/prodigi/:environment", to: "prodigi_webhooks#create", as: :prodigi_webhook
+  get "/print_assets/:id/:kind", to: "prodigi_print_assets#show", as: :prodigi_print_asset
   get "/favicon.ico", to: redirect("/icon.png")
 
   # Render dynamic PWA files from app/views/pwa/* (remember to link manifest in application.html.erb)
@@ -98,6 +100,12 @@ Rails.application.routes.draw do
     resources :memberships, only: %i[create destroy], controller: :photo_book_memberships
     resources :exports, only: %i[create show], controller: :photo_book_exports do
       get :file, on: :member
+    end
+    resources :orders, only: %i[new create show destroy], controller: :photo_book_orders do
+      post :quote, on: :member
+      post :submit, on: :member
+      post :refresh, on: :member
+      get :spine, on: :member
     end
   end
   resources :albums, only: %i[index show create update destroy] do

@@ -1,6 +1,7 @@
 class PhotoBookExport < ApplicationRecord
   belongs_to :photo_book, inverse_of: :exports
   has_one_attached :document
+  has_many :orders, class_name: "PhotoBookOrder", dependent: :restrict_with_error
 
   validates :status, inclusion: { in: %w[pending processing ready failed] }
   validates :snapshot, :design_digest, :filename, presence: true

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_04_180000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_05_180000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -334,6 +334,37 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_04_180000) do
     t.index ["photo_id"], name: "index_photo_book_memberships_on_photo_id"
   end
 
+  create_table "photo_book_orders", force: :cascade do |t|
+    t.bigint "photo_book_export_id", null: false
+    t.string "environment", null: false
+    t.string "reference", null: false
+    t.string "remote_id"
+    t.string "status", default: "draft", null: false
+    t.string "sku", null: false
+    t.integer "copies", default: 1, null: false
+    t.string "shipping_method", default: "Budget", null: false
+    t.string "currency", default: "USD", null: false
+    t.jsonb "recipient", default: {}, null: false
+    t.jsonb "quote", default: {}, null: false
+    t.jsonb "product", default: {}, null: false
+    t.jsonb "request_payload", default: {}, null: false
+    t.jsonb "remote_status", default: {}, null: false
+    t.datetime "quoted_at"
+    t.datetime "approved_at"
+    t.datetime "asset_expires_at"
+    t.datetime "remote_updated_at"
+    t.datetime "refreshed_at"
+    t.text "error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["environment", "remote_id"], name: "index_photo_book_orders_on_environment_and_remote_id", unique: true
+    t.index ["photo_book_export_id"], name: "index_photo_book_orders_on_photo_book_export_id"
+    t.index ["reference"], name: "index_photo_book_orders_on_reference", unique: true
+    t.check_constraint "copies >= 1 AND copies <= 10", name: "photo_book_orders_copies"
+    t.check_constraint "environment::text = ANY (ARRAY['sandbox'::character varying, 'live'::character varying]::text[])", name: "photo_book_orders_environment"
+    t.check_constraint "status::text = ANY (ARRAY['draft'::character varying, 'quoted'::character varying, 'submitting'::character varying, 'submitted'::character varying]::text[])", name: "photo_book_orders_status"
+  end
+
   create_table "photo_book_pages", force: :cascade do |t|
     t.bigint "photo_book_id", null: false
     t.integer "position", null: false
@@ -651,6 +682,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_04_180000) do
   add_foreign_key "photo_book_exports", "photo_books"
   add_foreign_key "photo_book_memberships", "photo_books"
   add_foreign_key "photo_book_memberships", "photos"
+  add_foreign_key "photo_book_orders", "photo_book_exports"
   add_foreign_key "photo_book_pages", "photo_books"
   add_foreign_key "photo_book_pages", "photos", column: "primary_photo_id", on_delete: :nullify
   add_foreign_key "photo_book_pages", "photos", column: "secondary_photo_id", on_delete: :nullify

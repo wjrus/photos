@@ -1,0 +1,26 @@
+<% content_for :title, "Order photobook · Photos" %>
+<%= render "shared/site_header" %>
+<main class="photobook photobook-form-page">
+  <%= link_to "← #{@book.title}", photo_book_path(@book, anchor: "book-exports"), class: "photobook-back" %>
+  <h1>Print your photobook</h1>
+  <p><%= @export.filename %> · <%= @order.page_count %> PDF pages · <%= PhotoBook::FORMATS.fetch(@export.snapshot.fetch("format")).fetch(:label) %></p>
+  <%= render "configuration" %>
+  <p><%= @order.environment == "sandbox" ? "Sandbox: orders are tested without printing or charging your account." : "Live: confirmed orders will be printed and charged to your Prodigi account." %></p>
+  <% if @order.errors.any? %><ul class="photobook-check-errors"><% @order.errors.full_messages.each do |message| %><li><%= message %></li><% end %></ul><% end %>
+  <%= form_with model: @order, url: photo_book_orders_path(@book, export_id: @export.id), class: "photobook-fields photobook-card" do |form| %>
+    <h2>Delivery &amp; price</h2>
+    <p class="photobook-note">Get a quote first. Nothing is ordered until you review and confirm it.</p>
+    <div><%= form.label :copies %><%= form.number_field :copies, min: 1, max: 10, required: true %></div>
+    <div><%= form.label :shipping_method %><%= form.select :shipping_method, PhotoBookOrder::SHIPPING_METHODS.map { |method| [ method.titleize, method ] } %></div>
+    <div><%= form.label :currency %><%= form.select :currency, PhotoBookOrder::CURRENCIES %></div>
+    <%= form.fields_for :recipient, @order.recipient do |recipient| %>
+      <% [["name", "Recipient name", "name"], ["email", "Email (optional)", "email"], ["phoneNumber", "Phone (optional)", "tel"]].each do |key, label, autocomplete| %>
+        <div><%= label_tag "recipient_#{key}", label %><%= text_field_tag "photo_book_order[recipient][#{key}]", @order.recipient[key], id: "recipient_#{key}", maxlength: 200, required: key == "name", autocomplete: autocomplete %></div>
+      <% end %>
+      <% [["line1", "Address line 1", "address-line1"], ["line2", "Address line 2 (optional)", "address-line2"], ["townOrCity", "City", "address-level2"], ["stateOrCounty", "State / province", "address-level1"], ["postalOrZipCode", "Postal code", "postal-code"], ["countryCode", "Country code (US, GB, etc.)", "country"]].each do |key, label, autocomplete| %>
+        <div><%= label_tag "address_#{key}", label %><%= text_field_tag "photo_book_order[recipient][address][#{key}]", @order.recipient.dig("address", key), id: "address_#{key}", maxlength: key == "countryCode" ? 2 : 200, required: !%w[line2 stateOrCounty].include?(key), autocomplete: autocomplete %></div>
+      <% end %>
+    <% end %>
+    <%= form.submit "Get price quote", class: "photobook-button photobook-button-primary", disabled: @configuration_error.present? %>
+  <% end %>
+</main>

@@ -131,6 +131,7 @@
 .photobook-export { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; border-top: 1px solid var(--theme-border); padding: 18px 0; }
 .photobook-export div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .photobook-export p { font-size: .8rem; color: var(--theme-muted); }
+.photobook-webhook-url { width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--theme-border); border-radius: 6px; margin-top: 8px; font-size: .8rem; }
 .photobook [hidden] { display: none; }
 .photobook-tray { position: sticky; top: 6rem; padding: 16px; }
 .photobook-tray-heading h2 { margin-bottom: 0; }

@@ -85,6 +85,15 @@ jobs:
       - name: Build production images
         run: docker build --tag ${{ matrix.tag }} ${{ matrix.context }}
 
+      - name: Check Photos proxy configuration
+        if: matrix.image == 'rails'
+        run: |
+          printf 'upstream photos_app { server 127.0.0.1:3000; }\n' > /tmp/photos-ci-upstream.conf
+          docker run --rm \
+            --mount type=bind,source="$PWD/config/nginx/photos.conf",target=/etc/nginx/conf.d/default.conf,readonly \
+            --mount type=bind,source=/tmp/photos-ci-upstream.conf,target=/etc/nginx/active_upstream.conf,readonly \
+            nginx:1.30.5-alpine nginx -t
+
       - name: Check CPU analysis runtime without downloading model weights
         if: matrix.image == 'analysis'
         run: |

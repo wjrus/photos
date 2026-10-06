@@ -17,10 +17,19 @@
       <div><strong><%= export.filename %></strong><p><%= export.created_at.strftime("%b %-d, %Y · %-I:%M %p") %><%= " · Earlier design" if export.design_digest != Digest::SHA256.hexdigest(@snapshot.to_json) %></p></div>
       <p data-photobook-export-target="status" role="status"><%= export.status == "failed" ? export.error : export.status.humanize %></p>
       <%= link_to "Download PDF", file_photo_book_export_path(@book, export), class: "photobook-button", hidden: !export.ready?, data: { turbo: false, photobook_export_target: "download" } %>
+      <%= link_to "Print with Prodigi", new_photo_book_order_path(@book, export_id: export.id), class: "photobook-button photobook-button-primary", hidden: !(export.ready? && export.source_photos_available?), data: { photobook_export_target: "order" } %>
       <% if export.status == "failed" && export.error.to_s.include?("DPI") %>
         <%= button_to "Retry and accept lower resolution", photo_book_exports_path(@book), params: { allow_low_resolution: "1" }, class: "photobook-button" %>
       <% end %>
     </article>
   <% end %>
-  <p class="photobook-note">Printing and ordering are not connected yet. You can download a PDF for review or a manual Prodigi order. The saved spine label is entered separately for manual orders.</p>
+  <p class="photobook-note">Get a price quote from Prodigi, review the book and spine PDFs, then confirm printing.</p>
 </section>
+<% if @orders.any? %>
+  <section id="book-orders" class="photobook-card">
+    <h2>Print orders</h2>
+    <% @orders.each do |order| %>
+      <article class="photobook-export"><div><strong><%= order.environment.capitalize %> · <%= order.created_at.strftime("%b %-d, %Y") %></strong><p><%= order.remote_status["stage"].presence || order.status.humanize %></p></div><%= link_to "View order", photo_book_order_path(@book, order), class: "photobook-button" %></article>
+    <% end %>
+  </section>
+<% end %>
