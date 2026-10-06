@@ -15,8 +15,8 @@
     <div><%= form.label :back_photo_id, "Back cover photo" %><%= form.select :back_photo_id, @photo_options, include_blank: "No photo" %></div>
     <div><%= form.label :back_text, "Back cover text" %><%= form.text_area :back_text, rows: 4, maxlength: 2000 %></div>
     <hr><h2>Spine & colors</h2>
-    <div><%= form.label :spine_text, "Spine label" %><%= form.text_field :spine_text, maxlength: 200 %></div>
-    <p class="photobook-note">The spine label is saved with your design. For a manual Prodigi order, enter it in their order form. Exact spine artwork needs the printing lab’s dimensions and will be added with API integration.</p>
+    <div><%= form.label :spine_text, "Spine label" %><%= form.text_field :spine_text, maxlength: 200, placeholder: book.title, aria: { describedby: "photobook-spine-help" } %></div>
+    <p id="photobook-spine-help" class="photobook-note">The spine places “wjr photos” at one end and the book name at the other. Leave this label blank to use the book name, or enter a different title. It uses your background and text colors. Review the spine PDF after getting a Prodigi quote; its width is calculated for your book and delivery destination.</p>
     <div class="photobook-two-fields">
       <div><%= form.label :background_color, "Page background" %><%= form.color_field :background_color %></div>
       <div><%= form.label :text_color, "Text color" %><%= form.color_field :text_color %></div>

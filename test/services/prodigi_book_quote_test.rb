@@ -37,6 +37,18 @@ class ProdigiBookQuoteTest < ActiveSupport::TestCase
     end
   end
 
+  test "the spine template is never silently omitted when the book name is the label" do
+    _, _, export = ready_order_export
+    export.snapshot["spine_text"] = ""
+    export.save!
+    product = synthetic_product
+    product.fetch("printAreas").delete("spine")
+    client = quote_client(product: product)
+    error = assert_raises(ProdigiClient::Error) { ProdigiBookQuote.new(draft_order(export), client: client).call }
+    assert_includes error.message, "spine artwork"
+    assert_equal [ :product ], client.calls
+  end
+
   test "product dimensions, destination, unsupported areas and multiple finishes block quoting" do
     _, _, export = ready_order_export
     order = draft_order(export)

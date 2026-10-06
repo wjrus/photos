@@ -54,7 +54,7 @@ class ProdigiBookQuote
       area.is_a?(Hash) && [ true, false ].include?(area["required"]) && (%w[default spine].include?(name) || area["required"] == false)
     end
     raise ProdigiClient::Error, "This product requires unsupported artwork. Choose a layflat photo book." unless supported_areas
-    if @order.photo_book_export.snapshot["spine_text"].present? && !areas.key?("spine")
+    unless areas.key?("spine")
       raise ProdigiClient::Error, "This product does not accept the book's spine artwork."
     end
     variants = product.fetch("variants").select { |variant| variant.fetch("shipsTo").include?(country) }
