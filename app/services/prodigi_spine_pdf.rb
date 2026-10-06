@@ -27,8 +27,8 @@ class ProdigiSpinePdf
     gap = 10 * PhotoBookLayout::POINTS_PER_MM
     x = width / 2 - height / 2 + end_margin
     y = height / 2 + width / 2 - margin
-    # The two labels share a baseline across the spine, with protected space
-    # between them. Rotating the whole template keeps text centered in its width.
+    # Keep the brand at the bottom and the title at the top. Each label is
+    # flipped within its box below so both read from top to bottom.
     pdf.rotate(90, origin: [ width / 2, height / 2 ]) do
       draw_label(pdf, "wjr photos", font: "lato", at: [ x, y ], width: brand_width, height: width - 2 * margin, size: [ 9, width / 2 ].min, align: :left)
       draw_label(pdf, title, font: "sans", at: [ x + brand_width + gap, y ], width: length - brand_width - gap,
@@ -41,7 +41,13 @@ class ProdigiSpinePdf
 
   def draw_label(pdf, text, font:, **options)
     pdf.font(PhotoBookTypography.font_path(font).to_s)
-    overflow = pdf.text_box(text, **options, valign: :center, overflow: :shrink_to_fit, min_font_size: 2)
-    raise ProdigiClient::Error, "The spine label does not fit. Shorten it before generating another PDF." if overflow.present?
+    x, y = options.fetch(:at)
+    center = [ x + options.fetch(:width) / 2, y - options.fetch(:height) / 2 ]
+    # Reverse alignment along with the text so the end margins stay in place.
+    alignment = { left: :right, right: :left }.fetch(options.fetch(:align))
+    pdf.rotate(180, origin: center) do
+      overflow = pdf.text_box(text, **options.merge(align: alignment), valign: :center, overflow: :shrink_to_fit, min_font_size: 2)
+      raise ProdigiClient::Error, "The spine label does not fit. Shorten it before generating another PDF." if overflow.present?
+    end
   end
 end
