@@ -5,7 +5,8 @@
   <h1>Print your photobook</h1>
   <p><%= @export.filename %> · <%= @order.page_count %> PDF pages · <%= PhotoBook::FORMATS.fetch(@export.snapshot.fetch("format")).fetch(:label) %></p>
   <%= render "configuration" %>
-  <p><%= @order.environment == "sandbox" ? "Sandbox: orders are tested without printing or charging your account." : "Live: confirmed orders will be printed and charged to your Prodigi account." %></p>
+  <p><%= @order.environment == "sandbox" ? "Sandbox: orders are tested without printing or charging your account." : "Live: confirmed orders will be printed and charged to the site owner's Prodigi account." %></p>
+  <%= render "billing" %>
   <% if @order.errors.any? %><ul class="photobook-check-errors"><% @order.errors.full_messages.each do |message| %><li><%= message %></li><% end %></ul><% end %>
   <%= form_with model: @order, url: @order.persisted? ? photo_book_order_path(@book, @order) : photo_book_orders_path(@book, export_id: @export.id), class: "photobook-fields photobook-card" do |form| %>
     <h2>Delivery &amp; price</h2>

@@ -1,0 +1,10 @@
+<section class="photobook-card">
+  <h2>Who pays for this book?</h2>
+  <p><strong>The site owner pays for live book orders through their connected Prodigi account.</strong></p>
+  <p>Photos does not collect payment from the recipient. The delivery address does not change who pays.</p>
+  <% if @order.environment == "sandbox" %>
+    <p class="photobook-note">This is a sandbox test. No payment is taken and no book is printed or shipped.</p>
+  <% else %>
+    <p class="photobook-note">Payment details are managed in <%= link_to "Prodigi dashboard", "https://dashboard.prodigi.com/", target: "_blank", rel: "noopener noreferrer" %> → Settings → Billing.</p>
+  <% end %>
+</section>

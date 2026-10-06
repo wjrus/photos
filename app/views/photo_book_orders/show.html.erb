@@ -5,6 +5,7 @@
   <div class="photobook-heading"><h1><%= @order.approved_at ? "Photobook order" : "Review your order" %></h1><span class="photobook-badge"><%= @order.environment.capitalize %></span></div>
   <p><%= @export.filename %> · <%= @order.page_count %> PDF pages · <%= pluralize(@order.copies, "copy", plural: "copies") %></p>
   <%= render "configuration" unless @order.approved_at %>
+  <%= render "billing" %>
   <% if @order.error %><p class="photobook-check-errors" role="status"><%= @order.error %></p><% end %>
   <section class="photobook-card">
     <h2>Artwork &amp; delivery</h2>
@@ -53,7 +54,7 @@
       <% if @submission_error %><p class="photobook-check-errors" role="status"><%= @submission_error %></p><% end %>
       <%= form_with url: submit_photo_book_order_path(@book, @order), class: "photobook-card photobook-fields" do %>
         <%= hidden_field_tag :reviewed_quote, @order.quote_digest %>
-        <p><%= @order.environment == "sandbox" ? "Sandbox test: no printing or charge." : "Confirming places a paid order with Prodigi. Your PDF and delivery details will be sent to the printer." %></p>
+        <p><%= @order.environment == "sandbox" ? "Sandbox test: no printing or charge." : "Confirming places a paid order billed to the site owner's Prodigi account. Your PDF and delivery details will be sent to the printer." %></p>
         <label class="photobook-checkbox"><%= check_box_tag :confirm_order, "1", false, required: true %> I have reviewed the book and spine PDFs, delivery address, and estimated price.</label>
         <%= submit_tag @order.environment == "sandbox" ? "Submit sandbox test" : "Place paid order", class: "photobook-button photobook-button-primary", disabled: @submission_error.present? %>
       <% end %>
