@@ -1,13 +1,13 @@
 <% content_for :title, "Order photobook · Photos" %>
 <%= render "shared/site_header" %>
 <main class="photobook photobook-form-page">
-  <%= link_to "← #{@book.title}", photo_book_path(@book, anchor: "book-exports"), class: "photobook-back" %>
+  <%= link_to @order.persisted? ? "← Review your order" : "← #{@book.title}", @order.persisted? ? photo_book_order_path(@book, @order) : photo_book_path(@book, anchor: "book-exports"), class: "photobook-back" %>
   <h1>Print your photobook</h1>
   <p><%= @export.filename %> · <%= @order.page_count %> PDF pages · <%= PhotoBook::FORMATS.fetch(@export.snapshot.fetch("format")).fetch(:label) %></p>
   <%= render "configuration" %>
   <p><%= @order.environment == "sandbox" ? "Sandbox: orders are tested without printing or charging your account." : "Live: confirmed orders will be printed and charged to your Prodigi account." %></p>
   <% if @order.errors.any? %><ul class="photobook-check-errors"><% @order.errors.full_messages.each do |message| %><li><%= message %></li><% end %></ul><% end %>
-  <%= form_with model: @order, url: photo_book_orders_path(@book, export_id: @export.id), class: "photobook-fields photobook-card" do |form| %>
+  <%= form_with model: @order, url: @order.persisted? ? photo_book_order_path(@book, @order) : photo_book_orders_path(@book, export_id: @export.id), class: "photobook-fields photobook-card" do |form| %>
     <h2>Delivery &amp; price</h2>
     <p class="photobook-note">Get a quote first. Nothing is ordered until you review and confirm it.</p>
     <div><%= form.label :copies %><%= form.number_field :copies, min: 1, max: 10, required: true %></div>

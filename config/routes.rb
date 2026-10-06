@@ -101,7 +101,7 @@ Rails.application.routes.draw do
     resources :exports, only: %i[create show], controller: :photo_book_exports do
       get :file, on: :member
     end
-    resources :orders, only: %i[new create show destroy], controller: :photo_book_orders do
+    resources :orders, only: %i[new create show edit update destroy], controller: :photo_book_orders do
       post :quote, on: :member
       post :submit, on: :member
       post :refresh, on: :member

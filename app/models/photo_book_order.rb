@@ -9,7 +9,7 @@ class PhotoBookOrder < ApplicationRecord
   has_one :photo_book, through: :photo_book_export
   has_one_attached :spine_document
   before_validation -> { self.reference ||= SecureRandom.uuid }, on: :create
-  before_validation :normalize_recipient, on: :create
+  before_validation :normalize_recipient
   validates :reference, :sku, presence: true
   validates :environment, inclusion: { in: ProdigiConfiguration::ENDPOINTS.keys }
   validates :status, inclusion: { in: %w[draft quoted submitting submitted] }

@@ -17,7 +17,7 @@
       <%= address.values_at("townOrCity", "stateOrCounty").compact_blank.join(", ") %> <%= address["postalOrZipCode"] %><br><%= address["countryCode"] %>
     </p>
     <p><%= @order.shipping_method.titleize %> delivery</p>
-    <% unless @order.approved_at %><%= link_to "Change delivery or copies", new_photo_book_order_path(@book, export_id: @export.id), class: "photobook-back" %><% end %>
+    <% unless @order.approved_at %><%= link_to "Change delivery or copies", edit_photo_book_order_path(@book, @order), class: "photobook-back" %><% end %>
   </section>
   <% if @order.quote.present? %>
     <section class="photobook-card">

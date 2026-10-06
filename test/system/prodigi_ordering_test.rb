@@ -77,6 +77,39 @@ class ProdigiOrderingTest < ApplicationSystemTestCase
     assert_not PhotoBookOrder.exists?(order.id)
   end
 
+  test "changing copies retains the delivery form and updates the same draft on desktop and phone" do
+    [ 1400, 390 ].each do |width|
+      page.driver.browser.manage.window.resize_to(width, 900)
+      order = quoted_order(@export)
+      visit photo_book_order_path(@book, order)
+      click_link "Change delivery or copies"
+      assert_current_path edit_photo_book_order_path(@book, order)
+      assert_field "Recipient name", with: "Synthetic Recipient"
+      assert_field "Email (optional)", with: "recipient@example.invalid"
+      assert_field "Address line 1", with: "123 Example Street"
+      assert_field "City", with: "Example City"
+      assert_field "State / province", with: "CA"
+      assert_field "Postal code", with: "00000"
+      assert_field "Country code (US, GB, etc.)", with: "US"
+      assert_select "Shipping method", selected: "Budget"
+      assert_select "Currency", selected: "USD"
+      assert_axe_clean
+      assert page.evaluate_script("document.documentElement.scrollWidth <= window.innerWidth")
+      fill_in "Copies", with: "2"
+      client = quote_client
+      with_prodigi_method(ProdigiClient, :new, client) do
+        click_button "Get price quote"
+        assert_current_path photo_book_order_path(@book, order)
+        assert_text "Estimated total: 46.70 USD"
+      end
+      assert_equal 2, order.reload.copies
+      assert_equal 1, @export.orders.where(id: order.id).count
+      click_link "Change delivery or copies"
+      assert_field "Copies", with: "2"
+      assert_field "Recipient name", with: "Synthetic Recipient"
+    end
+  end
+
   private
 
   def assert_axe_clean

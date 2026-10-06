@@ -8,6 +8,7 @@ class ProdigiBookQuote
     raise ProdigiClient::Error, "A confirmed order cannot be requoted." if @order.approved_at
     raise ProdigiClient::Error, "The PDF or its source photos are no longer available." unless @order.artwork_available?
 
+    quoted_inputs = @order.attributes.slice("photo_book_export_id", "environment", "sku", "copies", "shipping_method", "currency", "recipient").deep_dup
     product = @client.product(@order.sku)
     validate_product!(product)
     prepare_spine!(product)
@@ -24,6 +25,9 @@ class ProdigiBookQuote
     end
     @order.with_lock do
       raise ProdigiClient::Error, "A confirmed order cannot be requoted." if @order.approved_at
+      unless @order.attributes.slice(*quoted_inputs.keys) == quoted_inputs
+        raise ProdigiClient::Error, "Order details changed while fetching the price. Get a new quote."
+      end
 
       @order.spine_document.attach(io: StringIO.new(@spine_bytes), filename: "photobook-spine.pdf", content_type: "application/pdf") if @spine_bytes
       @order.update!(quote: quote.slice("shipmentMethod", "costSummary"), product: product, quoted_at: Time.current, status: "quoted", error: nil)

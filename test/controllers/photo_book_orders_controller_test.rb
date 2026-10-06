@@ -56,6 +56,92 @@ class PhotoBookOrdersControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
   end
 
+  test "editing a draft repopulates every delivery and pricing field" do
+    order = quoted_order(@export)
+    recipient = synthetic_recipient.deep_merge("phoneNumber" => "+15555550100", "address" => { "line2" => "Unit Example" })
+    order.update!(recipient: recipient, copies: 3, shipping_method: "Express", currency: "CAD")
+    get photo_book_order_path(@book, order)
+    assert_select "a[href=?]", edit_photo_book_order_path(@book, order), text: "Change delivery or copies"
+    get edit_photo_book_order_path(@book, order)
+    assert_response :success
+    assert_equal "private, no-store", response.headers["Cache-Control"]
+    assert_select "form[action=?] input[name='_method'][value='patch']", photo_book_order_path(@book, order)
+    assert_select "input[name='photo_book_order[copies]'][value='3']"
+    assert_select "select[name='photo_book_order[shipping_method]'] option[selected][value='Express']"
+    assert_select "select[name='photo_book_order[currency]'] option[selected][value='CAD']"
+    recipient.except("address").each { |key, value| assert_select "input[name=?][value=?]", "photo_book_order[recipient][#{key}]", value }
+    recipient.fetch("address").each { |key, value| assert_select "input[name=?][value=?]", "photo_book_order[recipient][address][#{key}]", value }
+  end
+
+  test "changes update the existing draft and require review of its new quote" do
+    order = quoted_order(@export)
+    old_review = order.quote_digest
+    old_spine_id = order.spine_document.id
+    reference = order.reference
+    recipient = synthetic_recipient.deep_merge("name" => " Updated Recipient ", "address" => { "line1" => " 456 Example Avenue " })
+    client = quote_client(quote: synthetic_quote(amount: "70.00"))
+    with_prodigi_method(ProdigiClient, :new, client) do
+      assert_no_difference "PhotoBookOrder.count" do
+        assert_no_enqueued_jobs(only: SubmitProdigiOrderJob) do
+          patch photo_book_order_path(@book, order), params: { photo_book_order: { copies: 2, recipient: recipient } }
+        end
+      end
+    end
+    assert_redirected_to photo_book_order_path(@book, order)
+    assert_equal 2, order.reload.copies
+    assert_equal "Updated Recipient", order.recipient["name"]
+    assert_equal "456 Example Avenue", order.recipient.dig("address", "line1")
+    assert_equal reference, order.reference
+    assert_equal "sandbox", order.environment
+    assert_equal @export.id, order.photo_book_export_id
+    assert_equal BigDecimal("78.50"), order.quote_total
+    assert_not_equal old_spine_id, order.spine_document.id
+    assert_raises(ProdigiClient::Error) { order.approve!(reviewed_quote: old_review) }
+  end
+
+  test "invalid edits retain entered values while failed quotes invalidate old prices" do
+    order = quoted_order(@export)
+    previous_recipient = order.recipient.deep_dup
+    client = Object.new
+    client.define_singleton_method(:product) { |_sku| raise ProdigiClient::Error, "Synthetic product lookup failed." }
+    with_prodigi_method(ProdigiClient, :new, client) do
+      patch photo_book_order_path(@book, order), params: { photo_book_order: { copies: 0, recipient: synthetic_recipient.merge("name" => "Entered Recipient") } }
+      assert_response :unprocessable_entity
+      assert_select "input#recipient_name[value='Entered Recipient']"
+      assert_equal previous_recipient, order.reload.recipient
+      assert order.quote_current?
+      patch photo_book_order_path(@book, order), params: { photo_book_order: { copies: 2 } }
+    end
+    assert_redirected_to photo_book_order_path(@book, order)
+    assert_equal 2, order.reload.copies
+    assert_not order.quote_current?
+    assert_empty order.quote
+    assert_nil order.quoted_at
+    assert_not order.spine_document.attached?
+    assert_equal "Synthetic product lookup failed.", order.error
+  end
+
+  test "edit endpoints enforce ownership availability and immutable confirmed orders" do
+    order = quoted_order(@export)
+    other_book = users(:two).photo_books.create!(title: "Other owner")
+    get edit_photo_book_order_path(other_book, order)
+    assert_response :not_found
+    patch photo_book_order_path(other_book, order), params: { photo_book_order: { copies: 2 } }
+    assert_response :not_found
+    @photo.update!(restricted: true)
+    get edit_photo_book_order_path(@book, order)
+    assert_response :not_found
+    @photo.update!(restricted: false)
+    order.approve!(reviewed_quote: order.quote_digest)
+    payload = order.request_payload.deep_dup
+    get edit_photo_book_order_path(@book, order)
+    assert_redirected_to photo_book_order_path(@book, order)
+    patch photo_book_order_path(@book, order), params: { photo_book_order: { copies: 2 } }
+    assert_redirected_to photo_book_order_path(@book, order)
+    assert_equal 1, order.reload.copies
+    assert_equal payload, order.request_payload
+  end
+
   test "owner cannot quote or access an unavailable export or another owner's orders" do
     order = quoted_order(@export)
     other_book = users(:two).photo_books.create!(title: "Other owner")

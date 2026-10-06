@@ -3,8 +3,9 @@ class PhotoBookOrdersController < ApplicationController
   owner_access_message "Only the owner can order photobooks."
   before_action :require_owner!
   before_action :set_book
-  before_action :set_order, only: %i[show quote submit refresh spine destroy]
+  before_action :set_order, only: %i[show edit update quote submit refresh spine destroy]
   before_action -> { response.set_header("Cache-Control", "private, no-store") }
+  before_action :require_editable_order, only: %i[edit update]
 
   def new
     @export = @book.exports.find(params[:export_id])
@@ -18,11 +19,7 @@ class PhotoBookOrdersController < ApplicationController
     @export = @book.exports.find(params[:export_id])
     @order = @export.orders.new(order_params.merge(environment: ProdigiConfiguration.environment, sku: ProdigiConfiguration.sku(@export.snapshot.fetch("format"))))
     if @order.save
-      begin
-        ProdigiBookQuote.new(@order).call
-      rescue ProdigiClient::Error => error
-        @order.update!(error: error.message)
-      end
+      obtain_quote
       redirect_to photo_book_order_path(@book, @order)
     else
       prepare_configuration
@@ -30,6 +27,30 @@ class PhotoBookOrdersController < ApplicationController
     end
   rescue ProdigiClient::Error => error
     redirect_to new_photo_book_order_path(@book, export_id: @export.id), alert: error.message
+  end
+
+  def edit
+    prepare_configuration
+    render :new
+  end
+
+  def update
+    saved = @order.with_lock do
+      raise ProdigiClient::Error, "Confirmed orders cannot be edited." if @order.approved_at
+
+      updated = @order.update(order_params.merge(quote: {}, product: {}, quoted_at: nil, status: "draft", error: nil))
+      @order.spine_document.purge_later if updated
+      updated
+    end
+    if saved
+      obtain_quote
+      redirect_to photo_book_order_path(@book, @order)
+    else
+      prepare_configuration
+      render :new, status: :unprocessable_entity
+    end
+  rescue ProdigiClient::Error => error
+    redirect_to photo_book_order_path(@book, @order), alert: error.message
   end
 
   def show
@@ -87,6 +108,19 @@ class PhotoBookOrdersController < ApplicationController
   end
 
   private
+
+  def require_editable_order
+    if @order.approved_at
+      return redirect_to photo_book_order_path(@book, @order), alert: "Confirmed orders cannot be edited. Create a new order for different delivery details."
+    end
+    raise ActiveRecord::RecordNotFound unless @order.artwork_available?
+  end
+
+  def obtain_quote
+    ProdigiBookQuote.new(@order).call
+  rescue ProdigiClient::Error => error
+    @order.with_lock { @order.update!(error: error.message) unless @order.approved_at }
+  end
 
   def set_book
     @book = current_user.photo_books.find(params[:photo_book_id])

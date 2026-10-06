@@ -105,4 +105,20 @@ class ProdigiBookQuoteTest < ActiveSupport::TestCase
     assert_equal attachment_id, order.reload.spine_document.id
     assert_equal "submitting", order.status
   end
+
+  test "a concurrent delivery or copy edit cannot receive the previous inputs' price" do
+    _, _, export = ready_order_export
+    order = draft_order(export)
+    client = quote_client
+    quote = synthetic_quote
+    client.define_singleton_method(:quote) do |_payload|
+      PhotoBookOrder.find(order.id).update!(copies: 2)
+      quote
+    end
+    error = assert_raises(ProdigiClient::Error) { ProdigiBookQuote.new(order, client: client).call }
+    assert_includes error.message, "Order details changed"
+    assert_equal 2, order.reload.copies
+    assert_nil order.quoted_at
+    assert_not order.spine_document.attached?
+  end
 end
