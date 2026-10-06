@@ -104,4 +104,25 @@ class ProdigiOrdersTest < ActiveSupport::TestCase
     assert_equal [ { "printArea" => "default", "status" => "Complete" }, { "printArea" => "spine", "status" => "InProgress" } ], @order.remote_status["assets"]
     assert_not_includes @order.remote_status.to_json, "PRIVATE_SYNTHETIC"
   end
+
+  test "API refresh caches shipment and tracking details without unrelated vendor fields" do
+    @order.approve!(reviewed_quote: @order.quote_digest)
+    @order.record_remote!(remote_order(@order))
+    shipments = synthetic_shipments
+    shipments.first["private"] = "PRIVATE_SYNTHETIC_VALUE"
+    shipments.first["carrier"]["private"] = "PRIVATE_SYNTHETIC_VALUE"
+    shipments.first["tracking"]["private"] = "PRIVATE_SYNTHETIC_VALUE"
+    data = remote_order(@order, stage: "Complete").merge("shipments" => shipments + [ nil, "invalid" ])
+    client = Object.new
+    client.define_singleton_method(:order) do |id|
+      raise "Unexpected order" unless id == data.fetch("id")
+      data
+    end
+    with_prodigi_method(ProdigiClient, :new, client) { RefreshProdigiOrderJob.perform_now(@order) }
+    cached = @order.reload.remote_status.fetch("shipments")
+    assert_equal synthetic_shipments.first, cached.first
+    assert_equal({ "id" => "shp_synthetic_2", "status" => "Processing" }, cached.last)
+    assert_equal 2, cached.size
+    assert_not_includes @order.remote_status.to_json, "PRIVATE_SYNTHETIC"
+  end
 end

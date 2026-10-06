@@ -10,6 +10,36 @@ class PhotoBookOrdersControllerTest < ActionDispatch::IntegrationTest
   end
   teardown { restore_prodigi }
 
+  test "shipment notice includes carrier dispatch date and safe tracking with an untracked fallback" do
+    order = quoted_order(@export)
+    order.approve!(reviewed_quote: order.quote_digest)
+    order.record_remote!(remote_order(order, stage: "Complete").merge("shipments" => synthetic_shipments))
+    get photo_book_order_path(@book, order)
+    assert_select ".photobook-shipment", count: 2
+    assert_select ".photobook-shipment h3", text: "Shipment 1 · Shipped"
+    assert_select ".photobook-shipment time[datetime]", count: 1
+    assert_includes response.body, "Example Courier · Tracked service"
+    assert_includes response.body, "Tracking number: SYNTHETIC1234567890"
+    assert_select "a[href='https://tracking.example.com/shipments/SYNTHETIC1234567890'][rel='noopener noreferrer']", text: "Track shipment"
+    assert_includes response.body, "Tracking is not available for this shipment."
+  end
+
+  test "invalid shipment dates and unsafe tracking URLs never create links or break the page" do
+    order = quoted_order(@export)
+    order.approve!(reviewed_quote: order.quote_digest)
+    [ "javascript:alert(1)", "data:text/html,test", "//tracking.example.com/test", "https://user:password@tracking.example.com/test", "invalid url", nil ].each do |url|
+      shipments = synthetic_shipments
+      shipments.first["tracking"]["url"] = url
+      shipments.first["dispatchDate"] = "invalid"
+      order.record_remote!(remote_order(order).merge("shipments" => shipments))
+      get photo_book_order_path(@book, order)
+      assert_response :success
+      assert_select ".photobook-shipment a", count: 0
+      assert_select ".photobook-shipment time", count: 0
+      assert_includes response.body, "Tracking number: SYNTHETIC1234567890"
+    end
+  end
+
   test "order status shows readable workflow and artwork states with missing information marked unreported" do
     order = quoted_order(@export)
     order.approve!(reviewed_quote: order.quote_digest)

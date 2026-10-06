@@ -42,7 +42,7 @@
         <p class="photobook-note">If submission was interrupted, retry this same order to avoid creating a second charge.</p>
         <%= button_to "Retry same order", submit_photo_book_order_path(@book, @order), params: { confirm_order: "1" }, class: "photobook-button" %>
       <% end %>
-      <% Array(@order.remote_status["shipments"]).each do |shipment| %><p>Shipment <%= shipment["id"] %>: <%= prodigi_status_label(shipment["status"]) %></p><% end %>
+      <%= render "shipments" if @order.remote_status["shipments"].present? %>
     </section>
   <% else %>
     <div class="photobook-inline-form">

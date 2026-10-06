@@ -1,0 +1,19 @@
+<div class="photobook-shipments">
+  <% @order.remote_status["shipments"].each_with_index do |shipment, index| %>
+    <section class="photobook-shipment" aria-label="Shipment <%= index + 1 %>">
+      <h3>Shipment <%= index + 1 %> · <%= prodigi_status_label(shipment["status"]) %></h3>
+      <% carrier = shipment["carrier"].is_a?(Hash) ? shipment["carrier"].values_at("name", "service").compact_blank.join(" · ") : nil %>
+      <% if carrier.present? %><p><%= carrier %></p><% end %>
+      <% if (dispatched = prodigi_dispatch_time(shipment["dispatchDate"])) %>
+        <p>Dispatched <time datetime="<%= dispatched.iso8601 %>"><%= dispatched.strftime("%b %-d, %Y · %-I:%M %p %Z") %></time></p>
+      <% end %>
+      <% tracking = shipment["tracking"].is_a?(Hash) ? shipment["tracking"] : {} %>
+      <% if tracking["number"].present? %><p>Tracking number: <%= tracking["number"] %></p><% end %>
+      <% if (url = prodigi_tracking_url(tracking["url"])) %>
+        <%= link_to "Track shipment", url, class: "photobook-button", target: "_blank", rel: "noopener noreferrer" %>
+      <% elsif tracking["number"].blank? %>
+        <p class="photobook-note">Tracking is not available for this shipment.</p>
+      <% end %>
+    </section>
+  <% end %>
+</div>

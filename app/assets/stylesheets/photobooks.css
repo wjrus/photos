@@ -20,6 +20,8 @@
 .photobook-order-progress > div { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; border-bottom: 1px solid var(--theme-border); padding-bottom: 8px; }
 .photobook-order-progress dt { min-width: 0; }
 .photobook-order-progress dd { flex-shrink: 0; margin: 0; font-size: .85rem; font-weight: 600; }
+.photobook-shipments { display: grid; gap: 16px; margin-top: 20px; }
+.photobook-shipment { border-top: 1px solid var(--theme-border); padding-top: 16px; min-width: 0; overflow-wrap: anywhere; }
 .photobook p { margin: 8px 0; line-height: 1.6; }
 .photobook-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin: 20px 0 24px; }
 .photobook-eyebrow { color: var(--theme-accent-label); font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .15em; }

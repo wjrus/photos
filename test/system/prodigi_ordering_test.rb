@@ -165,6 +165,30 @@ class ProdigiOrderingTest < ApplicationSystemTestCase
     end
   end
 
+  test "shipment tracking is readable and accessible on desktop and phone" do
+    order = quoted_order(@export)
+    order.approve!(reviewed_quote: order.quote_digest)
+    shipments = synthetic_shipments
+    shipments.first["tracking"]["number"] = "SYNTHETIC" * 10
+    order.record_remote!(remote_order(order, stage: "Complete").merge("shipments" => shipments))
+    [ 1400, 390 ].each do |width|
+      page.driver.browser.execute_cdp("Emulation.setDeviceMetricsOverride", width: width, height: 900, deviceScaleFactor: 1, mobile: false)
+      assert_equal width, page.evaluate_script("window.innerWidth")
+      visit photo_book_order_path(@book, order)
+      assert_text "Shipment 1 · Shipped"
+      assert_text "Example Courier · Tracked service"
+      assert_text "Dispatched"
+      assert_text "Tracking number: #{shipments.first['tracking']['number']}"
+      assert_link "Track shipment", href: shipments.first["tracking"]["url"]
+      assert_text "Shipment 2 · Processing"
+      assert_text "Tracking is not available for this shipment."
+      assert page.evaluate_script("document.documentElement.scrollWidth <= window.innerWidth")
+      assert_axe_clean
+      scroll_to(find(".photobook-shipments"), align: :top)
+      page.save_screenshot(Rails.root.join("tmp/screenshots/prodigi-shipments-#{width}.png"))
+    end
+  end
+
   private
 
   def assert_axe_clean

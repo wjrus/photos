@@ -12,6 +12,21 @@ module PhotoBookOrdersHelper
     value.is_a?(String) && value.present? ? value.titleize : fallback
   end
 
+  def prodigi_tracking_url(value)
+    return unless value.is_a?(String)
+
+    uri = URI.parse(value)
+    value if uri.is_a?(URI::HTTP) && uri.host.present? && uri.userinfo.nil?
+  rescue URI::InvalidURIError
+    nil
+  end
+
+  def prodigi_dispatch_time(value)
+    Time.iso8601(value).in_time_zone if value.is_a?(String)
+  rescue ArgumentError
+    nil
+  end
+
   def prodigi_shipping_description(method)
     case method
     when "Budget"

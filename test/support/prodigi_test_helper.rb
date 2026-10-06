@@ -57,6 +57,13 @@ module ProdigiTestHelper
     { "quotes" => [ express, budget ] }
   end
 
+  def synthetic_shipments
+    [ { "id" => "shp_synthetic_1", "status" => "Shipped", "dispatchDate" => "2026-10-06T14:30:00Z",
+      "carrier" => { "name" => "Example Courier", "service" => "Tracked service" },
+      "tracking" => { "number" => "SYNTHETIC1234567890", "url" => "https://tracking.example.com/shipments/SYNTHETIC1234567890" } },
+      { "id" => "shp_synthetic_2", "status" => "Processing", "tracking" => nil } ]
+  end
+
   def quote_client(product: synthetic_product, quote: synthetic_quote)
     test = self
     calls = []

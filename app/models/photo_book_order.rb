@@ -113,7 +113,7 @@ class PhotoBookOrder < ApplicationRecord
       self.remote_status = data.fetch("status", {}).slice("stage", "details").merge(
         "hasIssues" => data.dig("status", "issues").present?,
         "assets" => remote_artwork_status(data),
-        "shipments" => Array(data["shipments"]).map { |shipment| shipment.slice("id", "status", "tracking") })
+        "shipments" => remote_shipments(data))
       self.remote_updated_at = updated if updated
       self.refreshed_at = Time.current
       self.error = nil
@@ -124,6 +124,17 @@ class PhotoBookOrder < ApplicationRecord
   end
 
   private
+
+  def remote_shipments(data)
+    Array(data["shipments"]).filter_map do |shipment|
+      next unless shipment.is_a?(Hash)
+
+      summary = shipment.slice("id", "status", "dispatchDate")
+      summary["carrier"] = shipment["carrier"].slice("name", "service") if shipment["carrier"].is_a?(Hash)
+      summary["tracking"] = shipment["tracking"].slice("number", "url") if shipment["tracking"].is_a?(Hash)
+      summary
+    end
+  end
 
   def remote_artwork_status(data)
     Array(data["items"]).flat_map do |item|
