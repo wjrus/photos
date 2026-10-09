@@ -10,7 +10,7 @@ dependencies = [
     "open-clip-torch>=3.3.0,<4.0",
     "pillow>=12.3.0,<13.0",
     "torch>=2.14.0,<3.0",
-    "torchvision>=0.29.0,<1.0",
+    "torchvision>=0.29.1,<1.0",
 ]
 
 # The Linux production sidecar runs on CPU. Use matching CPU wheels for both
