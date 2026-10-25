@@ -170,6 +170,21 @@ docker buildx du
 See Docker's [image-prune filters](https://docs.docker.com/reference/cli/docker/image/prune/)
 and [BuildKit garbage-collection policies](https://docs.docker.com/build/cache/garbage-collection/).
 
+### October 2026 Dependency Update
+
+Ruby 3.4.12 is pinned in `.ruby-version`, `Gemfile.lock`, and the production
+Dockerfile. GitHub Actions reads the same local version pin. Install the pinned
+Bundler 4.0.21 and run `bundle install` when switching local Ruby versions.
+Normal `./scripts/deploy` rebuilds both the app and worker with the new Ruby.
+
+The analysis dependency lock includes Pillow 13, updated Pydantic, HTTPX2,
+filelock, setuptools, and certifi. It retains Python 3.13 and matching Linux CPU
+PyTorch/torchvision wheels. The Ruby update includes the crass 1.0.8 security fix,
+Thruster 0.1.27, Selenium 4.51, and axe-core 4.14. Accessible names now retain the
+visible labels on navigation, dismiss, and photo-placement controls.
+
+These dependency changes introduce no additional database migrations.
+
 ### September 2026 Dependency Update
 
 This update uses Ruby 3.4.10, Rails 8.1.4, Bundler 4.0.21, nginx 1.30.5, current compatible

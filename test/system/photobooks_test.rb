@@ -25,6 +25,29 @@ class PhotobooksTest < ApplicationSystemTestCase
     page.driver.browser.manage.window.resize_to(1400, 1400)
   end
 
+  test "photo controls keep their visible labels in their accessible names after placement and removal" do
+    visit photo_book_path(@book, page_id: @book.pages.to_a[1].id)
+    assert_match(/William Rockwood.*wjr photos.*home/i, find(".site-brand").native.accessible_name)
+    select "Photo with caption", from: "Page layout"
+    slot = find(".photobook-slot-button[data-photo-slot='primary']")
+    assert_equal "Place or replace first photo: Drop a photo here", slot.native.accessible_name
+    preview = find("#photobook-preview button[data-photo-slot='primary']")
+    assert_includes preview.native.accessible_name, "Drop a photo here"
+
+    find("button[aria-label='Select Synthetic sunset']").click
+    slot.click
+    assert_selector ".photobook-slot-title", text: "Synthetic sunset"
+    assert_equal "Place or replace first photo: Synthetic sunset", slot.native.accessible_name
+    click_button "Save page"
+    assert_text "Page saved."
+    assert_equal "Close message", find("button[data-action='dismissible#dismiss']").native.accessible_name
+    assert_axe_clean
+
+    click_button "Remove first photo"
+    assert_equal "Place or replace first photo: Drop a photo here", find(".photobook-slot-button[data-photo-slot='primary']").native.accessible_name
+    assert_axe_clean
+  end
+
   test "real drag and drop supports two photos and a facing-page spread" do
     visit photo_book_path(@book, page_id: @book.pages.first.id)
     assert_no_selector "#photobook-tray button[data-photo-id='#{@photo.id}']"
@@ -65,7 +88,7 @@ class PhotobooksTest < ApplicationSystemTestCase
     fill_in "Caption or page text", with: "My own caption."
     check "Show used photos"
     find("button[aria-label='Select Synthetic landscape']").click
-    find("button[aria-label='Place or replace first photo']").click
+    find(".photobook-slot-button[data-photo-slot='primary']").click
     assert_selector "#photobook-preview text", text: "My own caption."
     uncheck "Show used photos"
     assert_selector "#photobook-tray button[data-photo-id='#{@second.id}']"
@@ -77,7 +100,7 @@ class PhotobooksTest < ApplicationSystemTestCase
     # The landscape remains used on page 1; it should not return to the unused tray.
     assert_no_selector "#photobook-tray button[data-photo-id='#{@photo.id}']"
     find("button[aria-label='Select Synthetic sunset']").click
-    find("button[aria-label='Place or replace first photo']").click
+    find(".photobook-slot-button[data-photo-slot='primary']").click
     assert_selector "#photobook-preview image"
     click_button "Remove first photo"
     assert_selector "#photobook-tray button[data-photo-id='#{@second.id}']"
@@ -102,7 +125,7 @@ class PhotobooksTest < ApplicationSystemTestCase
     assert_selector ".photobook-page-link.is-active", text: "Back cover"
     check "Show used photos"
     find("button[aria-label='Select Synthetic landscape']").click
-    find("button[aria-label='Place or replace cover photo']").click
+    find(".photobook-slot-button[data-photo-slot='primary']").click
     fill_in "Back cover text", with: "The end."
     assert_selector "#photobook-preview text", text: "The end."
     click_button "Save cover"
@@ -163,7 +186,7 @@ class PhotobooksTest < ApplicationSystemTestCase
     visit photo_book_path(@book, page_id: @book.pages.first.id)
     select "Two photos side by side", from: "Page layout"
     find("button[aria-label='Select Synthetic sunset']").click
-    find("button[aria-label='Place or replace second photo']").click
+    find(".photobook-slot-button[data-photo-slot='secondary']").click
     assert_selector "#photobook-preview text", text: "At sunset."
     height_with_captions = find("#photobook-preview clipPath rect", match: :first, visible: :all)["height"].to_f
     uncheck "Show photo captions"
@@ -605,7 +628,7 @@ class PhotobooksTest < ApplicationSystemTestCase
     visit photo_book_path(@book, page_id: @book.pages.first.id)
     select "Two photos stacked", from: "Page layout"
     find("button[aria-label='Select Synthetic sunset']").send_keys(:space)
-    find("button[aria-label='Place or replace second photo']").send_keys(:space)
+    find(".photobook-slot-button[data-photo-slot='secondary']").send_keys(:space)
     assert_selector "input[name='photo_book_page[secondary_photo_id]'][value='#{@second.id}']", visible: :all
     fill_in "Second photo caption", with: "A second memory."
     assert_selector "#photobook-preview text", text: "A second memory."
