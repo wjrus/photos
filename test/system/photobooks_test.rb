@@ -34,7 +34,7 @@ class PhotobooksTest < ApplicationSystemTestCase
     preview = find("#photobook-preview button[data-photo-slot='primary']")
     assert_includes preview.native.accessible_name, "Drop a photo here"
 
-    find("button[aria-label='Select Synthetic sunset']").click
+    find("button[data-photo-title='Synthetic sunset']").click
     slot.click
     assert_selector ".photobook-slot-title", text: "Synthetic sunset"
     assert_equal "Place or replace first photo: Synthetic sunset", slot.native.accessible_name
@@ -48,12 +48,36 @@ class PhotobooksTest < ApplicationSystemTestCase
     assert_axe_clean
   end
 
+  test "photo tray remains readable while refresh is pending" do
+    visit photo_book_path(@book, page_id: @book.pages.to_a[1].id)
+    page.execute_script(<<~JS)
+      const originalFetch = window.fetch.bind(window)
+      window.fetch = (url, ...args) => {
+        if (new URL(url, window.location.href).pathname.endsWith('/tray')) {
+          return new Promise(resolve => {
+            window.releaseTrayRefresh = () => resolve(originalFetch(url, ...args))
+          })
+        }
+        return originalFetch(url, ...args)
+      }
+    JS
+    check "Show used photos"
+    assert_selector "#photobook-tray[aria-busy='true']"
+    assert_axe_clean
+
+    page.execute_script("window.releaseTrayRefresh()")
+    assert_no_selector "#photobook-tray[aria-busy='true']"
+    assert_selector "#photobook-tray button[data-photo-title='Synthetic landscape']"
+    assert_equal "Select Synthetic landscape Used in book", find("#photobook-tray button[data-photo-title='Synthetic landscape']").native.accessible_name
+    assert_axe_clean
+  end
+
   test "real drag and drop supports two photos and a facing-page spread" do
     visit photo_book_path(@book, page_id: @book.pages.first.id)
     assert_no_selector "#photobook-tray button[data-photo-id='#{@photo.id}']"
     click_button "Add a second photo"
     assert_select_value "Page layout", "two_horizontal"
-    find("button[aria-label='Select Synthetic sunset']").drag_to(find("#photobook-preview button[data-photo-slot='secondary']"))
+    find("button[data-photo-title='Synthetic sunset']").drag_to(find("#photobook-preview button[data-photo-slot='secondary']"))
     assert_selector "#photobook-preview text", text: "At sunset."
     assert_no_selector "#photobook-tray button[data-photo-id='#{@second.id}']"
     assert_equal "caption", @book.pages.first.reload.layout
@@ -64,7 +88,7 @@ class PhotobooksTest < ApplicationSystemTestCase
     second_page = @book.pages.to_a[1]
     visit photo_book_path(@book, page_id: second_page.id)
     check "Show used photos"
-    find("button[aria-label='Select Synthetic landscape']").drag_to(find("#photobook-preview button[data-photo-slot='primary']"))
+    find("button[data-photo-title='Synthetic landscape']").drag_to(find("#photobook-preview button[data-photo-slot='primary']"))
     assert_select_value "Page layout", "caption"
     select "Photo across two pages", from: "Page layout"
     assert_selector "#photobook-preview svg", count: 1
@@ -81,13 +105,13 @@ class PhotobooksTest < ApplicationSystemTestCase
   test "replacing and removing a placement returns unused photos without removing book membership" do
     blank = @book.pages.to_a[1]
     visit photo_book_path(@book, page_id: blank.id)
-    find("button[aria-label='Select Synthetic sunset']").click
+    find("button[data-photo-title='Synthetic sunset']").click
     find("#photobook-preview button[data-photo-slot='primary']").click
     assert_selector "#photobook-preview text", text: "At sunset."
     assert_no_selector "#photobook-tray button[data-photo-id='#{@second.id}']"
     fill_in "Caption or page text", with: "My own caption."
     check "Show used photos"
-    find("button[aria-label='Select Synthetic landscape']").click
+    find("button[data-photo-title='Synthetic landscape']").click
     find(".photobook-slot-button[data-photo-slot='primary']").click
     assert_selector "#photobook-preview text", text: "My own caption."
     uncheck "Show used photos"
@@ -99,7 +123,7 @@ class PhotobooksTest < ApplicationSystemTestCase
     assert_no_selector "#photobook-preview image"
     # The landscape remains used on page 1; it should not return to the unused tray.
     assert_no_selector "#photobook-tray button[data-photo-id='#{@photo.id}']"
-    find("button[aria-label='Select Synthetic sunset']").click
+    find("button[data-photo-title='Synthetic sunset']").click
     find(".photobook-slot-button[data-photo-slot='primary']").click
     assert_selector "#photobook-preview image"
     click_button "Remove first photo"
@@ -114,7 +138,7 @@ class PhotobooksTest < ApplicationSystemTestCase
   test "cover tray edits preview then save front and back independently" do
     visit photo_book_path(@book)
     assert_selector "#photobook-preview text", text: "Synthetic journeys"
-    find("button[aria-label='Select Synthetic sunset']").drag_to(find("#photobook-preview button[data-photo-slot='primary']"))
+    find("button[data-photo-title='Synthetic sunset']").drag_to(find("#photobook-preview button[data-photo-slot='primary']"))
     fill_in "Cover title", with: "A new cover"
     assert_selector "#photobook-preview text", text: "A new cover"
     assert_nil @book.reload.cover_photo_id
@@ -124,7 +148,7 @@ class PhotobooksTest < ApplicationSystemTestCase
     click_link "Back cover", exact: true
     assert_selector ".photobook-page-link.is-active", text: "Back cover"
     check "Show used photos"
-    find("button[aria-label='Select Synthetic landscape']").click
+    find("button[data-photo-title='Synthetic landscape']").click
     find(".photobook-slot-button[data-photo-slot='primary']").click
     fill_in "Back cover text", with: "The end."
     assert_selector "#photobook-preview text", text: "The end."
@@ -137,7 +161,7 @@ class PhotobooksTest < ApplicationSystemTestCase
 
   test "cover typography overlays the photo and preserves separate front and back styles" do
     visit photo_book_path(@book)
-    find("button[aria-label='Select Synthetic sunset']").drag_to(find("#photobook-preview button[data-photo-slot='primary']"))
+    find("button[data-photo-title='Synthetic sunset']").drag_to(find("#photobook-preview button[data-photo-slot='primary']"))
     select "Full cover photo", from: "Cover photo layout"
     assert_selector "#photobook-preview text[data-font='garamond'][fill='#ffffff']"
     assert_selector "#photobook-preview .photobook-text-shadow"
@@ -185,7 +209,7 @@ class PhotobooksTest < ApplicationSystemTestCase
   test "hiding inside-page captions gives space to the photos and keeps the text" do
     visit photo_book_path(@book, page_id: @book.pages.first.id)
     select "Two photos side by side", from: "Page layout"
-    find("button[aria-label='Select Synthetic sunset']").click
+    find("button[data-photo-title='Synthetic sunset']").click
     find(".photobook-slot-button[data-photo-slot='secondary']").click
     assert_selector "#photobook-preview text", text: "At sunset."
     height_with_captions = find("#photobook-preview clipPath rect", match: :first, visible: :all)["height"].to_f
@@ -435,7 +459,7 @@ class PhotobooksTest < ApplicationSystemTestCase
   test "a delayed tray render cannot make a newly placed photo available again" do
     visit photo_book_path(@book, page_id: @book.pages.to_a[1].id)
     stale_tray = page.evaluate_async_script("const done = arguments[arguments.length - 1]; fetch(arguments[0], { headers: { Accept: 'text/vnd.turbo-stream.html' } }).then(response => response.text()).then(done)", tray_photo_book_path(@book))
-    find("button[aria-label='Select Synthetic sunset']").click
+    find("button[data-photo-title='Synthetic sunset']").click
     find("#photobook-preview button[data-photo-slot='primary']").click
     within "#photobook-tray" do
       assert_text "0 unused photos"
@@ -627,7 +651,7 @@ class PhotobooksTest < ApplicationSystemTestCase
     page.driver.browser.execute_cdp("Emulation.setDeviceMetricsOverride", width: 390, height: 844, deviceScaleFactor: 1, mobile: false)
     visit photo_book_path(@book, page_id: @book.pages.first.id)
     select "Two photos stacked", from: "Page layout"
-    find("button[aria-label='Select Synthetic sunset']").send_keys(:space)
+    find("button[data-photo-title='Synthetic sunset']").send_keys(:space)
     find(".photobook-slot-button[data-photo-slot='secondary']").send_keys(:space)
     assert_selector "input[name='photo_book_page[secondary_photo_id]'][value='#{@second.id}']", visible: :all
     fill_in "Second photo caption", with: "A second memory."

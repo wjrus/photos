@@ -166,7 +166,7 @@
 .photobook-shipping-option .photobook-note { margin: 0; }
 .photobook-tray-pagination { margin: 16px 0 0; }
 .photobook-tray-pagination .photobook-button { padding: 8px; font-size: .75rem; }
-.photobook-tray [aria-busy="true"] { opacity: .65; }
+.photobook-tray [aria-busy="true"] { cursor: progress; }
 @media (max-width: 1200px) {
   .photobook-design-shell .photobook-workspace { grid-template-columns: minmax(0, 1fr); }
 }

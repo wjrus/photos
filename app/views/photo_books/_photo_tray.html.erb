@@ -10,7 +10,7 @@
   <div class="photobook-tray-grid">
     <% @tray_photos.each do |photo| %>
       <div class="photobook-tray-item">
-        <button type="button" draggable="true" class="photobook-tray-photo" data-photobook-designer-target="trayPhoto" data-action="click->photobook-designer#selectPhoto dragstart->photobook-designer#dragStart dragend->photobook-designer#dragEnd" data-photo-id="<%= photo.id %>" data-photo-title="<%= photo.title %>" data-image-url="<%= stream_photo_path(photo) %>" data-caption="<%= photo.description.to_s.first(2000) %>" aria-label="Select <%= photo.title %>" aria-pressed="false">
+        <button type="button" draggable="true" class="photobook-tray-photo" data-photobook-designer-target="trayPhoto" data-action="click->photobook-designer#selectPhoto dragstart->photobook-designer#dragStart dragend->photobook-designer#dragEnd" data-photo-id="<%= photo.id %>" data-photo-title="<%= photo.title %>" data-image-url="<%= stream_photo_path(photo) %>" data-caption="<%= photo.description.to_s.first(2000) %>" aria-label="Select <%= photo.title %><%= " Used in book" if @tray_used_ids.include?(photo.id) %>" aria-pressed="false">
           <%= image_tag stream_photo_path(photo), alt: "", loading: "lazy", decoding: "async", draggable: false %><span><%= photo.title %></span>
           <% if @tray_used_ids.include?(photo.id) %><span class="photobook-tray-used">Used in book</span><% end %>
         </button>
