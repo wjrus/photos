@@ -96,6 +96,30 @@ class PhotoLocationTest < ActiveSupport::TestCase
     assert_equal place_ids.map { |id| PhotoLocation.id_for_place(id) }.sort, groups.map(&:id).sort
   end
 
+  test "name sorting paginates distinct identities case insensitively before unmatched areas" do
+    now = Time.current
+    places = %w[Zulu alpha Alpha Bravo].map do |name|
+      PhotoPlace.create!(identity_key: "sort:#{name}", name: name)
+    end
+    assignments = [ places[0], places[0], places[0], places[1], places[2], places[3], places[3], nil, nil ]
+    ids = Photo.insert_all!(assignments.map do
+      { owner_id: users(:one).id, title: "Sortable photo", created_at: now, updated_at: now }
+    end).rows.flatten
+    PhotoMetadata.insert_all!(ids.zip(assignments).each_with_index.map do |(photo_id, place), index|
+      { photo_id: photo_id, photo_place_id: place&.id, latitude: index, longitude: -80, created_at: now, updated_at: now }
+    end)
+    scope = Photo.where(id: ids).joins(:metadata)
+    expected = places.values_at(1, 2).map { |place| PhotoLocation.id_for_place(place) }.sort +
+      places.values_at(3, 0).map { |place| PhotoLocation.id_for_place(place) } +
+      [ 7, 8 ].map { |latitude| PhotoLocation.id_for_area(PhotoLocation.id_for_coordinates(latitude, -80)) }
+
+    assert_equal expected, PhotoLocation.groups(scope, sort: "name").map(&:id)
+    pages = [ 0, 2, 4 ].flat_map { |offset| PhotoLocation.groups(scope, sort: "name", limit: 2, offset: offset).map(&:id) }
+    assert_equal expected, pages
+    assert_equal PhotoLocation.id_for_place(places.first), PhotoLocation.groups(scope).first.id
+    assert_equal PhotoLocation.groups(scope).map(&:id), PhotoLocation.groups(scope, sort: "name; DROP TABLE photos").map(&:id)
+  end
+
   private
 
   def expected_buckets

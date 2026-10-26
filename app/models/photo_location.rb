@@ -42,12 +42,23 @@ class PhotoLocation
     scope.except(:order, :includes, :preload, :eager_load).distinct.count(Arel.sql(location_id_sql))
   end
 
-  def self.groups(scope, limit: nil, offset: 0)
-    rows = scope.except(:order, :includes, :preload, :eager_load)
+  def self.groups(scope, limit: nil, offset: 0, sort: "count")
+    grouped = scope.except(:order, :includes, :preload, :eager_load)
       .select("#{location_id_sql} AS location_id, #{SELECT_SQL}")
       .group(Arel.sql(location_id_sql))
-      .order(Arel.sql("photo_count DESC, newest_at DESC, location_id ASC"))
-      .limit(limit).offset(offset).to_a
+    grouped = if sort == "name"
+      # Keep identities separate even when names match. Unmatched areas follow
+      # named places, ordered by their coordinates instead of a missing name.
+      grouped.left_outer_joins(metadata: :photo_place).order(Arel.sql(<<~SQL.squish))
+        LOWER(MAX(photo_places.name)) ASC NULLS LAST,
+        CASE WHEN MAX(photo_places.name) IS NULL THEN AVG(photo_metadata.latitude) END ASC,
+        CASE WHEN MAX(photo_places.name) IS NULL THEN AVG(photo_metadata.longitude) END ASC,
+        location_id ASC
+      SQL
+    else
+      grouped.order(Arel.sql("photo_count DESC, newest_at DESC, location_id ASC"))
+    end
+    rows = grouped.limit(limit).offset(offset).to_a
     places = PhotoPlace.where(id: rows.filter_map { |row| place_record_id(row.location_id) }).index_by(&:id)
 
     rows.map do |row|
@@ -84,7 +95,7 @@ class PhotoLocation
     scope_for(scope, place_id_for_name(name))
   end
 
-  def self.legacy_groups(scope, id)
+  def self.legacy_groups(scope, id, sort: "count")
     name = place_name_from_id(id)
     return [] if name.blank?
 
@@ -92,7 +103,7 @@ class PhotoLocation
     # places instead of silently unioning distant namesakes or old shared cells.
     legacy_cells = PhotoLocationPlace.where(name: name).pluck(:location_id)
     assigned = scope.where(photo_metadata: { photo_place_id: PhotoPlace.where(name: name).select(:id) })
-    groups(assigned.or(scope_for_ids(scope, legacy_cells)))
+    groups(assigned.or(scope_for_ids(scope, legacy_cells)), sort: sort)
   end
 
   def self.scope_for_ids(scope, ids)

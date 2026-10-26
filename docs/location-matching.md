@@ -53,6 +53,11 @@ separate.
 
 ## URLs and existing data
 
+The Locations index defaults to photo count, largest first. Its Name switch
+orders named places alphabetically, followed by unmatched coordinate areas.
+The selected order stays in the URL and is retained when loading more cards.
+Namesakes remain separate places in either order.
+
 - `place-id-<id>` identifies one assigned place, independent of its name.
 - `area-<latitude_bucket>_<longitude_bucket>` contains only unmatched photos in
   that cell. Matching a photo moves it out of this temporary group.

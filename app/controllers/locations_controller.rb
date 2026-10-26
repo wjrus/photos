@@ -4,6 +4,7 @@ class LocationsController < ApplicationController
   LOCATION_PAGE_SIZE = 12
 
   before_action :require_privileged_metadata_viewer!
+  before_action :set_location_sort, only: %i[index show]
   before_action :set_location, only: :show
 
   def index
@@ -48,14 +49,14 @@ class LocationsController < ApplicationController
   private
 
   def cached_location_rows(offset:)
-    cache_owner_aggregate([ location_index_cache_key, offset ], expires_in: 12.hours, race_condition_ttl: 2.minutes) do
-      PhotoLocation.groups(geotagged_photos, limit: LOCATION_PAGE_SIZE, offset: offset)
+    cache_owner_aggregate([ location_index_cache_key, @location_sort, offset ], expires_in: 12.hours, race_condition_ttl: 2.minutes) do
+      PhotoLocation.groups(geotagged_photos, limit: LOCATION_PAGE_SIZE, offset: offset, sort: @location_sort)
     end
   end
 
   def location_index_cache_key
     [
-      "locations-index/v4",
+      "locations-index/v5",
       cache_audience_key,
       Photo.maximum(:updated_at)&.utc&.to_i,
       PhotoMetadata.maximum(:updated_at)&.utc&.iso8601(6),
@@ -127,7 +128,7 @@ class LocationsController < ApplicationController
     raise ActiveRecord::RecordNotFound unless PhotoLocation.valid_id?(@location_id)
     return unless PhotoLocation.legacy_place_id?(@location_id)
 
-    candidates = PhotoLocation.legacy_groups(geotagged_photos, @location_id)
+    candidates = PhotoLocation.legacy_groups(geotagged_photos, @location_id, sort: @location_sort)
     raise ActiveRecord::RecordNotFound if candidates.empty?
     return redirect_to location_path(candidates.first.id) if candidates.one?
 
@@ -136,6 +137,10 @@ class LocationsController < ApplicationController
     @location_count = candidates.size
     @location_covers = location_covers(candidates)
     render :index
+  end
+
+  def set_location_sort
+    @location_sort = params[:sort].presence_in(%w[name count]) || "count"
   end
 
   def set_location_summary

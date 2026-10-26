@@ -50,12 +50,15 @@ class PhotoPlaceLocationsTest < ActionDispatch::IntegrationTest
     second = geotagged_photo("East park", 41, -81)
     places = [ first, second ].map { |photo| assign_photo_place(photo, name: "Riverside Park") }
 
-    get location_path(PhotoLocation.place_id_for_name("Riverside Park"))
+    legacy_id = PhotoLocation.place_id_for_name("Riverside Park")
+    get location_path(legacy_id, sort: "name")
 
     assert_response :success
     assert_select "h1", text: "Choose a location"
     assert_select "article", count: 2
     assert_select "[data-photo-id]", count: 0
+    assert_select "nav[aria-label='Sort locations'] a[href='#{location_path(legacy_id, sort: 'count')}']", text: "Photo count"
+    assert_select "nav[aria-label='Sort locations'] a[aria-current='true']", text: "Name"
     places.each { |place| assert_select "a[href='#{location_path(PhotoLocation.id_for_place(place))}']" }
 
     first.publish!
@@ -161,20 +164,22 @@ class PhotoPlaceLocationsTest < ActionDispatch::IntegrationTest
       { photo_id: photo_id, photo_place_id: place_id, latitude: 40, longitude: -80, created_at: now, updated_at: now }
     end)
 
-    instantiated = 0
-    subscriber = ->(event) { instantiated += event.payload[:record_count] if event.payload[:class_name] == "PhotoPlace" }
-    ActiveSupport::Notifications.subscribed(subscriber, "instantiation.active_record") do
-      get locations_path
-    end
-    assert_response :success
-    assert_includes response.body, "501 photo locations"
-    assert_select "article", count: 12
-    assert_equal 12, instantiated
+    %w[count name].each do |sort|
+      instantiated = 0
+      subscriber = ->(event) { instantiated += event.payload[:record_count] if event.payload[:class_name] == "PhotoPlace" }
+      ActiveSupport::Notifications.subscribed(subscriber, "instantiation.active_record") do
+        get locations_path(sort: sort)
+      end
+      assert_response :success
+      assert_includes response.body, "501 photo locations"
+      assert_select "article", count: 12
+      assert_equal 12, instantiated
 
-    get locations_path(page: 42)
-    assert_response :success
-    assert_select "article", count: 9
-    assert_select "[data-infinite-scroll-target='sentinel']", count: 0
+      get locations_path(page: 42, sort: sort)
+      assert_response :success
+      assert_select "article", count: 9
+      assert_select "[data-infinite-scroll-target='sentinel']", count: 0
+    end
   end
 
   private

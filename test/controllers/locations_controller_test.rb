@@ -120,13 +120,63 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "13 photo locations"
     assert_select "article", count: 12
     assert_select "[data-controller='infinite-scroll']"
-    assert_select "[data-infinite-scroll-target='sentinel'][data-next-url='#{locations_path(page: 2)}']"
+    assert_select "[data-infinite-scroll-target='sentinel'][data-next-url='#{locations_path(page: 2, sort: 'count')}']"
 
     get locations_path(page: 2)
 
     assert_response :success
     assert_select "main", false
     assert_select "article", count: 1
+    assert_select "[data-infinite-scroll-target='sentinel']", false
+  end
+
+  test "location sorting switches cached name and photo count order with a safe default" do
+    original_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    alpha = attached_photo(title: "Alpha photo")
+    zulu = attached_photo(title: "Zulu photo")
+    extra = attached_photo(title: "Another Zulu photo")
+    [ alpha, zulu, extra ].each { |photo| geotag(photo, latitude: 40, longitude: -80) }
+    assign_photo_place(alpha, name: "Alpha")
+    place = assign_photo_place(zulu, name: "Zulu")
+    assign_photo_place(extra, place: place)
+
+    get locations_path
+    assert_response :success
+    assert_equal %w[Zulu Alpha], css_select("article h2").map(&:text)
+    assert_select "nav[aria-label='Sort locations'] a[aria-current='true']", text: "Photo count"
+
+    get locations_path(sort: "name")
+    assert_response :success
+    assert_equal %w[Alpha Zulu], css_select("article h2").map(&:text)
+    assert_select "nav[aria-label='Sort locations'] a[aria-current='true']", text: "Name"
+    assert_select "nav[aria-label='Sort locations'] a[href='#{locations_path(sort: 'count')}']", text: "Photo count"
+
+    get locations_path(sort: "not-a-sort")
+    assert_response :success
+    assert_equal %w[Zulu Alpha], css_select("article h2").map(&:text)
+    assert_select "nav[aria-label='Sort locations'] a[aria-current='true']", text: "Photo count"
+  ensure
+    Rails.cache = original_cache
+  end
+
+  test "name sorting continues across location pages and switch links reset paging" do
+    13.times do |index|
+      photo = attached_photo(title: "Location #{index}")
+      geotag(photo, latitude: 40, longitude: -80)
+      assign_photo_place(photo, name: format("Place %02d", 12 - index))
+    end
+
+    get locations_path(sort: "name")
+    assert_response :success
+    assert_equal 12.times.map { |index| format("Place %02d", index) }, css_select("article h2").map(&:text)
+    assert_select "[data-infinite-scroll-target='sentinel'][data-next-url='#{locations_path(page: 2, sort: 'name')}']"
+    assert_select "nav[aria-label='Sort locations'] a[href='#{locations_path(sort: 'count')}']"
+
+    get locations_path(page: 2, sort: "name")
+    assert_response :success
+    assert_equal [ "Place 12" ], css_select("article h2").map(&:text)
+    assert_select "main", false
     assert_select "[data-infinite-scroll-target='sentinel']", false
   end
 
@@ -342,10 +392,12 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     delete sign_out_path
     sign_in_as(users(:two))
 
-    get locations_path
+    %w[count name].each do |sort|
+      get locations_path(sort: sort)
 
-    assert_response :success
-    assert_includes response.body, "1 photo location"
+      assert_response :success
+      assert_includes response.body, "1 photo location"
+    end
 
     get location_path(location_id_for(shared_photo))
 

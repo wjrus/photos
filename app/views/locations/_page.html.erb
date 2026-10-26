@@ -26,7 +26,7 @@
 <% if @next_location_page.present? %>
   <div class="py-6 text-center text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500"
        data-infinite-scroll-target="sentinel"
-       data-next-url="<%= locations_path(page: @next_location_page) %>">
+       data-next-url="<%= locations_path(page: @next_location_page, sort: @location_sort) %>">
     Loading more locations...
   </div>
 <% end %>
