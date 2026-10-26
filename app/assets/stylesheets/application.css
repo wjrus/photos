@@ -177,6 +177,8 @@ html.theme-applying *::after {
 
 .theme-picker__select {
   width: 100%;
+  min-inline-size: 0;
+  min-block-size: 2.75rem;
   border: 1px solid var(--theme-border);
   border-radius: 0.375rem;
   background: var(--theme-panel-strong);
@@ -185,6 +187,83 @@ html.theme-applying *::after {
   font-size: 0.875rem;
   font-weight: 600;
   padding: 0.45rem 0.55rem;
+}
+
+.theme-picker--header {
+  display: none;
+  padding: 0;
+}
+
+.site-header__inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 1rem;
+  row-gap: 0.75rem;
+}
+
+.site-header__account {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.site-header__actions {
+  display: none;
+  position: relative;
+  grid-column: 1 / -1;
+  grid-row: 2;
+  min-inline-size: 0;
+}
+
+.site-header__actions:has([data-bulk-selection-target="bar"]:not(.hidden)) {
+  display: block;
+}
+
+.site-header__actions [data-bulk-selection-target="bar"],
+.site-header__actions [data-bulk-selection-target="bar"] > div {
+  flex-wrap: wrap;
+}
+
+.site-header__actions [data-controller="menu"] {
+  position: static;
+}
+
+@media (max-width: 1023px) {
+  .site-header__actions .ui-tooltip {
+    position: static;
+  }
+
+  .site-header__actions .ui-tooltip:hover::after,
+  .site-header__actions .ui-tooltip:focus-visible::after {
+    inset-inline: 0 auto;
+    max-inline-size: min(14rem, 100%);
+  }
+
+  .site-header__actions:has(details[open]) .ui-tooltip::after {
+    display: none;
+  }
+}
+
+@media (min-width: 640px) {
+  .theme-picker--header {
+    display: block;
+    min-inline-size: 7.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .site-header__inner {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .site-header__actions {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .site-header__account {
+    grid-column: 3;
+  }
 }
 
 .site-header {
@@ -206,11 +285,18 @@ html.theme-applying *::after {
   color: var(--theme-accent-ink);
 }
 
+.site-chrome-button .text-white {
+  -webkit-text-fill-color: currentColor;
+}
+
 .site-brand:hover {
   background-color: var(--theme-panel);
 }
 
 .site-menu-panel {
+  max-block-size: calc(100dvh - 6rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background-color: var(--theme-panel);
   border-color: var(--theme-border);
   color: var(--theme-text);
