@@ -103,6 +103,36 @@ class PhotoLocationAreaTest < ActiveSupport::TestCase
     refute PhotoLocation.valid_id?("nearby-9999_9999")
   end
 
+  test "geography sorts country then US state then city while omitting international state levels" do
+    make_photo(41.5, -81.7, "Cleveland Ohio", type: "premise", raw: town("Cleveland", state: "Ohio"))
+    make_photo(42.7, -84.5, "Cleveland Michigan", type: "premise", raw: town("Cleveland", state: "Michigan"))
+    make_photo(42.3, -83.1, "Detroit", type: "premise", raw: town("Detroit", state: "Michigan"))
+    make_photo(33.4, -112.1, "Phoenix", type: "premise", raw: town("Phoenix", state: "Arizona"))
+    make_photo(64.3, -20.1, "Gullfoss", type: "nearby_landmark", raw: town(nil, state: "Southern Region", country: "Iceland"))
+    make_photo(51.5, -0.1, "London", type: "premise", raw: town("London", state: "England", country: "United Kingdom", county: "Greater London"))
+    make_photo(0, 0, "Unmatched")
+    before = scope.pluck("photos.id", "photo_metadata.photo_place_id", "photo_metadata.latitude", "photo_metadata.longitude")
+
+    areas = PhotoLocationArea.groups(scope, sort: "geography")
+    assert_equal [ "Gullfoss", "London", "Phoenix", "Cleveland", "Detroit", "Cleveland" ], areas.first(6).map(&:title)
+    assert_equal [ "Iceland", "United Kingdom", "United States", "United States", "United States", "United States", nil ], areas.map(&:country_name)
+    assert_equal [ nil, nil, "Arizona", "Michigan", "Michigan", "Ohio", nil ], areas.map(&:state_name)
+    assert_equal "United States · Ohio", areas[-2].geographic_context
+    assert_equal "Iceland", areas.first.geographic_context
+    assert_equal areas.drop(2).take(2).map(&:id), PhotoLocationArea.groups(scope, sort: "geography", limit: 2, offset: 2).map(&:id)
+    assert_equal before, scope.pluck("photos.id", "photo_metadata.photo_place_id", "photo_metadata.latitude", "photo_metadata.longitude")
+  end
+
+  test "conflicting or missing country context never borrows a state from one photo" do
+    make_photo(40.01, -80.01, "2WX4+58 Border", raw: town(nil, state: "Ohio"))
+    make_photo(40.02, -80.02, "2WX4+59 Border", raw: town(nil, country: "Canada", state: "Ontario"))
+    make_photo(43, -83, "Unknown", raw: { address_components: [ { long_name: "Ohio", types: [ "administrative_area_level_1" ] } ] })
+
+    areas = PhotoLocationArea.groups(scope, sort: "geography")
+    assert_equal 2, areas.size
+    assert areas.all? { |area| area.country_name.nil? && area.state_name.nil? }
+  end
+
   private
 
   def scope
@@ -119,12 +149,12 @@ class PhotoLocationAreaTest < ActiveSupport::TestCase
     photo
   end
 
-  def town(name, county: "Manitowoc County")
+  def town(name, county: "Manitowoc County", state: "Wisconsin", country: "United States")
     { address_components: [
       { long_name: name, types: [ "locality" ] },
       { long_name: county, types: [ "administrative_area_level_2" ] },
-      { long_name: "Wisconsin", types: [ "administrative_area_level_1" ] },
-      { long_name: "United States", types: [ "country" ] }
+      { long_name: state, types: [ "administrative_area_level_1" ] },
+      { long_name: country, types: [ "country" ] }
     ] }
   end
 end

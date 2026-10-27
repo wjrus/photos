@@ -53,7 +53,7 @@ class PhotoLocationAreasTest < ActionDispatch::IntegrationTest
 
     get locations_path
     assert_select "article", count: 1
-    assert_select "article h2", text: "Grand Canyon Village"
+    assert_select "[data-location-title]", text: "Grand Canyon Village"
     get location_path(area.id)
     assert_select "[data-photo-id]", count: 3
     get map_markers_path(location_id: area.id, zoom: 18)
@@ -105,10 +105,66 @@ class PhotoLocationAreasTest < ActionDispatch::IntegrationTest
     assert_select "article", count: 2
   end
 
+  test "the default overview groups countries and US states and keeps context on other sort orders" do
+    ohio = geographic_photo("Cleveland", 41.5, -81.7, country: "United States", state: "Ohio", town: "Cleveland")
+    geographic_photo("Cleveland", 42.7, -84.5, country: "United States", state: "Michigan", town: "Cleveland")
+    geographic_photo("Gullfoss", 64.3, -20.1, country: "Iceland", state: "Southern Region")
+
+    get locations_path
+    assert_response :success
+    assert_select "nav[aria-label='Sort locations'] a[aria-current='true']", text: "Geography"
+    assert_equal [ "Iceland", "United States" ], css_select("[data-location-country-group]").map { |section| section["data-location-country-group"] }
+    assert_equal [ "Michigan", "Ohio" ], css_select("[data-location-country-group='United States'] [data-location-state-group]").map { |section| section["data-location-state-group"] }
+    assert_select "[data-location-country-group='Iceland'] h3", text: "Gullfoss"
+    assert_select "[data-location-country-group='Iceland']", text: /Southern Region/, count: 0
+    assert_select "[data-location-state-group='Ohio'] article [data-location-context]", text: "United States · Ohio"
+
+    get locations_path(sort: "count")
+    assert_select "[data-location-country-group]", count: 0
+    assert_select "article [data-location-context]", text: "United States · Ohio"
+    get location_path(PhotoLocation.id_for_place(ohio.metadata.photo_place_id))
+    assert_select "[data-photo-id='#{ohio.id}']"
+  end
+
+  test "location cards show one date for a single day and both dates for a range" do
+    single = photo("One day", 40, -80)
+    start = photo("Multi day", 42, -82)
+    finish = photo("Multi day end", 42, -82)
+    finish.metadata.update!(photo_place: start.metadata.photo_place)
+    single.update!(captured_at: Time.zone.local(2022, 8, 17, 12))
+    start.update!(captured_at: Time.zone.local(2022, 8, 17, 12))
+    finish.update!(captured_at: Time.zone.local(2022, 8, 18, 12))
+
+    get locations_path
+    assert_response :success
+    single_area = PhotoLocationArea.groups(visible_scope.where(id: single.id)).sole
+    multi_area = PhotoLocationArea.groups(visible_scope.where(id: start.id)).sole
+    assert_select "a[href='#{location_path(single_area.id)}'] [data-location-dates]" do |dates|
+      refute_includes dates.sole.text, " - "
+      assert_equal 1, dates.sole.text.scan("2022").size
+    end
+    assert_select "a[href='#{location_path(multi_area.id)}'] [data-location-dates]" do |dates|
+      assert_includes dates.sole.text, " - "
+      assert_equal 2, dates.sole.text.scan("2022").size
+    end
+  end
+
   private
 
   def visible_scope
     Photo.where(id: @photos.map(&:id)).joins(:metadata)
+  end
+
+  def geographic_photo(name, latitude, longitude, country:, state:, town: nil)
+    photo(name, latitude, longitude).tap do |photo|
+      components = [
+        { long_name: country, types: [ "country" ] },
+        { long_name: state, types: [ "administrative_area_level_1" ] },
+        { long_name: "County", types: [ "administrative_area_level_2" ] }
+      ]
+      components << { long_name: town, types: [ "locality" ] } if town
+      photo.metadata.photo_place.update!(raw: { address_components: components }, place_type: "premise")
+    end
   end
 
   def photo(name, latitude, longitude, town: nil)

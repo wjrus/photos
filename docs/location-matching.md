@@ -76,10 +76,20 @@ Opening an overview area shows all its authorized photos. Its Map link filters
 to those photos and retains their original GPS points and normal zoom-dependent
 marker groups. Overview grouping never changes the underlying assignments.
 
-The index defaults to photo count, largest first. Its Name switch
-orders named areas alphabetically, followed by unmatched coordinate areas.
+The index defaults to **Geography**: country alphabetically, then U.S. state,
+then city/region/area. Country and state sections stay together as more pages
+load. Other countries omit the state level. This is a browsing hierarchy;
+country/state headers do not combine or reassign the underlying areas/photos.
+Country and state context comes from the saved provider address components,
+so enabling this view does not require new API requests. An ambiguous or missing
+country goes under Other locations instead of borrowing one from a neighbor.
+
+The **Name** switch orders named areas alphabetically, followed by unmatched
+coordinate areas. **Photo count** keeps the largest galleries first. Cards show
+country and U.S. state context in every order, even when their area label is just
+Cleveland. A one-day gallery displays its date once; multi-day galleries keep a range.
 The selected order stays in the URL and is retained when loading more cards.
-Namesakes remain separate places in either order.
+Namesakes remain separate places in every order.
 
 - `place-id-<id>` identifies one assigned place, independent of its name.
 - `region-<hash>` identifies a qualified town/metro overview gallery.

@@ -2,6 +2,11 @@ class PhotoLocationGroup
   include ActiveModel::Model
 
   attr_accessor :id, :title, :photo_count, :image_count, :video_count, :newest_at, :oldest_at, :representative_photo_id, :location_ids, :bounds, :latitude, :longitude, :place_type
+  attr_accessor :country_name, :state_name
+
+  def geographic_context
+    [ country_name, state_name ].compact_blank.join(" · ")
+  end
 
   def initialize(...)
     super

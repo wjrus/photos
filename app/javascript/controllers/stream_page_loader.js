@@ -85,9 +85,35 @@ function insertStreamPage(sentinel, html, direction) {
     sentinel.after(fragment)
     mergeAdjacentDayGroup(sentinel.nextElementSibling, "prepend")
   } else {
+    const firstInserted = fragment.firstElementChild
     sentinel.before(fragment)
     mergeAdjacentDayGroup(sentinel.previousElementSibling, "append")
+    mergeAdjacentLocationGroups(firstInserted)
   }
+}
+
+function mergeAdjacentLocationGroups(insertedCountry) {
+  if (!insertedCountry?.hasAttribute("data-location-country-group")) return
+  const previousCountry = insertedCountry.previousElementSibling
+  if (!previousCountry?.hasAttribute("data-location-country-group") ||
+      previousCountry.dataset.locationCountryGroup !== insertedCountry.dataset.locationCountryGroup) return
+
+  const target = previousCountry.querySelector("[data-location-country-body]")
+  const source = insertedCountry.querySelector("[data-location-country-body]")
+  const targetState = target?.lastElementChild
+  const sourceState = source?.firstElementChild
+  if (!target || !source) return
+
+  if (targetState && sourceState && targetState.dataset.locationStateGroup === sourceState.dataset.locationStateGroup) {
+    const targetGrid = targetState.querySelector("[data-location-card-grid]")
+    const sourceGrid = sourceState.querySelector("[data-location-card-grid]")
+    if (targetGrid && sourceGrid) {
+      targetGrid.append(...sourceGrid.children)
+      sourceState.remove()
+    }
+  }
+  target.append(...source.children)
+  insertedCountry.remove()
 }
 
 function mergeAdjacentDayGroup(insertedEdge, direction) {

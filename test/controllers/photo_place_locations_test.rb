@@ -164,7 +164,7 @@ class PhotoPlaceLocationsTest < ActionDispatch::IntegrationTest
       { photo_id: photo_id, photo_place_id: place_id, latitude: 40, longitude: -80, created_at: now, updated_at: now }
     end)
 
-    %w[count name].each do |sort|
+    %w[geography count name].each do |sort|
       instantiated = 0
       subscriber = ->(event) { instantiated += event.payload[:record_count] if event.payload[:class_name] == "PhotoPlace" }
       ActiveSupport::Notifications.subscribed(subscriber, "instantiation.active_record") do

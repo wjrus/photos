@@ -120,7 +120,7 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "13 photo locations"
     assert_select "article", count: 12
     assert_select "[data-controller='infinite-scroll']"
-    assert_select "[data-infinite-scroll-target='sentinel'][data-next-url='#{locations_path(page: 2, sort: 'count')}']"
+    assert_select "[data-infinite-scroll-target='sentinel'][data-next-url='#{locations_path(page: 2, sort: 'geography')}']"
 
     get locations_path(page: 2)
 
@@ -143,7 +143,12 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
 
     get locations_path
     assert_response :success
-    assert_equal %w[Zulu Alpha], css_select("article h2").map(&:text)
+    assert_equal %w[Alpha Zulu], css_select("[data-location-title]").map(&:text)
+    assert_select "nav[aria-label='Sort locations'] a[aria-current='true']", text: "Geography"
+
+    get locations_path(sort: "count")
+    assert_response :success
+    assert_equal %w[Zulu Alpha], css_select("[data-location-title]").map(&:text)
     assert_select "nav[aria-label='Sort locations'] a[aria-current='true']", text: "Photo count"
 
     get locations_path(sort: "name")
@@ -154,8 +159,8 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
 
     get locations_path(sort: "not-a-sort")
     assert_response :success
-    assert_equal %w[Zulu Alpha], css_select("article h2").map(&:text)
-    assert_select "nav[aria-label='Sort locations'] a[aria-current='true']", text: "Photo count"
+    assert_equal %w[Alpha Zulu], css_select("[data-location-title]").map(&:text)
+    assert_select "nav[aria-label='Sort locations'] a[aria-current='true']", text: "Geography"
   ensure
     Rails.cache = original_cache
   end

@@ -78,6 +78,15 @@ class PhotoLocationArea
       THEN CASE WHEN COUNT(DISTINCT (#{HINT_SQL})) = 1 THEN MAX((#{HINT_SQL})) END
       ELSE MAX(location_area_places.name) END
   SQL
+  COUNTRY_NAME_SQL = <<~SQL.squish.freeze
+    CASE WHEN COUNT(DISTINCT LOWER(NULLIF(location_area_components.country, ''))) = 1
+      THEN MAX(NULLIF(location_area_components.country, '')) END
+  SQL
+  STATE_NAME_SQL = <<~SQL.squish.freeze
+    CASE WHEN LOWER((#{COUNTRY_NAME_SQL})) IN ('united states', 'united states of america')
+      AND COUNT(DISTINCT LOWER(NULLIF(location_area_components.region, ''))) = 1
+      THEN MAX(NULLIF(location_area_components.region, '')) END
+  SQL
 
   def self.grouped_id?(id)
     id.to_s.match?(/\Aregion-[a-f0-9]{64}\z/) || nearby_buckets(id).present?
@@ -97,13 +106,21 @@ class PhotoLocationArea
 
   def self.groups(scope, limit: nil, offset: 0, sort: "count")
     rows = joined(scope.except(:order, :includes, :preload, :eager_load))
-      .select("#{ID_SQL} AS location_id, #{TITLE_SQL} AS area_name, MIN(location_area_places.place_type) AS place_type, #{PhotoLocation::SELECT_SQL}")
+      .select("#{ID_SQL} AS location_id, #{TITLE_SQL} AS area_name, #{COUNTRY_NAME_SQL} AS country_name, #{STATE_NAME_SQL} AS state_name, MIN(location_area_places.place_type) AS place_type, #{PhotoLocation::SELECT_SQL}")
       .group(Arel.sql(ID_SQL))
-    ordering = sort == "name" ? "LOWER(#{TITLE_SQL}) ASC NULLS LAST, latitude ASC, longitude ASC, location_id ASC" : "photo_count DESC, newest_at DESC, location_id ASC"
+    ordering = case sort
+    when "geography"
+      "LOWER((#{COUNTRY_NAME_SQL})) ASC NULLS LAST, LOWER((#{STATE_NAME_SQL})) ASC NULLS LAST, LOWER(#{TITLE_SQL}) ASC NULLS LAST, location_id ASC"
+    when "name"
+      "LOWER(#{TITLE_SQL}) ASC NULLS LAST, latitude ASC, longitude ASC, location_id ASC"
+    else
+      "photo_count DESC, newest_at DESC, location_id ASC"
+    end
     rows.order(Arel.sql(ordering)).limit(limit).offset(offset).map do |row|
       nearby = row.location_id.start_with?("nearby-")
       PhotoLocationGroup.new(
         id: row.location_id, title: row.area_name.presence || "Nearby #{PhotoLocation.title_for(row.latitude, row.longitude)}",
+        country_name: row.country_name, state_name: row.state_name,
         photo_count: row.photo_count.to_i, image_count: row.image_count.to_i, video_count: row.video_count.to_i,
         latitude: row.latitude, longitude: row.longitude,
         place_type: nearby ? "nearby_area" : row.location_id.start_with?("region-") ? "town_or_area" : row.place_type,

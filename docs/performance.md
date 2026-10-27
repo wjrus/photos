@@ -115,6 +115,11 @@ viewer-scoped photos before the existing coordinate clustering. Successful API
 responses live in `location_geocoding_responses` without expiry, independently of
 evictable overview and map presentation caches.
 
+Geographic ordering aggregates saved country and U.S. state components and sorts
+country/state/area in the same paginated SQL query. Only the current page is
+grouped for presentation. Infinite scrolling merges adjacent country/state
+sections and their card grids, retaining one heading as a group crosses pages.
+
 A local synthetic check with 10,000 photos across 100 towns, deriving town keys
 from saved raw components, measured 122 ms for the area count, 217 ms for a
 12-row first page, and 134 ms for one area filter/count. These are isolated SQL

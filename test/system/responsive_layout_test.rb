@@ -116,7 +116,7 @@ class ResponsiveLayoutTest < ApplicationSystemTestCase
     assign_photo_place(photos.first, name: "Alpha lake")
     place = assign_photo_place(photos.second, name: "Zulu station")
     assign_photo_place(photos.third, place: place)
-    visit locations_path
+    visit locations_path(sort: "count")
     assert_equal "Zulu station", first("article h2").text
     within("nav[aria-label='Sort locations']") { click_link "Name" }
     assert_current_path locations_path(sort: "name")

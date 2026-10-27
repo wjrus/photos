@@ -56,7 +56,7 @@ class LocationsController < ApplicationController
 
   def location_index_cache_key
     [
-      "locations-index/v6",
+      "locations-index/v7",
       cache_audience_key,
       Photo.maximum(:updated_at)&.utc&.to_i,
       PhotoMetadata.maximum(:updated_at)&.utc&.iso8601(6),
@@ -148,7 +148,8 @@ class LocationsController < ApplicationController
   end
 
   def set_location_sort
-    @location_sort = params[:sort].presence_in(%w[name count]) || "count"
+    sorts = PhotoLocation.legacy_place_id?(params[:id]) ? %w[name count] : %w[geography name count]
+    @location_sort = params[:sort].presence_in(sorts) || (sorts.include?("geography") ? "geography" : "count")
   end
 
   def set_location_summary

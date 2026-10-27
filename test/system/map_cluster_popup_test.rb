@@ -76,7 +76,7 @@ class MapClusterPopupTest < ApplicationSystemTestCase
 
     visit locations_path
     assert_selector "article", count: 1
-    assert_selector "article h2", text: "Grand Canyon Village"
+    assert_selector "[data-location-title]", text: "Grand Canyon Village"
     within("article") { find("a", match: :first).click }
     assert_selector "h1", text: "Grand Canyon Village"
     assert_selector "[data-photo-id='#{@first.id}']"
