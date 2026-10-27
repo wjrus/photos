@@ -20,7 +20,7 @@
             <% sort_path = @legacy_place_name.present? ? location_path(@location_id, sort: sort) : locations_path(sort: sort) %>
             <%= link_to label, sort_path,
                   aria: { current: (@location_sort == sort ? "true" : nil) },
-                  class: "whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-semibold transition #{@location_sort == sort ? 'bg-zinc-950 text-white' : 'text-zinc-700 hover:bg-zinc-100'}" %>
+                  class: "whitespace-nowrap rounded-md px-2 py-1.5 text-xs font-semibold transition sm:px-3 sm:text-sm #{@location_sort == sort ? 'bg-zinc-950 text-white' : 'text-zinc-700 hover:bg-zinc-100'}" %>
           <% end %>
         </nav>
         <%= link_to "Map",

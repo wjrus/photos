@@ -56,7 +56,7 @@ class LocationsController < ApplicationController
 
   def location_index_cache_key
     [
-      "locations-index/v7",
+      "locations-index/v8",
       cache_audience_key,
       Photo.maximum(:updated_at)&.utc&.to_i,
       PhotoMetadata.maximum(:updated_at)&.utc&.iso8601(6),

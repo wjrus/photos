@@ -109,10 +109,8 @@ class PhotoLocationArea
       .select("#{ID_SQL} AS location_id, #{TITLE_SQL} AS area_name, #{COUNTRY_NAME_SQL} AS country_name, #{STATE_NAME_SQL} AS state_name, MIN(location_area_places.place_type) AS place_type, #{PhotoLocation::SELECT_SQL}")
       .group(Arel.sql(ID_SQL))
     ordering = case sort
-    when "geography"
+    when "geography", "name"
       "LOWER((#{COUNTRY_NAME_SQL})) ASC NULLS LAST, LOWER((#{STATE_NAME_SQL})) ASC NULLS LAST, LOWER(#{TITLE_SQL}) ASC NULLS LAST, location_id ASC"
-    when "name"
-      "LOWER(#{TITLE_SQL}) ASC NULLS LAST, latitude ASC, longitude ASC, location_id ASC"
     else
       "photo_count DESC, newest_at DESC, location_id ASC"
     end

@@ -11,7 +11,7 @@
           <% end %>
         </div>
         <div class="p-4">
-          <%= content_tag local_assigns.fetch(:heading_tag, :h2), location.title, class: "truncate text-lg font-semibold text-zinc-950", data: { location_title: true } %>
+          <%= content_tag local_assigns.fetch(:heading_tag, :h2), location.title, class: "break-words text-lg font-semibold leading-snug text-zinc-950", data: { location_title: true } %>
           <% if location.geographic_context.present? %><p class="mt-1 text-sm text-zinc-600" data-location-context><%= location.geographic_context %></p><% end %>
           <p class="mt-1 text-xs text-zinc-500"><%= location.place_type.present? ? location.place_type.humanize : "Area awaiting place matching" %> · <%= PhotoLocation.title_for(location.latitude, location.longitude) %></p>
           <p class="mt-1 text-sm text-zinc-600"><%= media_count_label(photo_count: location.image_count.to_i, video_count: location.video_count.to_i) %></p>

@@ -120,6 +120,7 @@ class PhotoLocationAreaTest < ActiveSupport::TestCase
     assert_equal "United States · Ohio", areas[-2].geographic_context
     assert_equal "Iceland", areas.first.geographic_context
     assert_equal areas.drop(2).take(2).map(&:id), PhotoLocationArea.groups(scope, sort: "geography", limit: 2, offset: 2).map(&:id)
+    assert_equal areas.map(&:id), PhotoLocationArea.groups(scope, sort: "name").map(&:id)
     assert_equal before, scope.pluck("photos.id", "photo_metadata.photo_place_id", "photo_metadata.latitude", "photo_metadata.longitude")
   end
 

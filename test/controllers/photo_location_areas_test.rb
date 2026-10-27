@@ -122,6 +122,9 @@ class PhotoLocationAreasTest < ActionDispatch::IntegrationTest
     get locations_path(sort: "count")
     assert_select "[data-location-country-group]", count: 0
     assert_select "article [data-location-context]", text: "United States · Ohio"
+    get locations_path(sort: "name")
+    assert_equal [ "Gullfoss", "Cleveland", "Cleveland" ], css_select("[data-location-title]").map(&:text)
+    assert_equal [ "Iceland", "United States · Michigan", "United States · Ohio" ], css_select("[data-location-context]").map(&:text)
     get location_path(PhotoLocation.id_for_place(ohio.metadata.photo_place_id))
     assert_select "[data-photo-id='#{ohio.id}']"
   end

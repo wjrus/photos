@@ -84,10 +84,12 @@ Country and state context comes from the saved provider address components,
 so enabling this view does not require new API requests. An ambiguous or missing
 country goes under Other locations instead of borrowing one from a neighbor.
 
-The **Name** switch orders named areas alphabetically, followed by unmatched
-coordinate areas. **Photo count** keeps the largest galleries first. Cards show
-country and U.S. state context in every order, even when their area label is just
-Cleveland. A one-day gallery displays its date once; multi-day galleries keep a range.
+The **Name** switch shows a flat list ordered by country, U.S. state, then
+city/region/area, so Michigan locations stay together even when their city names
+differ. The city/area remains the main card label, with country/state underneath
+in every view. **Photo count** keeps the largest galleries first; Geography adds
+country/state section headings to the same geographic order used by Name.
+A one-day gallery displays its date once; multi-day galleries keep a range.
 The selected order stays in the URL and is retained when loading more cards.
 Namesakes remain separate places in every order.
 
