@@ -96,6 +96,12 @@ with the Google Geocoding API enabled; if it is absent the app falls back to the
 embed key. `GOOGLE_MAPS_MAP_ID` enables Google Maps advanced markers; if it is
 absent the app uses Google's demo map id.
 
+Optional landmark refreshes use Places API (New). Enable that API and allow it
+for the server geocoding key, or set `GOOGLE_MAPS_PLACES_API_KEY` to a dedicated
+server key. Successful geocoding/Places responses are retained in PostgreSQL
+without expiry and reused across deployments. Repository status → Files offers
+bounded landmark refreshes of up to 100 photos; new API requests may add charges.
+
 Photos are assigned to explicit places using the identity of the geographic
 feature returned for their coordinates. Uncertain results keep coordinates or
 Plus Codes; the app does not probe neighboring coordinates to guess a name.

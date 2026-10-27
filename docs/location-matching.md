@@ -16,11 +16,16 @@ specific geographic feature: a neighborhood, sublocality, locality/postal town,
 or smaller administrative division. A street-address result's ID is not used
 for a locality name extracted from its address components. A POI is accepted
 automatically only when its point matches the stored coordinate at six decimal
-places. Manual address selection can deliberately assign an address or venue.
+places. When no neighborhood or town result exists, a named natural feature or
+tourist attraction returned within 500 metres can name its immediate vicinity;
+an actual feature boundary must also contain the photo when provided. Manual
+address selection can deliberately assign an address or venue.
 
 The canonical key is `google:<feature place_id>`. Incomplete, ambiguous,
 county-only, and Plus Code results use `coordinate:<latitude6>,<longitude6>`.
-No nearby-coordinate probes are made. Broader returned names remain searchable
+Normal reverse matching makes no nearby-coordinate probes; explicit landmark
+refreshes can additionally use Places Nearby Search as described below.
+Broader returned names remain searchable
 aliases without making unrelated places share an identity. Later matches of
 the same provider feature add aliases and fill missing map-region information
 while preserving its established display name and complete region descriptor.
@@ -36,7 +41,8 @@ affected saved bounds; location cards reject covers that have moved elsewhere.
 At zoom **10 and below**, a qualified city/metro region may combine several
 places into one marker. At higher zoom, markers use the detailed locations and
 spatial clustering. Region grouping changes map presentation only: it does not
-change photo assignments, location pages, covers, or exact place filters.
+change photo assignments or exact place filters. The Locations overview uses
+the same qualified city identities to offer broader browsing galleries.
 
 When the provider's address components identify Greater London within the
 United Kingdom, the map label is **London**. This uses administrative membership,
@@ -53,12 +59,31 @@ separate.
 
 ## URLs and existing data
 
-The Locations index defaults to photo count, largest first. Its Name switch
-orders named places alphabetically, followed by unmatched coordinate areas.
+The Locations index summarizes towns and city areas rather than listing every
+coordinate or venue separately. Saved provider address components also supply
+town membership for older assignments. Greater London is shown as London.
+Different towns in the same county remain separate. Incomplete town hierarchies
+include a geographic guard so distant namesakes do not merge.
+
+Coordinate-only assignments without a qualified town share a 0.125-degree cell
+(about 8.6 miles north/south; longitude width varies by latitude). This is a
+bounded fallback, not a radius or a chain of nearby points. A Plus Code suffix
+such as Grand Canyon Village can label the group when its hints agree; bare
+codes become a readable Nearby coordinate label. Fixed cell boundaries can
+split nearby unknown points; API town membership joins them across cells.
+
+Opening an overview area shows all its authorized photos. Its Map link filters
+to those photos and retains their original GPS points and normal zoom-dependent
+marker groups. Overview grouping never changes the underlying assignments.
+
+The index defaults to photo count, largest first. Its Name switch
+orders named areas alphabetically, followed by unmatched coordinate areas.
 The selected order stays in the URL and is retained when loading more cards.
 Namesakes remain separate places in either order.
 
 - `place-id-<id>` identifies one assigned place, independent of its name.
+- `region-<hash>` identifies a qualified town/metro overview gallery.
+- `nearby-<latitude_bucket>_<longitude_bucket>` identifies a fallback overview cell.
 - `area-<latitude_bucket>_<longitude_bucket>` contains only unmatched photos in
   that cell. Matching a photo moves it out of this temporary group.
 - Old numeric cell URLs still describe the geographic cell, including assigned
@@ -72,6 +97,9 @@ history for old-link resolution. They are not evidence for assigning every
 photo in that cell to a new place. Existing covers are retained and reused only
 when the cover still belongs to the current place/area. Places and aliases do
 not grant access to photos.
+
+The mobile API's location listing continues to expose precise place IDs. Broad
+overview IDs are accepted by the existing photo and map filters.
 
 ## Applying the transition
 
@@ -107,6 +135,39 @@ is unchanged. Wait for the queued photo jobs to finish before requesting the
 next batch. Failed lookups stay eligible for retry, and batches do not continue
 automatically. Raw coordinates and legacy records remain available throughout
 the transition. Bounds refresh continues through the existing maintenance job.
+
+## Durable API responses and landmark refreshes
+
+`photo_places` already retains selected provider data and assigned names.
+`location_geocoding_responses` additionally saves complete successful reverse,
+address, and Nearby Search responses in PostgreSQL without a TTL. This additive
+migration must run before the updated web and workers start. Existing places
+are preserved; their selected raw result cannot reconstruct an entire past API
+response, so the first lookup at a previously uncached request may still call
+Google once. Database backups should include the new table.
+
+Response keys describe the request, never the API credential or the matching
+algorithm version. Reverse lookups use six-decimal photo coordinates. Nearby
+searches share rounded three-decimal search points and recheck each candidate
+against the actual photo GPS. Empty successful results are saved as well;
+permission, quota, transport, and malformed-response errors are not cached.
+Clearing Redis/Rails.cache or deploying new matching logic does not repeat a
+saved request. A normal refresh reprocesses saved responses; it does not force
+new provider data or expire saved responses.
+
+In **Repository status → Files**, use **Refresh location names** with **Improve
+nearby landmark names with Google Places** checked. A batch includes at most
+100 photos. Only otherwise unresolved coordinate/small administrative matches
+use Places Nearby Search; ordinary scheduled matching does not enable it.
+Manual corrections and original GPS remain protected. Wait for completion
+before queuing another batch, and inspect failed jobs for provider errors.
+
+Enable **Places API (New)** and allow it in the server key's API restrictions.
+The lookup reuses `GOOGLE_MAPS_GEOCODING_API_KEY` by default, or accepts a
+dedicated `GOOGLE_MAPS_PLACES_API_KEY`. Nearby Search requests only Pro-tier
+fields and may incur additional Google charges. It considers named attractions,
+historical landmarks and observation decks within 500 metres; it cannot guarantee
+that every photo has a suitable landmark or infer a distant visit.
 
 ## Verification
 

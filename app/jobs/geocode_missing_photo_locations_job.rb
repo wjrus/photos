@@ -3,9 +3,11 @@ class GeocodeMissingPhotoLocationsJob < ApplicationJob
 
   DEFAULT_LIMIT = 100
   MAX_LIMIT = 1_000
+  MAX_LANDMARK_LIMIT = 100
 
-  def perform(limit: DEFAULT_LIMIT, refresh: false)
+  def perform(limit: DEFAULT_LIMIT, refresh: false, landmarks: false)
     remaining = bounded_limit(limit)
+    remaining = [ remaining, MAX_LANDMARK_LIMIT ].min if landmarks
     legacy_manual_metadata.limit(remaining).each do |metadata|
       PhotoManualLocationAssigner.restore!(metadata: metadata)
       remaining -= 1
@@ -14,11 +16,10 @@ class GeocodeMissingPhotoLocationsJob < ApplicationJob
     return unless LocationReverseGeocoder.api_key.present?
 
     missing_location_rows(limit: remaining, refresh: refresh).each do |row|
-      if refresh
-        GeocodePhotoLocationJob.perform_later(row.photo_id, row.latitude, row.longitude, refresh: true)
-      else
-        GeocodePhotoLocationJob.perform_later(row.photo_id, row.latitude, row.longitude)
-      end
+      options = {}
+      options[:refresh] = true if refresh
+      options[:landmarks] = true if landmarks
+      GeocodePhotoLocationJob.perform_later(row.photo_id, row.latitude, row.longitude, **options)
     end
   end
 

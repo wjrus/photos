@@ -37,6 +37,21 @@ class GeocodeMissingPhotoLocationsJobTest < ActiveJob::TestCase
     end
   end
 
+  test "paid landmark refreshes are capped at one hundred and propagate their options" do
+    101.times { |i| metadata(latitude: 40 + i * 0.001, longitude: -80) }
+    clear_enqueued_jobs
+
+    assert_enqueued_jobs 100, only: GeocodePhotoLocationJob do
+      GeocodeMissingPhotoLocationsJob.perform_now(limit: 1_000, refresh: true, landmarks: true)
+    end
+    enqueued_jobs.each do |job|
+      next unless job[:job] == GeocodePhotoLocationJob
+
+      assert_equal true, job[:args].last.fetch("refresh")
+      assert_equal true, job[:args].last.fetch("landmarks")
+    end
+  end
+
   test "restores only explicit legacy manual metadata without an API key" do
     manual = metadata(latitude: 40, longitude: -80)
     manual.update!(raw: {

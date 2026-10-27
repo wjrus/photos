@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_05_180000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_27_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -173,6 +173,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_180000) do
     t.index ["sha256"], name: "index_google_takeout_imports_on_sha256"
     t.index ["status"], name: "index_google_takeout_imports_on_status"
     t.index ["zip_path", "entry_name"], name: "index_google_takeout_imports_on_zip_path_and_entry_name", unique: true
+  end
+
+  create_table "location_geocoding_responses", force: :cascade do |t|
+    t.string "request_key", null: false
+    t.jsonb "payload", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["request_key"], name: "index_location_geocoding_responses_on_request_key", unique: true
   end
 
   create_table "mobile_upload_chunks", force: :cascade do |t|

@@ -40,6 +40,20 @@ class GeocodePhotoLocationJobTest < ActiveJob::TestCase
     assert_nil @metadata.reload.photo_place_id
   end
 
+  test "throttled landmark refreshes retain their opt in when rescheduled" do
+    clear_enqueued_jobs
+    geocoder = FakeReverseGeocoder.new(place_result)
+    with_reverse_geocoder(geocoder) do
+      assert_enqueued_jobs 1, only: GeocodePhotoLocationJob do
+        GeocodePhotoLocationJob.perform_now(@photo.id, @metadata.latitude, @metadata.longitude, 1.minute.from_now.to_f, refresh: true, landmarks: true)
+      end
+    end
+    options = enqueued_jobs.find { |job| job[:job] == GeocodePhotoLocationJob }[:args].last
+    assert_equal true, options.fetch("refresh")
+    assert_equal true, options.fetch("landmarks")
+    assert_empty geocoder.calls
+  end
+
   test "does not overwrite manual assignments made while the network request is running" do
     manual = PhotoPlace.create!(identity_key: "google:manual", name: "Owner venue")
     geocoder = FakeReverseGeocoder.new(place_result) do
@@ -99,6 +113,52 @@ class GeocodePhotoLocationJobTest < ActiveJob::TestCase
     assert_equal updated_at, @metadata.updated_at
   end
 
+  test "opted in Places lookup repairs a coordinate name and preserves photo GPS" do
+    coordinate = place_result.merge(identity_key: "coordinate:44.762200,-85.598000", place_type: "coordinate", name: "38RX+HF")
+    landmark = FakeReverseGeocoder.new(place_result.merge(identity_key: "google:landmark", name: "Named landmark", place_type: "nearby_landmark"))
+    coordinates = [ @metadata.latitude, @metadata.longitude ]
+    with_reverse_geocoder(FakeReverseGeocoder.new(coordinate)) do
+      with_landmark_lookup(landmark) do
+        GeocodePhotoLocationJob.perform_now(@photo.id, *coordinates, refresh: true, landmarks: true)
+      end
+    end
+
+    assert_equal "Named landmark", @metadata.reload.photo_place.name
+    assert_equal coordinates, [ @metadata.latitude, @metadata.longitude ]
+    assert_equal [ coordinates ], landmark.calls
+  end
+
+  test "Places failure preserves the previous automatic assignment and remains retryable" do
+    previous = PhotoPlace.create!(identity_key: "coordinate:old", name: "38RX+HF", place_type: "coordinate")
+    @metadata.update!(photo_place: previous, location_source: "automatic", updated_at: 2.days.ago)
+    updated_at = @metadata.updated_at
+    coordinate = place_result.merge(place_type: "coordinate")
+    denied = FakeReverseGeocoder.new(nil) { raise LocationLandmarkLookup::LookupError, "HTTP 403" }
+    with_reverse_geocoder(FakeReverseGeocoder.new(coordinate)) do
+      with_landmark_lookup(denied) do
+        assert_raises(LocationLandmarkLookup::LookupError) do
+          GeocodePhotoLocationJob.perform_now(@photo.id, @metadata.latitude, @metadata.longitude, refresh: true, landmarks: true)
+        end
+      end
+    end
+
+    assert_equal previous.id, @metadata.reload.photo_place_id
+    assert_equal updated_at, @metadata.updated_at
+  end
+
+  test "manual edits made during a Places request still win" do
+    manual = PhotoPlace.create!(identity_key: "google:owner-venue", name: "Owner venue")
+    lookup = FakeReverseGeocoder.new(place_result) { @metadata.update!(photo_place: manual, location_source: "manual") }
+    with_reverse_geocoder(FakeReverseGeocoder.new(place_result.merge(place_type: "coordinate"))) do
+      with_landmark_lookup(lookup) do
+        GeocodePhotoLocationJob.perform_now(@photo.id, @metadata.latitude, @metadata.longitude, refresh: true, landmarks: true)
+      end
+    end
+
+    assert_equal manual.id, @metadata.reload.photo_place_id
+    assert_equal "manual", @metadata.location_source
+  end
+
   private
 
   def perform_job
@@ -135,5 +195,13 @@ class GeocodePhotoLocationJobTest < ActiveJob::TestCase
     yield
   ensure
     LocationReverseGeocoder.define_singleton_method(:new, original)
+  end
+
+  def with_landmark_lookup(geocoder)
+    original = LocationLandmarkLookup.method(:new)
+    LocationLandmarkLookup.define_singleton_method(:new) { geocoder }
+    yield
+  ensure
+    LocationLandmarkLookup.define_singleton_method(:new, original)
   end
 end

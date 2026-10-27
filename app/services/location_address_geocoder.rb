@@ -3,7 +3,6 @@ require "digest"
 
 class LocationAddressGeocoder
   ENDPOINT = LocationReverseGeocoder::ENDPOINT
-  CACHE_TTL = 30.days
 
   def initialize(api_key: LocationReverseGeocoder.api_key)
     @api_key = api_key
@@ -11,26 +10,13 @@ class LocationAddressGeocoder
 
   def geocode(address:)
     normalized_address = address.to_s.squish
-    return if @api_key.blank? || normalized_address.blank?
+    return if normalized_address.blank?
 
-    cache_key = "location-address-geocoder/v3/#{Digest::SHA256.hexdigest(normalized_address.downcase)}"
-    cached = Rails.cache.read(cache_key)
-    return cached.merge(key_fingerprint: api_key_fingerprint) if cached.present?
-
-    uri = URI(ENDPOINT)
-    uri.query = URI.encode_www_form(address: normalized_address, key: @api_key)
-
-    response = Net::HTTP.get_response(uri)
-    unless response.is_a?(Net::HTTPSuccess)
-      Rails.logger.warn("Location address geocode HTTP failure: status=#{response.code} key=#{api_key_fingerprint}")
-      return
+    cache_key = "google-address-geocoding/v1/#{Digest::SHA256.hexdigest(normalized_address.downcase)}"
+    payload = LocationGeocodingResponse.fetch(cache_key) do
+      geocode_payload(normalized_address) if @api_key.present?
     end
-
-    payload = JSON.parse(response.body)
-    unless payload["status"] == "OK"
-      log_payload_status(payload)
-      return
-    end
+    return unless payload && payload["status"] == "OK"
 
     result = payload.fetch("results", []).first
     location = result&.dig("geometry", "location")
@@ -68,7 +54,6 @@ class LocationAddressGeocoder
       raw: result
     )
 
-    Rails.cache.write(cache_key, geocoded, expires_in: CACHE_TTL)
     geocoded.merge(key_fingerprint: api_key_fingerprint)
   rescue JSON::ParserError, KeyError, SocketError, SystemCallError, Timeout::Error => error
     Rails.logger.warn("Location address geocode error: #{error.class}: #{error.message} key=#{api_key_fingerprint}")
@@ -76,6 +61,25 @@ class LocationAddressGeocoder
   end
 
   private
+
+  def geocode_payload(address)
+    uri = URI(ENDPOINT)
+    uri.query = URI.encode_www_form(address: address, key: @api_key)
+    response = Net::HTTP.get_response(uri)
+    unless response.is_a?(Net::HTTPSuccess)
+      Rails.logger.warn("Location address geocode HTTP failure: status=#{response.code} key=#{api_key_fingerprint}")
+      return
+    end
+
+    payload = JSON.parse(response.body)
+    return unless payload.is_a?(Hash) && payload.fetch("results", []).is_a?(Array)
+    unless payload["status"].in?(%w[OK ZERO_RESULTS])
+      log_payload_status(payload)
+      return
+    end
+
+    payload
+  end
 
   def place_names(result, address)
     components = result.fetch("address_components", [])

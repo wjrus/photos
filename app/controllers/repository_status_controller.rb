@@ -56,8 +56,18 @@ class RepositoryStatusController < ApplicationController
         redirect_to repository_status_redirect_path, notice: "OpenRouter vision backfill queued."
       end
     when "geocode_locations"
-      GeocodeMissingPhotoLocationsJob.perform_later(limit: geocode_location_limit)
-      redirect_to repository_status_redirect_path, notice: "Location name geocoding queued."
+      if params[:refresh] == "1"
+        options = { limit: geocode_location_limit, refresh: true }
+        if params[:landmarks] == "1"
+          options[:landmarks] = true
+          options[:limit] = [ options[:limit], GeocodeMissingPhotoLocationsJob::MAX_LANDMARK_LIMIT ].min
+        end
+        GeocodeMissingPhotoLocationsJob.perform_later(**options)
+        redirect_to repository_status_redirect_path, notice: "Location name refresh queued. Manual corrections are preserved."
+      else
+        GeocodeMissingPhotoLocationsJob.perform_later(limit: geocode_location_limit)
+        redirect_to repository_status_redirect_path, notice: "Location name geocoding queued."
+      end
     else
       OriginalFileHealthPatrolJob.perform_later(batch_size: patrol_batch_size)
       redirect_to repository_status_redirect_path, notice: "Repository patrol queued."

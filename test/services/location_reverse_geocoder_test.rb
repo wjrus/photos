@@ -81,7 +81,7 @@ class LocationReverseGeocoderTest < ActiveSupport::TestCase
     second = geography_result("b-neighborhood", "neighborhood", "Old Town")
     city = geography_result("city-id", "locality", "Traverse City")
     one = geocode_results([ second, city, first ])
-    Rails.cache.clear
+    LocationGeocodingResponse.delete_all
     two = geocode_results([ first, second, city ])
 
     assert_equal "google:a-neighborhood", one[:identity_key]
@@ -116,6 +116,45 @@ class LocationReverseGeocoderTest < ActiveSupport::TestCase
 
     assert_equal "google:city-id", result[:identity_key]
     refute_includes result[:names], "Historic Lighthouse"
+  end
+
+  test "nearby scenic landmarks can replace a Plus Code without moving the photo" do
+    landmark = {
+      place_id: "gullfoss", types: [ "natural_feature", "tourist_attraction" ], formatted_address: "Gullfoss, Iceland",
+      geometry: { location: { lat: 64.3274, lng: -20.1200 } },
+      address_components: [
+        { long_name: "Gullfoss", types: [ "natural_feature" ] },
+        { long_name: "Iceland", types: [ "country" ] }
+      ]
+    }
+    plus_code = { place_id: "coordinate", formatted_address: "8FPP+3J", types: [ "plus_code" ] }
+
+    result = geocode_results([ plus_code, landmark ], latitude: 64.3279, longitude: -20.1195)
+
+    assert_equal "google:gullfoss", result[:identity_key]
+    assert_equal "Gullfoss, Iceland", result[:name]
+    assert_equal "natural_feature", result[:place_type]
+    refute result.key?(:latitude)
+    refute result.key?(:longitude)
+  end
+
+  test "distant landmarks or features with bounds outside the photo cannot lend their names" do
+    landmark = geography_result("scenic", "natural_feature", "Scenic Falls")
+      .merge(geometry: { location: { lat: 44.8, lng: -85.6 } })
+    assert_match(/coordinate:/, geocode_results([ landmark ])[:identity_key])
+
+    landmark[:geometry] = { location: { lat: 44.7623, lng: -85.598 }, bounds: {
+      southwest: { lat: 44.7624, lng: -85.599 }, northeast: { lat: 44.763, lng: -85.597 }
+    } }
+    assert_match(/coordinate:/, geocode_results([ landmark ])[:identity_key])
+  end
+
+  test "a returned town keeps precedence over a merely nearby attraction" do
+    landmark = geography_result("scenic", "tourist_attraction", "Scenic Falls")
+      .merge(geometry: { location: { lat: 44.7623, lng: -85.598 } })
+    result = geocode_results([ landmark, geography_result("city", "locality", "Traverse City") ])
+
+    assert_equal "google:city", result[:identity_key]
   end
 
   test "a missing feature ID or partial match cannot become a shared place identity" do
@@ -178,6 +217,32 @@ class LocationReverseGeocoderTest < ActiveSupport::TestCase
   test "coordinate identity normalizes signed zero and precision" do
     result = LocationReverseGeocoder.coordinate_identity(latitude: "-0.0000001", longitude: "-85.5980004")
     assert_equal "coordinate:0.000000,-85.598000", result[:identity_key]
+  end
+
+  test "database responses survive cache eviction age and API key changes" do
+    calls = stub_get_responses([ http_ok_response(status: "OK", results: [ geography_result("durable", "locality", "Saved town") ]) ]) do
+      result = LocationReverseGeocoder.new.geocode(latitude: 44.7622, longitude: -85.598)
+      Rails.cache.clear
+      travel 2.years do
+        reused = LocationReverseGeocoder.new(api_key: nil).geocode(latitude: 44.7622, longitude: -85.598)
+        assert_equal result.except(:key_fingerprint), reused.except(:key_fingerprint)
+      end
+      refute_includes LocationGeocodingResponse.first.payload.to_json, "server-key"
+    end
+    assert_equal 1, calls
+  end
+
+  test "permission errors remain retryable while valid empty responses persist" do
+    calls = stub_get_responses([
+      http_ok_response(status: "REQUEST_DENIED", results: []),
+      http_ok_response(status: "ZERO_RESULTS", results: [])
+    ]) do
+      geocoder = LocationReverseGeocoder.new
+      assert_nil geocoder.geocode(latitude: 44.7622, longitude: -85.598)
+      assert_equal 0, LocationGeocodingResponse.count
+      2.times { assert_equal "coordinate", geocoder.geocode(latitude: 44.7622, longitude: -85.598)[:place_type] }
+    end
+    assert_equal 2, calls
   end
 
   test "reverse geocoding adds London map rollup while preserving borough identity" do

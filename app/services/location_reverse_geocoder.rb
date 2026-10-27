@@ -2,8 +2,8 @@ require "net/http"
 
 class LocationReverseGeocoder
   ENDPOINT = "https://maps.googleapis.com/maps/api/geocode/json".freeze
-  CACHE_TTL = 30.days
-  CACHE_VERSION = "v5".freeze
+  NEARBY_LANDMARK_TYPES = %w[natural_feature tourist_attraction].freeze
+  NEARBY_LANDMARK_METERS = 500
   GEOGRAPHY_TYPES = %w[
     neighborhood sublocality_level_5 sublocality_level_4 sublocality_level_3
     sublocality_level_2 sublocality_level_1 sublocality locality postal_town
@@ -45,14 +45,10 @@ class LocationReverseGeocoder
   end
 
   def geocode(latitude:, longitude:)
-    return unless @api_key.present?
-
     latitude, longitude = self.class.coordinate_pair(latitude: latitude, longitude: longitude)
-    cache_key = "location-reverse-geocoder/#{CACHE_VERSION}/#{latitude},#{longitude}"
-    cached = Rails.cache.read(cache_key)
-    return cached.merge(key_fingerprint: api_key_fingerprint) if cached.present?
-
-    payload = geocode_payload(latitude: latitude, longitude: longitude)
+    payload = LocationGeocodingResponse.fetch("google-reverse-geocoding/v1/#{latitude},#{longitude}") do
+      geocode_payload(latitude: latitude, longitude: longitude) if @api_key.present?
+    end
     return unless payload
 
     results = payload.fetch("results", [])
@@ -75,7 +71,6 @@ class LocationReverseGeocoder
     region = LocationMapRegion.for_result(result)
     names = [ *place_names(results, primary_name), region[:map_region_name] ].compact_blank.uniq
     geocoded = identity.merge(region).merge(name: primary_name, names: names, raw: result)
-    Rails.cache.write(cache_key, geocoded, expires_in: CACHE_TTL)
     geocoded.merge(key_fingerprint: api_key_fingerprint)
   rescue JSON::ParserError, SocketError, SystemCallError, Timeout::Error => error
     Rails.logger.warn("Location reverse geocode error: #{error.class}: #{error.message} key=#{api_key_fingerprint}")
@@ -97,9 +92,46 @@ class LocationReverseGeocoder
 
       [ result, type ]
     end
-    candidates.min_by do |result, type|
+    precise = candidates.min_by do |result, type|
       [ LANDMARK_TYPES.include?(type) ? -1 : GEOGRAPHY_TYPES.index(type), result.fetch("place_id") ]
     end
+    return precise if precise && (LANDMARK_TYPES.include?(precise.last) || !precise.last.start_with?("administrative_area_"))
+
+    # A scenic feature returned for this point can name its immediate vicinity.
+    # Generic establishments and distant attractions still cannot imply a visit.
+    nearby = results.filter_map do |result|
+      next if result["place_id"].blank? || result["partial_match"]
+
+      type = NEARBY_LANDMARK_TYPES.find { |candidate| result.fetch("types", []).include?(candidate) }
+      next unless type && landmark_name(result).present?
+
+      distance = landmark_distance(result, latitude: latitude, longitude: longitude)
+      next unless distance && distance <= NEARBY_LANDMARK_METERS
+      next if outside_feature_bounds?(result, latitude: latitude.to_f, longitude: longitude.to_f)
+
+      [ result, type, distance ]
+    end.min_by { |result, _type, distance| [ distance, result.fetch("place_id") ] }
+    nearby ? nearby.first(2) : precise
+  end
+
+  def landmark_distance(result, latitude:, longitude:)
+    point = result.dig("geometry", "location")
+    return unless point
+
+    PhotoLocation.distance_meters(latitude, longitude, point.fetch("lat"), point.fetch("lng"))
+  rescue KeyError, ArgumentError, TypeError
+    nil
+  end
+
+  def outside_feature_bounds?(result, latitude:, longitude:)
+    bounds = result.dig("geometry", "bounds")
+    return false unless bounds
+
+    south, north = Float(bounds.dig("southwest", "lat")), Float(bounds.dig("northeast", "lat"))
+    west, east = Float(bounds.dig("southwest", "lng")), Float(bounds.dig("northeast", "lng"))
+    !latitude.between?(south, north) || !(west <= east ? longitude.between?(west, east) : longitude >= west || longitude <= east)
+  rescue ArgumentError, TypeError
+    true
   end
 
   def canonical_type(result, latitude:, longitude:)
@@ -174,6 +206,8 @@ class LocationReverseGeocoder
     end
 
     payload = JSON.parse(response.body)
+    return unless payload.is_a?(Hash) && payload.fetch("results", []).is_a?(Array)
+
     unless payload["status"].in?(%w[OK ZERO_RESULTS])
       log_payload_status(payload)
       return

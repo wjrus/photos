@@ -131,6 +131,18 @@ class ResponsiveLayoutTest < ApplicationSystemTestCase
     assert_equal "Zulu station", first("article h2").text
   end
 
+  test "location refresh controls fit narrow maintenance screens" do
+    sign_in
+    [ 320, 390, 768, 1440 ].each do |width|
+      viewport(width)
+      visit repository_status_path(section: "files")
+      assert_checked_field "Improve nearby landmark names with Google Places"
+      assert_inside_viewport(find("input[value='Refresh location names']"))
+      assert_no_horizontal_overflow
+    end
+    screenshot("location-refresh-mobile")
+  end
+
   private
 
   def sign_in

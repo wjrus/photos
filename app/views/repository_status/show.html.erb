@@ -52,9 +52,17 @@
         </section>
       </div>
       <div class="mt-5"><%= render "panel", panel: "maintenance", title: "Storage & processing", interval: 300 %></div>
-      <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p class="text-sm text-zinc-600">Match remaining geotagged photos to place names.</p>
-        <%= button_to "Queue location names", repository_status_path, method: :post, params: section_params.merge(scan_type: "geocode_locations", limit: GeocodeMissingPhotoLocationsJob::MAX_LIMIT), class: repository_button_class %>
+      <div class="mt-4 grid gap-4 lg:grid-cols-2">
+        <p class="text-sm text-zinc-600">Match remaining photos, or refresh automatic matches to retry coordinate codes and improve landmark names. Queueing processes up to 1,000 photos; landmark refreshes are limited to 100. Wait for each batch to finish before repeating. Google API usage may apply.</p>
+        <div class="flex w-full min-w-0 max-w-sm flex-col items-start gap-3">
+          <%= button_to "Queue location names", repository_status_path, method: :post, params: section_params.merge(scan_type: "geocode_locations", limit: GeocodeMissingPhotoLocationsJob::MAX_LIMIT), class: repository_button_class %>
+          <%= form_with url: repository_status_path, method: :post, class: "grid w-full min-w-0 gap-2" do %>
+            <% section_params.merge(scan_type: "geocode_locations", refresh: "1", limit: GeocodeMissingPhotoLocationsJob::MAX_LANDMARK_LIMIT).each do |key, value| %><%= hidden_field_tag key, value %><% end %>
+            <label class="flex items-start gap-2 text-sm text-zinc-700"><%= check_box_tag :landmarks, "1", true, class: "mt-1 shrink-0" %><span>Improve nearby landmark names with Google Places</span></label>
+            <p class="max-w-sm text-xs leading-5 text-zinc-500">Requires Places API (New) allowed for the server key; new lookups may add charges. Successful results are saved permanently and checked within 500 metres of each photo.</p>
+            <%= submit_tag "Refresh location names", class: repository_button_class %>
+          <% end %>
+        </div>
       </div>
     <% elsif @status_section == "analysis" %>
       <div class="mt-6 space-y-5" data-analysis-dashboard>

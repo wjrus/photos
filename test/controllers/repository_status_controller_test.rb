@@ -216,6 +216,22 @@ class RepositoryStatusControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Location name geocoding queued.", flash[:notice]
   end
 
+  test "owner can refresh automatic place names in a bounded batch" do
+    assert_enqueued_with(job: GeocodeMissingPhotoLocationsJob, args: [ { limit: 1_000, refresh: true } ]) do
+      post repository_status_path, params: { scan_type: "geocode_locations", refresh: "1", limit: 50_000 }
+    end
+
+    assert_redirected_to repository_status_path
+    assert_includes flash[:notice], "Manual corrections are preserved"
+  end
+
+  test "Places refreshes are explicitly selected and capped at one hundred photos" do
+    assert_enqueued_with(job: GeocodeMissingPhotoLocationsJob, args: [ { limit: 100, refresh: true, landmarks: true } ]) do
+      post repository_status_path, params: { scan_type: "geocode_locations", refresh: "1", landmarks: "1", limit: 1_000 }
+    end
+    assert_redirected_to repository_status_path
+  end
+
   test "owner cannot queue disabled photo analysis provider" do
     AppSetting.set_boolean!(AppSetting::ANALYSIS_OPENCLIP_ENABLED, false)
 

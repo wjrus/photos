@@ -69,6 +69,22 @@ class LocationAddressGeocoderTest < ActiveSupport::TestCase
     end
   end
 
+  test "saved address responses survive cache eviction and need no key to reuse" do
+    response = http_ok_response(status: "OK", results: [ {
+      place_id: "durable-address", formatted_address: "Saved address",
+      geometry: { location: { lat: 44.76, lng: -85.62 } }
+    } ])
+    stub_get_response(response) do
+      first = LocationAddressGeocoder.new(api_key: "server-key").geocode(address: "Saved address")
+      Rails.cache.clear
+      travel 2.years do
+        reused = LocationAddressGeocoder.new(api_key: nil).geocode(address: "Saved address")
+        assert_equal first.except(:key_fingerprint), reused.except(:key_fingerprint)
+      end
+      refute_includes LocationGeocodingResponse.first.payload.to_json, "server-key"
+    end
+  end
+
   test "explicit address results keep their own address identity instead of a locality label" do
     response = http_ok_response(status: "OK", results: [
       {

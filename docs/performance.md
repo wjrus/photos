@@ -107,6 +107,19 @@ It is not an end-to-end search latency claim.
 
 ## Album covers and location scrolling
 
+The Locations overview aggregates qualified towns and bounded fallback areas in
+SQL through `PhotoLocationArea`, with pagination before Ruby object creation.
+Precise photo/place assignments stay unchanged. Area cover membership is checked
+in one bounded query over the candidate covers, and map requests filter the same
+viewer-scoped photos before the existing coordinate clustering. Successful API
+responses live in `location_geocoding_responses` without expiry, independently of
+evictable overview and map presentation caches.
+
+A local synthetic check with 10,000 photos across 100 towns, deriving town keys
+from saved raw components, measured 122 ms for the area count, 217 ms for a
+12-row first page, and 134 ms for one area filter/count. These are isolated SQL
+path timings on the development machine, not production response-time claims.
+
 Album cover selection caches IDs without instantiating photos or loading their
 attachments. Only the requested page's covers are then loaded for rendering.
 A cold-cache regression with 25 albums (mixed explicit and automatic covers)
@@ -166,7 +179,7 @@ Resolved places filter by the indexed `photo_metadata.photo_place_id`, so a
 venue never needs to claim every photo in its coordinate cell. Place names and
 aliases are matched through a subquery; only the selected photos are loaded.
 Location pages count and paginate groups in SQL, with no implicit 500-place
-cutoff. A 501-place regression loads only 12 place records for the first page.
+cutoff. A 501-place regression returns at most 12 summary rows for the first page.
 The map's compact selector keeps the top 500 locations plus a selected location
 outside that list. Search menu coordinates summarize only the viewer's visible photos.
 

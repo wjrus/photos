@@ -7,7 +7,7 @@ class GeocodePhotoLocationJob < ApplicationJob
   THROTTLE_CACHE_TTL = 1.hour
   THROTTLE_EARLY_WINDOW = 0.05
 
-  def perform(photo_id, latitude, longitude, reserved_at = nil, refresh: false)
+  def perform(photo_id, latitude, longitude, reserved_at = nil, refresh: false, landmarks: false)
     # Old queued jobs used shared coordinate-cell IDs. They cannot safely name
     # individual photos and are intentionally discarded during the transition.
     return unless photo_id.to_s.match?(/\A[1-9]\d*\z/)
@@ -18,9 +18,14 @@ class GeocodePhotoLocationJob < ApplicationJob
 
     reserved_at ||= reserve_throttle_slot
     wait = reserved_at.to_f - Time.current.to_f
-    return reschedule(photo_id, latitude, longitude, reserved_at, refresh: refresh) if wait > THROTTLE_EARLY_WINDOW
+    return reschedule(photo_id, latitude, longitude, reserved_at, refresh: refresh, landmarks: landmarks) if wait > THROTTLE_EARLY_WINDOW
 
     result = LocationReverseGeocoder.new.geocode(latitude: latitude, longitude: longitude)
+    if landmarks && result && (result[:place_type] == "coordinate" || result[:place_type].to_s.start_with?("administrative_area_"))
+      if (landmark = LocationLandmarkLookup.new.geocode(latitude: latitude, longitude: longitude))
+        result = landmark.merge(names: [ *landmark[:names], *Array(result[:names]) ].uniq)
+      end
+    end
     unless result&.fetch(:name, nil).present?
       Rails.logger.warn("No place name found for photo #{photo_id}")
       return
@@ -50,10 +55,12 @@ class GeocodePhotoLocationJob < ApplicationJob
     false
   end
 
-  def reschedule(photo_id, latitude, longitude, reserved_at, refresh:)
+  def reschedule(photo_id, latitude, longitude, reserved_at, refresh:, landmarks:)
+    options = { refresh: refresh }
+    options[:landmarks] = true if landmarks
     self.class
       .set(wait_until: Time.zone.at(reserved_at.to_f))
-      .perform_later(photo_id, latitude, longitude, reserved_at, refresh: refresh)
+      .perform_later(photo_id, latitude, longitude, reserved_at, **options)
   end
 
   def reserve_throttle_slot
