@@ -423,7 +423,7 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     get map_path
     assert_response :success
     assert_select "select#location_id option", text: "Legacy area name", count: 0
-    assert_select "select#location_id option[value='#{PhotoLocation.id_for_area(location_id_for(first))}']"
+    assert_select "select#location_id option[value='#{PhotoLocationArea.id_for_coordinates(44.7622, -85.5980)}']"
 
     get map_markers_path(zoom: 12)
     assert_response :success

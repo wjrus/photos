@@ -278,7 +278,7 @@ class MapsController < ApplicationController
   end
 
   def map_location_options
-    locations = PhotoLocation.groups(map_location_options_scope, limit: PhotoLocation::INDEX_LIMIT)
+    locations = PhotoLocationArea.groups(map_location_options_scope, limit: PhotoLocation::INDEX_LIMIT)
     bounds_by_id = PhotoLocationBound.where(location_id: locations.map(&:id)).index_by(&:location_id)
 
     locations.each do |location|
@@ -298,7 +298,9 @@ class MapsController < ApplicationController
     end
     return PhotoLocationGroup.new(id: location_id) unless include_summary
 
-    location = if PhotoLocation.place_record_id?(location_id)
+    location = if PhotoLocationArea.grouped_id?(location_id)
+      PhotoLocationArea.groups(scope, limit: 1).first
+    elsif PhotoLocation.place_record_id?(location_id)
       PhotoLocation.groups(scope, limit: 1).first
     else
       latitude, longitude = scope.pick(Arel.sql("AVG(photo_metadata.latitude)"), Arel.sql("AVG(photo_metadata.longitude)"))

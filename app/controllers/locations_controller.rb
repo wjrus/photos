@@ -9,7 +9,7 @@ class LocationsController < ApplicationController
 
   def index
     @location_count = cache_owner_aggregate([ location_index_cache_key, "count" ], expires_in: 12.hours) do
-      PhotoLocation.group_count(geotagged_photos)
+      PhotoLocationArea.group_count(geotagged_photos)
     end
     @location_page = [ params[:page].to_i, 1 ].max
     offset = (@location_page - 1) * LOCATION_PAGE_SIZE
@@ -50,13 +50,13 @@ class LocationsController < ApplicationController
 
   def cached_location_rows(offset:)
     cache_owner_aggregate([ location_index_cache_key, @location_sort, offset ], expires_in: 12.hours, race_condition_ttl: 2.minutes) do
-      PhotoLocation.groups(geotagged_photos, limit: LOCATION_PAGE_SIZE, offset: offset, sort: @location_sort)
+      PhotoLocationArea.groups(geotagged_photos, limit: LOCATION_PAGE_SIZE, offset: offset, sort: @location_sort)
     end
   end
 
   def location_index_cache_key
     [
-      "locations-index/v5",
+      "locations-index/v6",
       cache_audience_key,
       Photo.maximum(:updated_at)&.utc&.to_i,
       PhotoMetadata.maximum(:updated_at)&.utc&.iso8601(6),
@@ -71,7 +71,7 @@ class LocationsController < ApplicationController
 
   def location_timeline_cache_key(scoped_photos)
     [
-      "location-timeline/v5",
+      "location-timeline/v6",
       cache_audience_key,
       @location_id,
       Photo.maximum(:updated_at)&.utc&.to_i,
@@ -100,9 +100,17 @@ class LocationsController < ApplicationController
       .where(id: cover_ids)
       .index_by(&:id)
 
+    area_ids = if locations.any? { |location| PhotoLocationArea.grouped_id?(location.id) }
+      PhotoLocationArea.identities(geotagged_photos.where(id: cover_ids))
+    else
+      {}
+    end
     locations.each_with_object({}) do |location, covers|
       candidates = [ photos[explicit_covers[location.id]], photos[location.representative_photo_id.to_i] ].compact
-      cover = candidates.find { |photo| PhotoLocation.id_for_metadata(photo.display_metadata) == location.id }
+      cover = candidates.find do |photo|
+        actual_id = PhotoLocationArea.grouped_id?(location.id) ? area_ids[photo.id] : PhotoLocation.id_for_metadata(photo.display_metadata)
+        actual_id == location.id
+      end
       covers[location.id] = cover if cover
     end
   end
@@ -144,7 +152,13 @@ class LocationsController < ApplicationController
   end
 
   def set_location_summary
-    if PhotoLocation.place_record_id?(@location_id)
+    if PhotoLocationArea.grouped_id?(@location_id)
+      summary = PhotoLocationArea.groups(location_photo_scope, limit: 1).first
+      raise ActiveRecord::RecordNotFound unless summary
+
+      @location_title = summary.title
+      @location_photo_count = summary.photo_count
+    elsif PhotoLocation.place_record_id?(@location_id)
       @location_title = PhotoLocation.place_name_from_id(@location_id)
       @location_photo_count = location_photo_scope.count
     else

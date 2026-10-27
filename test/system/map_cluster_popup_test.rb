@@ -68,6 +68,32 @@ class MapClusterPopupTest < ApplicationSystemTestCase
     assert_no_selector "#map-popup-test"
   end
 
+  test "a broad location gallery opens its map with all precise photo points" do
+    [ [ @first, 36.0479, -112.0942, "2WX4+58" ], [ @second, 36.0480, -112.0944, "2WX4+66" ] ].each do |photo, lat, lng, code|
+      photo.metadata.update!(latitude: lat, longitude: lng)
+      assign_place([ photo ], "#{code} Grand Canyon Village").update!(place_type: "coordinate")
+    end
+
+    visit locations_path
+    assert_selector "article", count: 1
+    assert_selector "article h2", text: "Grand Canyon Village"
+    within("article") { find("a", match: :first).click }
+    assert_selector "h1", text: "Grand Canyon Village"
+    assert_selector "[data-photo-id='#{@first.id}']"
+    assert_selector "[data-photo-id='#{@second.id}']"
+    within("main") { click_link "Map", exact: true }
+    assert_current_path map_path, ignore_query: true
+    area = URI.decode_www_form(URI.parse(page.current_url).query).to_h.fetch("location_id")
+    assert_match(/\Anearby-/, area)
+    payload = page.evaluate_async_script(<<~JS, map_markers_path(location_id: area, zoom: 20))
+      const done = arguments[arguments.length - 1]
+      fetch(arguments[0], { headers: { Accept: "application/json" } })
+        .then(response => response.json()).then(done).catch(error => done({ error: error.message }))
+    JS
+    assert_equal 2, payload.fetch("total")
+    assert_equal [ [ 36.0479, -112.0942 ], [ 36.048, -112.0944 ] ], payload.fetch("markers").map { |marker| marker.values_at("latitude", "longitude") }.sort
+  end
+
   private
 
   def assign_place(photos, name)

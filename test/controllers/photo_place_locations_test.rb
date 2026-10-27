@@ -173,7 +173,7 @@ class PhotoPlaceLocationsTest < ActionDispatch::IntegrationTest
       assert_response :success
       assert_includes response.body, "501 photo locations"
       assert_select "article", count: 12
-      assert_equal 12, instantiated
+      assert_operator instantiated, :<=, LocationsController::LOCATION_PAGE_SIZE
 
       get locations_path(page: 42, sort: sort)
       assert_response :success

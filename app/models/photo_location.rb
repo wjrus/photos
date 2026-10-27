@@ -74,6 +74,8 @@ class PhotoLocation
   end
 
   def self.scope_for(scope, id)
+    return PhotoLocationArea.scope_for(scope, id) if PhotoLocationArea.grouped_id?(id)
+
     if place_record_id?(id)
       return scope.where(photo_metadata: { photo_place_id: place_record_id(id) })
     elsif legacy_place_id?(id)
@@ -148,6 +150,8 @@ class PhotoLocation
   end
 
   def self.valid_id?(id)
+    return true if PhotoLocationArea.grouped_id?(id)
+
     return true if place_record_id?(id)
     return place_name_from_id(id).present? if legacy_place_id?(id)
 
@@ -205,6 +209,18 @@ class PhotoLocation
 
   def self.title_for(latitude, longitude)
     "#{format_coordinate(latitude)}, #{format_coordinate(longitude)}"
+  end
+
+  def self.distance_meters(latitude, longitude, other_latitude, other_longitude)
+    lat, lng, other_lat, other_lng = [ latitude, longitude, other_latitude, other_longitude ].map { |value| Float(value) }
+    return unless [ lat, lng, other_lat, other_lng ].all?(&:finite?) && [ lat, other_lat ].all? { |value| (-90..90).cover?(value) } && [ lng, other_lng ].all? { |value| (-180..180).cover?(value) }
+
+    radians = Math::PI / 180
+    a = Math.sin((other_lat - lat) * radians / 2)**2 +
+      Math.cos(lat * radians) * Math.cos(other_lat * radians) * Math.sin((other_lng - lng) * radians / 2)**2
+    2 * 6_371_000 * Math.asin(Math.sqrt(a.clamp(0, 1)))
+  rescue ArgumentError, TypeError
+    nil
   end
 
   def self.title_for_row(row, places = {})

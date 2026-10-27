@@ -60,7 +60,7 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "1 photo location"
     assert_select "article", count: 1
-    assert_select "a[href='#{location_path(PhotoLocation.id_for_area("0_0"))}']"
+    assert_select "a[href='#{location_path(PhotoLocationArea.id_for_coordinates(0, 0))}']"
 
     get location_path("0_0")
     assert_response :success
