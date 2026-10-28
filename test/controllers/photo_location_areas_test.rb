@@ -152,6 +152,43 @@ class PhotoLocationAreasTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "native Krakow city identity merges language variants while old links and covers keep working" do
+    first = geographic_photo("English neighborhood", 50.0627, 19.9458, country: "Poland", state: "Lesser Poland Voivodeship", town: "Kraków")
+    second = geographic_photo("Polish neighborhood", 50.0796, 19.9359, country: "Poland", state: "Województwo małopolskie", town: "Kraków")
+    places = [ first, second ].map { |photo| photo.metadata.photo_place }
+    places.each_with_index { |place, index| place.update!(identity_key: "google:krakow-neighborhood-#{index}", provider: "google", provider_place_id: "krakow-neighborhood-#{index}") }
+    before = PhotoLocationArea.groups(visible_scope)
+    assert_equal 2, before.size
+    previous_id = PhotoLocationArea.groups(visible_scope.where(id: first.id)).sole.id
+    @owner.photo_location_covers.create!(location_id: previous_id, cover_photo: first)
+    first.original.variant(:stream).processed
+
+    places.each do |place|
+      raw = { "native_name_version" => LocationNativeGeocoder::VERSION, "source" => "google_geocoding_v4",
+        "address_components" => [ { "long_name" => "Polska", "short_name" => "PL", "types" => [ "country" ] },
+          { "long_name" => "Kraków", "types" => [ "locality" ] } ],
+        "native_locality" => { "place_id" => "krakow-city", "name" => "Kraków" } }
+      descriptor = LocationMapRegion.for_result(raw)
+      assert place.refresh_native_name!({ identity_key: place.identity_key, name: "Lokalna dzielnica, Kraków", names: [ "Kraków", "Polska" ], place_type: "neighborhood", raw: raw }.merge(descriptor))
+    end
+
+    merged = PhotoLocationArea.groups(visible_scope).sole
+    assert_match(/\Acity-/, merged.id)
+    assert_equal "Kraków", merged.title
+    assert_equal 2, merged.photo_count
+    get locations_path(sort: "name")
+    assert_response :success
+    assert_select "article", count: 1
+    assert_select "[data-location-context]", text: "Polska"
+    assert_select "a[href='#{location_path(merged.id)}'] img[alt='English neighborhood']"
+    get location_path(previous_id)
+    assert_response :success
+    assert_select "[data-photo-id]", count: 2
+    get map_markers_path(location_id: previous_id, zoom: 20)
+    assert_equal 2, response.parsed_body.fetch("total")
+    assert_equal [ first.id, second.id ].sort, response.parsed_body.fetch("markers").map { |marker| marker.fetch("id") }.sort
+  end
+
   private
 
   def visible_scope

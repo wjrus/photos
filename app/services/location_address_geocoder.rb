@@ -1,9 +1,4 @@
-require "net/http"
-require "digest"
-
 class LocationAddressGeocoder
-  ENDPOINT = LocationReverseGeocoder::ENDPOINT
-
   def initialize(api_key: LocationReverseGeocoder.api_key)
     @api_key = api_key
   end
@@ -12,10 +7,8 @@ class LocationAddressGeocoder
     normalized_address = address.to_s.squish
     return if normalized_address.blank?
 
-    cache_key = "google-address-geocoding/v1/#{Digest::SHA256.hexdigest(normalized_address.downcase)}"
-    payload = LocationGeocodingResponse.fetch(cache_key) do
-      geocode_payload(normalized_address) if @api_key.present?
-    end
+    client = LocationNativeGeocoder.new(api_key: @api_key)
+    payload = client.address(address: normalized_address)
     return unless payload && payload["status"] == "OK"
 
     result = payload.fetch("results", []).first
@@ -24,6 +17,8 @@ class LocationAddressGeocoder
 
     latitude = BigDecimal(location.fetch("lat").to_s).round(6)
     longitude = BigDecimal(location.fetch("lng").to_s).round(6)
+    context = client.reverse(latitude: latitude, longitude: longitude)
+    result = LocationReverseGeocoder.native_context(result, Array(context&.fetch("results", [])))
     plus_code = result.fetch("types", []).include?("plus_code") || LocationReverseGeocoder.plus_code_name?(result["formatted_address"])
     identity = if result["place_id"].present? && !plus_code
       {
@@ -55,31 +50,12 @@ class LocationAddressGeocoder
     )
 
     geocoded.merge(key_fingerprint: api_key_fingerprint)
-  rescue JSON::ParserError, KeyError, SocketError, SystemCallError, Timeout::Error => error
+  rescue LocationNativeGeocoder::LookupError, JSON::ParserError, KeyError, SocketError, SystemCallError, Timeout::Error => error
     Rails.logger.warn("Location address geocode error: #{error.class}: #{error.message} key=#{api_key_fingerprint}")
     nil
   end
 
   private
-
-  def geocode_payload(address)
-    uri = URI(ENDPOINT)
-    uri.query = URI.encode_www_form(address: address, key: @api_key)
-    response = Net::HTTP.get_response(uri)
-    unless response.is_a?(Net::HTTPSuccess)
-      Rails.logger.warn("Location address geocode HTTP failure: status=#{response.code} key=#{api_key_fingerprint}")
-      return
-    end
-
-    payload = JSON.parse(response.body)
-    return unless payload.is_a?(Hash) && payload.fetch("results", []).is_a?(Array)
-    unless payload["status"].in?(%w[OK ZERO_RESULTS])
-      log_payload_status(payload)
-      return
-    end
-
-    payload
-  end
 
   def place_names(result, address)
     components = result.fetch("address_components", [])
@@ -100,19 +76,6 @@ class LocationAddressGeocoder
 
   def component_name(components, type)
     components.find { |component| component.fetch("types", []).include?(type) }&.fetch("long_name", nil)
-  end
-
-  def log_payload_status(payload)
-    status = payload["status"].presence || "UNKNOWN"
-    message = payload["error_message"].presence
-    log_line = "Location address geocode failed: status=#{status} key=#{api_key_fingerprint}"
-    log_line = "#{log_line} error=#{message}" if message
-
-    if status == "ZERO_RESULTS"
-      Rails.logger.info(log_line)
-    else
-      Rails.logger.warn(log_line)
-    end
   end
 
   def api_key_fingerprint

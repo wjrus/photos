@@ -6,21 +6,27 @@ class LocationMapRegion
   end
 
   def initialize(result)
-    @components = result.to_h.with_indifferent_access.fetch(:address_components, [])
+    @result = result.to_h.with_indifferent_access
+    @components = @result.fetch(:address_components, [])
   end
 
   def descriptor
     country = country_key
     admin1 = component_name("administrative_area_level_1")
     admin2 = component_name("administrative_area_level_2")
-    return {} if [ country, admin1, admin2 ].any?(&:blank?)
 
     # This is a map presentation hierarchy, never a place identity. Google's
     # actual component containment is required; a borough name or nearby point
     # alone cannot imply Greater London membership.
-    if country == "gb" && normalize(admin2) == "greater london"
+    if country == "gb" && normalize(admin2) == "greater london" && admin1.present?
       return descriptor_for("metro", [ country, admin1, admin2 ], "London")
     end
+
+    native_city = @result[:native_locality]
+    if @result[:native_name_version] == LocationNativeGeocoder::VERSION && country.present? && native_city.is_a?(Hash) && native_city[:place_id].present? && native_city[:name].present?
+      return { map_region_key: "google-locality:v1:#{Digest::SHA256.hexdigest(native_city[:place_id])}", map_region_name: native_city[:name] }
+    end
+    return {} if [ country, admin1, admin2 ].any?(&:blank?)
 
     locality = component_name("locality") || component_name("postal_town")
     return {} if locality.blank?

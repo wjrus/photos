@@ -11,6 +11,7 @@ class PhotoLocationArea
         MAX(component->>'long_name') FILTER (WHERE component->'types' ? 'locality') AS locality,
         MAX(component->>'long_name') FILTER (WHERE component->'types' ? 'postal_town') AS postal_town,
         MAX(component->>'long_name') FILTER (WHERE component->'types' ? 'country') AS country,
+        MAX(component->>'short_name') FILTER (WHERE component->'types' ? 'country') AS country_code,
         MAX(component->>'long_name') FILTER (WHERE component->'types' ? 'administrative_area_level_1') AS region,
         MAX(component->>'long_name') FILTER (WHERE component->'types' ? 'administrative_area_level_2') AS county
       FROM jsonb_array_elements(CASE
@@ -60,7 +61,9 @@ class PhotoLocationArea
       OR location_area_places.identity_key LIKE 'coordinate:%')
   SQL
   ID_SQL = <<~SQL.squish.freeze
-    CASE WHEN (#{REGION_KEY_SQL}) IS NOT NULL
+    CASE WHEN (#{REGION_KEY_SQL}) LIKE 'google-locality:v1:%'
+      THEN 'city-' || encode(sha256(convert_to((#{REGION_KEY_SQL}), 'UTF8')), 'hex')
+      WHEN (#{REGION_KEY_SQL}) IS NOT NULL
       THEN 'region-' || encode(sha256(convert_to((#{REGION_KEY_SQL}), 'UTF8')), 'hex')
       WHEN #{UNCERTAIN_SQL}
       THEN 'nearby-' || FLOOR(photo_metadata.latitude / #{CELL_SIZE})::bigint::text
@@ -83,17 +86,17 @@ class PhotoLocationArea
       THEN MAX(NULLIF(location_area_components.country, '')) END
   SQL
   STATE_NAME_SQL = <<~SQL.squish.freeze
-    CASE WHEN LOWER((#{COUNTRY_NAME_SQL})) IN ('united states', 'united states of america')
+    CASE WHEN (MAX(location_area_components.country_code) = 'US' OR LOWER((#{COUNTRY_NAME_SQL})) IN ('united states', 'united states of america'))
       AND COUNT(DISTINCT LOWER(NULLIF(location_area_components.region, ''))) = 1
       THEN MAX(NULLIF(location_area_components.region, '')) END
   SQL
 
   def self.grouped_id?(id)
-    id.to_s.match?(/\Aregion-[a-f0-9]{64}\z/) || nearby_buckets(id).present?
+    id.to_s.match?(/\A(?:region|city)-[a-f0-9]{64}\z/) || nearby_buckets(id).present?
   end
 
   def self.id_for_region(key)
-    "region-#{Digest::SHA256.hexdigest(key)}"
+    "#{key.start_with?('google-locality:v1:') ? 'city' : 'region'}-#{Digest::SHA256.hexdigest(key)}"
   end
 
   def self.id_for_coordinates(latitude, longitude)
@@ -106,7 +109,7 @@ class PhotoLocationArea
 
   def self.groups(scope, limit: nil, offset: 0, sort: "count")
     rows = joined(scope.except(:order, :includes, :preload, :eager_load))
-      .select("#{ID_SQL} AS location_id, #{TITLE_SQL} AS area_name, #{COUNTRY_NAME_SQL} AS country_name, #{STATE_NAME_SQL} AS state_name, MIN(location_area_places.place_type) AS place_type, #{PhotoLocation::SELECT_SQL}")
+      .select("#{ID_SQL} AS location_id, #{TITLE_SQL} AS area_name, #{COUNTRY_NAME_SQL} AS country_name, #{STATE_NAME_SQL} AS state_name, MIN(location_area_places.place_type) AS place_type, jsonb_agg(DISTINCT location_area_places.raw->'previous_map_region_ids') AS previous_region_ids, #{PhotoLocation::SELECT_SQL}")
       .group(Arel.sql(ID_SQL))
     ordering = case sort
     when "geography", "name"
@@ -121,15 +124,22 @@ class PhotoLocationArea
         country_name: row.country_name, state_name: row.state_name,
         photo_count: row.photo_count.to_i, image_count: row.image_count.to_i, video_count: row.video_count.to_i,
         latitude: row.latitude, longitude: row.longitude,
-        place_type: nearby ? "nearby_area" : row.location_id.start_with?("region-") ? "town_or_area" : row.place_type,
+        place_type: nearby ? "nearby_area" : row.location_id.start_with?("region-", "city-") ? "town_or_area" : row.place_type,
         newest_at: row.newest_at, oldest_at: row.oldest_at, representative_photo_id: row.representative_photo_id,
-        location_ids: [ row.location_id ]
+        location_ids: [ row.location_id, *Array(row.previous_region_ids).flatten.compact ].uniq
       )
     end
   end
 
   def self.scope_for(scope, id)
     return scope.none unless grouped_id?(id)
+
+    if id.start_with?("region-")
+      keys = PhotoPlace.where("jsonb_exists(raw->'previous_map_region_ids', ?)", id)
+        .where(id: scope.except(:order, :includes, :preload, :eager_load).reselect("photo_metadata.photo_place_id")).distinct.limit(2).pluck(:map_region_key).compact
+      return scope.none if keys.many?
+      id = id_for_region(keys.first) if keys.one?
+    end
 
     if (buckets = nearby_buckets(id))
       south, west = buckets.map { |bucket| bucket * CELL_SIZE.to_d }
@@ -141,6 +151,10 @@ class PhotoLocationArea
 
   def self.identities(scope)
     joined(scope.except(:order, :includes, :preload, :eager_load)).pluck("photos.id", Arel.sql(ID_SQL)).to_h
+  end
+
+  def self.ids(scope)
+    joined(scope.except(:order, :includes, :preload, :eager_load)).distinct.pluck(Arel.sql(ID_SQL))
   end
 
   def self.joined(scope)

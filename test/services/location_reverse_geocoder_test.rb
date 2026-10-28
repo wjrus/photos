@@ -1,6 +1,8 @@
 require "test_helper"
+require_relative "../support/native_geocoding_fixtures"
 
 class LocationReverseGeocoderTest < ActiveSupport::TestCase
+  include NativeGeocodingFixtures
   setup do
     @previous_cache = Rails.cache
     Rails.cache = ActiveSupport::Cache::MemoryStore.new
@@ -266,6 +268,28 @@ class LocationReverseGeocoderTest < ActiveSupport::TestCase
     assert_includes result[:names], "London"
   end
 
+  test "native reverse results verify the city ID and recover missing regional context without changing precise identity" do
+    country = { long_name: "Polska", short_name: "PL", types: [ "country" ] }
+    city = { long_name: "Kraków", types: [ "locality" ] }
+    neighborhood = { place_id: "kazimierz-feature", types: [ "neighborhood" ],
+      address_components: [ { long_name: "Kazimierz", types: [ "neighborhood" ] }, city, country ] }
+    locality = { place_id: "krakow-city", types: [ "locality" ],
+      address_components: [ city, country, { long_name: "Województwo małopolskie", types: [ "administrative_area_level_1" ] } ] }
+
+    result = geocode_results([ neighborhood, locality ])
+
+    assert_equal "google:kazimierz-feature", result[:identity_key]
+    assert_equal "Kraków", result[:map_region_name]
+    assert_equal "krakow-city", result.dig(:raw, "native_locality", "place_id")
+    assert_equal "google-locality:v1:#{Digest::SHA256.hexdigest('krakow-city')}", result[:map_region_key]
+    assert_includes result[:raw].fetch("address_components").map { |component| component["long_name"] }, "Województwo małopolskie"
+
+    LocationGeocodingResponse.delete_all
+    ambiguous = geocode_results([ neighborhood, locality, locality.merge(place_id: "another-city-with-the-same-name") ])
+    assert_nil ambiguous.dig(:raw, "native_locality")
+    assert_nil ambiguous[:map_region_key]
+  end
+
   private
 
   def geocode_results(results, latitude: 44.7622, longitude: -85.5980)
@@ -292,24 +316,10 @@ class LocationReverseGeocoderTest < ActiveSupport::TestCase
   end
 
   def http_ok_response(payload)
-    response = Net::HTTPOK.new("1.1", "200", "OK")
-    response.instance_variable_set(:@read, true)
-    response.body = payload.to_json
-    response
+    native_http_response(payload)
   end
 
   def stub_get_responses(responses)
-    calls = 0
-    Net::HTTP.singleton_class.alias_method :original_get_response, :get_response
-    Net::HTTP.define_singleton_method(:get_response) do |_uri|
-      response = responses.fetch(calls)
-      calls += 1
-      response
-    end
-    yield
-    calls
-  ensure
-    Net::HTTP.singleton_class.alias_method :get_response, :original_get_response
-    Net::HTTP.singleton_class.remove_method :original_get_response
+    with_native_responses(responses) { yield }
   end
 end

@@ -56,7 +56,7 @@ class LocationsController < ApplicationController
 
   def location_index_cache_key
     [
-      "locations-index/v8",
+      "locations-index/v9",
       cache_audience_key,
       Photo.maximum(:updated_at)&.utc&.to_i,
       PhotoMetadata.maximum(:updated_at)&.utc&.iso8601(6),
@@ -122,13 +122,13 @@ class LocationsController < ApplicationController
       else
         PhotoLocation.place_id_for_name(location.title)
       end
-      [ location.id, legacy_id ]
+      [ location.id, [ location.id, *location.location_ids, legacy_id ].uniq ]
     end
     covers = PhotoLocationCover
-      .where(location_id: aliases.keys + aliases.values)
+      .where(location_id: aliases.values.flatten)
       .pluck(:location_id, :cover_photo_id)
       .to_h
-    aliases.to_h { |id, legacy_id| [ id, covers[id] || covers[legacy_id] ] }
+    aliases.to_h { |id, ids| [ id, ids.filter_map { |candidate| covers[candidate] }.first ] }
   end
 
   def set_location

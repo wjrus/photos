@@ -1,7 +1,4 @@
-require "net/http"
-
 class LocationReverseGeocoder
-  ENDPOINT = "https://maps.googleapis.com/maps/api/geocode/json".freeze
   NEARBY_LANDMARK_TYPES = %w[natural_feature tourist_attraction].freeze
   NEARBY_LANDMARK_METERS = 500
   GEOGRAPHY_TYPES = %w[
@@ -46,13 +43,46 @@ class LocationReverseGeocoder
 
   def geocode(latitude:, longitude:)
     latitude, longitude = self.class.coordinate_pair(latitude: latitude, longitude: longitude)
-    payload = LocationGeocodingResponse.fetch("google-reverse-geocoding/v1/#{latitude},#{longitude}") do
-      geocode_payload(latitude: latitude, longitude: longitude) if @api_key.present?
-    end
+    payload = LocationNativeGeocoder.new(api_key: @api_key).reverse(latitude: latitude, longitude: longitude)
     return unless payload
 
     results = payload.fetch("results", [])
     candidate = canonical_result(results, latitude: latitude, longitude: longitude)
+    build_result(results, candidate, latitude: latitude, longitude: longitude)
+  rescue LocationNativeGeocoder::LookupError => error
+    Rails.logger.warn(error.message)
+    nil
+  end
+
+  def localize(place_id:, latitude:, longitude:)
+    client = LocationNativeGeocoder.new(api_key: @api_key)
+    payload = client.reverse(latitude: latitude, longitude: longitude)
+    return unless payload
+
+    results = payload.fetch("results", [])
+    result = results.find { |candidate| candidate["place_id"] == place_id } || client.place(place_id: place_id)
+    return unless result && result["place_id"] == place_id
+
+    type = (GEOGRAPHY_TYPES + LANDMARK_TYPES + %w[street_address]).find { |candidate| result.fetch("types", []).include?(candidate) }
+    return unless type
+
+    build_result(results, [ result, type ], latitude: latitude, longitude: longitude)
+  end
+
+  def named_area(query:)
+    payload = LocationNativeGeocoder.new(api_key: @api_key).address(address: query)
+    results = Array(payload&.fetch("results", []))
+    result = results.find { |item| (Array(item["types"]) & %w[natural_feature national_park nature_preserve]).any? && item.dig("geometry", "bounds").present? && !item["partial_match"] }
+    return unless result
+
+    type = (Array(result["types"]) & %w[natural_feature national_park nature_preserve]).first
+    point = result.dig("geometry", "location")
+    build_result(results, [ result, type ], latitude: point.fetch("lat"), longitude: point.fetch("lng"))
+  end
+
+  private
+
+  def build_result(results, candidate, latitude:, longitude:)
     if candidate
       result, type = candidate
       primary_name = feature_name(result, type)
@@ -68,6 +98,7 @@ class LocationReverseGeocoder
       identity = self.class.coordinate_identity(latitude: latitude, longitude: longitude)
     end
 
+    result = self.class.native_context(result, results)
     region = LocationMapRegion.for_result(result)
     names = [ *place_names(results, primary_name), region[:map_region_name] ].compact_blank.uniq
     geocoded = identity.merge(region).merge(name: primary_name, names: names, raw: result)
@@ -75,6 +106,35 @@ class LocationReverseGeocoder
   rescue JSON::ParserError, SocketError, SystemCallError, Timeout::Error => error
     Rails.logger.warn("Location reverse geocode error: #{error.class}: #{error.message} key=#{api_key_fingerprint}")
     nil
+  end
+
+  public
+
+  def self.native_context(result, results)
+    return result unless result["native_name_version"] == LocationNativeGeocoder::VERSION
+
+    components = Array(result["address_components"]).map(&:dup)
+    %w[country administrative_area_level_1 administrative_area_level_2 locality postal_town].each do |type|
+      next if components.any? { |component| Array(component["types"]).include?(type) }
+
+      candidates = results.flat_map { |item| Array(item["address_components"]) }.select { |component| Array(component["types"]).include?(type) && component["long_name"].present? }
+      components << candidates.first if candidates.map { |component| component["long_name"].unicode_normalize(:nfc).squish.downcase }.uniq.one?
+    end
+    result = result.merge("address_components" => components)
+    component_name = ->(items, type) { items.find { |component| Array(component["types"]).include?(type) }&.fetch("long_name", nil) }
+    country_code = ->(items) { items.find { |component| Array(component["types"]).include?("country") }&.fetch("short_name", nil) }
+    city = component_name.call(components, "locality") || component_name.call(components, "postal_town")
+    return result if city.blank?
+
+    candidates = results.select do |item|
+      type = (Array(item["types"]) & %w[locality postal_town]).first
+      code = country_code.call(Array(item["address_components"]))
+      type && item["place_id"].present? && code.present? && code == country_code.call(components) &&
+        component_name.call(Array(item["address_components"]), type).to_s.squish.casecmp?(city.squish)
+    end
+    return result unless candidates.map { |item| item["place_id"] }.uniq.one?
+
+    result.merge("native_locality" => { "place_id" => candidates.first["place_id"], "name" => city })
   end
 
   private
@@ -194,34 +254,6 @@ class LocationReverseGeocoder
       result["formatted_address"].to_s.split(",", 2).first,
       component_name(result.fetch("address_components", []), "plus_code")
     ].compact_blank.find { |name| self.class.plus_code_name?(name) }
-  end
-
-  def geocode_payload(latitude:, longitude:)
-    uri = URI(ENDPOINT)
-    uri.query = URI.encode_www_form(latlng: "#{latitude},#{longitude}", key: @api_key)
-    response = Net::HTTP.get_response(uri)
-    unless response.is_a?(Net::HTTPSuccess)
-      Rails.logger.warn("Location reverse geocode HTTP failure: status=#{response.code} key=#{api_key_fingerprint}")
-      return
-    end
-
-    payload = JSON.parse(response.body)
-    return unless payload.is_a?(Hash) && payload.fetch("results", []).is_a?(Array)
-
-    unless payload["status"].in?(%w[OK ZERO_RESULTS])
-      log_payload_status(payload)
-      return
-    end
-
-    payload
-  end
-
-  def log_payload_status(payload)
-    status = payload["status"].presence || "UNKNOWN"
-    message = payload["error_message"].presence
-    log_line = "Location reverse geocode failed: status=#{status} key=#{api_key_fingerprint}"
-    log_line = "#{log_line} error=#{message}" if message
-    Rails.logger.warn(log_line)
   end
 
   def api_key_fingerprint

@@ -1,5 +1,6 @@
 class GeocodePhotoLocationJob < ApplicationJob
   queue_as :maintenance
+  self.log_arguments = false
 
   THROTTLE_CACHE_KEY = "geocode-photo-location-job/request-throttle".freeze
   THROTTLE_INTERVAL = 1.second
@@ -22,7 +23,14 @@ class GeocodePhotoLocationJob < ApplicationJob
 
     result = LocationReverseGeocoder.new.geocode(latitude: latitude, longitude: longitude)
     if landmarks && result && (result[:place_type] == "coordinate" || result[:place_type].to_s.start_with?("administrative_area_"))
-      if (landmark = LocationLandmarkLookup.new.geocode(latitude: latitude, longitude: longitude))
+      components = Array(result.dig(:raw, "address_components"))
+      language = components.filter_map { |component| component["language_code"].presence }.first
+      country = components.find { |component| Array(component["types"]).include?("country") }&.fetch("short_name", nil)
+      options = { latitude: latitude, longitude: longitude }
+      options[:language_code] = language if language.present?
+      options[:country_code] = country if country.present?
+      if (landmark = LocationLandmarkLookup.new.geocode(**options))
+        landmark[:raw] = LocationReverseGeocoder.native_context(landmark[:raw], [ result.fetch(:raw, {}) ])
         result = landmark.merge(names: [ *landmark[:names], *Array(result[:names]) ].uniq)
       end
     end
@@ -37,6 +45,9 @@ class GeocodePhotoLocationJob < ApplicationJob
 
       place = PhotoPlace.from_geocode!(result: result, latitude: metadata.latitude, longitude: metadata.longitude)
       attributes = { photo_place: place, location_source: "automatic" }
+      if landmarks
+        attributes[:raw] = metadata.raw.to_h.merge("location_enrichment_version" => LocationNativeGeocoder::VERSION)
+      end
       # Successful unchanged matches still advance the next bounded refresh.
       attributes[:updated_at] = Time.current if refresh
       metadata.update!(attributes)

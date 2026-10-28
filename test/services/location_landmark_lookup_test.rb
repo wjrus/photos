@@ -96,6 +96,18 @@ class LocationLandmarkLookupTest < ActiveSupport::TestCase
     end
   end
 
+  test "native campground searches include Kerlingarfjoll and reject a nearby feature in another country" do
+    campsite = place("asgardur", "Ásgarður (Kerlingarfjöll)", 64.6832, -19.30).merge(types: [ "campground", "lodging" ], addressComponents: [ { longText: "Ísland", shortText: "IS", types: [ "country" ] } ])
+    foreign = place("other-country", "Foreign feature", 64.6832, -19.30).merge(addressComponents: [ { longText: "Other country", shortText: "XX", types: [ "country" ] } ])
+    with_responses([ response(places: [ foreign, campsite ]) ]) do |requests|
+      result = @lookup.geocode(latitude: 64.6832, longitude: -19.30, language_code: "is", country_code: "IS")
+      assert_equal "Ásgarður (Kerlingarfjöll)", result[:name]
+      assert_equal LocationNativeGeocoder::VERSION, result[:raw]["native_name_version"]
+      assert_equal "is", JSON.parse(requests.sole.body)["languageCode"]
+      assert_includes JSON.parse(requests.sole.body)["includedTypes"], "campground"
+    end
+  end
+
   private
 
   def place(id, name, latitude, longitude)

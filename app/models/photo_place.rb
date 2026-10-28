@@ -27,6 +27,7 @@ class PhotoPlace < ApplicationRecord
     end
 
     place.with_lock do
+      place.apply_native_result!(result) if result.dig(:raw, "native_name_version") == LocationNativeGeocoder::VERSION
       # A later match can supply hierarchy that was missing from the first
       # response. Keep an established region and require a complete descriptor.
       if (place.map_region_key.blank? || place.map_region_name.blank?) && result[:map_region_key].present? && result[:map_region_name].present?
@@ -36,6 +37,46 @@ class PhotoPlace < ApplicationRecord
       place.save! if place.changed?
     end
     place
+  end
+
+  # Provider IDs and photo GPS never change during name/parent localization.
+  # Preserve old spellings and old overview IDs as aliases, including saved covers.
+  def refresh_native_name!(result)
+    with_lock do
+      return false unless result[:identity_key] == identity_key
+      return false if manual_assignments.exists?
+
+      apply_native_result!(result)
+      save! if changed?
+      true
+    end
+  end
+
+  def self.awaiting_native_names
+    where(provider: "google").where.not(provider_place_id: [ nil, "" ])
+      .where("COALESCE(photo_places.raw->>'native_name_version', '') != ?", LocationNativeGeocoder::VERSION)
+      .where("COALESCE(photo_places.raw->>'native_checked_version', '') != ?", LocationNativeGeocoder::VERSION)
+      .where.not(id: PhotoMetadata.where("location_source = 'manual' OR raw->'manual_location'->>'source' = 'owner'").where.not(photo_place_id: nil).select(:photo_place_id))
+  end
+
+  def manual_assignments
+    photo_metadata.where("location_source = 'manual' OR raw->'manual_location'->>'source' = 'owner'")
+  end
+
+  def apply_native_result!(result)
+    return if manual_assignments.exists?
+
+    previous_ids = Array(raw["previous_map_region_ids"])
+    if map_region_key != result[:map_region_key]
+      previous_ids << PhotoLocationArea.id_for_region(map_region_key) if map_region_key.present?
+      # Older rows can derive an overview from raw address components without
+      # persisting map_region_key. Preserve those real URLs and covers as well.
+      previous_ids.concat(PhotoLocationArea.ids(Photo.joins(:metadata).where(photo_metadata: { photo_place_id: id })).grep(/\Aregion-/))
+    end
+    self.names = [ name, *names, map_region_name, result[:name], *Array(result[:names]) ].compact_blank.uniq
+    assign_attributes(name: result.fetch(:name), map_region_key: result[:map_region_key], map_region_name: result[:map_region_name],
+      place_type: result[:place_type] || place_type, raw: result.fetch(:raw).except("key_fingerprint", :key_fingerprint).merge("previous_map_region_ids" => previous_ids.uniq),
+      geocoded_at: Time.current)
   end
 
   def self.coordinate_identity(latitude, longitude)

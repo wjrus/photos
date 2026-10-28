@@ -71,6 +71,23 @@ class LocationMapRegionTest < ActiveSupport::TestCase
     assert_empty LocationMapRegion.for_result(result(locality: nil, county: "Greater London", region: nil, country: "United Kingdom"))
   end
 
+  test "verified native locality provider IDs join translated parent labels and work without counties" do
+    polish = result(locality: "Kraków", county: "Powiat Kraków", region: "Województwo małopolskie", country: "Polska", country_code: "PL")
+    english = result(locality: "Kraków", county: "Kraków", region: "Lesser Poland Voivodeship", country: "Poland", country_code: "PL")
+    [ polish, english ].each do |raw|
+      raw[:native_name_version] = LocationNativeGeocoder::VERSION
+      raw[:native_locality] = { place_id: "actual-krakow-city-id", name: "Kraków" }
+    end
+    assert_equal LocationMapRegion.for_result(polish), LocationMapRegion.for_result(english)
+    assert_match(/\Agoogle-locality:v1:/, LocationMapRegion.for_result(polish).fetch(:map_region_key))
+
+    riga = result(locality: "Rīga", county: nil, region: nil, country: "Latvija", country_code: "LV")
+    riga[:native_name_version] = LocationNativeGeocoder::VERSION
+    riga[:native_locality] = { place_id: "actual-riga-city-id", name: "Rīga" }
+    assert_equal "Rīga", LocationMapRegion.for_result(riga).fetch(:map_region_name)
+    refute_equal LocationMapRegion.for_result(polish)[:map_region_key], LocationMapRegion.for_result(riga)[:map_region_key]
+  end
+
   private
 
   def result(locality:, county:, region:, country:, country_code: nil)

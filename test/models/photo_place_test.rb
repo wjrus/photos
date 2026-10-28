@@ -73,6 +73,19 @@ class PhotoPlaceTest < ActiveSupport::TestCase
     assert_equal [ "Same town", "Other alias" ], other.names
   end
 
+  test "native updates cannot change another provider identity or an owner corrected place" do
+    place = resolve(identity_key: "google:owner", provider: "google", provider_place_id: "owner")
+    now = Time.current
+    id = Photo.insert_all!([ { owner_id: users(:one).id, title: "Manual location", created_at: now, updated_at: now } ]).rows.flatten.sole
+    PhotoMetadata.create!(photo_id: id, photo_place: place, location_source: "manual", latitude: 40, longitude: -80)
+    native = { identity_key: "google:owner", name: "Translated replacement", raw: { "native_name_version" => LocationNativeGeocoder::VERSION } }
+
+    refute place.refresh_native_name!(native)
+    assert_equal "Same town", place.reload.name
+    refute place.refresh_native_name!(native.merge(identity_key: "google:different"))
+    refute PhotoPlace.awaiting_native_names.exists?(place.id)
+  end
+
   private
 
   def resolve(latitude: 40, longitude: -80, **result)

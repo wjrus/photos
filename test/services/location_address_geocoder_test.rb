@@ -1,6 +1,8 @@
 require "test_helper"
+require_relative "../support/native_geocoding_fixtures"
 
 class LocationAddressGeocoderTest < ActiveSupport::TestCase
+  include NativeGeocodingFixtures
   setup do
     @previous_cache = Rails.cache
     Rails.cache = ActiveSupport::Cache::MemoryStore.new
@@ -163,18 +165,10 @@ class LocationAddressGeocoderTest < ActiveSupport::TestCase
   private
 
   def http_ok_response(payload)
-    response = Net::HTTPOK.new("1.1", "200", "OK")
-    response.instance_variable_set(:@read, true)
-    response.body = payload.to_json
-    response
+    native_http_response(payload)
   end
 
   def stub_get_response(response)
-    Net::HTTP.singleton_class.alias_method :original_get_response, :get_response
-    Net::HTTP.define_singleton_method(:get_response) { |_uri| response }
-    yield
-  ensure
-    Net::HTTP.singleton_class.alias_method :get_response, :original_get_response
-    Net::HTTP.singleton_class.remove_method :original_get_response
+    with_native_responses([ response, response ]) { yield }
   end
 end
