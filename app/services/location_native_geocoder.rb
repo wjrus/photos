@@ -53,8 +53,7 @@ class LocationNativeGeocoder
       uri = URI("#{ENDPOINT}/#{path}")
       request = Net::HTTP::Get.new(uri)
       request["X-Goog-Api-Key"] = @api_key
-      LocationApiBudget.reserve!(:geocoding)
-      response = Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 3, read_timeout: 12) { |http| http.request(request) }
+      response = LocationApiRequest.perform(kind: :geocoding, uri: uri, request: request, read_timeout: 12)
       unless response.is_a?(Net::HTTPSuccess)
         raise LookupError.new("Native geocoding failed: HTTP #{response.code}", http_status: response.code.to_i)
       end
@@ -69,7 +68,7 @@ class LocationNativeGeocoder
 
       payload
     end
-  rescue JSON::ParserError, SocketError, SystemCallError, Timeout::Error, Net::HTTPBadResponse => error
+  rescue JSON::ParserError, SocketError, SystemCallError, Timeout::Error, EOFError, Net::HTTPBadResponse => error
     raise LookupError, "Native geocoding failed: #{error.class}"
   end
 

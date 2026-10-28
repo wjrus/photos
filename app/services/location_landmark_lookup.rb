@@ -81,8 +81,7 @@ class LocationLandmarkLookup
     }
     body[:languageCode] = language_code if language_code.present?
     request.body = body.to_json
-    LocationApiBudget.reserve!(:places_nearby)
-    response = Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 3, read_timeout: 8) { |http| http.request(request) }
+    response = LocationApiRequest.perform(kind: :places_nearby, uri: uri, request: request, read_timeout: 8)
     unless response.is_a?(Net::HTTPSuccess)
       raise LookupError, "Nearby landmark lookup failed: HTTP #{response.code}. Check Places API (New) access and quota for the server key."
     end
@@ -93,7 +92,7 @@ class LocationLandmarkLookup
     end
 
     payload.fetch("places", [])
-  rescue JSON::ParserError, SocketError, SystemCallError, Timeout::Error, Net::HTTPBadResponse => error
+  rescue JSON::ParserError, SocketError, SystemCallError, Timeout::Error, EOFError, Net::HTTPBadResponse => error
     raise LookupError, "Nearby landmark lookup failed: #{error.class}"
   end
 end

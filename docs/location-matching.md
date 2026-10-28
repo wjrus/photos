@@ -209,7 +209,14 @@ worker code, the resumable repair localizes each existing automatic Google
 place once, then enriches unresolved coordinate photos. It preserves manual
 edits, provider identities of existing named places, original GPS and EXIF.
 Successful searches without a suitable name are recorded and reported rather
-than retried forever. Permission, quota and transport errors stop the repair.
+than retried forever. Each uncached request allows at most three attempts for
+connection/read timeouts, transient connection failures and HTTP 408/500/502/503/504,
+with exponential backoff and jitter. Each attempt reserves its cost against the
+same cumulative budget before sending, and implicit Net::HTTP retries are disabled.
+Provider Retry-After guidance is honored; waits longer than 30 seconds stop the
+request rather than retrying early. Permission/quota errors, malformed responses
+and an exhausted budget fail immediately; transport errors stop the repair after
+the bounded attempts.
 
 From the production checkout, after loading `scripts/lib/compose_env` and calling
 `load_compose_env`, run one bounded batch:
