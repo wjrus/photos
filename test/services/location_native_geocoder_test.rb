@@ -47,6 +47,14 @@ class LocationNativeGeocoderTest < ActiveSupport::TestCase
     end
   end
 
+  test "a missing key stops uncached repair lookups rather than marking their names unavailable" do
+    assert_raises(LocationNativeGeocoder::LookupError) do
+      LocationNativeGeocoder.new(api_key: nil).reverse(latitude: 44, longitude: -80)
+    end
+    assert_equal 0, LocationGeocodingResponse.count
+    assert_equal 0, LocationApiBudget.status.fetch("reserved")
+  end
+
   test "permission and malformed response failures remain retryable" do
     with_http([ http_response({}, status: "403"), http_response({ "results" => "invalid" }), http_response({ "results" => [] }) ]) do |requests|
       client = LocationNativeGeocoder.new(api_key: "key")

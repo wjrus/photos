@@ -26,9 +26,10 @@ county-only, and Plus Code results use `coordinate:<latitude6>,<longitude6>`.
 Normal reverse matching makes no nearby-coordinate probes; explicit landmark
 refreshes can additionally use Places Nearby Search as described below.
 Broader returned names remain searchable
-aliases without making unrelated places share an identity. Later matches of
-the same provider feature add aliases and fill missing map-region information
-while preserving its established display name and complete region descriptor.
+aliases without making unrelated places share an identity. Native-language
+matches update automatic names and hierarchy for the same provider identity;
+old spellings remain searchable aliases. Places referenced by manual corrections
+keep their owner-selected name and hierarchy.
 
 Manual edits update only the selected photos in a transaction. Background
 matching rechecks coordinates and assignment state after the provider request,
@@ -47,8 +48,11 @@ the same qualified city identities to offer broader browsing galleries.
 When the provider's address components identify Greater London within the
 United Kingdom, the map label is **London**. This uses administrative membership,
 not the wider commuter belt. Other city
-rollups require a locality qualified by country, region, and county. An
-incomplete hierarchy produces ordinary spatial clusters without a city label.
+rollups prefer an actual locality/postal-town result and its provider ID, verified
+against the result's country and local name. This joins translated versions of
+the same city without requiring countries such as Latvia to return a county.
+Older responses fall back to locality qualified by country, region, and county.
+An incomplete hierarchy without a verified city produces ordinary spatial clusters.
 These rollup keys are distinct from canonical place IDs.
 
 Clusters containing several precise locations offer zooming, without linking
@@ -95,6 +99,7 @@ Namesakes remain separate places in every order.
 
 - `place-id-<id>` identifies one assigned place, independent of its name.
 - `region-<hash>` identifies a qualified town/metro overview gallery.
+- `city-<hash>` identifies an overview by its verified Google locality ID.
 - `nearby-<latitude_bucket>_<longitude_bucket>` identifies a fallback overview cell.
 - `area-<latitude_bucket>_<longitude_bucket>` contains only unmatched photos in
   that cell. Matching a photo moves it out of this temporary group.
@@ -109,6 +114,11 @@ history for old-link resolution. They are not evidence for assigning every
 photo in that cell to a new place. Existing covers are retained and reused only
 when the cover still belongs to the current place/area. Places and aliases do
 not grant access to photos.
+
+When native localization upgrades a region to a verified city, the old region
+IDs are retained in the place's provider metadata. Old region links and saved
+covers resolve to the new city within the viewer's authorized scope; ambiguous
+aliases never silently combine different cities.
 
 The mobile API's location listing continues to expose precise place IDs. Broad
 overview IDs are accepted by the existing photo and map filters.
@@ -158,8 +168,10 @@ are preserved; their selected raw result cannot reconstruct an entire past API
 response, so the first lookup at a previously uncached request may still call
 Google once. Database backups should include the new table.
 
-Response keys describe the request, never the API credential or the matching
-algorithm version. Reverse lookups use six-decimal photo coordinates. Nearby
+Response keys describe the request and its API/language contract, never the API
+credential. Geocoding v4 responses use a separate native-language namespace;
+older cached responses remain saved but cannot establish native naming. Reverse
+lookups use six-decimal photo coordinates. Nearby
 searches share rounded three-decimal search points and recheck each candidate
 against the actual photo GPS. Empty successful results are saved as well;
 permission, quota, transport, and malformed-response errors are not cached.
@@ -178,8 +190,58 @@ Enable **Places API (New)** and allow it in the server key's API restrictions.
 The lookup reuses `GOOGLE_MAPS_GEOCODING_API_KEY` by default, or accepts a
 dedicated `GOOGLE_MAPS_PLACES_API_KEY`. Nearby Search requests only Pro-tier
 fields and may incur additional Google charges. It considers named attractions,
-historical landmarks and observation decks within 500 metres; it cannot guarantee
+historical landmarks, observation decks, campsites and hiking/natural attractions
+within 500 metres; it cannot guarantee
 that every photo has a suitable landmark or infer a distant visit.
+
+## Native names and resumable repair
+
+New address/reverse lookups use Google Geocoding v4 without a requested language,
+which returns names in the location's native language and script. The server key
+still requires Geocoding API access. Nearby Search receives the language from
+that native response. Country ISO codes continue to identify U.S. state context
+even when the country display name is localized. Complete successful provider
+payloads remain in PostgreSQL indefinitely, including fields not currently used.
+
+The ordinary missing-name queue handles unassigned photos. Already assigned
+coordinate placeholders need enrichment too. After deploying the new web and
+worker code, the resumable repair localizes each existing automatic Google
+place once, then enriches unresolved coordinate photos. It preserves manual
+edits, provider identities of existing named places, original GPS and EXIF.
+Successful searches without a suitable name are recorded and reported rather
+than retried forever. Permission, quota and transport errors stop the repair.
+
+From the production checkout, after loading `scripts/lib/compose_env` and calling
+`load_compose_env`, run one bounded batch:
+
+```sh
+docker compose exec -T worker bin/rails runner 'puts LocationEnrichmentRepair.run!(limit: 100, budget_cents: 5000).to_json'
+```
+
+Use `limit: 10000` for a full-library pass, or resume with another bounded batch.
+An advisory lock prevents concurrent repairs. Progress and request reservations
+survive process restarts in `app_settings`; cached responses cost no new request.
+The ceiling is cumulative across batches and cannot be raised above the initial
+allowance or $50. It conservatively reserves $0.005 per geocoding attempt and
+$0.032 per Nearby attempt before sending, without assuming free monthly usage.
+This is an application estimate for this repair, not a Google billing/account cap.
+Inspect status without making API requests:
+
+```sh
+docker compose exec -T worker bin/rails runner 'puts LocationEnrichmentRepair.status.to_json'
+```
+
+An explicitly requested natural area can also be resolved first, for example
+`area_query: "Kerlingarfjöll, Iceland", country_code: "IS"`. Only coordinate
+photos inside the provider's actual feature bounds qualify, with a 50 km maximum
+diagonal. A map viewport is not accepted as a feature boundary. Nearby campsites
+outside the mountain bounds are resolved separately by Nearby Search.
+
+Before production repair, retain a protected database backup covering
+`photo_places`, `photo_metadata`, `app_settings`, and the response-cache table.
+Rollback should restore selected name/assignment fields from that snapshot while
+preserving subsequent manual edits and newly cached responses. Do not delete or
+reset the budget record to restart a stopped repair.
 
 ## Verification
 

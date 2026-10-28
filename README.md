@@ -101,6 +101,9 @@ for the server geocoding key, or set `GOOGLE_MAPS_PLACES_API_KEY` to a dedicated
 server key. Successful geocoding/Places responses are retained in PostgreSQL
 without expiry and reused across deployments. Repository status → Files offers
 bounded landmark refreshes of up to 100 photos; new API requests may add charges.
+Geocoding uses native regional names and scripts. Existing names and coordinate
+placeholders can be updated with the resumable, budget-limited repair described
+in [location matching](docs/location-matching.md#native-names-and-resumable-repair).
 
 Photos are assigned to explicit places using the identity of the geographic
 feature returned for their coordinates. Uncertain results keep coordinates or

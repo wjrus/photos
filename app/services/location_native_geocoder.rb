@@ -48,7 +48,7 @@ class LocationNativeGeocoder
   def fetch(path)
     cache_key = "google-geocoding-v4/#{VERSION}/#{Digest::SHA256.hexdigest(path)}"
     LocationGeocodingResponse.fetch(cache_key) do
-      next if @api_key.blank?
+      raise LookupError, "Configure a server geocoding key before requesting uncached native names" if @api_key.blank?
 
       uri = URI("#{ENDPOINT}/#{path}")
       request = Net::HTTP::Get.new(uri)
