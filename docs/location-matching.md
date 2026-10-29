@@ -284,6 +284,9 @@ affected calculated bounds. Precise place names/IDs and photo assignments remain
 unchanged, including owner-corrected locations. Stale repair plans skip records
 that changed concurrently. Current gallery IDs take priority over historical
 aliases when an old group has split.
+Valid legacy covers are also copied to the current browsing gallery; the newest
+valid choice wins when several older galleries merge. Original cover settings
+remain saved, and an explicit current-gallery cover is never overwritten.
 
 After a protected backup, preview the saved-data repair:
 

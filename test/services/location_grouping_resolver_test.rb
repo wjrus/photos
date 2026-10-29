@@ -145,6 +145,27 @@ class LocationGroupingResolverTest < ActiveSupport::TestCase
     assert_match(/\Agoogle-feature:v1:/, resolve(unknown, latitude: 51.201, longitude: -2.001)[:map_region_key])
   end
 
+  test "legacy covers migrate to their current browsing gallery using the newest valid choice" do
+    owner = users(:one)
+    now = Time.current
+    photos = %w[Older Newer].map.with_index do |label, index|
+      id = Photo.insert_all!([ { owner_id: owner.id, title: label, created_at: now, updated_at: now } ]).rows.flatten.sole
+      place = PhotoPlace.create!(identity_key: "google:#{label}", name: label, names: [ "Previous #{label}" ], place_type: "premise",
+        latitude: 43.09, longitude: -79.08, map_region_key: "google-locality:v1:canadian-city", map_region_name: "Niagara Falls")
+      PhotoMetadata.create!(photo_id: id, photo_place: place, latitude: 43.09, longitude: -79.08, raw: {})
+      owner.photo_location_covers.create!(location_id: PhotoLocation.place_id_for_name("Previous #{label}"), cover_photo_id: id,
+        created_at: now + index, updated_at: now + index)
+      Photo.find(id)
+    end
+    owner.photo_location_covers.create!(location_id: PhotoLocation.place_id_for_name("Unrelated place"), cover_photo: photos.first)
+
+    assert_equal 1, LocationGroupingRepair.promote_covers!
+    target = PhotoLocationArea.id_for_region("google-locality:v1:canadian-city")
+    assert_equal photos.last.id, owner.photo_location_covers.find_by!(location_id: target).cover_photo_id
+    assert_equal 4, owner.photo_location_covers.count, "Original legacy choices remain saved"
+    assert_equal 0, LocationGroupingRepair.promote_covers!, "Current explicit covers are never overwritten"
+  end
+
   private
 
   def resolve(raw, latitude:, longitude:, name: "Synthetic landmark")

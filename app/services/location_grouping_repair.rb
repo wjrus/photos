@@ -1,3 +1,5 @@
+require "set"
+
 # Rebuild presentation from saved provider responses. Optional missing-city
 # queries are small, cached, and share the original repair spending allowance.
 class LocationGroupingRepair
@@ -70,9 +72,40 @@ class LocationGroupingRepair
         skipped += 1
       end
     end
-    { applied: apply, changed: changed, unchanged: unchanged, concurrent_changes_skipped: skipped,
+    covers_promoted = apply ? self.class.promote_covers! : 0
+    { applied: apply, changed: changed, unchanged: unchanged, concurrent_changes_skipped: skipped, covers_promoted: covers_promoted,
       countries: @catalog.data["countries"].values.map { |country| country.slice("code", "name") },
       cities: @catalog.data["cities"].size, areas: @catalog.data["areas"].map { |area| area.slice("name", "radius") },
       renamed_groups: changes.uniq, budget: LocationApiBudget.status }
+  end
+
+  def self.promote_covers!
+    covers = PhotoLocationCover.includes(:owner, cover_photo: :display_metadata).order(updated_at: :desc, id: :desc).to_a
+    existing = covers.map { |cover| [ cover.owner_id, cover.location_id ] }.to_set
+    promoted = 0
+    covers.group_by(&:owner_id).each_value do |owner_covers|
+      scope = Photo.visible_to(owner_covers.first.owner).joins(:metadata).merge(PhotoMetadata.geotagged)
+      identities = PhotoLocationArea.identities(scope.where(id: owner_covers.map(&:cover_photo_id)))
+      owner_covers.each do |cover|
+        target = identities[cover.cover_photo_id]
+        next if target.blank? || existing.include?([ cover.owner_id, target ])
+
+        # Narrowing to the chosen photo verifies historical membership even
+        # when a legacy name now has several legitimate candidate places.
+        chosen = scope.where(id: cover.cover_photo_id)
+        valid = PhotoLocation.valid_id?(cover.location_id) && PhotoLocation.scope_for(chosen, cover.location_id).exists?
+        if !valid && PhotoLocation.legacy_place_id?(cover.location_id)
+          name = PhotoLocation.place_name_from_id(cover.location_id)
+          valid = Array(cover.cover_photo.display_metadata&.photo_place&.names).include?(name)
+        end
+        next unless valid
+
+        inserted = PhotoLocationCover.insert_all([ { owner_id: cover.owner_id, location_id: target, cover_photo_id: cover.cover_photo_id,
+          created_at: cover.created_at, updated_at: cover.updated_at } ], unique_by: [ :owner_id, :location_id ])
+        promoted += inserted.rows.size
+        existing << [ cover.owner_id, target ]
+      end
+    end
+    promoted
   end
 end
