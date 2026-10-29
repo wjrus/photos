@@ -57,8 +57,7 @@ class PhotoPlaceLocationsTest < ActionDispatch::IntegrationTest
     assert_select "h1", text: "Choose a location"
     assert_select "article", count: 2
     assert_select "[data-photo-id]", count: 0
-    assert_select "nav[aria-label='Sort locations'] a[href='#{location_path(legacy_id, sort: 'count')}']", text: "Photo count"
-    assert_select "nav[aria-label='Sort locations'] a[aria-current='true']", text: "Name"
+    assert_select "nav[aria-label='Sort locations']", count: 0
     places.each { |place| assert_select "a[href='#{location_path(PhotoLocation.id_for_place(place))}']" }
 
     first.publish!

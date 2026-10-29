@@ -1,4 +1,5 @@
 <% content_for :title, "Locations" %>
+<% content_for :head, location_cover_preload_tags %>
 
 <section class="min-h-screen bg-stone-50 text-zinc-950">
   <%= render "shared/site_header" %>
@@ -14,15 +15,6 @@
       </div>
 
       <div class="flex flex-wrap items-center gap-3">
-        <nav aria-label="Sort locations" class="flex min-h-11 items-center gap-1 rounded-lg border border-zinc-300 bg-white p-1 shadow-sm">
-          <% sorts = @legacy_place_name.present? ? { "name" => "Name", "count" => "Photo count" } : { "geography" => "Geography", "name" => "Name", "count" => "Photo count" } %>
-          <% sorts.each do |sort, label| %>
-            <% sort_path = @legacy_place_name.present? ? location_path(@location_id, sort: sort) : locations_path(sort: sort) %>
-            <%= link_to label, sort_path,
-                  aria: { current: (@location_sort == sort ? "true" : nil) },
-                  class: "whitespace-nowrap rounded-md px-2 py-1.5 text-xs font-semibold transition sm:px-3 sm:text-sm #{@location_sort == sort ? 'bg-zinc-950 text-white' : 'text-zinc-700 hover:bg-zinc-100'}" %>
-          <% end %>
-        </nav>
         <%= link_to "Map",
               map_path,
               class: "inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white" %>
@@ -32,8 +24,10 @@
     <% if @locations.any? %>
       <div class="mt-6"
            data-stream-page-container
+           data-locations-state-viewer-value="<%= current_user.id %>"
            data-infinite-scroll-page-size-value="<%= LocationsController::LOCATION_PAGE_SIZE %>"
-           data-controller="<%= "infinite-scroll" if @next_location_page.present? %>">
+           data-controller="<%= ["locations-state", ("infinite-scroll" if @next_location_page.present?)].compact.join(" ") %>"
+           data-action="click->locations-state#remember">
         <%= render "locations/page", locations: @locations %>
       </div>
     <% else %>

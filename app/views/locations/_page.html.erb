@@ -1,4 +1,4 @@
-<% if @location_sort == "geography" && @legacy_place_name.blank? %>
+<% if @legacy_place_name.blank? %>
   <% locations.chunk { |location| location.country_name.to_s }.each do |country, country_locations| %>
     <section class="mb-8" data-location-country-group="<%= country %>" aria-label="<%= country.presence || "Other locations" %>">
       <h2 class="mb-4 border-b border-zinc-200 pb-2 text-xl font-semibold text-zinc-950"><%= country.presence || "Other locations" %></h2>
@@ -19,7 +19,7 @@
 <% if @next_location_page.present? %>
   <div class="py-6 text-center text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500"
        data-infinite-scroll-target="sentinel"
-       data-next-url="<%= locations_path(page: @next_location_page, sort: @location_sort) %>">
+       data-next-url="<%= locations_path(page: @next_location_page) %>">
     Loading more locations...
   </div>
 <% end %>

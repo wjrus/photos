@@ -2,18 +2,28 @@ class LocationsController < ApplicationController
   include PhotoStreamPagination
 
   LOCATION_PAGE_SIZE = 12
+  LOCATION_DIRECTORY_CACHE_LIMIT = 500
 
   before_action :require_privileged_metadata_viewer!
-  before_action :set_location_sort, only: %i[index show]
   before_action :set_location, only: :show
 
   def index
-    @location_count = cache_owner_aggregate([ location_index_cache_key, "count" ], expires_in: 12.hours) do
-      PhotoLocationArea.group_count(geotagged_photos)
+    directory = cached_location_directory
+    complete = directory.size <= LOCATION_DIRECTORY_CACHE_LIMIT
+    @location_count = if complete
+      directory.size
+    else
+      cache_owner_aggregate([ location_index_cache_key, "count" ], expires_in: 12.hours) { PhotoLocationArea.group_count(geotagged_photos) }
     end
     @location_page = [ params[:page].to_i, 1 ].max
     offset = (@location_page - 1) * LOCATION_PAGE_SIZE
-    @locations = offset < @location_count ? cached_location_rows(offset: offset) : []
+    @locations = if offset >= @location_count
+      []
+    elsif complete || offset + LOCATION_PAGE_SIZE <= directory.size
+      directory.slice(offset, LOCATION_PAGE_SIZE) || []
+    else
+      cached_location_rows(offset: offset)
+    end
     @next_location_page = @location_page + 1 if @location_page * LOCATION_PAGE_SIZE < @location_count
     @location_covers = location_covers(@locations)
 
@@ -24,9 +34,9 @@ class LocationsController < ApplicationController
     scoped_photos = location_photo_scope
     stream_scope = scoped_photos
       .with_original_variant_records
-      .stream_order
-    @photos, @next_cursor, @newer_cursor = paginate_photo_stream_with_focus(stream_scope)
-    @newer_cursor ||= timeline_newer_cursor(scoped_photos) if params[:timeline_page].present?
+      .chronological_order
+    @photos, @next_cursor, @newer_cursor = paginate_chronological_photo_stream_with_focus(stream_scope)
+    @newer_cursor ||= chronological_timeline_previous_cursor(scoped_photos) if params[:timeline_page].present?
     if @photos.empty? && !scoped_photos.exists?
       raise ActiveRecord::RecordNotFound
     end
@@ -43,20 +53,26 @@ class LocationsController < ApplicationController
     @location_media_count = media_counts_for(scoped_photos)
     @location_map_path = map_path(location_map_bounds_params(scoped_photos).merge(location_id: @location_id))
     @albums = current_user.photo_albums.display_order if current_user&.owner?
-    @timeline_periods = stream_timeline_periods(scoped_photos, cache_key: location_timeline_cache_key(scoped_photos)) unless params[:cursor].present?
+    @timeline_periods = stream_timeline_periods(scoped_photos, cache_key: location_timeline_cache_key(scoped_photos), order: :chronological) unless params[:cursor].present?
   end
 
   private
 
+  def cached_location_directory
+    cache_owner_aggregate([ location_index_cache_key, "directory" ], expires_in: 12.hours, race_condition_ttl: 2.minutes) do
+      PhotoLocationArea.groups(geotagged_photos, limit: LOCATION_DIRECTORY_CACHE_LIMIT + 1, sort: "geography")
+    end
+  end
+
   def cached_location_rows(offset:)
-    cache_owner_aggregate([ location_index_cache_key, @location_sort, offset ], expires_in: 12.hours, race_condition_ttl: 2.minutes) do
-      PhotoLocationArea.groups(geotagged_photos, limit: LOCATION_PAGE_SIZE, offset: offset, sort: @location_sort)
+    cache_owner_aggregate([ location_index_cache_key, offset ], expires_in: 12.hours, race_condition_ttl: 2.minutes) do
+      PhotoLocationArea.groups(geotagged_photos, limit: LOCATION_PAGE_SIZE, offset: offset, sort: "geography")
     end
   end
 
   def location_index_cache_key
-    [
-      "locations-index/v9",
+    @location_index_cache_key ||= [
+      "locations-index/v10",
       cache_audience_key,
       Photo.maximum(:updated_at)&.utc&.to_i,
       PhotoMetadata.maximum(:updated_at)&.utc&.iso8601(6),
@@ -71,7 +87,7 @@ class LocationsController < ApplicationController
 
   def location_timeline_cache_key(scoped_photos)
     [
-      "location-timeline/v6",
+      "location-timeline/v7",
       cache_audience_key,
       @location_id,
       Photo.maximum(:updated_at)&.utc&.to_i,
@@ -136,7 +152,7 @@ class LocationsController < ApplicationController
     raise ActiveRecord::RecordNotFound unless PhotoLocation.valid_id?(@location_id)
     return unless PhotoLocation.legacy_place_id?(@location_id)
 
-    candidates = PhotoLocation.legacy_groups(geotagged_photos, @location_id, sort: @location_sort)
+    candidates = PhotoLocation.legacy_groups(geotagged_photos, @location_id, sort: "name")
     raise ActiveRecord::RecordNotFound if candidates.empty?
     return redirect_to location_path(candidates.first.id) if candidates.one?
 
@@ -145,11 +161,6 @@ class LocationsController < ApplicationController
     @location_count = candidates.size
     @location_covers = location_covers(candidates)
     render :index
-  end
-
-  def set_location_sort
-    sorts = PhotoLocation.legacy_place_id?(params[:id]) ? %w[name count] : %w[geography name count]
-    @location_sort = params[:sort].presence_in(sorts) || (sorts.include?("geography") ? "geography" : "count")
   end
 
   def set_location_summary

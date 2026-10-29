@@ -108,6 +108,6 @@ class PhotoStreamPaginationTest < ActionDispatch::IntegrationTest
 
   def ordered_photos(stream)
     dated, undated = @photos.partition(&:captured_at)
-    stream == "album" ? dated + undated : dated.reverse + undated.reverse
+    %w[album location].include?(stream) ? dated + undated : dated.reverse + undated.reverse
   end
 end

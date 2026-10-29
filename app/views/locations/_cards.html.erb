@@ -1,11 +1,11 @@
 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" data-location-card-grid>
   <% locations.each do |location| %>
     <% cover = @location_covers[location.id] %>
-    <article class="group overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition hover:border-zinc-950">
-      <%= link_to location_path(location.id), class: "block" do %>
+    <article id="location-<%= location.id %>" data-location-id="<%= location.id %>" class="group overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition hover:border-zinc-950">
+      <%= link_to location_path(location.id), class: "block", data: { location_link: true } do %>
         <div class="aspect-[4/3] bg-zinc-900">
           <% if cover %>
-            <%= photo_stream_media(cover) %>
+            <%= photo_stream_media(cover, **location_cover_image_options(cover)) %>
           <% else %>
             <div class="flex size-full items-center justify-center text-xs font-semibold uppercase tracking-[0.18em] text-white/70">Location</div>
           <% end %>

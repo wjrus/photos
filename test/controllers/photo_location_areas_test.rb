@@ -23,7 +23,7 @@ class PhotoLocationAreasTest < ActionDispatch::IntegrationTest
     get locations_path(sort: "name")
     assert_response :success
     assert_select "article", count: 2
-    assert_select "a[href='#{location_path(area.id)}'] h2", text: "Manitowoc"
+    assert_select "a[href='#{location_path(area.id)}'] [data-location-title]", text: "Manitowoc"
     get location_path(area.id)
     assert_response :success
     assert_select "h1", text: "Manitowoc"
@@ -105,14 +105,14 @@ class PhotoLocationAreasTest < ActionDispatch::IntegrationTest
     assert_select "article", count: 2
   end
 
-  test "the default overview groups countries and US states and keeps context on other sort orders" do
+  test "the overview always groups countries and US states even for obsolete sort parameters" do
     ohio = geographic_photo("Cleveland", 41.5, -81.7, country: "United States", state: "Ohio", town: "Cleveland")
     geographic_photo("Cleveland", 42.7, -84.5, country: "United States", state: "Michigan", town: "Cleveland")
     geographic_photo("Gullfoss", 64.3, -20.1, country: "Iceland", state: "Southern Region")
 
     get locations_path
     assert_response :success
-    assert_select "nav[aria-label='Sort locations'] a[aria-current='true']", text: "Geography"
+    assert_select "nav[aria-label='Sort locations']", count: 0
     assert_equal [ "Iceland", "United States" ], css_select("[data-location-country-group]").map { |section| section["data-location-country-group"] }
     assert_equal [ "Michigan", "Ohio" ], css_select("[data-location-country-group='United States'] [data-location-state-group]").map { |section| section["data-location-state-group"] }
     assert_select "[data-location-country-group='Iceland'] h3", text: "Gullfoss"
@@ -120,7 +120,7 @@ class PhotoLocationAreasTest < ActionDispatch::IntegrationTest
     assert_select "[data-location-state-group='Ohio'] article [data-location-context]", text: "United States · Ohio"
 
     get locations_path(sort: "count")
-    assert_select "[data-location-country-group]", count: 0
+    assert_select "[data-location-country-group]", count: 2
     assert_select "article [data-location-context]", text: "United States · Ohio"
     get locations_path(sort: "name")
     assert_equal [ "Gullfoss", "Cleveland", "Cleveland" ], css_select("[data-location-title]").map(&:text)

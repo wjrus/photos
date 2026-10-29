@@ -119,8 +119,8 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "13 photo locations"
     assert_select "article", count: 12
-    assert_select "[data-controller='infinite-scroll']"
-    assert_select "[data-infinite-scroll-target='sentinel'][data-next-url='#{locations_path(page: 2, sort: 'geography')}']"
+    assert_select "[data-controller~='infinite-scroll']"
+    assert_select "[data-infinite-scroll-target='sentinel'][data-next-url='#{locations_path(page: 2)}']"
 
     get locations_path(page: 2)
 
@@ -130,7 +130,7 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-infinite-scroll-target='sentinel']", false
   end
 
-  test "location sorting switches cached name and photo count order with a safe default" do
+  test "locations always use geography and old sort parameters do not change the single view" do
     original_cache = Rails.cache
     Rails.cache = ActiveSupport::Cache::MemoryStore.new
     alpha = attached_photo(title: "Alpha photo")
@@ -141,46 +141,32 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     place = assign_photo_place(zulu, name: "Zulu")
     assign_photo_place(extra, place: place)
 
-    get locations_path
-    assert_response :success
-    assert_equal %w[Alpha Zulu], css_select("[data-location-title]").map(&:text)
-    assert_select "nav[aria-label='Sort locations'] a[aria-current='true']", text: "Geography"
-
-    get locations_path(sort: "count")
-    assert_response :success
-    assert_equal %w[Zulu Alpha], css_select("[data-location-title]").map(&:text)
-    assert_select "nav[aria-label='Sort locations'] a[aria-current='true']", text: "Photo count"
-
-    get locations_path(sort: "name")
-    assert_response :success
-    assert_equal %w[Alpha Zulu], css_select("article h2").map(&:text)
-    assert_select "nav[aria-label='Sort locations'] a[aria-current='true']", text: "Name"
-    assert_select "nav[aria-label='Sort locations'] a[href='#{locations_path(sort: 'count')}']", text: "Photo count"
-
-    get locations_path(sort: "not-a-sort")
-    assert_response :success
-    assert_equal %w[Alpha Zulu], css_select("[data-location-title]").map(&:text)
-    assert_select "nav[aria-label='Sort locations'] a[aria-current='true']", text: "Geography"
+    [ nil, "count", "name", "not-a-sort" ].each do |sort|
+      get locations_path(sort: sort)
+      assert_response :success
+      assert_equal %w[Alpha Zulu], css_select("[data-location-title]").map(&:text)
+      assert_select "nav[aria-label='Sort locations']", count: 0
+      assert_select "[data-location-country-group]", count: 1
+    end
   ensure
     Rails.cache = original_cache
   end
 
-  test "name sorting continues across location pages and switch links reset paging" do
+  test "geographic order continues across location pages with clean pagination links" do
     13.times do |index|
       photo = attached_photo(title: "Location #{index}")
       geotag(photo, latitude: 40, longitude: -80)
       assign_photo_place(photo, name: format("Place %02d", 12 - index))
     end
 
-    get locations_path(sort: "name")
+    get locations_path
     assert_response :success
-    assert_equal 12.times.map { |index| format("Place %02d", index) }, css_select("article h2").map(&:text)
-    assert_select "[data-infinite-scroll-target='sentinel'][data-next-url='#{locations_path(page: 2, sort: 'name')}']"
-    assert_select "nav[aria-label='Sort locations'] a[href='#{locations_path(sort: 'count')}']"
+    assert_equal 12.times.map { |index| format("Place %02d", index) }, css_select("[data-location-title]").map(&:text)
+    assert_select "[data-infinite-scroll-target='sentinel'][data-next-url='#{locations_path(page: 2)}']"
 
-    get locations_path(page: 2, sort: "name")
+    get locations_path(page: 2)
     assert_response :success
-    assert_equal [ "Place 12" ], css_select("article h2").map(&:text)
+    assert_equal [ "Place 12" ], css_select("[data-location-title]").map(&:text)
     assert_select "main", false
     assert_select "[data-infinite-scroll-target='sentinel']", false
   end
@@ -202,6 +188,86 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "img[alt='Explicit cover']"
+  end
+
+  test "owner directory cache serves later pages without repeating the grouping aggregate" do
+    original_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    13.times do |index|
+      photo = attached_photo(title: "Cached location #{index}")
+      geotag(photo, latitude: 40, longitude: -80)
+      assign_photo_place(photo, name: format("Cached %02d", index))
+    end
+    get locations_path
+    queries = []
+    subscriber = ->(event) { queries << event.payload[:sql] unless event.payload[:cached] }
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") { get locations_path(page: 2) }
+
+    assert_response :success
+    assert_select "[data-location-title]", text: "Cached 12"
+    assert_empty queries.select { |sql| sql.include?("AS location_id") && sql.match?(/\bGROUP BY\b/) }
+  ensure
+    Rails.cache = original_cache
+  end
+
+  test "directory cache stays bounded and pages beyond its prefix still work" do
+    stub_const(LocationsController, :LOCATION_DIRECTORY_CACHE_LIMIT, 12) do
+      13.times do |index|
+        photo = attached_photo(title: "Bounded location #{index}")
+        geotag(photo, latitude: 40, longitude: -80)
+        assign_photo_place(photo, name: format("Bounded %02d", index))
+      end
+      get locations_path
+      assert_response :success
+      assert_includes response.body, "13 photo locations"
+      assert_select "article", count: 12
+      get locations_path(page: 2)
+      assert_response :success
+      assert_select "[data-location-title]", text: "Bounded 12"
+      assert_select "article", count: 1
+    end
+  end
+
+  test "only the first three ready cover thumbnails preload and pagination remains lazy" do
+    13.times do |index|
+      photo = attached_photo(title: "Priority cover #{index}")
+      geotag(photo, latitude: 40, longitude: -80)
+      assign_photo_place(photo, name: format("Cover %02d", index))
+      photo.original.variant(:stream).processed
+    end
+    get locations_path
+    assert_response :success
+    assert_select "head link[rel='preload'][as='image']", count: 3
+    assert_select "article img[loading='eager']", count: 3
+    assert_select "article img[fetchpriority='high']", count: 1
+    assert_select "article img[loading='lazy']", count: 9
+
+    get locations_path(page: 2)
+    assert_select "img[loading='lazy']", count: 1
+    assert_select "img[loading='eager']", count: 0
+  end
+
+  test "location story pagination is oldest first with undated photos last" do
+    photos = 65.times.map do |index|
+      photo = attached_photo(title: "Story #{index}")
+      geotag(photo, latitude: 40, longitude: -80)
+      photo.update_columns(captured_at: Time.zone.local(2022, 1, 1) + index.hours)
+      photo
+    end
+    undated = attached_photo(title: "Undated story")
+    geotag(undated, latitude: 40, longitude: -80)
+    outside = attached_photo(title: "Outside story")
+    geotag(outside, latitude: 50, longitude: -80)
+    id = location_id_for(photos.first)
+
+    get location_path(id)
+    assert_response :success
+    assert_equal photos.first(60).map(&:id), css_select("[data-photo-id]").map { |node| node["data-photo-id"].to_i }
+    next_url = css_select("[data-infinite-scroll-target='sentinel'][data-next-url]").first["data-next-url"]
+    get next_url
+    assert_response :success
+    assert_equal [ *photos.drop(60).map(&:id), undated.id ], css_select("[data-photo-id]").map { |node| node["data-photo-id"].to_i }
+    refute_includes response.body, outside.title
   end
 
   test "place location page shows all matching location cells" do
@@ -316,7 +382,7 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "[data-stream-state-target-photo-id-value='#{target.id}']"
     assert_select "[data-photo-id='#{target.id}']"
-    assert_select "[data-photo-id='#{older.id}']"
+    assert_select "[data-photo-id='#{newer.id}']"
   end
 
   test "location infinite scroll pages do not render date groups" do
@@ -351,11 +417,11 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     assert_select "button[aria-label*='Jump to February 2020'][data-stream-timeline-page-url-value^='#{location_path(location_id)}']"
     refute_includes response.body, "February 2018"
 
-    get location_path(location_id, cursor: Photo.stream_cursor_before(Time.zone.local(2021, 1, 1)), stream_page: 1, timeline_page: 1)
+    get location_path(location_id, cursor: Photo.stream_cursor_after(Time.zone.local(2024, 5, 1)), stream_page: 1, timeline_page: 1)
 
     assert_response :success
-    assert_includes response.body, location_older.title
-    refute_includes response.body, location_newer.title
+    assert_includes response.body, location_newer.title
+    refute_includes response.body, location_older.title
     refute_includes response.body, outside.title
   end
 

@@ -82,7 +82,7 @@ module PhotoStreamReturnPaths
     location_id = uri.path.match(%r{\A/locations/([^/]+)\z})&.[](1)
     return unless location_id && PhotoLocation.valid_id?(location_id)
 
-    PhotoLocation.scope_for(photo_stream_geotagged_photo_scope, location_id).stream_order
+    PhotoLocation.scope_for(photo_stream_geotagged_photo_scope, location_id).chronological_order
   end
 
   def photo_stream_search_scope(uri)
@@ -103,7 +103,7 @@ module PhotoStreamReturnPaths
   end
 
   def photo_stream_return_order(uri)
-    uri.path.match?(%r{\A/albums/\d+\z}) ? :chronological : :stream
+    uri.path.match?(%r{\A/(?:albums/\d+|locations/[^/]+)\z}) ? :chronological : :stream
   end
 
   def photo_stream_ordered_scope(scope, order)

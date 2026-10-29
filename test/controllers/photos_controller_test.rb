@@ -875,10 +875,10 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     follow_redirect!
 
     assert_response :success
-    assert_select "a[href='#{photo_path(location_newer)}'][aria-label='Previous item in stream']"
-    assert_select "a[href='#{photo_path(location_older)}'][aria-label='Next item in stream']"
-    assert_includes response.body, %(data-stream-navigation-previous-url-value="#{photo_path(location_newer)}")
-    assert_includes response.body, %(data-stream-navigation-next-url-value="#{photo_path(location_older)}")
+    assert_select "a[href='#{photo_path(location_older)}'][aria-label='Previous item in stream']"
+    assert_select "a[href='#{photo_path(location_newer)}'][aria-label='Next item in stream']"
+    assert_includes response.body, %(data-stream-navigation-previous-url-value="#{photo_path(location_older)}")
+    assert_includes response.body, %(data-stream-navigation-next-url-value="#{photo_path(location_newer)}")
     refute_includes response.body, photo_path(outside)
   end
 

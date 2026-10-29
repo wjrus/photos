@@ -105,7 +105,7 @@ class ResponsiveLayoutTest < ApplicationSystemTestCase
     end
   end
 
-  test "locations can switch between name and photo count at mobile and desktop widths" do
+  test "the single locations view stays geographic at mobile and desktop widths" do
     sign_in
     blob = ActiveStorage::Blob.create_and_upload!(io: File.open(Rails.root.join("public/icon.png")), filename: "location.png", content_type: "image/png")
     photos = 3.times.map do |index|
@@ -117,18 +117,13 @@ class ResponsiveLayoutTest < ApplicationSystemTestCase
     place = assign_photo_place(photos.second, name: "Zulu station")
     assign_photo_place(photos.third, place: place)
     visit locations_path(sort: "count")
-    assert_equal "Zulu station", first("article h2").text
-    within("nav[aria-label='Sort locations']") { click_link "Name" }
-    assert_current_path locations_path(sort: "name")
-    assert_equal "Alpha lake", first("article h2").text
+    assert_equal "Alpha lake", first("[data-location-title]").text
+    assert_no_selector "nav[aria-label='Sort locations']"
     [ 390, 1440 ].each do |width|
       viewport(width)
       assert_no_horizontal_overflow
       screenshot("locations-sorted-#{width}")
     end
-    within("nav[aria-label='Sort locations']") { click_link "Photo count" }
-    assert_current_path locations_path(sort: "count")
-    assert_equal "Zulu station", first("article h2").text
   end
 
   test "location refresh controls fit narrow maintenance screens" do

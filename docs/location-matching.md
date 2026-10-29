@@ -80,7 +80,7 @@ Opening an overview area shows all its authorized photos. Its Map link filters
 to those photos and retains their original GPS points and normal zoom-dependent
 marker groups. Overview grouping never changes the underlying assignments.
 
-The index defaults to **Geography**: country alphabetically, then U.S. state,
+The index has one geographic view: country alphabetically, then U.S. state,
 then city/region/area. Country and state sections stay together as more pages
 load. Other countries omit the state level. This is a browsing hierarchy;
 country/state headers do not combine or reassign the underlying areas/photos.
@@ -88,14 +88,24 @@ Country and state context comes from the saved provider address components,
 so enabling this view does not require new API requests. An ambiguous or missing
 country goes under Other locations instead of borrowing one from a neighbor.
 
-The **Name** switch shows a flat list ordered by country, U.S. state, then
-city/region/area, so Michigan locations stay together even when their city names
-differ. The city/area remains the main card label, with country/state underneath
-in every view. **Photo count** keeps the largest galleries first; Geography adds
-country/state section headings to the same geographic order used by Name.
+The city/area remains the main card label, with country/state underneath.
+Older links with `sort=name` or `sort=count` use this same geographic view.
 A one-day gallery displays its date once; multi-day galleries keep a range.
-The selected order stays in the URL and is retained when loading more cards.
-Namesakes remain separate places in every order.
+Namesakes remain separate places. Opening a location and returning by its Back
+to locations link or browser back restores the selected card's position,
+loading earlier directory pages as necessary. Position is kept in the current
+browser tab for up to 24 hours and scoped to the signed-in viewer.
+
+Owner directory summaries are cached together up to 500 locations; larger
+directories use bounded pages beyond that prefix. Existing data freshness and
+audience keys invalidate the cache, and other viewers' permissions are checked
+on each request. Only the first three ready cover thumbnails are preloaded;
+later cards keep lazy loading. No originals are preloaded. Owners can set a
+cover from a photo opened from its location gallery using **Set location cover**.
+
+Location galleries tell the story oldest first, matching albums. Pagination,
+timeline jumps, and photo-viewer navigation follow that order; undated photos
+follow dated photos.
 
 - `place-id-<id>` identifies one assigned place, independent of its name.
 - `region-<hash>` identifies a qualified town/metro overview gallery.
