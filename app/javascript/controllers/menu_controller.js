@@ -4,9 +4,11 @@ export default class extends Controller {
   connect() {
     this.closeOnOutsideClick = this.closeOnOutsideClick.bind(this)
     this.closeOnEscape = this.closeOnEscape.bind(this)
+    this.closeBeforeCache = this.closeBeforeCache.bind(this)
     this.syncExpanded = this.syncExpanded.bind(this)
     document.addEventListener("click", this.closeOnOutsideClick)
     document.addEventListener("keydown", this.closeOnEscape)
+    document.addEventListener("turbo:before-cache", this.closeBeforeCache)
     this.element.addEventListener("toggle", this.syncExpanded)
     this.summaryElement?.setAttribute("aria-expanded", this.element.open ? "true" : "false")
   }
@@ -14,6 +16,7 @@ export default class extends Controller {
   disconnect() {
     document.removeEventListener("click", this.closeOnOutsideClick)
     document.removeEventListener("keydown", this.closeOnEscape)
+    document.removeEventListener("turbo:before-cache", this.closeBeforeCache)
     this.element.removeEventListener("toggle", this.syncExpanded)
   }
 
@@ -21,6 +24,11 @@ export default class extends Controller {
     if (!this.element.open || this.element.contains(event.target)) return
 
     this.element.open = false
+  }
+
+  closeBeforeCache() {
+    this.element.open = false
+    this.syncExpanded()
   }
 
   closeOnEscape(event) {
