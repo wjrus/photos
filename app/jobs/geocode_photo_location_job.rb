@@ -24,7 +24,7 @@ class GeocodePhotoLocationJob < ApplicationJob
     result = LocationReverseGeocoder.new.geocode(latitude: latitude, longitude: longitude)
     if landmarks && result && (result[:place_type] == "coordinate" || result[:place_type].to_s.start_with?("administrative_area_"))
       components = Array(result.dig(:raw, "address_components"))
-      language = components.filter_map { |component| component["language_code"].presence }.first
+      language = result.dig(:raw, "native_country", "language_code") || components.find { |component| Array(component["types"]).include?("country") }&.fetch("language_code", nil)
       country = components.find { |component| Array(component["types"]).include?("country") }&.fetch("short_name", nil)
       options = { latitude: latitude, longitude: longitude }
       options[:language_code] = language if language.present?
@@ -32,6 +32,7 @@ class GeocodePhotoLocationJob < ApplicationJob
       if (landmark = LocationLandmarkLookup.new.geocode(**options))
         landmark[:raw] = LocationReverseGeocoder.native_context(landmark[:raw], [ result.fetch(:raw, {}) ])
         result = landmark.merge(names: [ *landmark[:names], *Array(result[:names]) ].uniq)
+        result = LocationGroupingResolver.resolve(result, latitude: latitude, longitude: longitude)
       end
     end
     unless result&.fetch(:name, nil).present?

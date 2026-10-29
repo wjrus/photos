@@ -274,9 +274,10 @@ class LocationReverseGeocoderTest < ActiveSupport::TestCase
     neighborhood = { place_id: "kazimierz-feature", types: [ "neighborhood" ],
       address_components: [ { long_name: "Kazimierz", types: [ "neighborhood" ] }, city, country ] }
     locality = { place_id: "krakow-city", types: [ "locality" ],
+      geometry: { location: { lat: 50.06, lng: 19.94 } },
       address_components: [ city, country, { long_name: "Województwo małopolskie", types: [ "administrative_area_level_1" ] } ] }
 
-    result = geocode_results([ neighborhood, locality ])
+    result = geocode_results([ neighborhood, locality ], latitude: 50.06, longitude: 19.94)
 
     assert_equal "google:kazimierz-feature", result[:identity_key]
     assert_equal "Kraków", result[:map_region_name]
@@ -285,9 +286,9 @@ class LocationReverseGeocoderTest < ActiveSupport::TestCase
     assert_includes result[:raw].fetch("address_components").map { |component| component["long_name"] }, "Województwo małopolskie"
 
     LocationGeocodingResponse.delete_all
-    ambiguous = geocode_results([ neighborhood, locality, locality.merge(place_id: "another-city-with-the-same-name") ])
+    ambiguous = geocode_results([ neighborhood, locality, locality.merge(place_id: "another-city-with-the-same-name") ], latitude: 50.06, longitude: 19.94)
     assert_nil ambiguous.dig(:raw, "native_locality")
-    assert_nil ambiguous[:map_region_key]
+    assert_match(/\Agoogle-feature:v1:/, ambiguous[:map_region_key])
   end
 
   private

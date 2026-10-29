@@ -63,6 +63,26 @@ class PhotoPlace < ApplicationRecord
     photo_metadata.where("location_source = 'manual' OR raw->'manual_location'->>'source' = 'owner'")
   end
 
+  # Browsing membership is derived data, including for owner-corrected places.
+  # Never rename their precise place, change its identity or touch photo metadata.
+  def apply_grouping!(result, expected_raw:)
+    with_lock do
+      return false unless raw == expected_raw && identity_key == result[:identity_key]
+      return false if raw == result[:raw] && map_region_key == result[:map_region_key] && map_region_name == result[:map_region_name]
+
+      old_ids = PhotoLocationArea.ids(Photo.joins(:metadata).where(photo_metadata: { photo_place_id: id }))
+      aliases = [ *Array(raw["previous_map_region_ids"]), *old_ids ].uniq
+      self.raw = result.fetch(:raw).merge("previous_map_region_ids" => aliases)
+      self.map_region_key = result[:map_region_key]
+      self.map_region_name = result[:map_region_name]
+      self.names = [ *names, *Array(result[:names]), map_region_name ].compact_blank.uniq
+      save!
+      new_ids = PhotoLocationArea.ids(Photo.joins(:metadata).where(photo_metadata: { photo_place_id: id }))
+      PhotoLocationBound.where(location_id: old_ids + new_ids).delete_all
+      true
+    end
+  end
+
   def apply_native_result!(result)
     return if manual_assignments.exists?
 

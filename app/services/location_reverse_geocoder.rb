@@ -102,6 +102,7 @@ class LocationReverseGeocoder
     region = LocationMapRegion.for_result(result)
     names = [ *place_names(results, primary_name), region[:map_region_name] ].compact_blank.uniq
     geocoded = identity.merge(region).merge(name: primary_name, names: names, raw: result)
+    geocoded = LocationGroupingResolver.resolve(geocoded, latitude: latitude, longitude: longitude, context: results)
     geocoded.merge(key_fingerprint: api_key_fingerprint)
   rescue JSON::ParserError, SocketError, SystemCallError, Timeout::Error => error
     Rails.logger.warn("Location reverse geocode error: #{error.class}: #{error.message} key=#{api_key_fingerprint}")
@@ -134,7 +135,7 @@ class LocationReverseGeocoder
     end
     return result unless candidates.map { |item| item["place_id"] }.uniq.one?
 
-    result.merge("native_locality" => { "place_id" => candidates.first["place_id"], "name" => city })
+    result.merge("native_locality" => { "place_id" => candidates.first["place_id"], "name" => city, "source" => "reverse_geocoding" })
   end
 
   private

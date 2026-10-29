@@ -134,6 +134,15 @@ class PhotoLocationAreaTest < ActiveSupport::TestCase
     assert areas.all? { |area| area.country_name.nil? && area.state_name.nil? }
   end
 
+  test "current city galleries win over historical aliases from places moved to another area" do
+    current = make_photo(44.1, -87.6, "Current town", type: "locality", region_key: "google-locality:v1:current", region_name: "Current town")
+    former = make_photo(44.2, -87.7, "Nearby park", type: "nearby_landmark", region_key: "owner-area:v1:park", region_name: "Park")
+    current_id = PhotoLocationArea.id_for_region("google-locality:v1:current")
+    [ current, former ].each { |photo| photo.metadata.photo_place.update!(raw: { "previous_map_region_ids" => [ current_id ] }) }
+
+    assert_equal [ current.id ], PhotoLocationArea.scope_for(scope, current_id).pluck(:id)
+  end
+
   private
 
   def scope

@@ -11,6 +11,10 @@ class LocationMapRegion
   end
 
   def descriptor
+    if @result[:grouping_version] == LocationGroupingResolver::VERSION
+      return @result.fetch(:grouping, {}).to_h.symbolize_keys.slice(:map_region_key, :map_region_name)
+    end
+
     country = country_key
     admin1 = component_name("administrative_area_level_1")
     admin2 = component_name("administrative_area_level_2")

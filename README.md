@@ -104,6 +104,9 @@ bounded landmark refreshes of up to 100 photos; new API requests may add charges
 Geocoding uses native regional names and scripts. Existing names and coordinate
 placeholders can be updated with the resumable, budget-limited repair described
 in [location matching](docs/location-matching.md#native-names-and-resumable-repair).
+Saved-data country/city splits can also be repaired through the
+[canonical browsing catalog](docs/location-matching.md#canonical-browsing-groups),
+without changing precise place identities or photo coordinates.
 
 Photos are assigned to explicit places using the identity of the geographic
 feature returned for their coordinates. Uncertain results keep coordinates or

@@ -34,6 +34,8 @@ class PhotoLocationArea
       WHEN NULLIF(location_area_places.map_region_key, '') IS NOT NULL
         AND NULLIF(location_area_places.map_region_name, '') IS NOT NULL
       THEN location_area_places.map_region_key
+      WHEN location_area_places.raw->>'grouping_version' = 'grouping-v2'
+      THEN NULL
       WHEN #{LONDON_SQL}
       THEN 'google-components:v1:[' || array_to_string(ARRAY[
         to_jsonb('metro'::text)::text, to_jsonb('gb'::text)::text,
@@ -134,11 +136,20 @@ class PhotoLocationArea
   def self.scope_for(scope, id)
     return scope.none unless grouped_id?(id)
 
-    if id.start_with?("region-")
+    if id.start_with?("region-", "city-")
       keys = PhotoPlace.where("jsonb_exists(raw->'previous_map_region_ids', ?)", id)
         .where(id: scope.except(:order, :includes, :preload, :eager_load).reselect("photo_metadata.photo_place_id")).distinct.limit(2).pluck(:map_region_key).compact
-      return scope.none if keys.many?
-      id = id_for_region(keys.first) if keys.one?
+      if keys.many?
+        # A current valid gallery wins over ambiguous historical aliases.
+        return joined(scope).where("(#{ID_SQL}) = ?", id)
+      elsif keys.one?
+        replacement = id_for_region(keys.first)
+        if replacement != id
+          current = joined(scope).where("(#{ID_SQL}) = ?", id)
+          return current if current.exists?
+          id = replacement
+        end
+      end
     end
 
     if (buckets = nearby_buckets(id))

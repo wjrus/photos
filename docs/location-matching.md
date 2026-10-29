@@ -250,6 +250,61 @@ Rollback should restore selected name/assignment fields from that snapshot while
 preserving subsequent manual edits and newly cached responses. Do not delete or
 reset the budget record to restart a stopped repair.
 
+## Canonical browsing groups
+
+Browsing membership is resolved separately from precise photo-place identity.
+`LocationGroupingCatalog` keeps a small, rebuildable canonical catalog in the
+database setting `location_grouping_catalog/v1`. It is populated from the saved
+native Geocoding v4 responses; complete provider responses remain in their
+original permanent cache. Country codes identify one native country label.
+Actual locality/postal-town provider IDs identify cities across neighborhoods,
+county boundaries and translated address hints.
+
+An otherwise unverified city hint requires matching country/state, an unambiguous
+known city and a point within 32 km (about 20 miles). Distant postal towns do not
+label landmarks. Such landmarks retain their own names. Missing cities can be
+looked up once by qualified city/county/state/country, under the existing repair
+budget. Subsequent imports use the saved catalog and native country language.
+An omitted provider state is not treated as a conflicting state; known conflicts
+still prevent a match. Country, name, distance and uniqueness remain required.
+Localities take precedence over postal towns, including when Google returns
+separate locality/postal-town IDs for the same UK city. A village's locality also
+takes precedence over the larger town in its postal address.
+
+Explicitly requested display areas are also stored in this catalog, with a
+provider anchor, country and a bounded radius. The requested Kerlingarfjöll area
+uses 16 km (about 10 miles), covering its campsites and nearby highland photos.
+This is a browsing rule. It does not assert a provider feature boundary or change
+the precise place, GPS, manual correction, or EXIF of any photo.
+
+The grouping repair preserves original provider components separately when it
+normalizes country headings or removes unsafe postal hints from display data.
+It records old gallery IDs as aliases, retains saved covers, and invalidates only
+affected calculated bounds. Precise place names/IDs and photo assignments remain
+unchanged, including owner-corrected locations. Stale repair plans skip records
+that changed concurrently. Current gallery IDs take priority over historical
+aliases when an old group has split.
+
+After a protected backup, preview the saved-data repair:
+
+```sh
+docker compose exec -T worker bin/rails runner 'puts LocationGroupingRepair.run!(apply: false).except(:renamed_groups).to_json'
+```
+
+`lookup: true` also resolves missing qualified cities. Its successful responses
+and API request reservations are saved even during preview. `apply: true` writes
+the derived catalog, grouping descriptors and search aliases. Optional arguments
+`area_query: "Kerlingarfjöll, Iceland", area_name: "Kerlingarfjöll"` retain the
+requested area. Existing area definitions survive catalog rebuilds. The default
+area radius is 16 km, with a maximum of 20 km.
+
+Include `photo_places`, `photo_metadata`, `app_settings`,
+`location_geocoding_responses`, saved covers and calculated bounds in the backup.
+Verify photo coordinates/assignments, manual metadata and precise place fields
+against it after repair. Recovery restores only the affected derived place
+fields, with review for subsequent edits; retain newly cached responses and the
+cumulative budget record.
+
 ## Verification
 
 Regressions cover namesakes, several venues in one cell, one place across cells,

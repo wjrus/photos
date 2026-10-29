@@ -49,6 +49,7 @@ class LocationAddressGeocoder
       raw: result
     )
 
+    geocoded = LocationGroupingResolver.resolve(geocoded, latitude: latitude, longitude: longitude, context: Array(context&.fetch("results", [])))
     geocoded.merge(key_fingerprint: api_key_fingerprint)
   rescue LocationNativeGeocoder::LookupError, JSON::ParserError, KeyError, SocketError, SystemCallError, Timeout::Error => error
     Rails.logger.warn("Location address geocode error: #{error.class}: #{error.message} key=#{api_key_fingerprint}")
