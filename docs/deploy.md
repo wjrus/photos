@@ -230,6 +230,9 @@ See [performance checks](performance.md) for the synthetic query benchmark.
 
 ## Backups
 
+For a host move that preserves the existing library and analysis, use the
+[host migration runbook](migrate-host.md) and its staged migration tools.
+
 Back up the database volume and the app storage path:
 
 - `photos_postgres_data`

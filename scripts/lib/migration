@@ -1,0 +1,46 @@
+# shellcheck shell=bash
+# Shared by the source and destination tools. Never source transferred metadata.
+
+migration_fail() {
+  printf 'Migration failed: %s\n' "$*" >&2
+  exit 1
+}
+
+migration_path() {
+  local path="$1"
+  [[ "$path" =~ ^/[a-zA-Z0-9_./-]+$ && "$path" != / && "$path" != */ ]] ||
+    migration_fail "use an absolute path without spaces or shell characters: $path"
+  [[ "$(realpath -m -- "$path")" == "$path" ]] || migration_fail "path must be canonical: $path"
+}
+
+migration_private_directory() {
+  local path="$1"
+  migration_path "$path"
+  [[ ! -L "$path" ]] || migration_fail "refusing symlink: $path"
+  mkdir -p -- "$path"
+  [[ -O "$path" ]] || migration_fail "directory must belong to the current user: $path"
+  chmod 700 "$path"
+}
+
+migration_container() {
+  local container
+  container="$(docker compose ps --all -q "$1")"
+  [[ -n "$container" && "$container" != *$'\n'* ]] || migration_fail "expected one $1 container"
+  printf '%s\n' "$container"
+}
+
+migration_volume() {
+  local volume
+  volume="$(docker inspect --format "{{range .Mounts}}{{if and (eq .Destination \"$2\") (eq .Type \"volume\")}}{{.Name}}{{end}}{{end}}" "$1")"
+  [[ "$volume" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]+$ ]] || migration_fail "missing named volume for $2"
+  printf '%s\n' "$volume"
+}
+
+migration_counts() {
+  docker exec "$1" psql -X -v ON_ERROR_STOP=1 -U photos -d photos_production -Atc \
+    "SELECT 'photos', count(*) FROM photos UNION ALL SELECT 'blobs', count(*) FROM active_storage_blobs UNION ALL SELECT 'attachments', count(*) FROM active_storage_attachments UNION ALL SELECT 'blob_bytes', coalesce(sum(byte_size), 0) FROM active_storage_blobs ORDER BY 1"
+}
+
+# Consumed by both entry points.
+# shellcheck disable=SC2034
+migration_databases=(photos_production photos_production_queue photos_production_cache photos_production_cable)

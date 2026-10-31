@@ -1,0 +1,244 @@
+#!/usr/bin/env bash
+# Installed into the private migration directory by scripts/migrate-host.
+set -Eeuo pipefail
+umask 077
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "$SCRIPT_DIR/tooling/migration" ]]; then
+  # shellcheck source=scripts/lib/migration
+  source "$SCRIPT_DIR/tooling/migration"
+else
+  # shellcheck source=scripts/lib/migration
+  source "$SCRIPT_DIR/lib/migration"
+fi
+
+if [[ "${1:-}" == --help || $# == 0 ]]; then
+  cat <<'MSG'
+The source tool installs this helper and writes a target settings file.
+On the new host, use:
+  bash ~/photos-migration/run build
+  bash ~/photos-migration/run restore
+  bash ~/photos-migration/run verify
+  bash ~/photos-migration/run web
+  MIGRATION_ENABLE_WORKERS=1 bash ~/photos-migration/run activate
+build prepares the exact source revision/images without running Photos.
+restore requires a final-sync snapshot and only restores empty target databases.
+Neither restore nor verify starts web/worker/analysis services or changes DNS.
+MSG
+  exit 0
+fi
+[[ $# == 6 ]] || migration_fail "expected command, identity, app, storage, imports, state"
+action="$1" identity="$2" app="$3" storage="$4" imports="$5" state="$6"
+[[ "$identity" =~ ^[a-f0-9]{64}$ ]] || migration_fail "invalid source identity"
+for path in "$app" "$storage" "$imports" "$state"; do migration_path "$path"; done
+[[ "$app" == */apps/photos && "$storage" == */app_storage && "$imports" == */imports && "$state" == */photos-migration ]] ||
+  migration_fail "target paths must use dedicated Photos directories"
+[[ "$app" != "$state" && "$storage" != "$imports" ]] || migration_fail "target paths overlap"
+migration_private_directory "$state"
+exec 9>"$state/lock"
+flock -n 9 || migration_fail "another target operation is running"
+export COMPOSE_PROJECT_NAME=photos COMPOSE_PROFILES=bluegreen,analysis
+export PHOTOS_STORAGE_PATH="$storage" PHOTOS_IMPORT_PATH="$imports"
+payload="$state/payload"
+
+marker_matches() {
+  [[ -f "$state/identity" && "$(cat "$state/identity")" == "$identity $app $storage $imports" ]]
+}
+
+assert_no_writers() {
+  local service running
+  running="$(docker ps --filter label=com.docker.compose.project=photos --format '{{.Label "com.docker.compose.service"}}')"
+  while IFS= read -r service; do
+    [[ -z "$service" || "$service" == db || "$service" == redis ]] || migration_fail "target Photos service $service is running"
+  done <<< "$running"
+}
+
+validate_payload() {
+  [[ ! -e "$state/incoming" && -f "$state/complete" ]] || migration_fail "transfer is incomplete"
+  (cd "$payload" && sha256sum --check --quiet SHA256SUMS)
+  [[ "$(cat "$state/complete")" == "$(sha256sum "$payload/SHA256SUMS" | cut -d ' ' -f 1)" ]] || migration_fail "payload changed after transfer"
+}
+
+set_path() {
+  local key="$1" value="$2" file="$app/.env.production"
+  awk -F= -v key="$key" -v value="$value" '$1 != key { print } END { print key "=" value }' "$file" > "$file.new"
+  mv "$file.new" "$file"
+}
+
+case "$action" in
+  init)
+    for command in docker rsync; do command -v "$command" >/dev/null || migration_fail "missing $command"; done
+    sudo -n true || migration_fail "passwordless sudo is required"
+    docker info >/dev/null
+    if ! marker_matches; then
+      [[ ! -e "$state/identity" ]] || migration_fail "target belongs to another migration"
+      [[ -z "$(docker ps -aq --filter label=com.docker.compose.project=photos)" ]] || migration_fail "target already has Photos containers"
+      [[ -z "$(docker volume ls -q --filter label=com.docker.compose.project=photos)" ]] || migration_fail "target already has Photos volumes"
+      for directory in "$app" "$storage" "$imports"; do
+        [[ -d "$directory" && ! -L "$directory" ]] || migration_fail "prepare target directory: $directory"
+        [[ -z "$(sudo -n find "$directory" -mindepth 1 -maxdepth 1 -print -quit)" ]] || migration_fail "target directory is not empty: $directory"
+      done
+      printf '%s\n' "$identity $app $storage $imports" > "$state/identity"
+      printf '#!/usr/bin/env bash\nexec bash %q "$@" %q %q %q %q %q\n' \
+        "$state/migration-target" "$identity" "$app" "$storage" "$imports" "$state" > "$state/run"
+      chmod 700 "$state/run"
+    fi
+    df -h "$state" "$storage"
+    printf 'Target initialized; only dedicated Photos paths will be synchronized.\n'
+    exit 0 ;;
+esac
+marker_matches || migration_fail "target marker/settings do not match"
+
+case "$action" in
+  check) assert_no_writers ;;
+  begin)
+    assert_no_writers
+    [[ ! -e "$state/restore-started" ]] || migration_fail "restoration already started; refusing to overwrite target files"
+    free_bytes="$(df -PB1 "$storage" | awk 'NR == 2 { print $4 }')"
+    (( free_bytes > 10737418240 )) || migration_fail "keep at least 10 GiB free on the target"
+    touch "$state/incoming"
+    rm -f "$state/complete" ;;
+  complete)
+    (cd "$payload" && sha256sum --check --quiet SHA256SUMS)
+    sha256sum "$payload/SHA256SUMS" | cut -d ' ' -f 1 > "$state/complete"
+    rm -f "$state/incoming" ;;
+  ready)
+    [[ -f "$state/built" && -d "$app/.git" ]] || migration_fail "build the target before stopping the source"
+    [[ "$(cat "$state/built")" == "$(git -C "$app" rev-parse HEAD)" ]] || migration_fail "target revision changed" ;;
+  build)
+    assert_no_writers
+    validate_payload
+    [[ ! -e "$state/restore-started" ]] || migration_fail "restore already started"
+    revision="$(cat "$payload/revision")"
+    [[ "$revision" =~ ^[a-f0-9]{40}$ ]] || migration_fail "invalid source revision"
+    if [[ -d "$app/.git" ]]; then
+      if ! git -C "$app" diff --quiet || ! git -C "$app" diff --cached --quiet; then migration_fail "target checkout has tracked changes"; fi
+      existing_revision="$(git -C "$app" rev-parse --verify HEAD 2>/dev/null || true)"
+      if [[ -n "$existing_revision" ]]; then
+        [[ "$(git -C "$app" branch --show-current)" == main ]] || migration_fail "target branch changed outside the migration"
+        previous_revision="$(cat "$state/built" 2>/dev/null || true)"
+        [[ "$existing_revision" == "$revision" || "$existing_revision" == "$previous_revision" ]] ||
+          migration_fail "target branch advanced outside the migration; preserve its commits before continuing"
+      fi
+    else
+      git init -q "$app"
+    fi
+    git -C "$app" fetch --no-tags "$payload/source.bundle" HEAD
+    [[ "$(git -C "$app" rev-parse FETCH_HEAD)" == "$revision" ]] || migration_fail "bundle revision mismatch"
+    git -C "$app" checkout -B main "$revision"
+    git -C "$app" config remote.origin.url "$(cat "$payload/origin")"
+    git -C "$app" config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
+    git -C "$app" update-ref refs/remotes/origin/main "$revision"
+    git -C "$app" branch --set-upstream-to=origin/main main
+    install -m 600 "$payload/secrets/.env.production" "$app/.env.production"
+    install -m 600 "$payload/secrets/.env.postgres" "$app/.env.postgres"
+    while IFS= read -r -d '' key; do
+      relative="${key#"$payload/secrets/"}"
+      install -D -m 600 "$key" "$app/$relative"
+    done < <(find "$payload/secrets/config" -name '*.key' -type f -print0)
+    set_path PHOTOS_STORAGE_PATH "$storage"
+    set_path PHOTOS_IMPORT_PATH "$imports"
+    printf 'PHOTOS_STORAGE_PATH=%s\nPHOTOS_IMPORT_PATH=%s\nCOMPOSE_PROFILES=bluegreen,analysis\n' "$storage" "$imports" > "$app/.env"
+    cat > "$state/compose.override.expected" <<'YAML'
+services:
+  app_proxy:
+    ports: !override
+      - "127.0.0.1:3000:80"
+  analysis-local:
+    environment:
+      HF_HOME: /models/huggingface
+      TORCH_HOME: /models/torch
+YAML
+    if [[ -e "$app/compose.override.yml" ]] && ! cmp -s "$state/compose.override.expected" "$app/compose.override.yml"; then
+      migration_fail "target Compose override was changed; review it before continuing"
+    fi
+    install -m 600 "$state/compose.override.expected" "$app/compose.override.yml"
+    cd "$app"
+    docker compose config --quiet
+    docker compose pull db redis app_proxy
+    docker compose build --pull web_blue analysis-local
+    printf '%s\n' "$revision" > "$state/built"
+    cp "$state/complete" "$state/built-payload"
+    printf 'Images built. Photos services remain stopped.\n' ;;
+  restore)
+    assert_no_writers
+    validate_payload
+    [[ "$(cat "$payload/mode")" == final-sync ]] || migration_fail "only a final-sync snapshot can be restored"
+    [[ -f "$state/built" && "$(cat "$state/built")" == "$(cat "$payload/revision")" ]] || migration_fail "build the final source revision first"
+    cmp -s "$state/complete" "$state/built-payload" || migration_fail "run build again to apply the final snapshot configuration"
+    [[ "$(git -C "$app" rev-parse HEAD)" == "$(cat "$payload/revision")" ]] || migration_fail "target checkout revision differs"
+    touch "$state/restore-started"
+    cd "$app"
+    docker compose up -d --wait --wait-timeout 120 db redis
+    db="$(migration_container db)"
+    version="$(docker exec "$db" psql -X -U photos -d postgres -Atc 'SHOW server_version_num')"
+    [[ "$version" =~ ^18[0-9]{4}$ ]] || migration_fail "target PostgreSQL major must be 18"
+    for database in "${migration_databases[@]}"; do
+      [[ ! -f "$state/restored-$database" ]] || continue
+      exists="$(docker exec "$db" psql -X -U photos -d postgres -Atc "SELECT 1 FROM pg_database WHERE datname='$database'")"
+      if [[ "$exists" != 1 ]]; then docker exec "$db" createdb -U photos "$database"; fi
+      tables="$(docker exec "$db" psql -X -U photos -d "$database" -Atc "SELECT count(*) FROM pg_tables WHERE schemaname='public'")"
+      [[ "$tables" == 0 ]] || migration_fail "$database is not empty; refusing to overwrite it"
+      docker exec -i "$db" pg_restore -U photos --exit-on-error --single-transaction --no-owner --no-acl \
+        --dbname="$database" < "$payload/$database.dump"
+      touch "$state/restored-$database"
+    done
+    for name in analysis_index analysis_model_cache; do
+      [[ ! -f "$state/restored-$name" ]] || continue
+      volume="photos_$name"
+      if docker volume inspect "$volume" >/dev/null 2>&1; then
+        migration_fail "unexpected existing volume $volume; inspect it before retrying"
+      fi
+      docker volume create --label com.docker.compose.project=photos --label "com.docker.compose.volume=$name" "$volume" >/dev/null
+      docker run --rm -i --network none --read-only --mount "type=volume,source=$volume,target=/data" \
+        --entrypoint tar postgres:18 -C /data -xf - < "$payload/$name.tar"
+      if [[ "$name" == analysis_model_cache ]]; then
+        docker run --rm -i --network none --read-only --mount "type=volume,source=$volume,target=/data" \
+          --entrypoint tar postgres:18 -C /data -xf - < "$payload/analysis_download_cache.tar"
+      fi
+      touch "$state/restored-$name"
+    done
+    migration_counts "$db" > "$state/restored-counts"
+    cmp "$payload/counts" "$state/restored-counts" || migration_fail "restored database counts differ"
+    touch "$state/restored"
+    printf 'Restore complete. Web, workers, and analysis remain STOPPED. Run verify next.\n' ;;
+  verify)
+    validate_payload
+    [[ -f "$state/restored" ]] || migration_fail "restore is incomplete"
+    cd "$app"
+    db="$(migration_container db)"
+    migration_counts "$db" > "$state/restored-counts"
+    cmp "$payload/counts" "$state/restored-counts" || migration_fail "database counts differ"
+    docker compose config --quiet
+    cp "$state/complete" "$state/verified"
+    printf 'Database counts, payload checksums, and Compose configuration verified.\n'
+    printf 'Next: review the migration runbook before starting web or workers.\n' ;;
+  web)
+    validate_payload
+    if [[ ! -f "$state/restored" ]] || ! cmp -s "$state/complete" "$state/verified"; then migration_fail "restore and verify first"; fi
+    cd "$app"
+    [[ -z "$(docker compose ps -q worker)" ]] || migration_fail "worker must remain stopped during private verification"
+    docker compose run --rm --no-deps -e SKIP_DB_PREPARE=true web_blue ./bin/rails db:abort_if_pending_migrations
+    docker compose up -d --no-deps --wait --wait-timeout 600 analysis-local
+    mkdir -p tmp/nginx
+    printf 'upstream photos_app { server web_blue:80; }\n' > tmp/nginx/active_upstream.conf
+    SKIP_DB_PREPARE=true docker compose up -d --no-deps --wait --wait-timeout 240 web_blue
+    docker compose up -d --no-deps app_proxy
+    host="$(awk -F= '$1 == "PHOTOS_HOST" { print substr($0, length($1) + 2); exit }' .env.production)"
+    for _ in {1..30}; do
+      if curl -fsS -H "Host: $host" http://127.0.0.1:3000/up >/dev/null; then
+        touch "$state/web-started"
+        printf 'Web healthcheck passed on loopback. Workers remain STOPPED.\n'
+        exit 0
+      fi
+      sleep 1
+    done
+    migration_fail "web routing healthcheck failed" ;;
+  activate)
+    [[ "${MIGRATION_ENABLE_WORKERS:-0}" == 1 ]] || migration_fail "set MIGRATION_ENABLE_WORKERS=1 after TLS/DNS cutover"
+    [[ -f "$state/web-started" ]] || migration_fail "start and verify web first"
+    validate_payload
+    cd "$app"
+    docker compose up -d --no-deps --wait --wait-timeout 120 worker
+    printf 'Workers activated. Keep the old host frozen.\n' ;;
+  *) migration_fail "unknown target command: $action" ;;
+esac

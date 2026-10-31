@@ -130,8 +130,11 @@ jobs:
               assert torch.isfinite(features).all()
           PY
 
-      - name: Check deployment script syntax
-        run: bash -n scripts/deploy
+      - name: Check deployment and migration script syntax
+        run: |
+          for script in scripts/deploy scripts/migrate-host scripts/migration-target scripts/lib/migration; do
+            bash -n "$script"
+          done
 
   scan_js:
     runs-on: ubuntu-latest

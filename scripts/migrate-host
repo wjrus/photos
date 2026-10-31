@@ -1,0 +1,228 @@
+#!/usr/bin/env bash
+# Run on the CURRENT production host. No command changes DNS or starts the new app.
+set -Eeuo pipefail
+umask 077
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="${MIGRATION_APP_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+# shellcheck source=scripts/lib/migration
+source "$SCRIPT_DIR/lib/migration"
+
+usage() {
+  cat <<'MSG'
+Usage: scripts/migrate-host preflight|sync|final-sync|verify [--confirm-stop-source] USER@HOST
+
+preflight   Check source layout and initialize an EMPTY migration destination.
+sync        Pre-copy files and a rehearsal snapshot; source keeps running.
+final-sync  Stop Photos writers, copy final files/databases, leave source stopped.
+            Requires --confirm-stop-source. Run sync and build the target first.
+verify      Compare all file contents with rsync checksums (potentially slow).
+
+Optional environment:
+  MIGRATION_APP_ROOT=the production checkout (when tools are installed elsewhere)
+  MIGRATION_SSH_PORT=22
+  MIGRATION_SOURCE_STATE=$HOME/photos-migration-source
+  MIGRATION_TARGET_STATE=/home/wjr/photos-migration
+  MIGRATION_TARGET_APP=/home/wjr/apps/photos
+  MIGRATION_TARGET_STORAGE=/mnt/photos/app_storage
+  MIGRATION_TARGET_IMPORTS=/mnt/photos/imports
+  MIGRATION_COPY_IMPORTS=1  (0 omits import inputs; queued imports may need them)
+MSG
+}
+
+[[ "${1:-}" != --help && "${1:-}" != -h && $# -gt 0 ]] || { usage; exit 0; }
+action="$1"; shift
+confirm=0
+if [[ "${1:-}" == --confirm-stop-source ]]; then confirm=1; shift; fi
+[[ $# == 1 ]] || { usage >&2; exit 1; }
+target="$1"
+[[ "$action" =~ ^(preflight|sync|final-sync|verify)$ ]] || migration_fail "unknown command: $action"
+[[ "$target" =~ ^([a-z_][a-z0-9_-]*@)?[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]] || migration_fail "invalid SSH destination"
+[[ "$action" != final-sync || "$confirm" == 1 ]] || migration_fail "final-sync requires --confirm-stop-source"
+port="${MIGRATION_SSH_PORT:-22}"
+[[ "$port" =~ ^[0-9]+$ && "$port" -ge 1 && "$port" -le 65535 ]] || migration_fail "invalid SSH port"
+copy_imports="${MIGRATION_COPY_IMPORTS:-1}"
+[[ "$copy_imports" =~ ^[01]$ ]] || migration_fail "MIGRATION_COPY_IMPORTS must be 0 or 1"
+state="${MIGRATION_SOURCE_STATE:-$HOME/photos-migration-source}"
+target_state="${MIGRATION_TARGET_STATE:-/home/wjr/photos-migration}"
+target_app="${MIGRATION_TARGET_APP:-/home/wjr/apps/photos}"
+target_storage="${MIGRATION_TARGET_STORAGE:-/mnt/photos/app_storage}"
+target_imports="${MIGRATION_TARGET_IMPORTS:-/mnt/photos/imports}"
+for path in "$state" "$target_state" "$target_app" "$target_storage" "$target_imports"; do migration_path "$path"; done
+[[ "$state/" != "$ROOT/"* ]] || migration_fail "migration state must be outside the checkout"
+for command in docker git rsync ssh flock sha256sum; do command -v "$command" >/dev/null || migration_fail "missing $command"; done
+migration_private_directory "$state"
+exec 9>"$state/lock"
+flock -n 9 || migration_fail "another migration command is running"
+[[ -f "$state/identity" ]] || head -c 32 /dev/urandom | sha256sum | cut -d ' ' -f 1 > "$state/identity"
+identity="$(cat "$state/identity")"
+[[ "$identity" =~ ^[a-f0-9]{64}$ ]] || migration_fail "invalid migration identity"
+ssh_options=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 -p "$port")
+rsync_shell="ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 -p $port"
+
+remote() {
+  # All remote arguments are restricted to shell-safe paths/identifiers above.
+  # shellcheck disable=SC2029
+  ssh "${ssh_options[@]}" "$target" bash "$target_state/migration-target" "$1" \
+    "$identity" "$target_app" "$target_storage" "$target_imports" "$target_state"
+}
+
+cd "$ROOT"
+# shellcheck source=scripts/lib/compose_env
+source "$ROOT/scripts/lib/compose_env"
+load_compose_env
+migration_path "$PHOTOS_STORAGE_PATH"
+PHOTOS_IMPORT_PATH="${PHOTOS_IMPORT_PATH:-/mnt/photos/imports}"
+migration_path "$PHOTOS_IMPORT_PATH"
+[[ -d "$PHOTOS_STORAGE_PATH" ]] || migration_fail "source storage is missing"
+[[ "$copy_imports" == 0 || -d "$PHOTOS_IMPORT_PATH" ]] || migration_fail "source imports are missing"
+[[ "$(git branch --show-current)" == main ]] || migration_fail "source checkout must be on main"
+if ! git diff --quiet || ! git diff --cached --quiet; then migration_fail "source has tracked changes"; fi
+source_revision="$(git rev-parse HEAD)"
+[[ ! -e compose.override.yml && ! -e compose.override.yaml ]] || migration_fail "source Compose override requires manual review"
+db="$(migration_container db)"
+analysis="$(migration_container analysis-local)"
+project="$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$db")"
+[[ "$project" == photos ]] || migration_fail "expected the Photos Compose project, got $project"
+mounted_storage="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/rails/storage"}}{{.Source}}{{end}}{{end}}' "$analysis")"
+[[ "$mounted_storage" == "$PHOTOS_STORAGE_PATH" ]] || migration_fail "configured and mounted storage differ"
+index_volume="$(migration_volume "$analysis" /analysis)"
+model_volume="$(migration_volume "$analysis" /models)"
+db_image="$(docker inspect --format '{{.Image}}' "$db")"
+server_major="$(docker exec "$db" psql -X -U photos -d postgres -Atc 'SHOW server_version_num')"
+[[ "$server_major" =~ ^18[0-9]{4}$ ]] || migration_fail "this migration expects PostgreSQL 18"
+
+if [[ "$action" == preflight || "$action" == sync ]]; then
+  # Arguments are validated above; the quoted script runs only on the receiver.
+  # shellcheck disable=SC2029
+  ssh "${ssh_options[@]}" "$target" bash -s -- "$target_state" "$identity" "$target_app" "$target_storage" "$target_imports" <<'REMOTE'
+set -Eeuo pipefail
+umask 077
+state="$1"
+[[ ! -L "$state" && "$(realpath -m -- "$state")" == "$state" ]] || { printf 'Invalid target state path\n' >&2; exit 1; }
+if [[ -e "$state/identity" ]]; then
+  [[ "$(cat "$state/identity")" == "$2 $3 $4 $5" ]] || { printf 'Target belongs to another migration\n' >&2; exit 1; }
+fi
+[[ ! -e "$state/restore-started" ]] || { printf 'Target restoration already started\n' >&2; exit 1; }
+mkdir -p "$state/tooling"
+chmod 700 "$state"
+REMOTE
+  rsync -a -e "$rsync_shell" "$SCRIPT_DIR/migration-target" "$target:$target_state/"
+  rsync -a -e "$rsync_shell" "$SCRIPT_DIR/lib/migration" "$target:$target_state/tooling/"
+  remote init
+else
+  remote check
+fi
+
+if [[ "$action" == preflight ]]; then
+  printf 'Source revision: %s\n' "$(git rev-parse HEAD)"
+  printf 'Storage: %s\nImports: %s (copy=%s)\nIndex volume: %s\nModel volume: %s\n' \
+    "$PHOTOS_STORAGE_PATH" "$PHOTOS_IMPORT_PATH" "$copy_imports" "$index_volume" "$model_volume"
+  migration_counts "$db"
+  docker exec "$db" psql -X -U photos -d postgres -Atc \
+    "SELECT datname, pg_database_size(oid) FROM pg_database WHERE datname LIKE 'photos_%' ORDER BY datname"
+  df -h "$state" "$PHOTOS_STORAGE_PATH"
+  printf 'Preflight passed. Source services are unchanged.\n'
+  exit 0
+fi
+
+rsync_files() {
+  local source="$1" destination="$2" mode="$3"
+  local options=(-aH --numeric-ids --chown=1000:1000 --partial --partial-dir=.rsync-partial --exclude=.rsync-partial/)
+  case "$mode" in
+    copy) options+=(--delete-delay --info=progress2 --stats) ;;
+    check) options+=(--dry-run --delete --out-format=%i) ;;
+    checksum) options+=(--dry-run --checksum --delete --out-format=%i) ;;
+  esac
+  rsync "${options[@]}" --rsync-path='sudo -n rsync' -e "$rsync_shell" "$source/" "$target:$destination/"
+}
+
+check_files() {
+  local mode="$1" changes
+  changes="$(rsync_files "$PHOTOS_STORAGE_PATH" "$target_storage" "$mode")"
+  [[ -z "$changes" ]] || migration_fail "storage differs; rerun sync/final-sync before restoring"
+  if [[ "$copy_imports" == 1 ]]; then
+    changes="$(rsync_files "$PHOTOS_IMPORT_PATH" "$target_imports" "$mode")"
+    [[ -z "$changes" ]] || migration_fail "import inputs differ"
+  fi
+}
+
+if [[ "$action" == verify ]]; then
+  check_files checksum
+  printf 'All transferred storage/import file contents match the source.\n'
+  exit 0
+fi
+
+database_bytes="$(docker exec "$db" psql -X -U photos -d postgres -Atc "SELECT sum(pg_database_size(oid)) FROM pg_database WHERE datname LIKE 'photos_%'")"
+[[ "$database_bytes" =~ ^[0-9]+$ ]] || migration_fail "could not estimate database space"
+source_free="$(df -PB1 "$state" | awk 'NR == 2 { print $4 }')"
+(( source_free > database_bytes * 2 + 2147483648 )) || migration_fail "insufficient source snapshot workspace"
+if [[ "$action" == final-sync ]]; then
+  [[ -f "$state/synced" ]] || migration_fail "run sync before final-sync"
+  remote ready
+fi
+remote begin
+if [[ "$action" == final-sync ]]; then
+  freeze_started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  printf 'Stopping Photos ingress and writers. The source stays stopped on failure.\n'
+  docker compose stop -t 120 app_proxy web_blue web_green
+  docker compose stop -t 900 worker
+  docker compose stop -t 120 analysis-local
+  running="$(docker ps --filter "label=com.docker.compose.project=$project" --format '{{.Label "com.docker.compose.service"}}' | sort -u)"
+  [[ "$running" == $'db\nredis' || "$running" == db ]] || migration_fail "unexpected Photos writers are still running"
+fi
+
+rsync_files "$PHOTOS_STORAGE_PATH" "$target_storage" copy
+if [[ "$copy_imports" == 1 ]]; then rsync_files "$PHOTOS_IMPORT_PATH" "$target_imports" copy; fi
+
+snapshot="$(mktemp -d "$state/snapshot.XXXXXXXX")"
+trap 'rm -rf -- "$snapshot"' EXIT
+mkdir -p "$snapshot/secrets/config/credentials"
+install -m 600 .env.production .env.postgres "$snapshot/secrets/"
+for file in config/master.key config/credentials/*.key; do
+  [[ ! -f "$file" ]] || install -m 600 "$file" "$snapshot/secrets/$file"
+done
+git bundle create "$snapshot/source.bundle" HEAD refs/heads/main
+printf '%s\n' "$source_revision" > "$snapshot/revision"
+git remote get-url origin > "$snapshot/origin"
+printf '%s\n' "$copy_imports" > "$snapshot/copy-imports"
+printf '%s\n' "$action" > "$snapshot/mode"
+for database in "${migration_databases[@]}"; do
+  printf 'Exporting %s\n' "$database"
+  docker exec "$db" pg_dump -U photos --format=custom --no-owner --no-acl "$database" > "$snapshot/$database.dump"
+done
+migration_counts "$db" > "$snapshot/counts"
+for entry in "analysis_index:$index_volume" "analysis_model_cache:$model_volume"; do
+  name="${entry%%:*}"; volume="${entry#*:}"
+  docker run --rm --network none --read-only --security-opt no-new-privileges \
+    --mount "type=volume,source=$volume,target=/data,readonly" --entrypoint tar "$db_image" \
+    -C /data -cf - . > "$snapshot/$name.tar"
+done
+# docker cp also works for a stopped container. OpenCLIP currently downloads
+# weights into its writable layer, outside the configured /models volume.
+if docker cp "$analysis:/root/.cache/." - > "$snapshot/analysis_download_cache.tar"; then
+  tar -tf "$snapshot/analysis_download_cache.tar" >/dev/null
+else
+  migration_fail "could not capture the analysis download cache"
+fi
+[[ "$(git rev-parse HEAD)" == "$source_revision" ]] || migration_fail "source code changed during transfer; rerun the snapshot"
+if [[ "$action" == final-sync ]]; then
+  check_files check
+fi
+(
+  cd "$snapshot"
+  find . -type f -print0 | sort -z | xargs -0 sha256sum > "$state/checksums"
+)
+mv "$state/checksums" "$snapshot/SHA256SUMS"
+rsync -a --delete --partial -e "$rsync_shell" "$snapshot/" "$target:$target_state/payload/"
+[[ "$(git rev-parse HEAD)" == "$source_revision" ]] || migration_fail "source code changed during snapshot upload"
+if [[ "$action" == final-sync ]]; then
+  restarts="$(docker events --since "$freeze_started" --until "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --filter type=container --filter event=start --filter "label=com.docker.compose.project=$project" \
+    --format '{{index .Actor.Attributes "com.docker.compose.service"}}')"
+  [[ -z "$restarts" ]] || migration_fail "Photos containers started during the write freeze; rerun final-sync"
+fi
+remote complete
+touch "$state/synced"
+printf '%s complete. Target services have not been started.\n' "$action"
+if [[ "$action" == final-sync ]]; then printf 'Source Photos writers remain STOPPED. Restore and verify the target before DNS cutover.\n'; fi
