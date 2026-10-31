@@ -143,6 +143,62 @@ class PhotoLocationAreaTest < ActiveSupport::TestCase
     assert_equal [ current.id ], PhotoLocationArea.scope_for(scope, current_id).pluck(:id)
   end
 
+  test "town summaries weight coordinates by photos and keep dates media counts and tied covers across cells" do
+    first = make_photo(40.01, -80.01, "First venue", type: "premise", raw: town("Synthetic town"))
+    middle = make_photo(40.02, -80.02, "Same venue", type: "premise", raw: town("Synthetic town"))
+    middle.metadata.update!(photo_place: first.metadata.photo_place)
+    distant = make_photo(40.30, -80.30, "Other venue", type: "premise", raw: town("Synthetic town"))
+    latest = make_photo(40.31, -80.31, "Latest venue", type: "premise", raw: town("Synthetic town"))
+    first.update_columns(captured_at: Time.utc(2020, 1, 1))
+    middle.update_columns(captured_at: nil)
+    [ distant, latest ].each { |photo| photo.update_columns(captured_at: Time.utc(2030, 1, 1), content_type: "video/mp4") }
+
+    area = PhotoLocationArea.groups(scope).sole
+
+    assert_equal 4, area.photo_count
+    assert_equal 2, area.image_count
+    assert_equal 2, area.video_count
+    assert_in_delta 40.16, area.latitude.to_f, 0.000001
+    assert_in_delta(-80.16, area.longitude.to_f, 0.000001)
+    assert_equal Time.utc(2020, 1, 1), area.oldest_at
+    assert_equal Time.utc(2030, 1, 1), area.newest_at
+    assert_equal latest.id, area.representative_photo_id
+  end
+
+  test "countyless legacy towns still use each photos coordinates even when one precise place crosses cells" do
+    first = make_photo(40.99, -80.01, "Shared venue", type: "premise", raw: town("Synthetic town", county: nil))
+    second = make_photo(41.01, -80.01, "Other side", type: "premise", raw: town("Synthetic town", county: nil))
+    second.metadata.update!(photo_place: first.metadata.photo_place)
+    first.metadata.photo_place.update_columns(latitude: nil, longitude: nil)
+
+    areas = PhotoLocationArea.groups(scope)
+
+    assert_equal 2, areas.size
+    assert_equal 2, PhotoLocationArea.group_count(scope)
+    areas.each do |area|
+      member_ids = PhotoLocationArea.scope_for(scope, area.id).pluck(:id)
+      assert_equal 1, member_ids.size
+      assert_equal member_ids, PhotoLocationArea.identities(scope).select { |_id, group_id| group_id == area.id }.keys
+    end
+    assert_equal [ first.id, second.id ].sort, areas.flat_map { |area| PhotoLocationArea.scope_for(scope, area.id).pluck(:id) }.sort
+  end
+
+  test "stable town photo queries do not repeat geographic JSON extraction" do
+    first = make_photo(44.09, -87.65, "Harbor", type: "premise", raw: town("Synthetic town"))
+    make_photo(44.15, -87.70, "Unrelated town", type: "premise", raw: town("Another town"))
+    id = PhotoLocationArea.groups(scope.where(id: first.id)).sole.id
+    members = PhotoLocationArea.scope_for(scope, id)
+    queries = []
+    subscriber = ->(event) { queries << event.payload[:sql] unless event.payload[:cached] }
+
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+      assert_equal 1, members.count
+      assert_equal [ first.id ], members.chronological_order.limit(60).pluck(:id)
+    end
+
+    assert_empty queries.grep(/jsonb_array_elements/), "Counting and paging a resolved town should use its place IDs"
+  end
+
   private
 
   def scope

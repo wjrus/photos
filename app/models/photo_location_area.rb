@@ -4,8 +4,7 @@ require "digest"
 class PhotoLocationArea
   CELL_SIZE = 0.125 # About 8.6 miles north/south; a bounded fallback, not a radius.
   PLUS_CODE_PREFIX = '^[23456789CFGHJMPQRVWX]{4,8}\+[23456789CFGHJMPQRVWX]{2,3}([[:space:]]+|$)'.freeze
-  COMPONENTS_JOIN = <<~SQL.squish.freeze
-    LEFT JOIN photo_places location_area_places ON location_area_places.id = photo_metadata.photo_place_id
+  RAW_COMPONENTS_JOIN = <<~SQL.squish.freeze
     LEFT JOIN LATERAL (
       SELECT
         MAX(component->>'long_name') FILTER (WHERE component->'types' ? 'locality') AS locality,
@@ -29,7 +28,7 @@ class PhotoLocationArea
       to_jsonb(LOWER(location_area_components.county))::text, to_jsonb(LOWER(#{LOCALITY_SQL}))::text
     ], ',') || ']'
   SQL
-  REGION_KEY_SQL = <<~SQL.squish.freeze
+  DERIVED_REGION_KEY_SQL = <<~SQL.squish.freeze
     CASE
       WHEN NULLIF(location_area_places.map_region_key, '') IS NOT NULL
         AND NULLIF(location_area_places.map_region_name, '') IS NOT NULL
@@ -44,16 +43,9 @@ class PhotoLocationArea
       WHEN #{LOCALITY_SQL} IS NOT NULL AND NULLIF(location_area_components.country, '') IS NOT NULL
         AND NULLIF(location_area_components.region, '') IS NOT NULL AND NULLIF(location_area_components.county, '') IS NOT NULL
       THEN #{CITY_KEY_SQL}
-      WHEN #{LOCALITY_SQL} IS NOT NULL AND NULLIF(location_area_components.country, '') IS NOT NULL
-        AND NULLIF(location_area_components.region, '') IS NOT NULL
-      THEN 'saved-components:v1:' || jsonb_build_array(
-        LOWER(location_area_components.country), LOWER(location_area_components.region),
-        COALESCE(LOWER(location_area_components.county),
-          FLOOR(photo_metadata.latitude)::text || '_' || FLOOR(photo_metadata.longitude)::text),
-        LOWER(#{LOCALITY_SQL}))::text
     END
   SQL
-  REGION_NAME_SQL = <<~SQL.squish.freeze
+  DERIVED_REGION_NAME_SQL = <<~SQL.squish.freeze
     CASE WHEN NULLIF(location_area_places.map_region_key, '') IS NOT NULL
       AND NULLIF(location_area_places.map_region_name, '') IS NOT NULL
       THEN location_area_places.map_region_name WHEN #{LONDON_SQL} THEN 'London' ELSE #{LOCALITY_SQL} END
@@ -62,11 +54,52 @@ class PhotoLocationArea
     (location_area_places.id IS NULL OR location_area_places.place_type = 'coordinate'
       OR location_area_places.identity_key LIKE 'coordinate:%')
   SQL
+  COORDINATE_DEPENDENT_SQL = <<~SQL.squish.freeze
+    NOT (NULLIF(location_area_places.map_region_key, '') IS NOT NULL AND NULLIF(location_area_places.map_region_name, '') IS NOT NULL)
+    AND COALESCE(location_area_places.raw->>'grouping_version', '') != 'grouping-v2'
+    AND #{LOCALITY_SQL} IS NOT NULL AND NULLIF(location_area_components.country, '') IS NOT NULL
+    AND NULLIF(location_area_components.region, '') IS NOT NULL AND NULLIF(location_area_components.county, '') IS NULL
+  SQL
+  PLACE_DETAILS_SQL = <<~SQL.squish.freeze
+    SELECT location_area_places.id, location_area_places.name, location_area_places.place_type, location_area_places.identity_key,
+      location_area_places.raw->'previous_map_region_ids' AS previous_region_ids,
+      #{DERIVED_REGION_KEY_SQL} AS region_key,
+      #{DERIVED_REGION_NAME_SQL} AS region_name, (#{COORDINATE_DEPENDENT_SQL}) AS coordinate_dependent,
+      location_area_components.*
+    FROM photo_places location_area_places #{RAW_COMPONENTS_JOIN}
+  SQL
+  # These derived-table boundaries keep JSON extraction and stable identity
+  # hashing on the place table, instead of repeating them for every photo.
+  PLACE_IDENTITY_SELECT_SQL = <<~SQL.squish.freeze
+    SELECT place_details.*,
+      CASE WHEN region_key LIKE 'google-locality:v1:%' THEN 'city-' ELSE 'region-' END
+        || encode(sha256(convert_to(region_key, 'UTF8')), 'hex') AS region_id
+  SQL
+  PLACES_SQL = "#{PLACE_IDENTITY_SELECT_SQL} FROM (#{PLACE_DETAILS_SQL} OFFSET 0) place_details OFFSET 0".freeze
+  COMPONENT_COLUMNS_JOIN = <<~SQL.squish.freeze
+    LEFT JOIN LATERAL (SELECT location_area_places.locality, location_area_places.postal_town,
+      location_area_places.country, location_area_places.country_code, location_area_places.region, location_area_places.county
+    ) location_area_components ON TRUE
+  SQL
+  COMPONENTS_JOIN = <<~SQL.squish.freeze
+    LEFT JOIN LATERAL (#{PLACE_IDENTITY_SELECT_SQL}
+      FROM (#{PLACE_DETAILS_SQL} WHERE location_area_places.id = photo_metadata.photo_place_id OFFSET 0) place_details
+      OFFSET 0) location_area_places ON TRUE
+    #{COMPONENT_COLUMNS_JOIN}
+  SQL
+  REGION_KEY_SQL = <<~SQL.squish.freeze
+    CASE WHEN location_area_places.coordinate_dependent
+      THEN 'saved-components:v1:' || jsonb_build_array(
+        LOWER(location_area_components.country), LOWER(location_area_components.region),
+        FLOOR(photo_metadata.latitude)::text || '_' || FLOOR(photo_metadata.longitude)::text,
+        LOWER(#{LOCALITY_SQL}))::text
+      ELSE location_area_places.region_key END
+  SQL
+  REGION_NAME_SQL = "location_area_places.region_name".freeze
   ID_SQL = <<~SQL.squish.freeze
-    CASE WHEN (#{REGION_KEY_SQL}) LIKE 'google-locality:v1:%'
-      THEN 'city-' || encode(sha256(convert_to((#{REGION_KEY_SQL}), 'UTF8')), 'hex')
-      WHEN (#{REGION_KEY_SQL}) IS NOT NULL
+    CASE WHEN location_area_places.coordinate_dependent
       THEN 'region-' || encode(sha256(convert_to((#{REGION_KEY_SQL}), 'UTF8')), 'hex')
+      WHEN location_area_places.region_id IS NOT NULL THEN location_area_places.region_id
       WHEN #{UNCERTAIN_SQL}
       THEN 'nearby-' || FLOOR(photo_metadata.latitude / #{CELL_SIZE})::bigint::text
         || '_' || FLOOR(photo_metadata.longitude / #{CELL_SIZE})::bigint::text
@@ -92,6 +125,15 @@ class PhotoLocationArea
       AND COUNT(DISTINCT LOWER(NULLIF(location_area_components.region, ''))) = 1
       THEN MAX(NULLIF(location_area_components.region, '')) END
   SQL
+  GROUP_TOTALS_SQL = <<~SQL.squish.freeze
+    SUM(photo_metadata.photo_count) AS photo_count,
+    SUM(photo_metadata.image_count) AS image_count,
+    SUM(photo_metadata.video_count) AS video_count,
+    SUM(photo_metadata.latitude_sum) / NULLIF(SUM(photo_metadata.latitude_count), 0) AS latitude,
+    SUM(photo_metadata.longitude_sum) / NULLIF(SUM(photo_metadata.longitude_count), 0) AS longitude,
+    MAX(photo_metadata.newest_at) AS newest_at, MIN(photo_metadata.oldest_at) AS oldest_at,
+    (ARRAY_AGG(photo_metadata.representative_photo_id ORDER BY photo_metadata.newest_at DESC, photo_metadata.representative_photo_id DESC))[1] AS representative_photo_id
+  SQL
 
   def self.grouped_id?(id)
     id.to_s.match?(/\A(?:region|city)-[a-f0-9]{64}\z/) || nearby_buckets(id).present?
@@ -106,12 +148,20 @@ class PhotoLocationArea
   end
 
   def self.group_count(scope)
-    joined(scope.except(:order, :includes, :preload, :eager_load)).distinct.count(Arel.sql(ID_SQL))
+    cells = place_cells(scope).reselect("photo_metadata.photo_place_id,
+      MIN(photo_metadata.latitude) AS latitude, MIN(photo_metadata.longitude) AS longitude")
+    joined(Photo.from(cells, :photo_metadata)).distinct.count(Arel.sql(ID_SQL))
   end
 
   def self.groups(scope, limit: nil, offset: 0, sort: "count")
-    rows = joined(scope.except(:order, :includes, :preload, :eager_load))
-      .select("#{ID_SQL} AS location_id, #{TITLE_SQL} AS area_name, #{COUNTRY_NAME_SQL} AS country_name, #{STATE_NAME_SQL} AS state_name, MIN(location_area_places.place_type) AS place_type, jsonb_agg(DISTINCT location_area_places.raw->'previous_map_region_ids') AS previous_region_ids, #{PhotoLocation::SELECT_SQL}")
+    # Summarize each place/cell before deriving town headings and geographic
+    # context. Nearby cells also preserve coordinate-dependent legacy town IDs.
+    place_totals = place_cells(scope)
+      .reselect("photo_metadata.photo_place_id, #{PhotoLocation::SELECT_SQL},
+        SUM(photo_metadata.latitude) AS latitude_sum, COUNT(photo_metadata.latitude) AS latitude_count,
+        SUM(photo_metadata.longitude) AS longitude_sum, COUNT(photo_metadata.longitude) AS longitude_count")
+    rows = joined(Photo.from(place_totals, :photo_metadata))
+      .select("#{ID_SQL} AS location_id, #{TITLE_SQL} AS area_name, #{COUNTRY_NAME_SQL} AS country_name, #{STATE_NAME_SQL} AS state_name, MIN(location_area_places.place_type) AS place_type, jsonb_agg(DISTINCT location_area_places.previous_region_ids) AS previous_region_ids, #{GROUP_TOTALS_SQL}")
       .group(Arel.sql(ID_SQL))
     ordering = case sort
     when "geography", "name"
@@ -141,15 +191,16 @@ class PhotoLocationArea
         .where(id: scope.except(:order, :includes, :preload, :eager_load).reselect("photo_metadata.photo_place_id")).distinct.limit(2).pluck(:map_region_key).compact
       if keys.many?
         # A current valid gallery wins over ambiguous historical aliases.
-        return joined(scope).where("(#{ID_SQL}) = ?", id)
+        return region_scope(scope, id)
       elsif keys.one?
         replacement = id_for_region(keys.first)
         if replacement != id
-          current = joined(scope).where("(#{ID_SQL}) = ?", id)
+          current = region_scope(scope, id)
           return current if current.exists?
           id = replacement
         end
       end
+      return region_scope(scope, id)
     end
 
     if (buckets = nearby_buckets(id))
@@ -172,6 +223,25 @@ class PhotoLocationArea
     scope.joins(COMPONENTS_JOIN)
   end
   private_class_method :joined
+
+  def self.place_cells(scope)
+    scope.except(:order, :includes, :preload, :eager_load)
+      .group("photo_metadata.photo_place_id", Arel.sql("FLOOR(photo_metadata.latitude / #{CELL_SIZE})"), Arel.sql("FLOOR(photo_metadata.longitude / #{CELL_SIZE})"))
+  end
+  private_class_method :place_cells
+
+  def self.region_scope(scope, id)
+    candidates = PhotoPlace.from("(#{PLACES_SQL}) location_area_places")
+      .where("location_area_places.region_id = ? OR location_area_places.coordinate_dependent", id)
+      .pluck(Arel.sql("location_area_places.id"), Arel.sql("location_area_places.coordinate_dependent"))
+    matching, coordinate_dependent = candidates.partition { |_place_id, dependent| !dependent }
+    return scope.where(photo_metadata: { photo_place_id: matching.map(&:first) }) if coordinate_dependent.empty?
+
+    # Legacy town keys without a county depend on each photo's coordinates.
+    # Keep that exact filter, but only for places that can belong to this area.
+    joined(scope.where(photo_metadata: { photo_place_id: candidates.map(&:first) })).where("(#{ID_SQL}) = ?", id)
+  end
+  private_class_method :region_scope
 
   def self.nearby_buckets(id)
     match = /\Anearby-(-?\d{1,4})_(-?\d{1,4})\z/.match(id.to_s)

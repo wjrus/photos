@@ -109,6 +109,12 @@ It is not an end-to-end search latency claim.
 
 The Locations overview aggregates qualified towns and bounded fallback areas in
 SQL through `PhotoLocationArea`, with pagination before Ruby object creation.
+It first summarizes photos by precise place and nearby cell, then combines those
+small summaries into towns. Geographic JSON extraction and stable ID hashing run
+on place records instead of every photo. The totals retain weighted coordinates,
+date ranges, media counts, and the newest-photo/ID tie break for automatic covers.
+Countyless legacy town IDs still use each photo's coordinates, even when a single
+precise place crosses a cell boundary.
 Precise photo/place assignments stay unchanged. Area cover membership is checked
 in one bounded query over the candidate covers, and map requests filter the same
 viewer-scoped photos before the existing coordinate clustering. Successful API
@@ -120,10 +126,40 @@ country/state/area in the same paginated SQL query. Only the current page is
 grouped for presentation. Infinite scrolling merges adjacent country/state
 sections and their card grids, retaining one heading as a group crosses pages.
 
-A local synthetic check with 10,000 photos across 100 towns, deriving town keys
-from saved raw components, measured 122 ms for the area count, 217 ms for a
-12-row first page, and 134 ms for one area filter/count. These are isolated SQL
-path timings on the development machine, not production response-time claims.
+Town detail requests resolve member place IDs once and use the existing metadata
+foreign-key index for subsequent photo queries. Their photo stream filters the
+location before sorting, so a small gallery does not depend on walking the whole
+library's date index to fill a page. Viewer visibility stays in that filtered
+scope; the optimization does not cache or broaden access grants.
+
+Run the repeatable request and query-plan benchmark:
+
+```sh
+RAILS_ENV=test rbenv exec bundle exec rails runner test/performance/locations.rb
+```
+
+It creates 100,000 synthetic photos, 1,000 precise places, and 100 towns. A quarter
+of the places derive their town from saved address components; the others have a
+persisted region key. It checks group/member counts and HTTP status, reports cold
+and warm owner requests using a real memory cache, and explains the detail page's
+first-photo query. All database inserts roll back, and it writes no media files.
+
+One local before/after run produced these Rails request times:
+
+| Request | Before | After |
+| --- | ---: | ---: |
+| Locations directory, cold cache | 988 ms | 217 ms |
+| Locations directory, warm cache | 23 ms | 18 ms |
+| Town detail, cold cache | 2,922 ms | 105 ms |
+| Town detail, warm cache | 1,978 ms | 77 ms |
+
+The isolated directory aggregate fell from 879 ms to 155 ms. Resolving and
+counting one 1,000-photo town fell from 464 ms to 15 ms. The detail-page plan uses
+the existing `photo_metadata.photo_place_id` index and sorts the 1,000 matching
+photos before selecting the first 61. PostgreSQL can still choose a sequential
+photo-table scan for the join, depending on table statistics and costs.
+These are synthetic local measurements, excluding browser rendering, media I/O,
+network latency, and production load; they are not live-server latency claims.
 
 Album cover selection caches IDs without instantiating photos or loading their
 attachments. Only the requested page's covers are then loaded for rendering.

@@ -32,7 +32,9 @@ class LocationsController < ApplicationController
 
   def show
     scoped_photos = location_photo_scope
-    stream_scope = scoped_photos
+    # Filter the location before sorting. Otherwise an ordered library scan can
+    # visit thousands of unrelated photos to find one page in a small location.
+    stream_scope = Photo.from(scoped_photos.offset(0), :photos)
       .with_original_variant_records
       .chronological_order
     @photos, @next_cursor, @newer_cursor = paginate_chronological_photo_stream_with_focus(stream_scope)
@@ -183,7 +185,7 @@ class LocationsController < ApplicationController
   end
 
   def location_photo_scope
-    PhotoLocation.scope_for(geotagged_photos, @location_id)
+    @location_photo_scope ||= PhotoLocation.scope_for(geotagged_photos, @location_id)
   end
 
   def media_counts_for(scope)

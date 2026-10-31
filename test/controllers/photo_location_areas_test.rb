@@ -105,6 +105,20 @@ class PhotoLocationAreasTest < ActionDispatch::IntegrationTest
     assert_select "article", count: 2
   end
 
+  test "a town detail request resolves its member places once for the page and summary" do
+    photo("Harbor", 44.09, -87.65, town: "Synthetic town")
+    area = PhotoLocationArea.groups(visible_scope).sole
+    queries = []
+    subscriber = ->(event) { queries << event.payload[:sql] unless event.payload[:cached] }
+
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") { get location_path(area.id) }
+
+    assert_response :success
+    assert_select "h1", text: "Synthetic town"
+    assert_equal 1, queries.count { |sql| sql.include?("OR location_area_places.coordinate_dependent") },
+      "The photo page and its summary should reuse the same resolved membership"
+  end
+
   test "the overview always groups countries and US states even for obsolete sort parameters" do
     ohio = geographic_photo("Cleveland", 41.5, -81.7, country: "United States", state: "Ohio", town: "Cleveland")
     geographic_photo("Cleveland", 42.7, -84.5, country: "United States", state: "Michigan", town: "Cleveland")
