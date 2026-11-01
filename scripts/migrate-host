@@ -10,12 +10,17 @@ source "$SCRIPT_DIR/lib/migration"
 
 usage() {
   cat <<'MSG'
-Usage: scripts/migrate-host preflight|sync|final-sync|verify [--confirm-stop-source] USER@HOST
+Usage: scripts/migrate-host preflight|sync|check-copy|final-sync|finalize|verify [--confirm-stop-source] USER@HOST
 
 preflight   Check source layout and initialize an EMPTY migration destination.
 sync        Pre-copy files and a rehearsal snapshot; source keeps running.
+check-copy  Check copied blob contents on the destination using the source DB.
+            No source photo-tree walk/copy or shutdown; warms checksum cache.
 final-sync  Stop Photos writers, copy final files/databases, leave source stopped.
             Requires --confirm-stop-source. Run sync and build the target first.
+finalize    For an unchanged library after a successful sync: verify copied blobs
+            on the destination, stop writers, and export final DB/analysis state.
+            No photo/import tree walk or transfer. Requires --confirm-stop-source.
 verify      Compare all file contents with rsync checksums (potentially slow).
 
 Optional environment:
@@ -36,9 +41,11 @@ confirm=0
 if [[ "${1:-}" == --confirm-stop-source ]]; then confirm=1; shift; fi
 [[ $# == 1 ]] || { usage >&2; exit 1; }
 target="$1"
-[[ "$action" =~ ^(preflight|sync|final-sync|verify)$ ]] || migration_fail "unknown command: $action"
+[[ "$action" =~ ^(preflight|sync|check-copy|final-sync|finalize|verify)$ ]] || migration_fail "unknown command: $action"
 [[ "$target" =~ ^([a-z_][a-z0-9_-]*@)?[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]] || migration_fail "invalid SSH destination"
-[[ "$action" != final-sync || "$confirm" == 1 ]] || migration_fail "final-sync requires --confirm-stop-source"
+if [[ "$action" == final-sync || "$action" == finalize ]]; then
+  [[ "$confirm" == 1 ]] || migration_fail "$action requires --confirm-stop-source"
+fi
 port="${MIGRATION_SSH_PORT:-22}"
 [[ "$port" =~ ^[0-9]+$ && "$port" -ge 1 && "$port" -le 65535 ]] || migration_fail "invalid SSH port"
 copy_imports="${MIGRATION_COPY_IMPORTS:-1}"
@@ -92,7 +99,7 @@ db_image="$(docker inspect --format '{{.Image}}' "$db")"
 server_major="$(docker exec "$db" psql -X -U photos -d postgres -Atc 'SHOW server_version_num')"
 [[ "$server_major" =~ ^18[0-9]{4}$ ]] || migration_fail "this migration expects PostgreSQL 18"
 
-if [[ "$action" == preflight || "$action" == sync ]]; then
+if [[ "$action" == preflight || "$action" == sync || "$action" == finalize || "$action" == check-copy ]]; then
   # Arguments are validated above; the quoted script runs only on the receiver.
   # shellcheck disable=SC2029
   ssh "${ssh_options[@]}" "$target" bash -s -- "$target_state" "$identity" "$target_app" "$target_storage" "$target_imports" <<'REMOTE'
@@ -109,6 +116,7 @@ chmod 700 "$state"
 REMOTE
   rsync -a -e "$rsync_shell" "$SCRIPT_DIR/migration-target" "$target:$target_state/"
   rsync -a -e "$rsync_shell" "$SCRIPT_DIR/lib/migration" "$target:$target_state/tooling/"
+  rsync -a -e "$rsync_shell" "$SCRIPT_DIR/lib/migration_files.py" "$target:$target_state/tooling/"
   remote init
 else
   remote check
@@ -157,12 +165,41 @@ database_bytes="$(docker exec "$db" psql -X -U photos -d postgres -Atc "SELECT s
 [[ "$database_bytes" =~ ^[0-9]+$ ]] || migration_fail "could not estimate database space"
 source_free="$(df -PB1 "$state" | awk 'NR == 2 { print $4 }')"
 (( source_free > database_bytes * 2 + 2147483648 )) || migration_fail "insufficient source snapshot workspace"
-if [[ "$action" == final-sync ]]; then
-  [[ -f "$state/synced" ]] || migration_fail "run sync before final-sync"
+
+export_blob_inventory() {
+  local destination="$1" unsupported
+  unsupported="$(docker exec "$db" psql -X -v ON_ERROR_STOP=1 -U photos -d photos_production -Atc "SELECT count(*) FROM active_storage_blobs WHERE service_name <> 'local'")"
+  [[ "$unsupported" == 0 ]] || migration_fail "snapshot-only finalization requires local Disk-service blobs"
+  docker exec "$db" psql -X -v ON_ERROR_STOP=1 -U photos -d photos_production -Atc \
+    "SELECT json_build_object('key', key, 'byte_size', byte_size, 'checksum', checksum) FROM active_storage_blobs ORDER BY key" > "$destination"
+}
+
+if [[ "$action" == final-sync || "$action" == finalize ]]; then
+  [[ -f "$state/synced" ]] || migration_fail "run sync before $action"
   remote ready
 fi
+if [[ "$action" == finalize || "$action" == check-copy ]]; then
+  [[ -f "$state/synced" ]] || migration_fail "run sync before $action"
+fi
+if [[ "$action" == finalize ]]; then
+  # All remote paths were restricted to shell-safe characters above.
+  # shellcheck disable=SC2029
+  previous_imports="$(ssh "${ssh_options[@]}" "$target" cat "$target_state/payload/copy-imports")"
+  [[ "$previous_imports" == "$copy_imports" ]] || migration_fail "keep MIGRATION_COPY_IMPORTS consistent with the completed sync"
+fi
+if [[ "$action" == finalize || "$action" == check-copy ]]; then
+  printf 'Checking copied blobs on the new SSD; the source remains online during this check.\n'
+  export_blob_inventory "$state/check-files.jsonl"
+  rsync -a -e "$rsync_shell" "$state/check-files.jsonl" "$target:$target_state/check-files.jsonl"
+  remote check-files
+  if [[ "$action" == check-copy ]]; then
+    printf 'Copied blobs verified. Source services are unchanged; the checksum cache is ready for finalize.\n'
+    exit 0
+  fi
+  [[ "$(git rev-parse HEAD)" == "$source_revision" ]] || migration_fail "source code changed during copied-file verification; rebuild and retry"
+fi
 remote begin
-if [[ "$action" == final-sync ]]; then
+if [[ "$action" == final-sync || "$action" == finalize ]]; then
   freeze_started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   printf 'Stopping Photos ingress and writers. The source stays stopped on failure.\n'
   docker compose stop -t 120 app_proxy web_blue web_green
@@ -172,8 +209,10 @@ if [[ "$action" == final-sync ]]; then
   [[ "$running" == $'db\nredis' || "$running" == db ]] || migration_fail "unexpected Photos writers are still running"
 fi
 
-rsync_files "$PHOTOS_STORAGE_PATH" "$target_storage" copy
-if [[ "$copy_imports" == 1 ]]; then rsync_files "$PHOTOS_IMPORT_PATH" "$target_imports" copy; fi
+if [[ "$action" != finalize ]]; then
+  rsync_files "$PHOTOS_STORAGE_PATH" "$target_storage" copy
+  if [[ "$copy_imports" == 1 ]]; then rsync_files "$PHOTOS_IMPORT_PATH" "$target_imports" copy; fi
+fi
 
 snapshot="$(mktemp -d "$state/snapshot.XXXXXXXX")"
 trap 'rm -rf -- "$snapshot"' EXIT
@@ -192,6 +231,7 @@ for database in "${migration_databases[@]}"; do
   docker exec "$db" pg_dump -U photos --format=custom --no-owner --no-acl "$database" > "$snapshot/$database.dump"
 done
 migration_counts "$db" > "$snapshot/counts"
+if [[ "$action" == finalize ]]; then export_blob_inventory "$snapshot/blob-inventory.jsonl"; fi
 for entry in "analysis_index:$index_volume" "analysis_model_cache:$model_volume"; do
   name="${entry%%:*}"; volume="${entry#*:}"
   docker run --rm --network none --read-only --security-opt no-new-privileges \
@@ -216,7 +256,7 @@ fi
 mv "$state/checksums" "$snapshot/SHA256SUMS"
 rsync -a --delete --partial -e "$rsync_shell" "$snapshot/" "$target:$target_state/payload/"
 [[ "$(git rev-parse HEAD)" == "$source_revision" ]] || migration_fail "source code changed during snapshot upload"
-if [[ "$action" == final-sync ]]; then
+if [[ "$action" == final-sync || "$action" == finalize ]]; then
   restarts="$(docker events --since "$freeze_started" --until "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --filter type=container --filter event=start --filter "label=com.docker.compose.project=$project" \
     --format '{{index .Actor.Attributes "com.docker.compose.service"}}')"
@@ -225,4 +265,4 @@ fi
 remote complete
 touch "$state/synced"
 printf '%s complete. Target services have not been started.\n' "$action"
-if [[ "$action" == final-sync ]]; then printf 'Source Photos writers remain STOPPED. Restore and verify the target before DNS cutover.\n'; fi
+if [[ "$action" == final-sync || "$action" == finalize ]]; then printf 'Source Photos writers remain STOPPED. Restore and verify the target before DNS cutover.\n'; fi

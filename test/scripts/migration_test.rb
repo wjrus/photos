@@ -4,6 +4,7 @@ require "tmpdir"
 require "fileutils"
 require "pathname"
 require "digest"
+require "json"
 
 # These exercise the shell tools with synthetic repositories and a fake Docker/
 # SSH boundary. They never contact a host or use the developer's Docker daemon.
@@ -66,6 +67,10 @@ class MigrationTest < Minitest::Test
         printf '180006\n'
       elif [[ "$1" == exec && "$*" == *'pg_database_size'* ]]; then
         printf '1024\n'
+      elif [[ "$1" == exec && "$*" == *'service_name <>'* ]]; then
+        printf '0\n'
+      elif [[ "$1" == exec && "$*" == *'json_build_object'* ]]; then
+        printf '{"key":"abcdefgh1234","byte_size":3,"checksum":"kAFQmDzST7DWlj99KOF/cg=="}\n'
       elif [[ "$1" == exec && "$*" == *'FROM pg_tables'* ]]; then
         printf '%s\n' "${MIGRATION_TEST_TABLES:-0}"
       elif [[ "$1" == exec && "$*" == *'SELECT 1 FROM pg_database'* ]]; then
@@ -87,6 +92,8 @@ class MigrationTest < Minitest::Test
     write_command("ssh", <<~'BASH')
       printf 'ssh %s\n' "$*" >> "$MIGRATION_TEST_ROOT/calls"
       if [[ "$*" == *'migration-target ready '* && "${MIGRATION_TEST_NOT_READY:-0}" == 1 ]]; then exit 44; fi
+      if [[ "$*" == *'/payload/copy-imports' ]]; then printf '1\n'; fi
+      if [[ "$*" == *'migration-target check-files '* && "${MIGRATION_TEST_FILE_CHECK_FAILURE:-0}" == 1 ]]; then exit 45; fi
     BASH
     write_command("rsync", <<~'BASH')
       printf 'rsync %s\n' "$*" >> "$MIGRATION_TEST_ROOT/calls"
@@ -178,6 +185,92 @@ class MigrationTest < Minitest::Test
     refute_match(/compose (?:start|up)/, calls)
   end
 
+  def test_snapshot_only_finalization_never_walks_or_copies_photo_or_import_trees
+    @root.join("source-state").mkpath
+    @root.join("source-state/synced").write("")
+    output, status = source_command("finalize", "--confirm-stop-source", "alice@new.example.com")
+    assert status.success?, output
+    assert_includes calls, "migration-target check-files"
+    assert_operator calls.index("migration-target check-files"), :<, calls.index("compose stop")
+    assert_includes calls, "compose stop -t 900 worker"
+    assert_includes calls, "pg_dump"
+    assert_includes calls, "migration-target complete"
+    refute_includes calls, "--rsync-path="
+    refute_includes calls, "--dry-run"
+  end
+
+  def test_failed_blob_precheck_leaves_source_running
+    @root.join("source-state").mkpath
+    @root.join("source-state/synced").write("")
+    output, status = source_command("finalize", "--confirm-stop-source", "alice@new.example.com", extra: { "MIGRATION_TEST_FILE_CHECK_FAILURE" => "1" })
+    refute status.success?, output
+    refute_includes calls, "compose stop"
+    refute_includes calls, "pg_dump"
+  end
+
+  def test_copied_file_check_does_not_stop_source_or_export_databases
+    @root.join("source-state").mkpath
+    @root.join("source-state/synced").write("")
+    output, status = source_command("check-copy", "alice@new.example.com")
+    assert status.success?, output
+    assert_includes calls, "migration-target check-files"
+    refute_includes calls, "compose stop"
+    refute_includes calls, "pg_dump"
+    refute_includes calls, "--rsync-path="
+    refute_includes calls, "migration-target begin"
+  end
+
+  def test_snapshot_only_finalization_requires_stop_acknowledgement
+    output, status = source_command("finalize", "alice@new.example.com")
+    refute status.success?, output
+    assert_includes output, "--confirm-stop-source"
+    assert_empty calls
+  end
+
+  def test_snapshot_only_completion_rejects_missing_copied_files
+    initialize_target
+    payload("finalize")
+    add_blob_inventory
+    @storage.join("ab/cd/abcdefgh1234").unlink
+    output, status = target_command("begin")
+    assert status.success?, output
+    output, status = target_command("complete")
+    refute status.success?, output
+    assert_includes output, "do not match"
+    assert @state.join("incoming").exist?
+    refute @state.join("complete").exist?
+  end
+
+  def test_snapshot_only_restore_rechecks_copied_files_and_preserves_the_queue
+    prepare_restore
+    @state.join("payload/mode").write("finalize\n")
+    add_blob_inventory
+    FileUtils.cp(@state.join("complete"), @state.join("built-payload"))
+    output, status = target_command("restore")
+    assert status.success?, output
+    assert_includes output, '"hashed": 1'
+    assert @state.join("restored").exist?
+    assert_includes calls, "--dbname=photos_production_queue"
+    output, status = target_command("verify")
+    assert status.success?, output
+    assert_includes output, '"cached": 1'
+  end
+
+  def test_snapshot_only_restore_detects_file_changes_after_completion
+    prepare_restore
+    @state.join("payload/mode").write("finalize\n")
+    add_blob_inventory
+    FileUtils.cp(@state.join("complete"), @state.join("built-payload"))
+    output, status = target_command("complete")
+    assert status.success?, output
+    @storage.join("ab/cd/abcdefgh1234").write("bad")
+    output, status = target_command("restore")
+    refute status.success?, output
+    assert_includes output, "do not match"
+    refute_includes calls, "compose up"
+    refute @state.join("restore-started").exist?
+  end
+
   def test_source_restart_during_freeze_invalidates_final_snapshot
     @root.join("source-state").mkpath
     @root.join("source-state/synced").write("")
@@ -217,7 +310,7 @@ class MigrationTest < Minitest::Test
     payload("sync")
     output, status = target_command("restore")
     refute status.success?, output
-    assert_includes output, "only a final-sync"
+    assert_includes output, "only a final-sync/finalize"
     refute_includes calls, "compose up"
   end
 
@@ -369,5 +462,13 @@ class MigrationTest < Minitest::Test
     payload("final-sync")
     @state.join("built").write("#{git(@source, 'rev-parse', 'HEAD')}\n")
     FileUtils.cp(@state.join("complete"), @state.join("built-payload"))
+  end
+
+  def add_blob_inventory
+    @storage.join("ab/cd").mkpath
+    @storage.join("ab/cd/abcdefgh1234").write("abc")
+    row = { key: "abcdefgh1234", byte_size: 3, checksum: "kAFQmDzST7DWlj99KOF/cg==" }
+    @state.join("payload/blob-inventory.jsonl").write("#{JSON.generate(row)}\n")
+    seal_payload(@state.join("payload"))
   end
 end

@@ -21,7 +21,7 @@ On the new host, use:
   bash ~/photos-migration/run web
   MIGRATION_ENABLE_WORKERS=1 bash ~/photos-migration/run activate
 build prepares the exact source revision/images without running Photos.
-restore requires a final-sync snapshot and only restores empty target databases.
+restore requires a final-sync/finalize snapshot and only restores empty target databases.
 Neither restore nor verify starts web/worker/analysis services or changes DNS.
 MSG
   exit 0
@@ -58,6 +58,12 @@ validate_payload() {
   [[ "$(cat "$state/complete")" == "$(sha256sum "$payload/SHA256SUMS" | cut -d ' ' -f 1)" ]] || migration_fail "payload changed after transfer"
 }
 
+verify_blob_inventory() {
+  local inventory="$1" verifier="$SCRIPT_DIR/tooling/migration_files.py"
+  [[ -f "$verifier" ]] || verifier="$SCRIPT_DIR/lib/migration_files.py"
+  sudo -n python3 "$verifier" "$storage" "$inventory" "$state/blob-checksums.json" "$identity"
+}
+
 set_path() {
   local key="$1" value="$2" file="$app/.env.production"
   awk -F= -v key="$key" -v value="$value" '$1 != key { print } END { print key "=" value }' "$file" > "$file.new"
@@ -90,6 +96,10 @@ marker_matches || migration_fail "target marker/settings do not match"
 
 case "$action" in
   check) assert_no_writers ;;
+  check-files)
+    assert_no_writers
+    [[ ! -e "$state/restore-started" ]] || migration_fail "restore already started"
+    verify_blob_inventory "$state/check-files.jsonl" ;;
   begin)
     assert_no_writers
     [[ ! -e "$state/restore-started" ]] || migration_fail "restoration already started; refusing to overwrite target files"
@@ -99,6 +109,7 @@ case "$action" in
     rm -f "$state/complete" ;;
   complete)
     (cd "$payload" && sha256sum --check --quiet SHA256SUMS)
+    if [[ "$(cat "$payload/mode")" == finalize ]]; then verify_blob_inventory "$payload/blob-inventory.jsonl"; fi
     sha256sum "$payload/SHA256SUMS" | cut -d ' ' -f 1 > "$state/complete"
     rm -f "$state/incoming" ;;
   ready)
@@ -162,10 +173,12 @@ YAML
   restore)
     assert_no_writers
     validate_payload
-    [[ "$(cat "$payload/mode")" == final-sync ]] || migration_fail "only a final-sync snapshot can be restored"
+    mode="$(cat "$payload/mode")"
+    [[ "$mode" == final-sync || "$mode" == finalize ]] || migration_fail "only a final-sync/finalize snapshot can be restored"
     [[ -f "$state/built" && "$(cat "$state/built")" == "$(cat "$payload/revision")" ]] || migration_fail "build the final source revision first"
     cmp -s "$state/complete" "$state/built-payload" || migration_fail "run build again to apply the final snapshot configuration"
     [[ "$(git -C "$app" rev-parse HEAD)" == "$(cat "$payload/revision")" ]] || migration_fail "target checkout revision differs"
+    if [[ "$mode" == finalize ]]; then verify_blob_inventory "$payload/blob-inventory.jsonl"; fi
     touch "$state/restore-started"
     cd "$app"
     docker compose up -d --wait --wait-timeout 120 db redis
@@ -204,6 +217,7 @@ YAML
   verify)
     validate_payload
     [[ -f "$state/restored" ]] || migration_fail "restore is incomplete"
+    if [[ "$(cat "$payload/mode")" == finalize ]]; then verify_blob_inventory "$payload/blob-inventory.jsonl"; fi
     cd "$app"
     db="$(migration_container db)"
     migration_counts "$db" > "$state/restored-counts"

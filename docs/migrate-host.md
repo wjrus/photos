@@ -112,6 +112,48 @@ long-term growth headroom.
 
 ## Final write freeze and restore
 
+### Snapshot-only finalization for an unchanged library
+
+After a successful `sync`, if you keep the library and import inputs unchanged,
+use this instead of `final-sync`:
+
+```sh
+# OLD server, after the running sync has finished and the target has been built.
+./scripts/migrate-host finalize --confirm-stop-source wjr@new.example.com
+```
+
+`finalize` does **not** walk or copy either source photo/import tree. Before
+stopping the old site, it exports the Active Storage blob inventory from
+PostgreSQL and verifies the already-copied files against their recorded sizes
+and MD5 checksums **on the new SSD**. The first check reads the copied blob data
+and may take time; the source site stays online during that check. Failed
+verification leaves the source running and does not silently ignore missing or
+damaged files. If the old library already has missing/corrupt local blobs, resolve
+those gaps before using this path.
+
+To run that destination-only verification ahead of downtime and warm its cache:
+
+```sh
+# OLD server; this never stops Photos and needs no shutdown acknowledgement.
+./scripts/migrate-host check-copy wjr@new.example.com
+```
+
+Once that check passes, it stops the old web/workers/analysis, then transfers only
+the final databases, analysis state, configuration, and source bundle. A checksum
+cache tied to this migration and each file's device/inode/size/modification/change
+times allows the frozen inventory to be checked again without rereading unchanged
+contents. New blobs or changed files are checked again; missing or mismatched
+files block completion/restore. The normal restore, verify, web, and activate
+steps below then apply. Background writes still require this final frozen
+snapshot even if you make no manual edits.
+
+This path preserves the completed bulk copy, including existing unreferenced
+files, rather than mirroring later deletions or changes to unmanaged files/import
+inputs. If those inputs changed, use a normal file sync or copy directly from the
+storage host. Do not claim an unchanged library while uploads/imports are active.
+
+### Final file pass when files have changed
+
 Lower DNS TTL ahead of time. Stop external uploaders/automation, avoid deploys
 and administrative writes, and arrange any desired maintenance page at the old
 public reverse proxy. Schedule downtime before running:
@@ -128,6 +170,11 @@ It copies the final file delta and exports primary, queue, cache, and cable
 databases with `pg_dump -Fc`. It checks for source code changes and container
 starts during the freeze, compares file metadata after transfer, and verifies
 the payload's SHA-256 manifest on the destination.
+
+`final-sync` traverses both source trees for the copy and again for comparison,
+even when no file bytes changed. On a slow network/9p mount those metadata passes
+can take hours. Prefer snapshot-only `finalize` for an unchanged library, or
+arrange direct access to the backing storage host before scheduling this path.
 
 **The source stays stopped on success or failure.** A failed final transfer
 does not silently restart it or mark the target complete. Diagnose and rerun the
