@@ -228,6 +228,11 @@ storage totals and confirm provider flags/credentials without submitting orders
 or re-enabling backfills as a test. Do not use `scripts/deploy` for this private
 verification because it starts workers and pulls new code.
 
+With nginx 1.25.1 or newer, keep `http2 on;` in the public TLS server block
+(included in the host proxy example). Certbot does not enable HTTP/2 by itself.
+Verify ALPN negotiates `h2` after TLS setup: serving a grid over HTTP/1.1 can
+leave thumbnail requests queued behind the browser's per-origin connections.
+
 Once the new proxy is ready, update **both A and AAAA records as applicable**,
 complete/verify TLS, and confirm public requests reach the new VM. Remove the
 new proxy's staging/maintenance response only when ready. Then:

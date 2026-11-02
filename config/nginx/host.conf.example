@@ -10,6 +10,9 @@ server {
     listen 80;
     listen [::]:80;
     server_name photos.example.com;
+    # nginx >= 1.25.1: also applies when Certbot adds the TLS listener here.
+    # Multiplex thumbnail requests instead of queuing behind HTTP/1.1 connections.
+    http2 on;
     client_max_body_size 0;
     access_log off;
 

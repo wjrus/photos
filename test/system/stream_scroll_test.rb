@@ -149,7 +149,7 @@ class StreamScrollTest < ApplicationSystemTestCase
     settle_layout
     assert_equal 0, page.evaluate_script("pendingStreamPages.length")
     assert_equal 0, page.evaluate_script("scrollY")
-    assert page.evaluate_script("document.querySelector('[data-photo-id] img').loading === 'lazy'")
+    assert page.evaluate_script("document.querySelector('[data-photo-id] img').complete")
     assert_not page.evaluate_script("Array.from(document.querySelectorAll('[data-photo-id] img')).at(-1).complete"), "Distant thumbnails should not compete with visible photos"
 
     page.execute_script("window.scrollTo(0, document.documentElement.scrollHeight)")

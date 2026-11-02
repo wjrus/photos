@@ -42,6 +42,7 @@ module ApplicationHelper
       loading: "lazy",
       decoding: "async"
     }.merge(options)
+    image_options[:data] = (image_options[:data] || {}).merge(thumbnail_preload_target: "image")
 
     if photo.video?
       if photo.video_preview.attached?

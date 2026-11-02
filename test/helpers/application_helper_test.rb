@@ -68,7 +68,7 @@ class ApplicationHelperTest < ActionView::TestCase
 
     [ root_path, search_path(q: "Photo"), album_path(123) ].each do |return_path|
       html = photo_stream_media(photo, return_to: return_path)
-      assert_select_html html, "img[src='#{stream_photo_path(photo)}'][loading='lazy'][decoding='async']"
+      assert_select_html html, "img[src='#{stream_photo_path(photo)}'][loading='lazy'][decoding='async'][data-thumbnail-preload-target='image']"
     end
 
     html = photo_stream_media(photo, return_to: album_path(123), access_params: { album_id: 123 })
