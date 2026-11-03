@@ -24,10 +24,19 @@ class AlbumNavigationTest < ApplicationSystemTestCase
     selector = "[data-album-id='#{album.id}']"
     assert_no_selector selector
     until page.has_selector?(selector, wait: 0)
-      sentinel = find("[data-infinite-scroll-target='sentinel']")
-      next_url = sentinel["data-next-url"]
-      page.execute_script("arguments[0].scrollIntoView()", sentinel)
-      assert_no_selector "[data-next-url='#{next_url}']"
+      # Infinite scroll can replace the sentinel between WebDriver commands.
+      next_url = page.evaluate_script(<<~JS)
+        (() => {
+          const sentinel = document.querySelector("[data-infinite-scroll-target='sentinel']")
+          sentinel?.scrollIntoView()
+          return sentinel?.dataset.nextUrl
+        })()
+      JS
+      if next_url
+        assert_no_selector "[data-next-url='#{next_url}']"
+      else
+        assert_selector selector
+      end
     end
     card = find(selector)
     page.execute_script("window.scrollTo(0, scrollY + arguments[0].getBoundingClientRect().top - 180)", card)
