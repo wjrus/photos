@@ -100,18 +100,12 @@ module ApplicationHelper
     end
   end
 
-  def photo_stream_neighbor_prefetch_tags(*photos, access_params: {})
-    photos.compact.uniq(&:id).flat_map do |photo|
-      tags = [
-        tag.link(rel: "prefetch", href: photo_path(photo, access_params), as: "document")
-      ]
-
+  def photo_stream_neighbor_preload_tags(*photos)
+    safe_join(photos.compact.uniq(&:id).filter_map do |photo|
       if (media_path = photo_neighbor_prefetch_media_path(photo))
-        tags << tag.link(rel: "preload", href: media_path, as: "image", fetchpriority: "low")
+        tag.link(rel: "preload", href: media_path, as: "image", fetchpriority: "low")
       end
-
-      tags
-    end.join("\n").html_safe
+    end, "\n")
   end
 
   def photo_dimensions(metadata)

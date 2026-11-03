@@ -7,11 +7,21 @@ export default class extends Controller {
   }
 
   connect() {
+    this.previewEvents = new AbortController()
+    const { signal } = this.previewEvents
+    document.addEventListener("turbo:before-render", (event) => this.finishOpeningPreview(event), { signal })
+    document.addEventListener("turbo:fetch-request-error", () => this.clearOpeningPreview(), { signal })
+
     if ("scrollRestoration" in window.history) {
       window.history.scrollRestoration = "manual"
     }
 
     this.restore()
+  }
+
+  disconnect() {
+    this.previewEvents.abort()
+    this.clearOpeningPreview()
   }
 
   save(event) {
@@ -21,28 +31,31 @@ export default class extends Controller {
     if (event.defaultPrevented) return
 
     const returnTo = link.dataset.photoReturnTo || this.currentPath
-    this.storeReturnTo(returnTo)
-    sessionStorage.setItem(this.storageKey, JSON.stringify({
-      path: this.currentPath,
-      scrollY: window.scrollY,
-      savedAt: Date.now()
-    }))
+    const storedReturnTo = this.storeReturnTo(returnTo)
+    try {
+      sessionStorage.setItem(this.storageKey, JSON.stringify({
+        path: this.currentPath,
+        scrollY: window.scrollY,
+        savedAt: Date.now()
+      }))
+    } catch {
+      // The server can still return to the focused photo without saved scroll state.
+    }
 
     if (!this.shouldNavigateWithReturnTo(event, link)) return
 
     event.preventDefault()
-    this.visitWithReturnTo(link.href, returnTo)
+    this.showOpeningPreview(link.closest("[data-photo-id]"))
+    this.visitWithReturnTo(link.href, storedReturnTo ? null : returnTo)
   }
 
   storeReturnTo(path) {
     if (!path?.startsWith("/")) return
 
-    document.cookie = [
-      `photos_return_to=${encodeURIComponent(path)}`,
-      "path=/",
-      "max-age=86400",
-      "samesite=lax"
-    ].join("; ")
+    const cookie = `photos_return_to=${encodeURIComponent(path)}`
+    document.cookie = `${cookie}; path=/; max-age=86400; samesite=lax${location.protocol === "https:" ? "; secure" : ""}`
+    // Keep the server's return-path redirect as a fallback if the browser rejects the cookie.
+    return document.cookie.split(/;\s*/).includes(cookie)
   }
 
   shouldNavigateWithReturnTo(event, link) {
@@ -57,7 +70,7 @@ export default class extends Controller {
 
   visitWithReturnTo(href, returnTo) {
     const url = new URL(href, window.location.origin)
-    url.searchParams.set("return_to", returnTo)
+    if (returnTo) url.searchParams.set("return_to", returnTo)
     const path = `${url.pathname}${url.search}${url.hash}`
 
     if (window.Turbo) {
@@ -65,6 +78,60 @@ export default class extends Controller {
     } else {
       window.location.href = path
     }
+  }
+
+  showOpeningPreview(card) {
+    if (!card) return
+
+    this.clearOpeningPreview()
+    const preview = document.createElement("div")
+    preview.className = "photo-opening-preview"
+    preview.dataset.turboTemporary = ""
+    preview.dataset.openingPhotoId = card.dataset.photoId
+
+    const image = card.querySelector("img[data-thumbnail-preload-target='image']")
+    if (image?.complete && image.naturalWidth > 0) {
+      const canvas = document.createElement("canvas")
+      canvas.width = image.naturalWidth
+      canvas.height = image.naturalHeight
+      canvas.className = "photo-opening-image"
+      canvas.dataset.turboTemporary = ""
+      canvas.setAttribute("aria-hidden", "true")
+      const context = canvas.getContext("2d")
+      if (context) {
+        context.drawImage(image, 0, 0)
+        preview.append(canvas)
+      }
+    }
+
+    const status = document.createElement("p")
+    status.setAttribute("role", "status")
+    status.textContent = "Opening photo…"
+    preview.append(status)
+    document.body.append(preview)
+    this.openingPreview = preview
+    this.previewTimeout = setTimeout(() => this.clearOpeningPreview(), 15000)
+  }
+
+  finishOpeningPreview(event) {
+    if (!this.openingPreview) return
+
+    const canvas = this.openingPreview.querySelector("canvas")
+    const viewer = event.detail.newBody.querySelector("[data-photo-viewer-id]")
+    const image = viewer?.querySelector("img.photo-detail-media")
+    if (canvas && viewer?.dataset.photoViewerId === this.openingPreview.dataset.openingPhotoId && image && !image.complete) {
+      viewer.append(canvas)
+      image.addEventListener("load", () => canvas.remove(), { once: true })
+      image.addEventListener("error", () => canvas.remove(), { once: true })
+    }
+
+    this.clearOpeningPreview()
+  }
+
+  clearOpeningPreview() {
+    clearTimeout(this.previewTimeout)
+    this.openingPreview?.remove()
+    this.openingPreview = null
   }
 
   async restore() {

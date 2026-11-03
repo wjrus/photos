@@ -1212,7 +1212,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-info-panel-shiftable]", false
   end
 
-  test "photo viewer prefetches stream neighbor pages and preview images" do
+  test "photo viewer preloads adjacent images without fetching their full pages" do
     newer = attached_photo(title: "Newer neighbor")
     photo = attached_photo(title: "Current photo")
     older = attached_photo(title: "Older neighbor")
@@ -1225,8 +1225,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     get photo_path(photo)
 
     assert_response :success
-    assert_select "link[rel='prefetch'][as='document'][href='#{photo_path(newer)}']"
-    assert_select "link[rel='prefetch'][as='document'][href='#{photo_path(older)}']"
+    assert_select "link[rel='prefetch'][as='document']", false
     assert_select "link[rel='preload'][as='image'][fetchpriority='low']", 2
     assert_select "img.photo-detail-media[fetchpriority='high']"
   end
@@ -1241,7 +1240,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     get photo_path(photo)
 
     assert_response :success
-    assert_select "link[rel='prefetch'][as='document'][href='#{photo_path(video)}']"
+    assert_select "link[rel='prefetch'][as='document']", false
     assert_select "link[rel='preload'][as='image']", 1
     assert_select "link[href='#{video_photo_path(video)}']", false
   end

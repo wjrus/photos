@@ -130,6 +130,44 @@ class PhotoNavigationTest < ApplicationSystemTestCase
     assert_current_path album_path(@album, photo_id: @next.id)
   end
 
+  test "clicking a loaded thumbnail shows it before the viewer request finishes" do
+    @current.original.variant(:stream).processed
+
+    [ 1400, 390 ].each do |width|
+      page.current_window.resize_to(width, 900)
+      visit album_path(@album)
+      card = "[data-photo-id='#{@current.id}']"
+      assert_selector "#{card} img"
+      page.document.synchronize(5) do
+        unless page.evaluate_script("document.querySelector(arguments[0]).naturalWidth > 0", "#{card} img")
+          raise Capybara::ExpectationNotMet, "Thumbnail has not loaded"
+        end
+      end
+      page.execute_script <<~JS, photo_path(@current)
+        const path = arguments[0]
+        document.addEventListener('turbo:before-fetch-request', event => {
+          if (event.detail.url.pathname !== path) return
+          event.preventDefault()
+          window.resumeViewerRequest = event.detail.resume
+          window.viewerRequestSearch = event.detail.url.search
+        })
+      JS
+
+      find("#{card} a").click
+      assert_selector ".photo-opening-preview canvas"
+      assert_current_path album_path(@album)
+      assert_equal "", page.evaluate_script("window.viewerRequestSearch")
+
+      page.execute_script("window.resumeViewerRequest()")
+      assert_photo @current
+      assert_link "Return to stream", href: album_path(@album, photo_id: @current.id)
+      assert_no_selector ".photo-opening-preview"
+      assert_no_selector ".photo-opening-image"
+    end
+  ensure
+    page.current_window.resize_to(1400, 1400)
+  end
+
   private
 
   def attached_photo(day)

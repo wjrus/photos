@@ -41,7 +41,8 @@
     </label>
   <% end %>
 
-  <% link_data = { photo_return_to: return_to } %>
+  <%# The click sets the stream context cookie, so a hover fetch would use the previous context. %>
+  <% link_data = { photo_return_to: return_to, turbo_prefetch: false } %>
   <% link_data[:action] = "click->bulk-selection#toggleCard" if owner_controls %>
 
   <%= link_to photo_path(photo, access_params),

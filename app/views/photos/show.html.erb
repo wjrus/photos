@@ -1,7 +1,9 @@
 <% content_for :title, @photo.title %>
 <% content_for :body_class, "photo-detail-page" %>
 <% content_for :head do %>
-  <%= photo_stream_neighbor_prefetch_tags(@previous_photo, @next_photo, access_params: @album_access_params || {}) %>
+  <%# The viewer URL can be opened from several streams with different neighbors. %>
+  <meta name="turbo-cache-control" content="no-preview">
+  <%= photo_stream_neighbor_preload_tags(@previous_photo, @next_photo) %>
 <% end %>
 <% if @album_access_link %>
   <% content_for :head do %>

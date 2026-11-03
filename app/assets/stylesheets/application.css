@@ -669,6 +669,33 @@ body.photo-detail-page {
 }
 
 .photo-detail-frame,
+.photo-opening-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: #09090b;
+  color: white;
+}
+
+.photo-opening-preview > [role="status"] {
+  position: absolute;
+  inset: auto 0 1.5rem;
+  text-align: center;
+}
+
+.photo-opening-image {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  width: min(75vw, 700px);
+  height: auto;
+  max-height: 75vh;
+  transform: translate(-50%, -50%);
+  object-fit: contain;
+  pointer-events: none;
+}
+
 .photo-viewer-shell {
   block-size: 100vh;
   min-block-size: 0;
