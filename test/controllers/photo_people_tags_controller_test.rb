@@ -26,6 +26,9 @@ class PhotoPeopleTagsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, photo.title
+
+    get details_photo_path(photo)
+    assert_response :success
     assert_includes response.body, "People"
     assert_includes response.body, @viewer.display_name
   end

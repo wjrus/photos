@@ -40,7 +40,9 @@ class PhotoNavigationTest < ApplicationSystemTestCase
 
   test "side arrows leave room for the information panel and caption editing" do
     open_viewer
+    assert_selector "turbo-frame#photo-info-content:not([src])", visible: :all
     click_button "Show photo information"
+    assert_selector "turbo-frame#photo-info-content[src][complete]"
     assert_selector ".photo-stream-navigation" do |navigation|
       navigation.native.rect.x + navigation.native.rect.width < page.evaluate_script("innerWidth - 390")
     end
@@ -53,10 +55,16 @@ class PhotoNavigationTest < ApplicationSystemTestCase
     end
     assert_field "Caption", with: "A caption to edit"
 
+    click_button "Save caption"
+    assert_photo @current
+    assert_selector "#photo-info-content p", text: "A caption to edit"
+
     find(".photo-viewer-shell").hover
     click_link "Next item in stream"
     assert_photo @next
     assert_selector "#photo-info-panel:not(.translate-x-full)"
+    assert_selector "turbo-frame#photo-info-content[src][complete]"
+    assert_equal details_photo_path(@next), page.evaluate_script("new URL(document.querySelector('#photo-info-content').src, location.href).pathname")
   end
 
   test "zoom panning and ordinary scrolling do not change photos" do
@@ -130,7 +138,7 @@ class PhotoNavigationTest < ApplicationSystemTestCase
     assert_current_path album_path(@album, photo_id: @next.id)
   end
 
-  test "clicking a loaded thumbnail shows it before the viewer request finishes" do
+  test "clicking a thumbnail acknowledges the click without swapping images" do
     @current.original.variant(:stream).processed
 
     [ 1400, 390 ].each do |width|
@@ -154,15 +162,16 @@ class PhotoNavigationTest < ApplicationSystemTestCase
       JS
 
       find("#{card} a").click
-      assert_selector ".photo-opening-preview canvas"
+      assert_selector "#{card} .photo-opening-status", text: "Opening photo…"
+      assert_no_selector ".photo-viewer-shell"
       assert_current_path album_path(@album)
       assert_equal "", page.evaluate_script("window.viewerRequestSearch")
 
       page.execute_script("window.resumeViewerRequest()")
       assert_photo @current
       assert_link "Return to stream", href: album_path(@album, photo_id: @current.id)
-      assert_no_selector ".photo-opening-preview"
-      assert_no_selector ".photo-opening-image"
+      assert_no_selector ".photo-opening-status"
+      assert_selector "turbo-frame#photo-info-content:not([src])", visible: :all
     end
   ensure
     page.current_window.resize_to(1400, 1400)

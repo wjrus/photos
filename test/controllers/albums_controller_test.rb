@@ -92,9 +92,13 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     get photo_path(visible, album_id: album.id)
 
     assert_response :success
+    assert_select "meta[name='robots'][content='noindex,nofollow']"
+
+    get details_photo_path(visible, album_id: album.id)
+    assert_response :success
     assert_includes response.body, "A private caption for friends"
     refute_includes response.body, users(:two).email
-    assert_select "meta[name='robots'][content='noindex,nofollow']"
+    assert_equal "private, no-store", response.headers["Cache-Control"]
 
     get display_photo_path(visible, album_id: album.id)
 
@@ -127,6 +131,9 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
 
     get photo_path(photo, album_id: album.id)
+    assert_response :not_found
+
+    get details_photo_path(photo, album_id: album.id)
     assert_response :not_found
   end
 

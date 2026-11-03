@@ -4,8 +4,8 @@ class PhotosController < ApplicationController
 
   owner_access_message "Only the owner can manage photos."
 
-  before_action :require_owner!, except: %i[show stream display video]
-  before_action :set_visible_photo, only: %i[show stream display video]
+  before_action :require_owner!, except: %i[show details stream display video]
+  before_action :set_visible_photo, only: %i[show details stream display video]
   before_action :set_photo, only: %i[media caption analyze manual_location publish unpublish archive restore restrict unrestrict retry_archive destroy]
 
   def show
@@ -16,12 +16,24 @@ class PhotosController < ApplicationController
     end
 
     @return_to = photo_return_path(@photo)
-    @taggable_users = User.where.not(id: current_user.id).order(Arel.sql("LOWER(email) ASC")) if current_user&.owner?
-    @albums = current_user.photo_albums.display_order if current_user&.owner?
-    @cover_context = photo_cover_context(@photo, @return_to) if current_user&.owner?
     queue_missing_video_display_derivative
     queue_missing_image_derivatives
     set_stream_neighbors
+  end
+
+  def details
+    return_to = photo_return_path(@photo)
+    if current_user&.owner?
+      taggable_users = User.where.not(id: current_user.id).order(Arel.sql("LOWER(email) ASC"))
+      albums = current_user.photo_albums.display_order
+      cover_context = photo_cover_context(@photo, return_to)
+    end
+
+    response.headers["Cache-Control"] = "private, no-store"
+    render partial: "photos/info_panel", locals: {
+      photo: @photo, return_to: return_to, albums: albums, taggable_users: taggable_users,
+      cover_context: cover_context, album_access: @album_access_link.present?
+    }
   end
 
   def display
@@ -232,7 +244,10 @@ class PhotosController < ApplicationController
 
   def set_visible_photo
     set_album_access_context
-    @photo = visible_photo_scope.find(params[:id])
+    scope = visible_photo_scope
+    # A media request loads only its requested variant or video attachment.
+    scope = scope.with_attached_original if action_name == "show"
+    @photo = scope.find(params[:id])
   end
 
   def set_stream_neighbors
@@ -286,7 +301,7 @@ class PhotosController < ApplicationController
     neighbor_ids = PhotoSearchOrderSnapshot.neighbor_ids(token: token, user: current_user, photo_id: @photo.id)
     return unless neighbor_ids
 
-    neighbors = visible_photo_scope.where(id: neighbor_ids.values.compact).index_by(&:id)
+    neighbors = visible_photo_scope.with_attached_original.where(id: neighbor_ids.values.compact).index_by(&:id)
     {
       previous_photo: neighbors[neighbor_ids[:previous_id]],
       next_photo: neighbors[neighbor_ids[:next_id]]
@@ -297,13 +312,13 @@ class PhotosController < ApplicationController
 
   def visible_photo_scope
     if @album_access_link
-      return album_access_photo_scope(@album_access_album).with_attached_original
+      return album_access_photo_scope(@album_access_album)
     end
 
-    return current_user.photos.with_attached_original if current_user&.owner? && restricted_photos_unlocked?
-    return current_user.photos.archived.with_attached_original if archived_return_path?
+    return current_user.photos if current_user&.owner? && restricted_photos_unlocked?
+    return current_user.photos.archived if archived_return_path?
 
-    Photo.with_attached_original.visible_to(current_user)
+    Photo.visible_to(current_user)
   end
 
   def manageable_photo_scope

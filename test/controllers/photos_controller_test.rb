@@ -183,7 +183,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     photo = attached_photo
     photo.publish!
 
-    get photo_path(photo)
+    get details_photo_path(photo)
 
     assert_response :success
     assert_select "form[action='#{unpublish_photo_path(photo)}'][method='post']", text: "Unpublish"
@@ -235,7 +235,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     album = @owner.photo_albums.create!(title: "Trip", source: "manual")
     photo = attached_photo(title: "Album candidate")
 
-    get photo_path(photo)
+    get details_photo_path(photo)
 
     assert_response :success
     assert_includes response.body, "Not in any albums."
@@ -487,7 +487,6 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     get photo_path(photo)
 
     assert_response :success
-    assert_includes response.body, "Archive"
     assert_select "section[data-controller~='info-panel']"
     assert_select "section[data-controller~='history-back']", false
     assert_select "section[data-controller~='info-panel'] > a.fixed", false
@@ -507,6 +506,15 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_select "button[aria-label='Close photo information'][data-action='info-panel#close']"
     assert_select "[data-info-panel-target='backdrop']", false
     assert_select "aside#photo-info-panel.translate-x-full"
+    assert_select "turbo-frame#photo-info-content[data-src]:not([src])"
+    assert_select "form[action='#{archive_photo_path(photo)}']", false
+    refute_includes response.body, "Fuji X100"
+
+    get details_photo_path(photo)
+    assert_response :success
+    assert_includes response.headers.fetch("Cache-Control"), "no-store"
+    assert_select "turbo-frame#photo-info-content[target='_top']"
+    assert_includes response.body, "Archive"
     assert_includes response.body, "Fuji X100"
     assert_includes response.body, "3,024 x 4,032"
     assert_includes response.body, "Photo location map"
@@ -527,7 +535,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     photo = attached_photo
     create_openclip_embedding(photo)
 
-    get photo_path(photo)
+    get details_photo_path(photo)
 
     assert_response :success
     assert_includes response.body, "Analysis"
@@ -541,8 +549,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     photo.restrict!
 
     post unlock_restricted_photos_path, params: { password: "open-sesame" }
-    get photo_path(photo, return_to: restricted_photos_path)
-    follow_redirect!
+    get details_photo_path(photo, return_to: restricted_photos_path)
 
     assert_response :success
     assert_select "form[action='#{unrestrict_photo_path(photo)}'][method='post']", text: "Move to stream"
@@ -571,6 +578,8 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, %(data-stream-navigation-back-url-value="#{album_path(album, photo_id: photo.id)}")
+    get details_photo_path(photo)
+    assert_response :success
     assert_select "form[action='#{album_cover_path(album, photo)}'][method='post']", text: "Set album cover"
     assert_select "form[action='#{photo_path(photo)}'][method='post'] input[name='return_to'][value='#{album_path(album, photo_id: photo.id)}']"
     assert_select "form[action='#{publish_photo_path(photo)}'][method='post'] input[name='return_to'][value='#{photo_path(photo)}']"
@@ -593,6 +602,8 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, %(data-stream-navigation-back-url-value="#{location_path(location_id, photo_id: photo.id)}")
+    get details_photo_path(photo)
+    assert_response :success
     assert_select "form[action='#{location_cover_path(location_id, photo)}'][method='post']", text: "Set location cover"
   end
 
@@ -614,6 +625,8 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, %(data-stream-navigation-back-url-value="#{location_path(location_id, photo_id: photo.id)}")
+    get details_photo_path(photo)
+    assert_response :success
     assert_select "form[action='#{location_cover_path(location_id, photo)}'][method='post']", text: "Set location cover"
   end
 
@@ -621,7 +634,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     photo = attached_photo
     photo.create_metadata!(extraction_status: "complete", camera_make: "Fuji", camera_model: "X100", raw: {})
 
-    get photo_path(photo)
+    get details_photo_path(photo)
 
     assert_response :success
     assert_includes response.body, "Location"
@@ -665,7 +678,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     video = attached_video
     video.create_metadata!(extraction_status: "complete", raw: {})
 
-    get photo_path(video)
+    get details_photo_path(video)
     assert_response :success
     assert_select "form[action='#{manual_location_photo_path(video)}']", false
 
@@ -676,7 +689,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     delete sign_out_path
     sign_in_as(users(:two))
 
-    get photo_path(photo)
+    get details_photo_path(photo)
     assert_response :success
     assert_includes response.body, "Unavailable"
     assert_select "form[action='#{manual_location_photo_path(photo)}']", false
@@ -697,7 +710,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
       raw: {}
     )
 
-    get photo_path(photo)
+    get details_photo_path(photo)
 
     assert_response :success
     assert_includes response.body, "QuickTime / MOV"
@@ -899,8 +912,10 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "a[href='#{photo_path(newer)}'][aria-label='Previous item in stream']"
     assert_select "a[href='#{photo_path(older)}'][aria-label='Next item in stream']"
-    assert_select "form[action='#{restore_photo_path(photo)}'][method='post']", text: "Restore"
     refute_includes response.body, photo_path(active)
+    get details_photo_path(photo, return_to: archived_photos_path)
+    assert_response :success
+    assert_select "form[action='#{restore_photo_path(photo)}'][method='post']", text: "Restore"
   end
 
   test "public detail view uses public stream neighbors" do
@@ -1141,6 +1156,9 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, photo.title
     assert_includes response.body, "Public travel note."
+    get details_photo_path(photo)
+    assert_response :success
+    assert_includes response.body, "Public travel note."
     assert_includes response.body, "Caption"
     refute_includes response.body, "Archive"
     refute_includes response.body, "Fuji X100"
@@ -1261,7 +1279,7 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     delete sign_out_path
     sign_in_as(users(:two))
 
-    get photo_path(photo)
+    get details_photo_path(photo)
 
     assert_response :success
     assert_includes response.body, "Met everyone by the river."
@@ -1294,6 +1312,8 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "<video"
     assert_includes response.body, "controls"
     assert_includes response.body, video_photo_path(photo)
+    get details_photo_path(photo)
+    assert_response :success
     assert_includes response.body, photo.original_filename
   end
 

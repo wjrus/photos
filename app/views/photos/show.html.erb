@@ -21,9 +21,9 @@
   <meta property="og:image:secure_url" content="<%= photo_social_image_url(@photo) %>">
   <meta property="og:image:type" content="<%= photo_social_image_type(@photo) %>">
   <meta property="og:image:alt" content="<%= photo_social_title(@photo) %>">
-  <% if @photo.metadata&.width.present? && @photo.metadata&.height.present? %>
-    <meta property="og:image:width" content="<%= @photo.metadata.width %>">
-    <meta property="og:image:height" content="<%= @photo.metadata.height %>">
+  <% if (metadata = @photo.display_metadata) && metadata.width.present? && metadata.height.present? %>
+    <meta property="og:image:width" content="<%= metadata.width %>">
+    <meta property="og:image:height" content="<%= metadata.height %>">
   <% end %>
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="<%= photo_social_title(@photo) %>">
@@ -41,12 +41,14 @@
           next_photo: @next_photo,
           access_params: @album_access_params || {} %>
 
-    <%= render "photos/info_panel",
-          photo: @photo,
-          return_to: @return_to,
-          albums: @albums,
-          taggable_users: @taggable_users,
-          cover_context: @cover_context,
-          album_access: @album_access_link.present? %>
+    <aside id="photo-info-panel"
+           class="fixed inset-y-0 right-0 z-40 w-full max-w-[390px] translate-x-full overflow-y-auto border-l border-zinc-200 bg-white shadow-2xl transition duration-200 ease-out"
+           data-info-panel-target="panel">
+      <%= turbo_frame_tag "photo-info-content", target: "_top", class: "block",
+            data: { info_panel_target: "content", src: details_photo_path(@photo, (@album_access_params || {}).merge(return_to: @return_to)) } do %>
+        <%= render "photos/info_panel_header", photo: @photo, owner_actions: false %>
+        <p role="status" class="px-5 py-4 text-sm text-zinc-600">Loading photo details…</p>
+      <% end %>
+    </aside>
   </div>
 </section>

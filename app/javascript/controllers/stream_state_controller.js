@@ -7,10 +7,10 @@ export default class extends Controller {
   }
 
   connect() {
-    this.previewEvents = new AbortController()
-    const { signal } = this.previewEvents
-    document.addEventListener("turbo:before-render", (event) => this.finishOpeningPreview(event), { signal })
-    document.addEventListener("turbo:fetch-request-error", () => this.clearOpeningPreview(), { signal })
+    this.openingEvents = new AbortController()
+    const { signal } = this.openingEvents
+    document.addEventListener("turbo:before-render", () => this.clearOpeningStatus(), { signal })
+    document.addEventListener("turbo:fetch-request-error", () => this.clearOpeningStatus(), { signal })
 
     if ("scrollRestoration" in window.history) {
       window.history.scrollRestoration = "manual"
@@ -20,8 +20,8 @@ export default class extends Controller {
   }
 
   disconnect() {
-    this.previewEvents.abort()
-    this.clearOpeningPreview()
+    this.openingEvents.abort()
+    this.clearOpeningStatus()
   }
 
   save(event) {
@@ -45,7 +45,7 @@ export default class extends Controller {
     if (!this.shouldNavigateWithReturnTo(event, link)) return
 
     event.preventDefault()
-    this.showOpeningPreview(link.closest("[data-photo-id]"))
+    this.showOpeningStatus(link.closest("[data-photo-id]"))
     this.visitWithReturnTo(link.href, storedReturnTo ? null : returnTo)
   }
 
@@ -80,58 +80,24 @@ export default class extends Controller {
     }
   }
 
-  showOpeningPreview(card) {
+  showOpeningStatus(card) {
     if (!card) return
 
-    this.clearOpeningPreview()
-    const preview = document.createElement("div")
-    preview.className = "photo-opening-preview"
-    preview.dataset.turboTemporary = ""
-    preview.dataset.openingPhotoId = card.dataset.photoId
-
-    const image = card.querySelector("img[data-thumbnail-preload-target='image']")
-    if (image?.complete && image.naturalWidth > 0) {
-      const canvas = document.createElement("canvas")
-      canvas.width = image.naturalWidth
-      canvas.height = image.naturalHeight
-      canvas.className = "photo-opening-image"
-      canvas.dataset.turboTemporary = ""
-      canvas.setAttribute("aria-hidden", "true")
-      const context = canvas.getContext("2d")
-      if (context) {
-        context.drawImage(image, 0, 0)
-        preview.append(canvas)
-      }
-    }
-
+    this.clearOpeningStatus()
     const status = document.createElement("p")
+    status.className = "photo-opening-status"
+    status.dataset.turboTemporary = ""
     status.setAttribute("role", "status")
     status.textContent = "Opening photo…"
-    preview.append(status)
-    document.body.append(preview)
-    this.openingPreview = preview
-    this.previewTimeout = setTimeout(() => this.clearOpeningPreview(), 15000)
+    card.append(status)
+    this.openingStatus = status
+    this.openingTimeout = setTimeout(() => this.clearOpeningStatus(), 15000)
   }
 
-  finishOpeningPreview(event) {
-    if (!this.openingPreview) return
-
-    const canvas = this.openingPreview.querySelector("canvas")
-    const viewer = event.detail.newBody.querySelector("[data-photo-viewer-id]")
-    const image = viewer?.querySelector("img.photo-detail-media")
-    if (canvas && viewer?.dataset.photoViewerId === this.openingPreview.dataset.openingPhotoId && image && !image.complete) {
-      viewer.append(canvas)
-      image.addEventListener("load", () => canvas.remove(), { once: true })
-      image.addEventListener("error", () => canvas.remove(), { once: true })
-    }
-
-    this.clearOpeningPreview()
-  }
-
-  clearOpeningPreview() {
-    clearTimeout(this.previewTimeout)
-    this.openingPreview?.remove()
-    this.openingPreview = null
+  clearOpeningStatus() {
+    clearTimeout(this.openingTimeout)
+    this.openingStatus?.remove()
+    this.openingStatus = null
   }
 
   async restore() {

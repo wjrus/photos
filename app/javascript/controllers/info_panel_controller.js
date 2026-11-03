@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["button", "panel", "viewer"]
+  static targets = ["button", "panel", "viewer", "content"]
 
   connect() {
     if (this.storedOpen()) {
@@ -26,6 +26,7 @@ export default class extends Controller {
     this.panelTarget.classList.add("translate-x-0")
     this.buttonTarget.setAttribute("aria-expanded", "true")
     this.viewerTarget.classList.add("info-panel-open")
+    if (!this.contentTarget.hasAttribute("src")) this.contentTarget.src = this.contentTarget.dataset.src
   }
 
   close() {
