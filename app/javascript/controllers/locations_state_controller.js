@@ -1,12 +1,32 @@
 import { Controller } from "@hotwired/stimulus"
 import { appendNextStreamPage } from "controllers/stream_page_loader"
 
+let returnLinkUrl
+let returnVisit
+
+document.addEventListener("turbo:click", (event) => {
+  if (!event.target.hasAttribute("data-locations-return")) return
+
+  returnLinkUrl = event.detail.url
+  // A canceled click must not affect a later visit to the same URL.
+  queueMicrotask(() => { returnLinkUrl = undefined })
+})
+
+document.addEventListener("turbo:visit", ({ detail: { url, action } }) => {
+  const fromBackLink = url === returnLinkUrl
+  returnVisit = fromBackLink || action === "restore" ? { url, fromBackLink } : undefined
+})
+
 export default class extends Controller {
   static values = { viewer: String }
 
   connect() {
     if (document.documentElement.hasAttribute("data-turbo-preview")) return
-    this.restore()
+    if (returnVisit?.url !== window.location.href) return
+
+    const { fromBackLink } = returnVisit
+    returnVisit = undefined
+    this.restore(fromBackLink)
   }
 
   remember(event) {
@@ -19,6 +39,7 @@ export default class extends Controller {
     try {
       sessionStorage.setItem(this.storageKey, JSON.stringify({
         path: this.currentPath,
+        entryId: history.state?.turbo?.restorationIdentifier,
         locationId: card.dataset.locationId,
         offset: card.getBoundingClientRect().top,
         scrollY: window.scrollY,
@@ -30,11 +51,12 @@ export default class extends Controller {
     }
   }
 
-  async restore() {
+  async restore(fromBackLink) {
     let state
     try {
       state = JSON.parse(sessionStorage.getItem(this.storageKey))
       if (!state || state.path !== this.currentPath) return
+      if (!fromBackLink && (!state.entryId || state.entryId !== history.state?.turbo?.restorationIdentifier)) return
       sessionStorage.removeItem(this.storageKey)
     } catch {
       return

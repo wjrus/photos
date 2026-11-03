@@ -75,9 +75,13 @@ class LocationGeographyTest < ApplicationSystemTestCase
     assert_equal (0...13).map { |index| format("Town %02d", index) }, all("[data-location-state-group='Ohio'] [data-location-title]").map(&:text)
   end
 
-  %w[link browser].each do |return_method|
-    test "#{return_method} back restores a location card after multiple directory pages" do
-      if return_method == "browser"
+  {
+    "back link restores a location card after multiple directory pages" => :link,
+    "browser back restores a location card after multiple directory pages" => :browser,
+    "a fresh visit starts at the top even with a saved location card" => :fresh
+  }.each do |description, return_method|
+    test description do
+      if return_method == :browser
         page.driver.browser.execute_cdp("Emulation.setDeviceMetricsOverride", width: 390, height: 844, deviceScaleFactor: 1, mobile: true)
       end
       photos = 40.times.map { |index| location(format("Landmark %02d", index), country: "Iceland", state: "Southern Region") }
@@ -104,13 +108,25 @@ class LocationGeographyTest < ApplicationSystemTestCase
       card.find("a[data-location-link]").click
       assert_current_path location_path(target_id)
 
-      if return_method == "link"
-        page.execute_script("Turbo.cache.clear()")
+      page.execute_script("Turbo.cache.clear()")
+      case return_method
+      when :link
         click_link "Back to locations"
-      else
+      when :browser
         page.go_back
+      when :fresh
+        find("summary[aria-label='Site navigation']").click
+        click_link "Locations", exact: true
       end
       assert_current_path locations_path
+
+      if return_method == :fresh
+        assert_selector "html:not([data-turbo-preview]) [data-controller~='locations-state']"
+        assert_equal 0, page.evaluate_script("window.scrollY")
+        assert_no_selector "[data-location-id='#{target_id}']", visible: :all
+        next
+      end
+
       page.document.synchronize(10) do
         current_offset = page.evaluate_script("document.querySelector('[data-location-id=\"' + arguments[0] + '\"]')?.getBoundingClientRect().top", target_id)
         raise Capybara::ExpectationNotMet, "Location card position was not restored" unless current_offset && (current_offset - offset).abs <= 2
