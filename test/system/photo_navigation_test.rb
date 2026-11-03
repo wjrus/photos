@@ -138,7 +138,7 @@ class PhotoNavigationTest < ApplicationSystemTestCase
     assert_current_path album_path(@album, photo_id: @next.id)
   end
 
-  test "clicking a thumbnail acknowledges the click without swapping images" do
+  test "clicking a thumbnail opens the viewer directly without an overlay" do
     @current.original.variant(:stream).processed
 
     [ 1400, 390 ].each do |width|
@@ -162,7 +162,7 @@ class PhotoNavigationTest < ApplicationSystemTestCase
       JS
 
       find("#{card} a").click
-      assert_selector "#{card} .photo-opening-status", text: "Opening photo…"
+      assert_no_text "Opening photo…"
       assert_no_selector ".photo-viewer-shell"
       assert_current_path album_path(@album)
       assert_equal "", page.evaluate_script("window.viewerRequestSearch")
@@ -170,7 +170,6 @@ class PhotoNavigationTest < ApplicationSystemTestCase
       page.execute_script("window.resumeViewerRequest()")
       assert_photo @current
       assert_link "Return to stream", href: album_path(@album, photo_id: @current.id)
-      assert_no_selector ".photo-opening-status"
       assert_selector "turbo-frame#photo-info-content:not([src])", visible: :all
     end
   ensure

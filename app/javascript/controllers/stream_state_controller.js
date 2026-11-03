@@ -7,21 +7,11 @@ export default class extends Controller {
   }
 
   connect() {
-    this.openingEvents = new AbortController()
-    const { signal } = this.openingEvents
-    document.addEventListener("turbo:before-render", () => this.clearOpeningStatus(), { signal })
-    document.addEventListener("turbo:fetch-request-error", () => this.clearOpeningStatus(), { signal })
-
     if ("scrollRestoration" in window.history) {
       window.history.scrollRestoration = "manual"
     }
 
     this.restore()
-  }
-
-  disconnect() {
-    this.openingEvents.abort()
-    this.clearOpeningStatus()
   }
 
   save(event) {
@@ -45,7 +35,6 @@ export default class extends Controller {
     if (!this.shouldNavigateWithReturnTo(event, link)) return
 
     event.preventDefault()
-    this.showOpeningStatus(link.closest("[data-photo-id]"))
     this.visitWithReturnTo(link.href, storedReturnTo ? null : returnTo)
   }
 
@@ -78,26 +67,6 @@ export default class extends Controller {
     } else {
       window.location.href = path
     }
-  }
-
-  showOpeningStatus(card) {
-    if (!card) return
-
-    this.clearOpeningStatus()
-    const status = document.createElement("p")
-    status.className = "photo-opening-status"
-    status.dataset.turboTemporary = ""
-    status.setAttribute("role", "status")
-    status.textContent = "Opening photo…"
-    card.append(status)
-    this.openingStatus = status
-    this.openingTimeout = setTimeout(() => this.clearOpeningStatus(), 15000)
-  }
-
-  clearOpeningStatus() {
-    clearTimeout(this.openingTimeout)
-    this.openingStatus?.remove()
-    this.openingStatus = null
   }
 
   async restore() {
