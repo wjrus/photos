@@ -15,7 +15,8 @@ class AlbumsController < ApplicationController
 
   def index
     @album_sort_options = ALBUM_SORT_OPTIONS
-    @album_sort = album_sort_param
+    @album_list_sort = album_sort_param
+    @album_sort = @album_list_sort || "letters"
     @albums = PhotoAlbum.visible_to(current_user)
       .display_order
       .to_a
@@ -35,18 +36,20 @@ class AlbumsController < ApplicationController
   end
 
   def show
+    @album_list_sort = album_sort_param
+    @album_gallery_path = album_path(@album, sort: @album_list_sort)
     visible_photos = album_photo_scope.with_original_variant_records.chronological_order
 
     @photos, @next_cursor, @newer_cursor = paginate_chronological_photo_stream_with_focus(visible_photos)
     @newer_cursor ||= chronological_timeline_previous_cursor(visible_photos) if params[:timeline_page].present?
 
     return if render_photo_page_if_requested(
-      return_to: album_path(@album),
+      return_to: @album_gallery_path,
       bulk_form_id: "album-photo-bulk-form",
       album: @album,
       access_params: (@album_access_link ? { album_id: @album.id } : {}),
       group_by_day: false,
-      next_page_path: album_path(@album),
+      next_page_path: @album_gallery_path,
       stream_target_photo_id: @stream_target_photo_id
     )
 
@@ -106,8 +109,7 @@ class AlbumsController < ApplicationController
   end
 
   def album_sort_param
-    sort = params[:sort].to_s
-    ALBUM_SORT_OPTIONS.key?(sort) ? sort : "letters"
+    params[:sort].to_s.presence_in(ALBUM_SORT_OPTIONS.keys)
   end
 
   def sorted_albums(albums, media_counts)

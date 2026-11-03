@@ -279,8 +279,8 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "article", count: 12
-    assert_select "[data-controller='infinite-scroll']"
-    assert_select "[data-infinite-scroll-target='sentinel'][data-next-url='#{albums_path(sort: "letters", page: 2)}']"
+    assert_select "[data-controller~='infinite-scroll']"
+    assert_select "[data-infinite-scroll-target='sentinel'][data-next-url='#{albums_path(page: 2)}']"
 
     get albums_path(page: 2)
 

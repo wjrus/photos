@@ -2,7 +2,7 @@
   <% locations.each do |location| %>
     <% cover = @location_covers[location.id] %>
     <article id="location-<%= location.id %>" data-location-id="<%= location.id %>" class="group overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition hover:border-zinc-950">
-      <%= link_to location_path(location.id), class: "block", data: { location_link: true } do %>
+      <%= link_to location_path(location.id), class: "block", data: { directory_link: true } do %>
         <div class="aspect-[4/3] bg-zinc-900">
           <% if cover %>
             <%= photo_stream_media(cover, **location_cover_image_options(cover)) %>

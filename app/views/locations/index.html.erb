@@ -24,10 +24,11 @@
     <% if @locations.any? %>
       <div class="mt-6"
            data-stream-page-container
-           data-locations-state-viewer-value="<%= current_user.id %>"
+           data-directory-state-viewer-value="<%= current_user.id %>"
+           data-directory-state-kind-value="location"
            data-infinite-scroll-page-size-value="<%= LocationsController::LOCATION_PAGE_SIZE %>"
-           data-controller="<%= ["locations-state", ("infinite-scroll" if @next_location_page.present?)].compact.join(" ") %>"
-           data-action="click->locations-state#remember">
+           data-controller="directory-state<%= " infinite-scroll" if @next_location_page.present? %>"
+           data-action="click->directory-state#remember">
         <%= render "locations/page", locations: @locations %>
       </div>
     <% else %>

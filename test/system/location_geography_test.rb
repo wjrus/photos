@@ -76,17 +76,23 @@ class LocationGeographyTest < ApplicationSystemTestCase
   end
 
   {
-    "back link restores a location card after multiple directory pages" => :link,
+    "sticky back tab restores a location card after multiple directory pages" => :link,
     "browser back restores a location card after multiple directory pages" => :browser,
     "a fresh visit starts at the top even with a saved location card" => :fresh
   }.each do |description, return_method|
     test description do
       if return_method == :browser
         page.driver.browser.execute_cdp("Emulation.setDeviceMetricsOverride", width: 390, height: 844, deviceScaleFactor: 1, mobile: true)
+      elsif return_method == :link
+        page.driver.browser.execute_cdp("Emulation.setDeviceMetricsOverride", width: 1400, height: 700, deviceScaleFactor: 1, mobile: false)
       end
       photos = 40.times.map { |index| location(format("Landmark %02d", index), country: "Iceland", state: "Southern Region") }
       photos.first.original.variant(:stream).processed
-      target_id = PhotoLocation.id_for_place(photos[26].metadata.photo_place)
+      target_place = photos[26].metadata.photo_place
+      if return_method == :link
+        24.times { location("Gallery photo", country: "Iceland", state: "Southern Region", place: target_place) }
+      end
+      target_id = PhotoLocation.id_for_place(target_place)
       visit locations_path
       assert_no_selector "nav[aria-label='Sort locations']"
       assert page.evaluate_async_script(<<~JS, target_id)
@@ -105,13 +111,21 @@ class LocationGeographyTest < ApplicationSystemTestCase
       page.evaluate_async_script("const done=arguments[0]; requestAnimationFrame(() => requestAnimationFrame(done))")
       offset = page.evaluate_script("arguments[0].getBoundingClientRect().top", card)
       assert_operator page.evaluate_script("scrollY"), :>, 1500
-      card.find("a[data-location-link]").click
+      card.find("a[data-directory-link]").click
       assert_current_path location_path(target_id)
 
       page.execute_script("Turbo.cache.clear()")
       case return_method
       when :link
-        click_link "Back to locations"
+        assert_link "Back to locations", exact: true
+        assert_no_selector "[data-scroll-return-target='tab']"
+        page.execute_script("window.scrollTo(0, 400)")
+        tab = find("header [data-scroll-return-target='tab'] a")
+        assert_in_delta 0, page.evaluate_script("arguments[0].getBoundingClientRect().top - document.querySelector('.site-header').getBoundingClientRect().bottom", tab), 2
+        page.execute_script("window.scrollTo(0, 0)")
+        assert_no_selector "[data-scroll-return-target='tab']"
+        page.execute_script("window.scrollTo(0, 400)")
+        find("header [data-scroll-return-target='tab'] a").click
       when :browser
         page.go_back
       when :fresh
@@ -121,7 +135,7 @@ class LocationGeographyTest < ApplicationSystemTestCase
       assert_current_path locations_path
 
       if return_method == :fresh
-        assert_selector "html:not([data-turbo-preview]) [data-controller~='locations-state']"
+        assert_selector "html:not([data-turbo-preview]) [data-controller~='directory-state']"
         assert_equal 0, page.evaluate_script("window.scrollY")
         assert_no_selector "[data-location-id='#{target_id}']", visible: :all
         next
@@ -143,7 +157,7 @@ class LocationGeographyTest < ApplicationSystemTestCase
 
   private
 
-  def location(name, country:, state:, city: nil)
+  def location(name, country:, state:, city: nil, place: nil)
     components = [
       { long_name: country, types: [ "country" ] }, { long_name: state, types: [ "administrative_area_level_1" ] },
       { long_name: "County", types: [ "administrative_area_level_2" ] }
@@ -151,7 +165,7 @@ class LocationGeographyTest < ApplicationSystemTestCase
     components << { long_name: city, types: [ "locality" ] } if city
     photo = @owner.photos.create!(title: name, original: @blob, captured_at: Time.zone.local(2022, 8, 17, 12))
     photo.create_metadata!(latitude: 41.5, longitude: -81.7, extraction_status: "complete", raw: {})
-    assign_photo_place(photo, name: name, place_type: "premise", raw: { address_components: components })
+    assign_photo_place(photo, name: name, place: place, place_type: "premise", raw: { address_components: components })
     photo
   end
 end

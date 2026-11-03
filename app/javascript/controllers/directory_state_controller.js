@@ -5,7 +5,7 @@ let returnLinkUrl
 let returnVisit
 
 document.addEventListener("turbo:click", (event) => {
-  if (!event.target.hasAttribute("data-locations-return")) return
+  if (!event.target.hasAttribute("data-directory-return")) return
 
   returnLinkUrl = event.detail.url
   // A canceled click must not affect a later visit to the same URL.
@@ -18,7 +18,7 @@ document.addEventListener("turbo:visit", ({ detail: { url, action } }) => {
 })
 
 export default class extends Controller {
-  static values = { viewer: String }
+  static values = { viewer: String, kind: String }
 
   connect() {
     if (document.documentElement.hasAttribute("data-turbo-preview")) return
@@ -30,20 +30,20 @@ export default class extends Controller {
   }
 
   remember(event) {
-    const link = event.target.closest("a[data-location-link]")
+    const link = event.target.closest("a[data-directory-link]")
     if (!link || event.defaultPrevented || link.origin !== window.location.origin) return
 
-    const card = link.closest("[data-location-id]")
+    const card = link.closest(this.cardSelector)
     if (!card) return
 
     try {
       sessionStorage.setItem(this.storageKey, JSON.stringify({
         path: this.currentPath,
         entryId: history.state?.turbo?.restorationIdentifier,
-        locationId: card.dataset.locationId,
+        cardId: card.getAttribute(this.cardAttribute),
         offset: card.getBoundingClientRect().top,
         scrollY: window.scrollY,
-        loadedCards: this.element.querySelectorAll("[data-location-id]").length,
+        loadedCards: this.element.querySelectorAll(this.cardSelector).length,
         savedAt: Date.now()
       }))
     } catch {
@@ -61,9 +61,10 @@ export default class extends Controller {
     } catch {
       return
     }
-    if (!Number.isFinite(state.savedAt) || Date.now() - state.savedAt > 86400000 || typeof state.locationId !== "string") return
+    const cardId = state.cardId ?? state.locationId
+    if (!Number.isFinite(state.savedAt) || Date.now() - state.savedAt > 86400000 || typeof cardId !== "string") return
 
-    const selector = `[data-location-id="${CSS.escape(state.locationId)}"]`
+    const selector = `[${this.cardAttribute}="${CSS.escape(cardId)}"]`
     const pageSize = Number(this.element.dataset.infiniteScrollPageSizeValue) || 12
     const maxPages = Math.min(100, Math.ceil(Number(state.loadedCards) / pageSize) + 1)
     this.element.style.visibility = "hidden"
@@ -71,7 +72,7 @@ export default class extends Controller {
       let card = this.element.querySelector(selector)
       for (let page = 0; !card && page < maxPages; page++) {
         const sentinel = this.element.querySelector("[data-infinite-scroll-target='sentinel']")
-        if (!sentinel?.dataset.nextUrl || !await appendNextStreamPage(sentinel, "Restoring locations...")) break
+        if (!sentinel?.dataset.nextUrl || !await appendNextStreamPage(sentinel)) break
         card = this.element.querySelector(selector)
       }
       if (!this.element.isConnected) return
@@ -95,6 +96,14 @@ export default class extends Controller {
   }
 
   get storageKey() {
-    return `photos.locationsState.${this.viewerValue}.${this.currentPath}`
+    return `photos.${this.kindValue}sState.${this.viewerValue}.${this.currentPath}`
+  }
+
+  get cardAttribute() {
+    return `data-${this.kindValue}-id`
+  }
+
+  get cardSelector() {
+    return `[${this.cardAttribute}]`
   }
 }

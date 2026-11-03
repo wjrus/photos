@@ -1,0 +1,10 @@
+<div class="pointer-events-none absolute inset-x-0 top-full" data-scroll-return-target="tab" hidden>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <%= link_to path,
+          data: { directory_return: true },
+          class: "pointer-events-auto ml-14 inline-flex min-h-8 items-center gap-1 rounded-b-lg border border-[var(--theme-border)] bg-[var(--theme-panel-strong)] px-2.5 text-xs font-medium text-[var(--theme-text)] shadow-sm hover:text-[var(--theme-accent-label)]" do %>
+      <%= app_icon(:chevron_left, classes: "size-3.5") %>
+      <%= label %>
+    <% end %>
+  </div>
+</div>

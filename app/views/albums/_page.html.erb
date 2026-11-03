@@ -2,7 +2,7 @@
   <% albums.each do |album| %>
     <% cover = @album_covers[album.id] %>
     <% visible_count = @visible_media_counts.fetch(album.id, { photos: 0, videos: 0 }) %>
-    <article class="group relative overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition hover:border-zinc-950" data-bulk-selection-card>
+    <article class="group relative overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition hover:border-zinc-950" data-bulk-selection-card data-album-id="<%= album.id %>">
       <% if current_user&.owner? %>
         <label class="selection-control absolute left-3 top-3 z-20 cursor-pointer"
                title="Select"
@@ -12,9 +12,9 @@
         </label>
       <% end %>
 
-      <%= link_to album_path(album),
+      <%= link_to album_path(album, sort: @album_list_sort),
             class: "block",
-            data: current_user&.owner? ? { action: "click->bulk-selection#toggleCard" } : {} do %>
+            data: { directory_link: true, action: ("click->bulk-selection#toggleCard" if current_user&.owner?) } do %>
         <div class="aspect-[4/3] bg-zinc-900">
           <% if cover %>
             <%= photo_stream_media(cover) %>
@@ -38,7 +38,7 @@
 
 <% if @next_album_page.present? %>
   <div data-infinite-scroll-target="sentinel"
-       data-next-url="<%= albums_path(sort: @album_sort, page: @next_album_page) %>"
+       data-next-url="<%= albums_path(sort: @album_list_sort, page: @next_album_page) %>"
        class="py-8 text-center text-sm font-semibold text-zinc-500">
     Loading more albums...
   </div>
