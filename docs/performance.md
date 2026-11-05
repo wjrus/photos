@@ -1,5 +1,71 @@
 # Performance checks
 
+## Authorized media delivery
+
+Prepared stream and display images load the original attachment/blob with the
+authorized photo and the selected derivative attachment/blob with its variant
+record. Each lookup joins only singular associations. Feed preloads still use
+their already-loaded variant records, so this does not add per-card queries.
+
+Run the request benchmark with synthetic test media:
+
+```sh
+PARALLEL_WORKERS=1 rbenv exec bundle exec ruby test/performance/media_requests.rb
+```
+
+It clears the SQL query cache between measured requests and reports SELECTs and
+Active Storage service downloads. Comparing the same fixture before and after
+the November 5 changes produced:
+
+| Request | SELECTs before | SELECTs after | Full blob downloads before / after |
+| --- | ---: | ---: | ---: |
+| Prepared stream image | 7 | 3 | 1 / 0 |
+| Stream revalidation (304) | 7 | 3 | 0 / 0 |
+| Prepared display image | 7 | 3 | 1 / 0 |
+| Display revalidation (304) | 7 | 3 | 0 / 0 |
+| Owner original | 4 | 4 | 1 / 0 |
+
+These counts include session authentication for the owner. Guest links have
+additional authorization lookups. Local media uses `send_file`, with explicit
+X-Sendfile support in the Compose web containers so Thruster transfers files
+without first allocating a complete file-sized Ruby string. Services without
+a local path retain their download fallback. Visibility, guest-link revocation,
+private revalidation, and guest `no-store` checks still run before file delivery.
+Missing derivatives still use Active Storage processing as before.
+
+The query counts and service download counts describe server work, not browser
+latency. A separate local Thruster 0.1.27/Rack 3.2.8 smoke check verified a
+synthetic 2 MB private file, HEAD, byte ranges, hidden X-Sendfile headers, and
+anonymous rejection. Production verification follows an authorized deployment.
+
+## File health patrol selection
+
+Patrol selection uses a lateral lookup of the newest check timestamp for each
+attached original. The existing `(photo_id, checked_at)` index supports a backward
+index-only scan stopping after one row. This avoids sorting and reading every
+historical check merely to choose the next batch. Unchecked files still come
+first, then the oldest check, then byte size and photo ID. No migration is needed.
+
+```sh
+psql -X -d photos_test -v ON_ERROR_STOP=1 -f test/performance/health_patrol.sql
+```
+
+This benchmark creates 40,000 synthetic photos and 432,000 checks in temporary
+tables, including unchecked, fresh, and stale files. It verifies that both
+queries select the same batch. One local run reduced selection from 71.710 ms
+to 26.665 ms. The revised plan performs 40,000 bounded index lookups rather than
+reading and sorting all 432,000 history rows. Timings vary with history depth,
+table statistics, storage, and cache warmth; this excludes enqueueing and
+checksum work.
+
+Six background queues now wait two seconds between polls instead of 0.5 seconds.
+This reduces their idle poll frequency by 75%, and the nine workers' combined
+idle poll frequency by 50% with one process per queue. Dispatcher and heartbeat
+traffic remain. Derivative, video-preview, and default queues keep 0.5-second
+polling. Set `BACKGROUND_JOB_POLL_INTERVAL` in the worker environment to tune
+the background interval; the tradeoff is up to two seconds to notice new work
+on an idle background queue.
+
 ## Photo stream queries
 
 The descending stream and viewer neighbors use the same indexed tuple:

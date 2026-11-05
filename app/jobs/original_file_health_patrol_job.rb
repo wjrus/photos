@@ -13,14 +13,19 @@ class OriginalFileHealthPatrolJob < ApplicationJob
   private
 
   def due_photos(batch_size:, stale_after:)
-    latest_checks = FileHealthCheck
-      .select("DISTINCT ON (photo_id) file_health_checks.*")
-      .order("photo_id, checked_at DESC, id DESC")
-
     Photo
       .joins(:original_attachment)
-      .joins("LEFT JOIN (#{latest_checks.to_sql}) latest_file_health_checks ON latest_file_health_checks.photo_id = photos.id")
-      .where("latest_file_health_checks.id IS NULL OR latest_file_health_checks.checked_at < ?", stale_after.ago)
+      # Read one timestamp per photo using the (photo_id, checked_at) index.
+      # Sorting the entire check history gets more expensive after every patrol.
+      .joins(<<~SQL.squish)
+        LEFT JOIN LATERAL (
+          SELECT checked_at FROM file_health_checks
+          WHERE photo_id = photos.id
+          ORDER BY checked_at DESC
+          LIMIT 1
+        ) latest_file_health_checks ON true
+      SQL
+      .where("latest_file_health_checks.checked_at IS NULL OR latest_file_health_checks.checked_at < ?", stale_after.ago)
       .reorder(Arel.sql("latest_file_health_checks.checked_at ASC NULLS FIRST, photos.byte_size ASC NULLS LAST, photos.id ASC"))
       .limit(batch_size)
   end

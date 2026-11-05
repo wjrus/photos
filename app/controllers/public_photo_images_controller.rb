@@ -1,11 +1,13 @@
 class PublicPhotoImagesController < ActionController::Base
+  include StoredBlobDelivery
+
   def show
     photo = Photo.publicly_visible.find(params[:photo_id])
     return head :not_found if photo.video?
 
     variant = photo.original.variant(:display).processed
     expires_in 1.hour, public: true
-    send_data variant.download,
+    send_stored_blob variant.image.blob,
       type: "image/jpeg",
       disposition: "inline",
       filename: "photo-#{photo.id}.jpg"

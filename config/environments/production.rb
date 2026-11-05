@@ -24,6 +24,10 @@ Rails.application.configure do
   # Store uploaded files on the local file system (see config/storage.yml for options).
   config.active_storage.service = :local
 
+  # Compose web containers run behind Thruster. Rack deliberately ignores
+  # request-supplied X-Sendfile-Type headers, so offloading must be explicit.
+  config.action_dispatch.x_sendfile_header = "X-Sendfile" if ENV["PHOTOS_X_SENDFILE"] == "true"
+
   # Assume all access to the app is happening through a SSL-terminating reverse proxy.
   config.assume_ssl = ENV["PHOTOS_ASSUME_SSL"] == "true"
 

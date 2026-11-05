@@ -6,27 +6,27 @@ default: &default
     - queues: solid_queue_recurring
       threads: <%= ENV.fetch("RECURRING_JOB_THREADS", 1) %>
       processes: <%= ENV.fetch("JOB_PROCESSES", ENV.fetch("JOB_CONCURRENCY", 1)) %>
-      polling_interval: 0.5
+      polling_interval: <%= ENV.fetch("BACKGROUND_JOB_POLL_INTERVAL", 2) %>
     - queues: import
       threads: <%= ENV.fetch("IMPORT_JOB_THREADS", 1) %>
       processes: <%= ENV.fetch("JOB_PROCESSES", ENV.fetch("JOB_CONCURRENCY", 1)) %>
-      polling_interval: 0.5
+      polling_interval: <%= ENV.fetch("BACKGROUND_JOB_POLL_INTERVAL", 2) %>
     - queues: archive
       threads: <%= ENV.fetch("ARCHIVE_JOB_THREADS", 1) %>
       processes: <%= ENV.fetch("JOB_PROCESSES", ENV.fetch("JOB_CONCURRENCY", 1)) %>
-      polling_interval: 0.5
+      polling_interval: <%= ENV.fetch("BACKGROUND_JOB_POLL_INTERVAL", 2) %>
     - queues: maintenance
       threads: <%= ENV.fetch("MAINTENANCE_JOB_THREADS", 1) %>
       processes: <%= ENV.fetch("JOB_PROCESSES", ENV.fetch("JOB_CONCURRENCY", 1)) %>
-      polling_interval: 0.5
+      polling_interval: <%= ENV.fetch("BACKGROUND_JOB_POLL_INTERVAL", 2) %>
     - queues: analysis
       threads: <%= ENV.fetch("ANALYSIS_JOB_THREADS", 1) %>
       processes: <%= ENV.fetch("JOB_PROCESSES", ENV.fetch("JOB_CONCURRENCY", 1)) %>
-      polling_interval: 0.5
+      polling_interval: <%= ENV.fetch("BACKGROUND_JOB_POLL_INTERVAL", 2) %>
     - queues: vision
       threads: <%= ENV.fetch("VISION_JOB_THREADS", 2) %>
       processes: <%= ENV.fetch("JOB_PROCESSES", ENV.fetch("JOB_CONCURRENCY", 1)) %>
-      polling_interval: 0.5
+      polling_interval: <%= ENV.fetch("BACKGROUND_JOB_POLL_INTERVAL", 2) %>
     - queues: video_previews
       threads: <%= ENV.fetch("VIDEO_PREVIEW_JOB_THREADS", 2) %>
       processes: <%= ENV.fetch("JOB_PROCESSES", ENV.fetch("JOB_CONCURRENCY", 1)) %>

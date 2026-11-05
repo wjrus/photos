@@ -740,6 +740,27 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
   end
 
   %w[stream display].each do |variant_name|
+    test "#{variant_name} serves local bytes without downloading a blob into Ruby" do
+      photo = attached_photo
+      variant = photo.original.variant(variant_name.to_sym).processed
+      expected = variant.download
+      queries = []
+      downloads = 0
+      subscriber = ->(event) { queries << event.payload[:sql] if event.payload[:name] != "SCHEMA" && event.payload[:sql].start_with?("SELECT") }
+
+      ActiveSupport::Notifications.subscribed(->(_event) { downloads += 1 }, "service_download.active_storage") do
+        ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+          get public_send("#{variant_name}_photo_path", photo)
+        end
+      end
+
+      assert_response :success
+      assert_equal expected, response.body.b
+      assert_equal 0, downloads
+      assert_equal 3, queries.size, queries.join("\n")
+      assert_includes response.headers.fetch("Content-Disposition"), "inline"
+    end
+
     test "#{variant_name} image revalidates cached bytes without reading the file again" do
       photo = attached_photo
       variant = photo.original.variant(variant_name.to_sym).processed
@@ -761,6 +782,42 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
       get path, headers: { "If-None-Match" => etag }
       assert_response :not_found
     end
+  end
+
+  test "owner original media uses file delivery and preserves the filename" do
+    photo = attached_photo
+    expected = photo.original.download
+    downloads = 0
+
+    ActiveSupport::Notifications.subscribed(->(_event) { downloads += 1 }, "service_download.active_storage") do
+      get media_photo_path(photo)
+    end
+
+    assert_response :success
+    assert_equal expected, response.body.b
+    assert_equal 0, downloads
+    assert_includes response.headers.fetch("Content-Disposition"), photo.original_filename
+  end
+
+  test "prepared media still downloads through services without a local path" do
+    photo = attached_photo
+    variant = photo.original.variant(:stream).processed
+    expected = variant.download
+    services = ActiveStorage::Blob.services
+    remote_service = Struct.new(:disk) do
+      def download(key, &block)
+        disk.download(key, &block)
+      end
+    end.new(variant.service)
+    ActiveStorage::Blob.services = { "test" => remote_service }
+
+    get stream_photo_path(photo)
+
+    assert_response :success
+    assert_equal expected, response.body.b
+    assert_includes response.headers.fetch("Cache-Control"), "private"
+  ensure
+    ActiveStorage::Blob.services = services if services
   end
 
   test "cached thumbnails do not survive revoked public access" do

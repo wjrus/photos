@@ -334,7 +334,7 @@ class Photo < ApplicationRecord
     if variant_records.loaded?
       variant_records.find { |record| record.variation_digest == variation_digest }
     else
-      variant_records.find_by(variation_digest: variation_digest)
+      variant_records.eager_load(image_attachment: :blob).find_by(variation_digest: variation_digest)
     end
   end
 

@@ -1,6 +1,7 @@
 class PhotosController < ApplicationController
   include PhotoStreamReturnPaths
   include AlbumLinkAccess
+  include StoredBlobDelivery
 
   owner_access_message "Only the owner can manage photos."
 
@@ -59,7 +60,7 @@ class PhotosController < ApplicationController
   end
 
   def media
-    send_data @photo.original.download,
+    send_stored_blob @photo.original.blob,
       type: @photo.content_type,
       disposition: "inline",
       filename: public_filename(@photo, File.extname(@photo.original_filename.to_s))
@@ -197,17 +198,17 @@ class PhotosController < ApplicationController
   private
 
   def send_image_variant(name)
-    variant = @photo.original.variant(name).processed
+    image = @photo.processed_original_variant_record(name)&.image || @photo.original.variant(name).processed.image
     filename = public_filename(@photo, ".jpg")
     # Authorization runs before revalidation. Keep access-link responses no-store.
     unless @album_access_link
       # Binary validators must not depend on HTML templates or transient flash messages.
-      response.weak_etag = [ variant.image.blob, filename ]
+      response.weak_etag = [ image.blob, filename ]
       response.cache_control.merge!(max_age: 0, private: true, must_revalidate: true)
       return head :not_modified if request.fresh?(response)
     end
 
-    send_data variant.download, type: "image/jpeg", disposition: "inline", filename: filename
+    send_stored_blob image.blob, type: "image/jpeg", disposition: "inline", filename: filename
   end
 
   def photo_params
@@ -247,6 +248,7 @@ class PhotosController < ApplicationController
     scope = visible_photo_scope
     # A media request loads only its requested variant or video attachment.
     scope = scope.with_attached_original if action_name == "show"
+    scope = scope.eager_load(original_attachment: :blob) if action_name.in?(%w[stream display])
     @photo = scope.find(params[:id])
   end
 

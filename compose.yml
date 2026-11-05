@@ -10,6 +10,7 @@ x-web-service: &web
     PGUSER: photos
     REDIS_URL: redis://redis:6379/0
     SOLID_QUEUE_IN_PUMA: "false"
+    PHOTOS_X_SENDFILE: "true"
     SKIP_DB_PREPARE: ${SKIP_DB_PREPARE:-false}
   depends_on:
     db:

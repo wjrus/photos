@@ -170,6 +170,39 @@ docker buildx du
 See Docker's [image-prune filters](https://docs.docker.com/reference/cli/docker/image/prune/)
 and [BuildKit garbage-collection policies](https://docs.docker.com/build/cache/garbage-collection/).
 
+### November 2026 Rails Security Update
+
+Rails and all framework components are locked to 8.1.4.1, released November 4.
+The Gemfile requires at least this security patch while allowing later 8.1.x
+updates. This release addresses 21 security issues, including Active Storage
+processing, session handling, content negotiation, and view helpers. See the
+[official announcement](https://rubyonrails.org/2026/11/4/Rails-8.0.5.2-and-8.1.4.1-have-been-released)
+and [release notes](https://github.com/rails/rails/releases/tag/v8.1.4.1).
+The application uses the vips variant processor; the new MiniMagick minimum
+does not require changing processors or adding MiniMagick here.
+
+Normal `./scripts/deploy` rebuilds the web and worker images with the updated
+framework. There are no new application database migrations in this update.
+
+### File delivery and background polling
+
+Compose web containers set `PHOTOS_X_SENDFILE=true`. Production Rails then sets
+the X-Sendfile response header explicitly, and the existing Thruster process
+serves authorized local media files. Current Rack ignores request-supplied
+`X-Sendfile-Type` headers, so relying on Thruster's request header alone would
+leave Ruby transferring the file. This setting also accelerates existing
+`send_file` downloads such as completed exports.
+
+Only enable `PHOTOS_X_SENDFILE` when Rails runs behind a file-serving proxy
+supporting X-Sendfile on the same filesystem. Keep Thruster's X-Sendfile support
+enabled in the Compose stack. Direct Puma deployments should leave the setting
+unset so Rails streams files itself.
+
+Background queues default to a two-second polling interval. To override it, set
+`BACKGROUND_JOB_POLL_INTERVAL` in `.env.production` before deploying. Derivative,
+video-preview, and default jobs retain their faster polling interval. See the
+[performance checks](performance.md) for reproducible benchmarks and tradeoffs.
+
 ### October 2026 Dependency Update
 
 Ruby 3.4.12 is pinned in `.ruby-version`, `Gemfile.lock`, and the production

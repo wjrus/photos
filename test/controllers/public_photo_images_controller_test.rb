@@ -28,6 +28,23 @@ class PublicPhotoImagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "public preview uses file delivery for a prepared local derivative" do
+    photo = attached_photo(title: "Local preview")
+    photo.publish!
+    variant = photo.original.variant(:display).processed
+    expected = variant.download
+    downloads = 0
+
+    ActiveSupport::Notifications.subscribed(->(_event) { downloads += 1 }, "service_download.active_storage") do
+      get public_photo_image_path(photo)
+    end
+
+    assert_response :success
+    assert_equal expected, response.body.b
+    assert_equal 0, downloads
+    assert_includes response.headers.fetch("Cache-Control"), "public"
+  end
+
   private
 
   def attached_photo(title:)

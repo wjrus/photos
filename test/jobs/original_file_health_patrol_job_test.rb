@@ -40,6 +40,36 @@ class OriginalFileHealthPatrolJobTest < ActiveJob::TestCase
     assert_equal [ never_checked.id, oldest.id, newer.id ], queued_photo_ids
   end
 
+  test "uses the newest timestamp across multiple checks regardless of insertion order" do
+    fresh = attached_photo(title: "Recently checked original")
+    stale = attached_photo(title: "Overdue original")
+    record_check(fresh, checked_at: 1.hour.ago)
+    record_check(fresh, checked_at: 5.days.ago)
+    record_check(stale, checked_at: 2.days.ago)
+    record_check(stale, checked_at: 6.days.ago)
+    clear_enqueued_jobs
+
+    OriginalFileHealthPatrolJob.perform_now(batch_size: 10)
+
+    assert_equal [ stale.id ], queued_photo_ids
+  end
+
+  test "preserves the stale boundary and excludes detached originals" do
+    freeze_time do
+      boundary = attached_photo(title: "Boundary original")
+      overdue = attached_photo(title: "Just overdue original")
+      detached = attached_photo(title: "Detached original")
+      record_check(boundary, checked_at: 1.day.ago)
+      record_check(overdue, checked_at: 1.day.ago - 1.second)
+      detached.original_attachment.delete
+      clear_enqueued_jobs
+
+      OriginalFileHealthPatrolJob.perform_now(batch_size: 10)
+
+      assert_equal [ overdue.id ], queued_photo_ids
+    end
+  end
+
   private
 
   def queued_photo_ids
