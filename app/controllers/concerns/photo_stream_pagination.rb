@@ -35,7 +35,7 @@ module PhotoStreamPagination
   end
 
   def paginate_photo_stream_focused(scope, photo)
-    previous_photo = scope.stream_before(photo)
+    previous_photo = stream_cursor_scope(scope).stream_before(photo)
     page_scope = previous_photo ? scope.before_stream_cursor(previous_photo.stream_cursor) : scope
     photos = page_scope.limit(Photo::STREAM_PAGE_SIZE + 1).to_a
     page = photos.first(Photo::STREAM_PAGE_SIZE)
@@ -53,7 +53,7 @@ module PhotoStreamPagination
   end
 
   def paginate_chronological_photo_stream_focused(scope, photo)
-    previous_photo = scope.chronological_before(photo)
+    previous_photo = stream_cursor_scope(scope).chronological_before(photo)
     page_scope = previous_photo ? scope.after_chronological_cursor(previous_photo.stream_cursor) : scope
     photos = page_scope.chronological_order.limit(Photo::STREAM_PAGE_SIZE + 1).to_a
     page = photos.first(Photo::STREAM_PAGE_SIZE)
@@ -132,7 +132,12 @@ module PhotoStreamPagination
   def focused_stream_photo(scope)
     return if params[:photo_id].blank? || params[:stream_page].present? || params[:cursor].present? || params[:newer_cursor].present?
 
-    scope.find_by(id: params[:photo_id])
+    stream_cursor_scope(scope).find_by(id: params[:photo_id])
+  end
+
+  def stream_cursor_scope(scope)
+    # Positioning a page only needs the cursor. Preload media on the page itself.
+    scope.except(:includes, :preload, :eager_load).reselect(:id, :captured_at, :created_at)
   end
 
   def paginate_newer_photo_stream(scope)

@@ -1,5 +1,44 @@
 # Performance checks
 
+## Returning to a gallery
+
+Focused gallery pagination looks up the target and preceding photo using only
+their ID and cursor timestamps. These positioning queries retain the gallery's
+visibility and location/album/search filters, without loading attachments,
+variants, or metadata. The rendered page still preloads its thumbnail media.
+
+In a synthetic fixture with three photos, metadata, and a prepared thumbnail,
+the target lookup dropped from eight SELECTs to one. The preceding-photo lookup
+also avoids seven media preload queries before loading the rendered page.
+Actual request savings depend on prepared media and query-cache reuse. These
+are isolated query counts, not production latency measurements. Tests also
+cover timestamp ties, undated photos, all seven gallery types, and inaccessible
+targets:
+
+```sh
+PARALLEL_WORKERS=1 rbenv exec bundle exec rails test test/controllers/concerns/photo_stream_cursor_loading_test.rb test/controllers/photo_stream_pagination_test.rb
+```
+
+## Thumbnail URLs and recovery
+
+Image derivatives are persistent Active Storage blobs linked to their originals
+by variant records. Background jobs prepare the stream/display sizes; authorized
+image requests can also generate a missing variant. Grid thumbnails use stable
+`/photos/:id/stream` URLs. The browser does not need a new image URL merely because
+a page has been open for a while. Access revocation is still checked on requests.
+
+Failed downloads used to be removed from the thumbnail preloader permanently.
+The preloader now revisits failed images when the browser comes online, the
+window gains focus, or the page becomes visible. Visible pages also retry after
+a one-second pause, covering failures that arrive just after a resume event.
+Retries use the original URL, retain the existing viewport lookahead and
+concurrency limit, and stop after
+three failed recovery attempts per image. Healthy images are left alone, and
+hidden pages do no recovery work. Browser regressions interrupt actual image
+requests and verify recovery, unchanged URLs, healthy-image reuse, and the retry
+limit. This reproduces a failure mode; it does not establish the cause of any
+particular production incident.
+
 ## Authorized media delivery
 
 Prepared stream and display images load the original attachment/blob with the

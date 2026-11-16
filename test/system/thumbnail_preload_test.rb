@@ -74,7 +74,106 @@ class ThumbnailPreloadTest < ApplicationSystemTestCase
     assert_equal 0, promoted_count
   end
 
+  %w[online focus visibilitychange].each do |event|
+    test "failed thumbnails recover on #{event} without changing their URLs or reloading healthy images" do
+      browser = page.driver.browser
+      browser.execute_cdp("Network.enable")
+      path = stream_photo_path(@photo, recovery_probe: event)
+      browser.execute_cdp("Network.setBlockedURLs", urls: [ "*#{path}*" ])
+      page.document.synchronize(5) do
+        ready = page.evaluate_script("document.querySelector('img[data-thumbnail-preload-target=\"image\"]').naturalWidth > 0")
+        raise Capybara::ExpectationNotMet, "Healthy thumbnail did not load" unless ready
+      end
+      page.execute_script <<~JS
+        const healthy = document.querySelector('img[data-thumbnail-preload-target="image"]')
+        healthy.addEventListener('load', () => { window.healthyReloads = (window.healthyReloads || 0) + 1 })
+      JS
+      install_failed_thumbnail(path)
+      wait_for_image("complete && image.naturalWidth === 0")
+      browser.execute_cdp("Network.setBlockedURLs", urls: [])
+      page.execute_script(event == "visibilitychange" ? "document.dispatchEvent(new Event('visibilitychange'))" : "window.dispatchEvent(new Event(arguments[0]))", event)
+
+      wait_for_image("complete && image.naturalWidth > 0")
+      assert_equal path, page.evaluate_script("document.querySelector('#failed-thumbnail').getAttribute('src')")
+      assert_equal 0, page.evaluate_script("window.healthyReloads || 0")
+    ensure
+      browser&.execute_cdp("Network.setBlockedURLs", urls: [])
+    end
+  end
+
+  test "recovery pauses while hidden and stops after three failed attempts" do
+    browser = page.driver.browser
+    browser.execute_cdp("Network.enable")
+    path = stream_photo_path(@photo, recovery_probe: "bounded")
+    browser.execute_cdp("Network.setBlockedURLs", urls: [ "*#{path}*" ])
+    page.execute_script("Object.defineProperty(document, 'hidden', { configurable: true, value: true })")
+    install_failed_thumbnail(path)
+    wait_for_failures(1)
+    page.execute_script <<~JS
+      window.dispatchEvent(new Event('online'))
+      document.dispatchEvent(new Event('visibilitychange'))
+    JS
+    settle_recovery
+    assert_equal 1, page.evaluate_script("window.thumbnailFailures")
+    page.execute_script("delete document.hidden")
+
+    3.times do |attempt|
+      page.execute_script("window.dispatchEvent(new Event('focus'))")
+      wait_for_failures(attempt + 2)
+    end
+    page.execute_script("window.dispatchEvent(new Event('focus'))")
+    settle_recovery
+    assert_equal 4, page.evaluate_script("window.thumbnailFailures")
+  ensure
+    page.execute_script("delete document.hidden")
+    browser&.execute_cdp("Network.setBlockedURLs", urls: [])
+  end
+
+  test "a failure arriving after resume recovers without another focus event" do
+    browser = page.driver.browser
+    browser.execute_cdp("Network.enable")
+    path = stream_photo_path(@photo, recovery_probe: "automatic")
+    browser.execute_cdp("Network.setBlockedURLs", urls: [ "*#{path}*" ])
+    install_failed_thumbnail(path)
+    wait_for_failures(1)
+    browser.execute_cdp("Network.setBlockedURLs", urls: [])
+
+    wait_for_image("complete && image.naturalWidth > 0")
+  ensure
+    browser&.execute_cdp("Network.setBlockedURLs", urls: [])
+  end
+
   private
+
+  def install_failed_thumbnail(path)
+    page.execute_script <<~JS, path
+      window.thumbnailFailures = 0
+      const image = document.createElement('img')
+      image.id = 'failed-thumbnail'
+      image.dataset.thumbnailPreloadTarget = 'image'
+      image.style.cssText = 'width:100px;height:100px'
+      image.addEventListener('error', () => window.thumbnailFailures++)
+      document.querySelector('#main-content').prepend(image)
+      requestAnimationFrame(() => { image.src = arguments[0] })
+    JS
+  end
+
+  def wait_for_failures(count)
+    page.document.synchronize(5) do
+      raise Capybara::ExpectationNotMet, "Expected #{count} failed attempts" unless page.evaluate_script("window.thumbnailFailures") >= count
+    end
+  end
+
+  def settle_recovery
+    page.evaluate_async_script("const done = arguments[0]; requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(done, 100)))")
+  end
+
+  def wait_for_image(condition)
+    page.document.synchronize(5) do
+      ready = page.evaluate_script("(() => { const image = document.querySelector('#failed-thumbnail'); return image && image.#{condition} })()")
+      raise Capybara::ExpectationNotMet, "Thumbnail did not reach #{condition}" unless ready
+    end
+  end
 
   def install_pending_images
     page.execute_script <<~JS

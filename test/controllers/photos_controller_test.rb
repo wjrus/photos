@@ -732,11 +732,21 @@ class PhotosControllerTest < ActionDispatch::IntegrationTest
   test "owner can access stable stream thumbnail route" do
     photo = attached_photo
     photo.original.variant(:stream).processed
+    path = stream_photo_path(photo)
 
-    get stream_photo_path(photo)
+    get path
 
     assert_response :success
     assert_equal "image/jpeg", response.media_type
+    etag = response.headers.fetch("ETag")
+
+    travel 2.hours do
+      get path
+
+      assert_response :success
+      assert_equal "image/jpeg", response.media_type
+      assert_equal etag, response.headers.fetch("ETag")
+    end
   end
 
   %w[stream display].each do |variant_name|
