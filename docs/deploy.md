@@ -203,18 +203,18 @@ Background queues default to a two-second polling interval. To override it, set
 video-preview, and default jobs retain their faster polling interval. See the
 [performance checks](performance.md) for reproducible benchmarks and tradeoffs.
 
-### October 2026 Dependency Update
+### November 2026 Dependency Update
 
-Ruby 3.4.12 is pinned in `.ruby-version`, `Gemfile.lock`, and the production
+Ruby 3.4.13 is pinned in `.ruby-version`, `Gemfile.lock`, and the production
 Dockerfile. GitHub Actions reads the same local version pin. Install the pinned
-Bundler 4.0.21 and run `bundle install` when switching local Ruby versions.
+Bundler 4.1.0 and run `bundle install` when switching local Ruby versions.
 Normal `./scripts/deploy` rebuilds both the app and worker with the new Ruby.
 
-The analysis dependency lock includes Pillow 13, updated Pydantic, HTTPX2,
-filelock, setuptools, and certifi. It retains Python 3.13 and matching Linux CPU
-PyTorch/torchvision wheels. The Ruby update includes the crass 1.0.8 security fix,
-Thruster 0.1.27, Selenium 4.51, and axe-core 4.14. Accessible names now retain the
-visible labels on navigation, dismiss, and photo-placement controls.
+The analysis dependency lock includes Pillow 13 and refreshed FastAPI, Pydantic,
+and audit dependencies. It retains Python 3.13 and matching Linux CPU
+PyTorch/torchvision wheels. Rails stays on 8.1.4.1 with JSON 2.x for compatibility.
+CI builds both production images and checks CPU inference without downloading
+model weights. Source updates do not deploy automatically.
 
 These dependency changes introduce no additional database migrations.
 

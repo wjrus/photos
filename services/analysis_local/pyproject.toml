@@ -3,9 +3,9 @@ name = "photos-analysis-local"
 version = "0.1.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "fastapi==0.163.1",
+    "fastapi==0.165.0",
     "uvicorn[standard]==0.54.0",
-    "pydantic==2.14.3",
+    "pydantic==2.14.4",
     "numpy>=2.5.3,<3.0",
     "open-clip-torch>=3.3.0,<4.0",
     "pillow>=13.0.0,<14.0",
