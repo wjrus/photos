@@ -1,5 +1,36 @@
 # Performance checks
 
+## Bulk photo changes
+
+Bulk operations reuse the rows acquired by their existing ordered `FOR UPDATE`
+query, then restore the submitted selection order in memory. Missing rows abort
+the operation, and ownership is checked again on the locked copies. Publication,
+archive, and restricted-folder changes preload only originals and sidecars for
+validation. Thumbnail variants and metadata are not needed for those updates.
+Each photo still runs its validations, callbacks, and individual update inside
+the transaction; validation failure rolls back the whole batch.
+
+Run the synthetic publication benchmark:
+
+```sh
+PARALLEL_WORKERS=1 rbenv exec bundle exec ruby test/performance/bulk_actions.rb
+```
+
+The fixture shares one synthetic original blob and writes no production data.
+Database changes roll back. With SQL query caching disabled, a local before/after
+run measured:
+
+| Selected photos | SELECTs before | SELECTs after | UPDATEs before / after |
+| --- | ---: | ---: | ---: |
+| 1 | 5 | 4 | 1 / 1 |
+| 10 | 41 | 4 | 10 / 10 |
+| 200 | 801 | 4 | 200 / 200 |
+
+An attached sidecar adds one batched blob lookup. These are database query counts,
+not production latency measurements. Regression tests cover current attributes,
+selection order, missing photos, changed ownership, valid and invalid sidecars,
+and transactional rollback.
+
 ## Returning to a gallery
 
 Focused gallery pagination looks up the target and preceding photo using only

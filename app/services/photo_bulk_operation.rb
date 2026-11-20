@@ -14,8 +14,18 @@ class PhotoBulkOperation
 
     Photo.transaction do
       # Lock in a consistent order while retaining the caller's selection order.
-      Photo.where(id: @photos.map(&:id)).order(:id).lock.load
-      @photos.each(&:reload)
+      ids = @photos.map(&:id)
+      locked = Photo.where(id: ids).order(:id).lock.index_by(&:id)
+      @photos = ids.map { |id| locked.fetch(id) { raise ActiveRecord::RecordNotFound, "Selected photo is no longer available." } }
+      raise InvalidAction, "Only the owner can manage photos." unless @photos.all? { |photo| photo.owner_id == @owner.id }
+
+      if %w[publish unpublish archive restore restrict unrestrict].include?(@action)
+        # Photo validations read originals and sidecars. Load these once for the
+        # batch, without pulling in thumbnail variants or reloading every photo.
+        ActiveRecord::Associations::Preloader.new(
+          records: @photos, associations: { original_attachment: :blob, sidecars_attachments: :blob }
+        ).call
+      end
       result = { action: @action, affected_count: 0, skipped_count: 0 }
       case @action
       when "publish", "unpublish", "archive", "restore", "restrict", "unrestrict", "delete"
