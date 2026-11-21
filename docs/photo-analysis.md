@@ -58,6 +58,29 @@ the OpenCLIP model or existing embedding index. CI checks CPU image/text
 inference and TorchVision operations without downloading pretrained weights,
 and audits vendor CPU package versions through OSV in addition to PyPI checks.
 
+The runtime uses OpenCLIP 4.2.2 or a compatible 4.x release. The
+[3.x-to-4.x migration guide](https://github.com/mlfoundations/open_clip/blob/v4.2.2/docs/MIGRATING_3_TO_4.md)
+preserves pretrained image/text inference; Photos does not use the removed
+training or legacy OpenAI-loading APIs. This update retains the default
+`ViT-B-32` model, `laion2b_s34b_b79k` pretrained tag, 512-dimensional vectors,
+and the existing index namespace. It schedules no re-embedding or data migration.
+
+A local comparison loaded the same synthetic checkpoint under 3.3.0 and 4.2.2.
+Preprocessing bytes, tokenizer output, and pretrained preprocessing settings
+matched. Normalized text features matched exactly, and image features differed
+by at most `1.12e-7`. This checks the default model's inference contract without
+downloading pretrained weights; it does not validate every optional model family.
+
+CI runs `tests/check_runtime.py` inside the built CPU image. In addition to
+TorchVision and image/text inference, it checks Photos' model-factory call,
+normalized image/text embeddings, search, and reloading the persisted index.
+With a full locked local environment, run the same check from
+`services/analysis_local`:
+
+```sh
+uv run --locked --no-dev python - < tests/check_runtime.py
+```
+
 ## YOLO
 
 The Rails job, persistence model, feature flag, and sidecar route exist, but
