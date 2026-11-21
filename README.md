@@ -4,6 +4,13 @@ Photos is a private-first photo stream and personal archive. It is built with Ra
 
 The app is intentionally closer to a personal Google Photos/Flickr hybrid than a marketing site. The default view is a chronological stream, with albums, locations, maps, archive tools, people tags, and imports supporting that stream without replacing it.
 
+## License and Support
+
+Photos is licensed under the [MIT License](LICENSE).
+
+This is a personal project provided as-is. No support, maintenance, bug fixes,
+or response times are promised.
+
 ## What It Does
 
 - Displays images and videos from iPhone, Mac, upload, and Google Photos Takeout workflows.
