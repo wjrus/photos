@@ -151,10 +151,19 @@ healthy_service() {
 }
 
 active_web_service() {
+  local serving
   local configured
   local other
 
   configured="$(configured_web_service)"
+  if serving="$(proxy_backend)"; then
+    case "$serving" in
+      web_blue|web_green) printf "%s" "$serving" ;;
+      *) printf "%s" "$configured" ;; # Older backends answer without a marker.
+    esac
+    return
+  fi
+
   other="$(other_web_service "$configured")"
 
   if healthy_service "$configured"; then
@@ -181,32 +190,120 @@ remove_legacy_web_container() {
 }
 
 reload_app_proxy() {
-  # Apply pulled nginx image updates as well as reloading an unchanged proxy.
-  compose up -d --no-deps app_proxy
-  compose exec -T app_proxy nginx -t
-  compose exec -T app_proxy nginx -s reload
+  local update_image="$1"
+
+  if [[ "$update_image" == 1 ]]; then
+    # Validate the newly pulled image and checkout before replacing the only
+    # proxy. A recreated bind mount also picks up replaced nginx config files.
+    compose run --rm --no-deps app_proxy nginx -t || return 1
+    compose up -d --no-deps --force-recreate app_proxy || return 1
+  elif [[ "$(container_state app_proxy)" != "running" ]]; then
+    compose up -d --no-deps --no-recreate app_proxy || return 1
+  fi
+
+  compose exec -T app_proxy nginx -t && compose exec -T app_proxy nginx -s reload
 }
 
-wait_for_proxy_http() {
-  local timeout_seconds="$1"
-  local elapsed=0
+proxy_backend() {
+  local timeout_seconds="${1:-3}"
   local app_host
 
   app_host="$(env_value PHOTOS_HOST .env.production)"
   app_host="${app_host:-photos.example.com}"
+  curl --noproxy '*' -fsSI --max-time "$timeout_seconds" -H "Host: ${app_host}" "http://127.0.0.1:3000/up" 2>/dev/null |
+    awk '
+      /^HTTP\// { status = $2; backend = "" }
+      tolower($1) == "x-photos-backend:" { sub(/\r$/, "", $2); backend = $2 }
+      END { if (status == 200) print backend; else exit 1 }
+    '
+}
 
-  while (( elapsed < timeout_seconds )); do
-    if curl -fsSI -H "Host: ${app_host}" "http://127.0.0.1:3000/up" >/dev/null; then
-      printf "app_proxy routed /up successfully\n"
+wait_for_proxy_http() {
+  local expected_backend="$1"
+  local timeout_seconds="$2"
+  local deadline=$((SECONDS + timeout_seconds))
+  local backend remaining
+
+  while (( (remaining = deadline - SECONDS) > 0 )); do
+    if backend="$(proxy_backend "$((remaining < 3 ? remaining : 3))")" && [[ "$backend" == "$expected_backend" ]]; then
+      printf "app_proxy routed /up to %s\n" "${backend:-the previous backend without a deployment marker}"
       return 0
     fi
 
     sleep 1
-    elapsed=$((elapsed + 1))
   done
 
   compose logs --tail=120 app_proxy >&2 || true
-  fail "app_proxy did not route /up within ${timeout_seconds}s"
+  printf "app_proxy did not route /up to %s within %ss\n" "${expected_backend:-the previous backend without a deployment marker}" "$timeout_seconds" >&2
+  return 1
+}
+
+require_proxy_not_draining() {
+  local processes
+  [[ "$(container_state app_proxy)" == "running" ]] || return 0
+  processes="$(compose exec -T app_proxy ps -o pid,args)" || fail "could not inspect app_proxy workers"
+  if [[ "$processes" == *"nginx: worker process is shutting down"* ]]; then
+    fail "app_proxy is still draining connections from a previous release"
+  fi
+}
+
+proxy_worker_pids() {
+  compose exec -T app_proxy ps -o pid,args |
+    awk '$2 == "nginx:" && $3 == "worker" && $4 == "process" { printf "%s ", $1 }'
+}
+
+wait_for_proxy_drain() {
+  local previous_proxy_id="$1"
+  local previous_workers=()
+  local elapsed=0
+  local proxy_id workers pid
+  read -r -a previous_workers <<< "$2"
+
+  while (( elapsed < 30 )); do
+    proxy_id="$(compose ps -q app_proxy)" || return 1
+    [[ -n "$proxy_id" ]] || return 1
+    [[ "$proxy_id" == "$previous_proxy_id" ]] || return 0
+    workers="$(proxy_worker_pids)" || return 1
+    for pid in "${previous_workers[@]}"; do
+      [[ " $workers " == *" $pid "* ]] && break
+    done
+    [[ " $workers " != *" $pid "* ]] && return 0
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+  return 1
+}
+
+switch_web_backend() {
+  local next_web="$1"
+  local proxy_existed="$2"
+  local upstream_file previous_upstream previous_backend
+
+  upstream_file="$(active_upstream_file)"
+  previous_upstream=""
+  previous_backend=""
+  if [[ -f "$upstream_file" ]]; then
+    previous_upstream="$(cat "$upstream_file")" || fail "could not save previous app_proxy upstream"
+  fi
+  previous_backend="$(proxy_backend)" || previous_backend=""
+  if [[ "$previous_backend" == web_blue || "$previous_backend" == web_green ]]; then
+    printf -v previous_upstream 'upstream photos_app { server %s:80; }' "$previous_backend"
+  fi
+
+  write_active_upstream "$next_web" || fail "could not write app_proxy upstream"
+  remove_legacy_web_container
+  if reload_app_proxy "$update_infrastructure" && wait_for_proxy_http "$next_web" 60; then
+    return 0
+  fi
+
+  if [[ -n "$previous_upstream" ]]; then
+    # The bind mount follows this file's inode, so restore its contents in place.
+    printf "%s\n" "$previous_upstream" > "$upstream_file" || fail "could not restore previous app_proxy upstream"
+    if [[ -n "$proxy_existed" ]] && reload_app_proxy 0 && wait_for_proxy_http "$previous_backend" 30; then
+      fail "web cutover failed; the previous app_proxy upstream was restored"
+    fi
+  fi
+  fail "web cutover failed; check app_proxy configuration and logs"
 }
 
 cleanup_old_images() {
@@ -236,8 +333,14 @@ cleanup_old_images() {
 
 require_file ".env.production"
 require_file ".env.postgres"
+command -v flock >/dev/null || fail "missing flock (provided by util-linux)"
+mkdir -p tmp
+exec 9>tmp/deploy.lock
+flock -n 9 || fail "another deployment is running"
 require_clean_tracked_worktree
 [[ "${PHOTOS_DOCKER_CLEANUP:-1}" =~ ^[01]$ ]] || fail "PHOTOS_DOCKER_CLEANUP must be 0 or 1"
+update_infrastructure="${PHOTOS_UPDATE_INFRASTRUCTURE:-0}"
+[[ "$update_infrastructure" =~ ^[01]$ ]] || fail "PHOTOS_UPDATE_INFRASTRUCTURE must be 0 or 1"
 
 storage_path="$(env_value PHOTOS_STORAGE_PATH .env.production)"
 [[ -n "$storage_path" ]] || fail "PHOTOS_STORAGE_PATH must be set in .env.production"
@@ -268,9 +371,12 @@ git pull --ff-only
 
 log "Validating compose configuration"
 compose config >/dev/null
+require_proxy_not_draining
 
-log "Pulling base service images"
-compose pull db redis app_proxy
+if [[ "$update_infrastructure" == 1 ]]; then
+  log "Pulling infrastructure images for maintenance"
+  compose pull db redis app_proxy
+fi
 
 log "Building application image"
 compose build --pull web_blue
@@ -279,8 +385,11 @@ log "Building local analysis image (unchanged layers are cached)"
 compose build --pull analysis-local
 
 log "Starting infrastructure"
-# Compose replaces containers when pulled image IDs change, preserving named volumes.
-compose up -d db redis
+if [[ "$update_infrastructure" == 1 ]]; then
+  compose up -d db redis
+else
+  compose up -d --no-recreate db redis
+fi
 wait_for_state db healthy 120
 wait_for_state redis healthy 120
 
@@ -303,13 +412,20 @@ wait_for_new_container "$next_web" "$old_next_container" 60
 require_storage_mount "$next_web"
 wait_for_state "$next_web" healthy 240
 
-write_active_upstream "$next_web"
-remove_legacy_web_container
-reload_app_proxy
-wait_for_proxy_http 60
+previous_proxy_id="$(compose ps -q app_proxy)" || fail "could not identify the current app_proxy container"
+previous_workers=""
+if [[ -n "$previous_proxy_id" ]]; then
+  previous_workers="$(proxy_worker_pids)" || fail "could not identify app_proxy workers before cutover"
+  [[ "$previous_workers" =~ ^[0-9]+([[:space:]]+[0-9]+)*[[:space:]]*$ ]] || fail "app_proxy has no identifiable workers before cutover"
+fi
+switch_web_backend "$next_web" "$previous_proxy_id"
 
-if [[ "$active_web" != "$next_web" && -n "$(container_id_for "$active_web")" ]]; then
-  compose stop "$active_web"
+if [[ -n "$(container_id_for "$active_web")" ]]; then
+  if [[ -z "$previous_proxy_id" ]] || wait_for_proxy_drain "$previous_proxy_id" "$previous_workers"; then
+    compose stop "$active_web"
+  else
+    printf "Warning: app_proxy is still draining; leaving %s running.\n" "$active_web" >&2
+  fi
 fi
 
 log "Starting worker"

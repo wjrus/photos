@@ -86,25 +86,35 @@ Docker reuses unchanged dependency layers, while sidecar code, the checked-in
 `uv.lock`, and base-image updates are applied automatically. The old
 `REBUILD_ANALYSIS` flag is no longer needed.
 
-Deployment pulls PostgreSQL, Redis, and nginx before reconciling their containers
-with `docker compose up -d`. Compose replaces containers when their image or
-configuration changes and preserves their named data volumes; unchanged
-containers keep running. PostgreSQL follows the `postgres:18` tag for updates
-within major version 18. Changing the major version requires a planned database
-migration and must not be done by simply switching the image tag.
+Ordinary deploys start missing infrastructure and reuse existing PostgreSQL,
+Redis, and nginx containers. Apply their image or Compose configuration updates
+in a maintenance window:
+
+```sh
+PHOTOS_UPDATE_INFRASTRUCTURE=1 ./scripts/deploy
+```
+
+Maintenance deploys pull and reconcile those three images. The nginx container
+is recreated to pick up changes to its bind-mounted configuration. Replacing a
+singleton can interrupt traffic or in-flight transfers. Compose preserves the
+database and Redis data volumes. PostgreSQL follows the `postgres:18` tag within
+major version 18. A major version change requires a separate database migration.
 Dependabot proposes nginx patches within the current stable branch and blocks
-automatic PostgreSQL major-version proposals. Review these branch boundaries
-when planning a future nginx stable-branch or PostgreSQL major upgrade.
+automatic PostgreSQL major-version proposals.
 
 Deploys use a blue/green app backend behind the local `app_proxy` service:
 
 1. Build the new app image.
 2. Start the inactive app backend, either `web_blue` or `web_green`.
 3. Wait for that backend's `/up` healthcheck to pass.
-4. Reconcile the `app_proxy` image and validate/reload nginx so Nginx Proxy Manager continues to hit host port `3000`, but traffic moves to the new backend. A new proxy image requires a brief container replacement.
-5. Stop the old backend after the proxy switch.
+4. Validate and reload `app_proxy`, then require `/up` on host port `3000` to identify the new backend. If the cutover fails, the script restores the previous upstream when available and leaves the old backend running.
+5. Wait up to 30 seconds for the previous nginx workers to finish active requests before stopping the old backend. Longer transfers keep that backend running. Another deploy can reuse the backend after those workers exit.
 
-The first deploy after enabling blue/green removes the old legacy `web` container so `app_proxy` can bind port `3000`. Later deploys reload the running proxy when its image and configuration are unchanged; updates replace that container.
+The first deploy after enabling blue/green removes the legacy `web` container so
+`app_proxy` can bind port `3000`. The deploy host needs `flock` from `util-linux`
+to prevent concurrent deploys from the same checkout. Database migrations run
+before the switch, so they must allow both application versions to run during
+the cutover and rollback.
 
 Check status:
 
@@ -221,9 +231,9 @@ These dependency changes introduce no additional database migrations.
 ### September 2026 Dependency Update
 
 This update uses Ruby 3.4.10, Rails 8.1.4, Bundler 4.0.21, nginx 1.30.5, current compatible
-Ruby dependencies, and a universal Python dependency lock. Normal
-`./scripts/deploy` builds the analysis image automatically and applies pulled
-proxy images. No additional database migration is required.
+Ruby dependencies, and a universal Python dependency lock. `./scripts/deploy`
+builds the analysis image automatically. No additional database migration is
+required.
 
 Existing login sessions without the new password fingerprint will require a
 fresh sign-in; valid remember-me cookies can establish a new session. Subsequent

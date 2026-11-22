@@ -39,7 +39,7 @@ Rails.application.routes.draw do
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
   # Can be used by load balancers and uptime monitors to verify that the app is live.
-  get "up" => "rails/health#show", as: :rails_health_check
+  get "up" => "health#show", as: :rails_health_check
   post "/webhooks/prodigi/:environment", to: "prodigi_webhooks#create", as: :prodigi_webhook
   get "/print_assets/:id/:kind", to: "prodigi_print_assets#show", as: :prodigi_print_asset
   get "/favicon.ico", to: redirect("/icon.png")

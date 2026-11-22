@@ -4,7 +4,7 @@ x-web-service: &web
   restart: unless-stopped
   env_file:
     - .env.production
-  environment:
+  environment: &web-environment
     RAILS_ENV: production
     PGHOST: db
     PGUSER: photos
@@ -86,11 +86,17 @@ services:
     <<: *web
     profiles: ["bluegreen"]
     container_name: photos-web-blue
+    environment:
+      <<: *web-environment
+      PHOTOS_WEB_BACKEND: web_blue
 
   web_green:
     <<: *web
     profiles: ["bluegreen"]
     container_name: photos-web-green
+    environment:
+      <<: *web-environment
+      PHOTOS_WEB_BACKEND: web_green
 
   worker:
     image: photos:production
