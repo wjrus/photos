@@ -86,6 +86,27 @@ class PhotoStreamPaginationTest < ActionDispatch::IntegrationTest
     assert_select "[data-photo-id='#{@photos.second.id}']"
   end
 
+  test "initial gallery pages preload only the first thumbnails at their normal URLs" do
+    @photos.first.original.variant(:stream).processed
+
+    %w[home album location].each do |stream|
+      path = stream_path(stream)
+      first = ordered_photos(stream).first
+      thumbnail_path = stream_photo_path(first)
+      get path
+      assert_response :success
+      assert_select "head link[rel='preload'][as='image']", count: 3
+      assert_select "head link[rel='preload'][href='#{thumbnail_path}'][fetchpriority='high']", count: 1
+      assert_select "article img[src='#{thumbnail_path}'][loading='eager'][fetchpriority='high']", count: 1
+      assert_select "article img[loading='lazy']", count: Photo::STREAM_PAGE_SIZE - 3
+
+      get response.parsed_body.at_css("[data-infinite-scroll-target='sentinel']")["data-next-url"]
+      assert_response :success
+      assert_select "link[rel='preload'][as='image']", count: 0
+      assert_select "img[loading='lazy']", count: Photo::STREAM_PAGE_SIZE
+    end
+  end
+
   private
 
   def stream_path(stream)

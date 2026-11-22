@@ -104,6 +104,24 @@ class AggregateCacheAccessTest < ActionDispatch::IntegrationTest
     assert_select "article", text: /Public album.*0 photos/m
   end
 
+  test "viewer aggregates skip owner cache fingerprints" do
+    @photo.publish!
+    @album.photos << @photo
+
+    assert_requests_skip_aggregate_cache_fingerprints(
+      root_path, albums_path, album_path(@album), map_markers_path,
+      locations_path, location_path(PhotoLocation.id_for_place(@place))
+    )
+  end
+
+  test "anonymous aggregates skip owner cache fingerprints" do
+    @photo.publish!
+    @album.photos << @photo
+    delete sign_out_path
+
+    assert_requests_skip_aggregate_cache_fingerprints(root_path, albums_path, album_path(@album))
+  end
+
   %i[unpublish! restrict!].each do |transition|
     test "anonymous aggregates drop photo metadata immediately after #{transition}" do
       freeze_time do
@@ -156,6 +174,15 @@ class AggregateCacheAccessTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def assert_requests_skip_aggregate_cache_fingerprints(*paths)
+    # Every owner aggregate key here queries the album share modification time.
+    paths.each do |path|
+      ActiveRecord::Base.connection_pool.clear_query_cache
+      assert_no_queries_match(/SELECT MAX\("photo_album_shares"\."updated_at"\)/) { get path }
+      assert_response :success
+    end
+  end
 
   def create_public_background_photo
     @owner.photos.create!(

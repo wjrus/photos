@@ -31,13 +31,13 @@ export default class extends Controller {
 
   observePages() {
     this.observer?.disconnect()
-    // Keep roughly one rendered page beyond either viewport edge. Lazy images
-    // let the browser prioritize nearby thumbnails without fetching the whole buffer.
+    // Cap the page-height lookahead at one viewport, with an 800px minimum.
+    // Distant pages can wait while the first thumbnails load.
     const cards = Array.from(this.element.querySelectorAll("article")).slice(0, this.pageSizeValue)
     const first = cards[0]?.getBoundingClientRect()
     const last = cards.at(-1)?.getBoundingClientRect()
     const pageHeight = first && last ? last.bottom - first.top : 0
-    const margin = Math.ceil(Math.max(800, pageHeight))
+    const margin = Math.ceil(Math.max(800, Math.min(pageHeight, window.innerHeight)))
     this.observer = new IntersectionObserver((entries) => this.loadIfVisible(entries), {
       rootMargin: `${margin}px 0px`
     })

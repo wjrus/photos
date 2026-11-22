@@ -1,11 +1,12 @@
 <% group_by_day = local_assigns.fetch(:group_by_day, true) %>
 <% tile_size = photo_stream_tile_size %>
+<% priority_thumbnails = prioritize_photo_stream_thumbnails(photos, return_to: return_to, access_params: local_assigns[:access_params] || {}) %>
 
 <div class="<%= [("space-y-7" if group_by_day), ("photo-flat-pages" unless group_by_day), "photo-grid-size-#{tile_size}"].compact.join(" ") %>"
      data-stream-page-container
      data-infinite-scroll-page-size-value="<%= Photo::STREAM_PAGE_SIZE %>"
      data-stream-state-target-photo-id-value="<%= local_assigns[:stream_target_photo_id] %>"
-     data-controller="<%= [("infinite-scroll" if next_cursor.present? || local_assigns[:newer_cursor].present?), "stream-state", "stream-virtualizer"].compact.join(" ") %>"
+     data-controller="stream-state<%= ' infinite-scroll' if next_cursor.present? || local_assigns[:newer_cursor].present? %>"
      data-action="click->stream-state#save">
   <%= render "photos/page",
         photos: photos,
@@ -16,6 +17,7 @@
         archive_context: local_assigns[:archive_context],
         album: local_assigns[:album],
         access_params: local_assigns[:access_params],
+        priority_thumbnails: priority_thumbnails,
         group_by_day: group_by_day,
         next_cursor: next_cursor,
         newer_cursor: local_assigns[:newer_cursor],

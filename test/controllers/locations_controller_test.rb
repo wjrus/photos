@@ -425,16 +425,33 @@ class LocationsControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, outside.title
   end
 
-  test "location page splits photo and video counts" do
+  test "location pages load the heading and media breakdown without a second count" do
     photo = attached_photo(title: "Location photo")
     geotag(photo, latitude: 44.7622, longitude: -85.5980)
     video = attached_video(title: "Location video")
-    geotag(video, latitude: 44.7623, longitude: -85.5981)
+    geotag(video, latitude: 44.7626, longitude: -85.5984)
+    cell_id = location_id_for(photo)
+    area_id = PhotoLocationArea.id_for_coordinates(44.7622, -85.5980)
+    summary_sql = /AS image_count|SELECT COUNT\(\*\) FROM "photos" INNER JOIN "photo_metadata"/
 
-    get location_path(location_id_for(photo))
+    {
+      cell_id => "44.7624, -85.5982",
+      PhotoLocation.id_for_area(cell_id) => "44.7624, -85.5982",
+      area_id => "Nearby 44.7624, -85.5982"
+    }.each do |id, title|
+      ActiveRecord::Base.connection_pool.clear_query_cache
+      assert_queries_match(summary_sql, count: 1) { get location_path(id) }
+      assert_response :success
+      assert_select "h1", text: title
+      assert_select "p", text: "1 photo, 1 video"
+    end
 
+    place = assign_photo_place(photo, name: "Synthetic place")
+    assign_photo_place(video, place: place)
+    assert_queries_match(summary_sql, count: 1) { get location_path(PhotoLocation.id_for_place(place)) }
     assert_response :success
-    assert_select "p", text: /1 photo, 1 video/
+    assert_select "h1", text: "Synthetic place"
+    assert_select "p", text: "1 photo, 1 video"
   end
 
   test "browsing an unmatched area does not launch additional geocoding" do

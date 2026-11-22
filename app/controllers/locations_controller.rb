@@ -13,7 +13,7 @@ class LocationsController < ApplicationController
     @location_count = if complete
       directory.size
     else
-      cache_owner_aggregate([ location_index_cache_key, "count" ], expires_in: 12.hours) { PhotoLocationArea.group_count(geotagged_photos) }
+      cache_owner_aggregate(-> { [ location_index_cache_key, "count" ] }, expires_in: 12.hours) { PhotoLocationArea.group_count(geotagged_photos) }
     end
     @location_page = [ params[:page].to_i, 1 ].max
     offset = (@location_page - 1) * LOCATION_PAGE_SIZE
@@ -51,23 +51,22 @@ class LocationsController < ApplicationController
       stream_target_photo_id: @stream_target_photo_id
     )
 
-    set_location_summary
-    @location_media_count = media_counts_for(scoped_photos)
+    set_location_summary(scoped_photos)
     @location_map_path = map_path(location_map_bounds_params(scoped_photos).merge(location_id: @location_id))
     @albums = current_user.photo_albums.display_order if current_user&.owner?
-    @timeline_periods = stream_timeline_periods(scoped_photos, cache_key: location_timeline_cache_key(scoped_photos), order: :chronological) unless params[:cursor].present?
+    @timeline_periods = stream_timeline_periods(scoped_photos, cache_key: -> { location_timeline_cache_key(scoped_photos) }, order: :chronological) unless params[:cursor].present?
   end
 
   private
 
   def cached_location_directory
-    cache_owner_aggregate([ location_index_cache_key, "directory" ], expires_in: 12.hours, race_condition_ttl: 2.minutes) do
+    cache_owner_aggregate(-> { [ location_index_cache_key, "directory" ] }, expires_in: 12.hours, race_condition_ttl: 2.minutes) do
       PhotoLocationArea.groups(geotagged_photos, limit: LOCATION_DIRECTORY_CACHE_LIMIT + 1, sort: "geography")
     end
   end
 
   def cached_location_rows(offset:)
-    cache_owner_aggregate([ location_index_cache_key, offset ], expires_in: 12.hours, race_condition_ttl: 2.minutes) do
+    cache_owner_aggregate(-> { [ location_index_cache_key, offset ] }, expires_in: 12.hours, race_condition_ttl: 2.minutes) do
       PhotoLocationArea.groups(geotagged_photos, limit: LOCATION_PAGE_SIZE, offset: offset, sort: "geography")
     end
   end
@@ -165,38 +164,26 @@ class LocationsController < ApplicationController
     render :index
   end
 
-  def set_location_summary
+  def set_location_summary(scope)
     if PhotoLocationArea.grouped_id?(@location_id)
-      summary = PhotoLocationArea.groups(location_photo_scope, limit: 1).first
+      summary = PhotoLocationArea.groups(scope, limit: 1).first
       raise ActiveRecord::RecordNotFound unless summary
 
       @location_title = summary.title
-      @location_photo_count = summary.photo_count
     elsif PhotoLocation.place_record_id?(@location_id)
       @location_title = PhotoLocation.place_name_from_id(@location_id)
-      @location_photo_count = location_photo_scope.count
+      summary = scope.reselect(PhotoLocation::MEDIA_COUNTS_SQL).take
     else
-      @location_row = PhotoLocation.rows(location_photo_scope, limit: 1).first
-      raise ActiveRecord::RecordNotFound unless @location_row
+      summary = scope.reselect(PhotoLocation::MEDIA_COUNTS_SQL, PhotoLocation::AVERAGE_COORDINATES_SQL).take
+      raise ActiveRecord::RecordNotFound unless summary.latitude && summary.longitude
 
-      @location_title = PhotoLocation.title_for(@location_row.latitude, @location_row.longitude)
-      @location_photo_count = @location_row.photo_count.to_i
+      @location_title = PhotoLocation.title_for(summary.latitude, summary.longitude)
     end
+    @location_media_count = { photos: summary.image_count.to_i, videos: summary.video_count.to_i }
   end
 
   def location_photo_scope
     @location_photo_scope ||= PhotoLocation.scope_for(geotagged_photos, @location_id)
-  end
-
-  def media_counts_for(scope)
-    counts = scope
-      .reselect(
-        "COUNT(*) FILTER (WHERE photos.content_type LIKE 'image/%') AS image_count",
-        "COUNT(*) FILTER (WHERE photos.content_type LIKE 'video/%') AS video_count"
-      )
-      .take
-
-    { photos: counts.image_count.to_i, videos: counts.video_count.to_i }
   end
 
   def location_map_bounds_params(scope)
@@ -207,8 +194,8 @@ class LocationsController < ApplicationController
   end
 
   def location_bounds(scope)
-    cached_bounds = PhotoLocationBound.find_by(location_id: @location_id)
-    return cached_bounds.padded_bounds if cached_bounds && current_user&.owner?
+    cached_bounds = PhotoLocationBound.find_by(location_id: @location_id) if current_user&.owner?
+    return cached_bounds.padded_bounds if cached_bounds
 
     row = scope.reselect(
       "MIN(photo_metadata.latitude) AS south",

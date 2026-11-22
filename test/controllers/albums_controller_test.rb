@@ -61,6 +61,7 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
   test "anonymous viewer can exchange an album link for private album access" do
     album = @owner.photo_albums.create!(title: "Link-only album", source: "manual")
     visible = attached_photo(title: "Link-visible photo")
+    visible.original.variant(:stream).processed
     visible.update!(description: "A private caption for friends")
     visible.photo_people_tags.create!(user: users(:two), tagged_by: @owner)
     archived = attached_photo(title: "Archived link photo")
@@ -88,6 +89,9 @@ class AlbumsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "no-referrer", response.headers["Referrer-Policy"]
     assert_equal "noindex, nofollow", response.headers["X-Robots-Tag"]
     assert_select "a[href='#{photo_path(visible, album_id: album.id)}']"
+    thumbnail_path = stream_photo_path(visible, album_id: album.id)
+    assert_select "head link[rel='preload'][href='#{thumbnail_path}'][fetchpriority='high']"
+    assert_select "article img[src='#{thumbnail_path}'][loading='eager']"
 
     get photo_path(visible, album_id: album.id)
 

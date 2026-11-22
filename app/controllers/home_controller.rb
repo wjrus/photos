@@ -22,7 +22,7 @@ class HomeController < ApplicationController
     )
 
     @albums = current_user.photo_albums.display_order if current_user&.owner?
-    @timeline_periods = stream_timeline_periods(visible_stream, cache_key: stream_timeline_cache_key) unless params[:cursor].present?
+    @timeline_periods = stream_timeline_periods(visible_stream, cache_key: -> { stream_timeline_cache_key }) unless params[:cursor].present?
   end
 
   private

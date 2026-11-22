@@ -11,12 +11,18 @@ class PhotoLocation
     (photo_metadata.latitude >= :south AND photo_metadata.latitude < :north
       AND photo_metadata.longitude >= :west AND photo_metadata.longitude < :east)
   SQL
+  MEDIA_COUNTS_SQL = <<~SQL.squish.freeze
+    COUNT(*) FILTER (WHERE photos.content_type LIKE 'image/%') AS image_count,
+    COUNT(*) FILTER (WHERE photos.content_type LIKE 'video/%') AS video_count
+  SQL
+  AVERAGE_COORDINATES_SQL = <<~SQL.squish.freeze
+    AVG(photo_metadata.latitude) AS latitude,
+    AVG(photo_metadata.longitude) AS longitude
+  SQL
   SELECT_SQL = <<~SQL.squish
     COUNT(*) AS photo_count,
-    COUNT(*) FILTER (WHERE photos.content_type LIKE 'image/%') AS image_count,
-    COUNT(*) FILTER (WHERE photos.content_type LIKE 'video/%') AS video_count,
-    AVG(photo_metadata.latitude) AS latitude,
-    AVG(photo_metadata.longitude) AS longitude,
+    #{MEDIA_COUNTS_SQL},
+    #{AVERAGE_COORDINATES_SQL},
     MAX(COALESCE(photos.captured_at, photos.created_at)) AS newest_at,
     MIN(COALESCE(photos.captured_at, photos.created_at)) AS oldest_at,
     (ARRAY_AGG(photos.id ORDER BY COALESCE(photos.captured_at, photos.created_at) DESC, photos.id DESC))[1] AS representative_photo_id

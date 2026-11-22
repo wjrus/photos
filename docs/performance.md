@@ -1,5 +1,48 @@
 # Performance checks
 
+## Opening and scrolling galleries
+
+The stream, album index, album detail, and location galleries preload ready
+thumbnails from the first three cards, with high fetch priority on the first
+ready image. The Locations directory already does this for its first covers.
+The preload and card use the same authorized URL so the browser can reuse the
+response. Remaining thumbnails and pagination fragments use lazy loading.
+
+Infinite scroll caps its lookahead at one viewport with an 800 px minimum.
+Previously a margin as tall as the first page let a second page start fetching
+while the first page was still loading. With 60 cards in each initial gallery,
+Chrome at 1280 × 800 and 390 × 844 went from one idle next-page request to zero
+on the stream, album detail, and location detail. Scrolling near the next page
+still starts the request before the sentinel enters the viewport. The stream
+also skips a per-frame walk of date groups. The grouped grid uses
+`display: contents`, so the old controller could never collapse those groups.
+
+Viewer and anonymous requests skip the SQL fingerprints used by the owner's
+aggregate caches. They still compute summaries from the current visible scope.
+Location details reuse counts from the town summary or a narrower query for
+named places and coordinate cells. In a small local integration fixture with
+SQL query caching disabled, viewer SELECTs changed as follows:
+
+| Viewer request | Before | After |
+| --- | ---: | ---: |
+| Main stream | 14 | 10 |
+| Albums directory | 18 | 11 |
+| Album detail | 18 | 13 |
+| Locations directory | 18 | 10 |
+| Named location detail | 20 | 13 |
+
+In the 100,000-photo Locations fixture below, an owner opening a 1,000-photo
+town also executes one fewer SELECT on both cold and warm requests.
+
+## Original checksums
+
+The checksum job computes SHA-256 and the Active Storage integrity MD5 in a
+single streaming read, preserving missing-file and integrity errors. This
+removes one original-sized temporary write and two temporary reads per job.
+With a synthetic 256 MiB file on the local disk service, the median of five
+runs fell from 456 ms to 383 ms. Filesystem caching and storage contention affect
+elapsed time on a shared host.
+
 ## Bulk photo changes
 
 Bulk operations reuse the rows acquired by their existing ordered `FOR UPDATE`

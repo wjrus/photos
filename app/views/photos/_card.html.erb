@@ -51,7 +51,7 @@
         data: link_data do %>
     <span class="sr-only">View <%= photo.title %></span>
   <% end %>
-  <%= photo_stream_media(photo, return_to: return_to, access_params: access_params) %>
+  <%= photo_stream_media(photo, return_to: return_to, access_params: access_params, **local_assigns.fetch(:thumbnail_options, {})) %>
   <% if metadata_badge_visible %>
     <div class="pointer-events-none absolute right-3 top-3 z-20 rounded-lg border border-white/15 bg-black/65 px-2 py-1 text-right text-xs font-semibold leading-tight text-white shadow-sm backdrop-blur"
          aria-label="Original file size <%= number_to_human_size(photo.byte_size) %><%= ", dimensions #{photo_dimensions(photo.display_metadata)}" if metadata_dimensions_visible %>">

@@ -1,7 +1,7 @@
 <% owner_controls = local_assigns.fetch(:owner_controls, current_user&.owner?) %>
 <% album = local_assigns[:album] %>
 <% group_by_day = local_assigns.fetch(:group_by_day, true) %>
-<% grouped_photos = photos.group_by { |photo| photo_stream_day(photo) } %>
+<% priority_thumbnails = local_assigns.fetch(:priority_thumbnails, {}) %>
 
 <% if local_assigns[:newer_cursor].present? %>
   <div class="py-6 text-center text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500"
@@ -14,7 +14,7 @@
 
 <% if group_by_day %>
   <div class="photo-day-groups">
-    <% grouped_photos.each_with_index do |(day, day_photos), group_index| %>
+    <% photos.group_by { |photo| photo_stream_day(photo) }.each_with_index do |(day, day_photos), group_index| %>
       <%= render "photos/day_group",
             day: day,
             photos: day_photos,
@@ -24,6 +24,7 @@
             owner_controls: owner_controls,
             archive_context: local_assigns[:archive_context],
             album: album,
+            priority_thumbnails: priority_thumbnails,
             access_params: local_assigns[:access_params] %>
     <% end %>
   </div>
@@ -38,6 +39,7 @@
             owner_controls: owner_controls,
             archive_context: local_assigns[:archive_context],
             album: album,
+            thumbnail_options: priority_thumbnails.fetch(photo.id, {}),
             access_params: local_assigns[:access_params] %>
     <% end %>
   </div>

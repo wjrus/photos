@@ -31,11 +31,10 @@ module ApplicationHelper
   def photo_stream_media(photo, **options)
     return_to = options.delete(:return_to)
     access_params = options.delete(:access_params) || {}
-    # Archived media needs its access context; normal thumbnails share one URL
-    # across feeds so the browser can reuse their cached bytes.
-    stream_params = access_params.dup
-    stream_params[:return_to] = return_to if photo.archived? && return_to.present?
-    stream_path = stream_photo_path(photo, stream_params)
+    unless photo_stream_thumbnail_ready?(photo)
+      return photo_stream_placeholder(photo.video? ? "Video processing" : "Processing")
+    end
+
     image_options = {
       alt: photo.description.presence || photo.title.presence || "Photo",
       class: "size-full object-cover",
@@ -43,18 +42,17 @@ module ApplicationHelper
       decoding: "async"
     }.merge(options)
     image_options[:data] = (image_options[:data] || {}).merge(thumbnail_preload_target: "image")
+    image_tag photo_stream_thumbnail_path(photo, return_to: return_to, access_params: access_params), image_options
+  end
 
-    if photo.video?
-      if photo.video_preview.attached?
-        image_tag stream_path, image_options
-      else
-        photo_stream_placeholder("Video processing")
-      end
-    else
-      stream_variant = photo.processed_original_variant_record(:stream)
-      return photo_stream_placeholder("Processing") unless attached_blob_available?(stream_variant&.image)
+  def prioritize_photo_stream_thumbnails(photos, return_to: nil, access_params: {})
+    photos.first(3).compact.uniq(&:id).each_with_object({}) do |photo, options|
+      next unless photo_stream_thumbnail_ready?(photo)
 
-      image_tag stream_path, image_options
+      priority = options.empty? ? "high" : "auto"
+      path = photo_stream_thumbnail_path(photo, return_to: return_to, access_params: access_params)
+      content_for :head, tag.link(rel: "preload", as: "image", href: path, fetchpriority: priority)
+      options[photo.id] = { loading: "eager", fetchpriority: priority }
     end
   end
 
@@ -187,6 +185,21 @@ module ApplicationHelper
     tag.div class: "flex size-full items-center justify-center bg-zinc-900 text-xs font-semibold uppercase tracking-[0.18em] text-white/70" do
       label
     end
+  end
+
+  def photo_stream_thumbnail_ready?(photo)
+    return photo.video_preview.attached? if photo.video?
+
+    attached_blob_available?(photo.processed_original_variant_record(:stream)&.image)
+  end
+
+  def photo_stream_thumbnail_path(photo, return_to:, access_params:)
+    # Archived media needs its access context. Normal thumbnails share one URL
+    # across feeds so the browser can reuse their cached bytes.
+    if photo.archived? && return_to.present?
+      access_params = access_params.merge(return_to: return_to)
+    end
+    stream_photo_path(photo, access_params)
   end
 
   def attached_blob_available?(attachment)

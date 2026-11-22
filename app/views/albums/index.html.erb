@@ -58,7 +58,8 @@
            data-infinite-scroll-page-size-value="<%= AlbumsController::ALBUM_PAGE_SIZE %>"
            data-controller="directory-state<%= " infinite-scroll" if @next_album_page.present? %>"
            data-action="click->directory-state#remember">
-        <%= render "albums/page", albums: @albums %>
+        <% priority_thumbnails = prioritize_photo_stream_thumbnails(@albums.first(3).map { |album| @album_covers[album.id] }) %>
+        <%= render "albums/page", albums: @albums, priority_thumbnails: priority_thumbnails %>
       </div>
     <% else %>
       <div class="mt-6 flex min-h-[340px] items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-white p-8 text-center shadow-sm">

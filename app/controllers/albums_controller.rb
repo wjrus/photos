@@ -62,7 +62,7 @@ class AlbumsController < ApplicationController
     end
     @timeline_periods = stream_timeline_periods(
       visible_photos,
-      cache_key: album_timeline_cache_key(@album, visible_photos),
+      cache_key: -> { album_timeline_cache_key(@album, visible_photos) },
       order: :chronological
     ) unless params[:cursor].present?
   end
@@ -161,7 +161,7 @@ class AlbumsController < ApplicationController
   end
 
   def cached_album_index_payload(albums)
-    cache_owner_aggregate(album_index_cache_key(albums), expires_in: 10.minutes, race_condition_ttl: 10.seconds) do
+    cache_owner_aggregate(-> { album_index_cache_key(albums) }, expires_in: 10.minutes, race_condition_ttl: 10.seconds) do
       {
         public_album_count: albums.count(&:public?),
         private_album_count: albums.count(&:private?),

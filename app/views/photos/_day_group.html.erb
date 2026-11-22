@@ -16,6 +16,7 @@
             owner_controls: owner_controls,
             archive_context: local_assigns[:archive_context],
             album: album,
+            thumbnail_options: priority_thumbnails.fetch(photo.id, {}),
             access_params: local_assigns[:access_params] %>
     <% end %>
   </div>

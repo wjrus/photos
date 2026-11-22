@@ -17,7 +17,7 @@
             data: { directory_link: true, action: ("click->bulk-selection#toggleCard" if current_user&.owner?) } do %>
         <div class="aspect-[4/3] bg-zinc-900">
           <% if cover %>
-            <%= photo_stream_media(cover) %>
+            <%= photo_stream_media(cover, **local_assigns.fetch(:priority_thumbnails, {}).fetch(cover.id, {})) %>
           <% else %>
             <div class="flex size-full items-center justify-center text-xs font-semibold uppercase tracking-[0.18em] text-white/70">Empty</div>
           <% end %>

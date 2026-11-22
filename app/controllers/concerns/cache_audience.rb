@@ -8,7 +8,7 @@ module CacheAudience
     # visible scope on every request instead of serving cached private metadata.
     return yield unless current_user&.owner?
 
-    Rails.cache.fetch(key, **options, &block)
+    Rails.cache.fetch(key.call, **options, &block)
   end
 
   def cache_audience_key

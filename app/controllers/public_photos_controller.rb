@@ -19,7 +19,7 @@ class PublicPhotosController < ApplicationController
     )
 
     @albums = current_user.photo_albums.display_order
-    @timeline_periods = stream_timeline_periods(public_stream, cache_key: public_timeline_cache_key) unless params[:cursor].present?
+    @timeline_periods = stream_timeline_periods(public_stream, cache_key: -> { public_timeline_cache_key }) unless params[:cursor].present?
   end
 
   private

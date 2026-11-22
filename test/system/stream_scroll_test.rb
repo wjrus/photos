@@ -70,6 +70,7 @@ class StreamScrollTest < ApplicationSystemTestCase
 
   test "Chrome Back restores the feed and resumes a page that was loading when the photo opened" do
     visit root_path
+    approach_next_page
     assert_selector "[data-photo-id]", count: 120
     hold_page_responses
     page.execute_script("window.scrollTo(0, document.documentElement.scrollHeight)")
@@ -123,7 +124,7 @@ class StreamScrollTest < ApplicationSystemTestCase
   %w[home album location].each do |stream|
     test "#{stream} timeline follows the photos currently onscreen" do
       visit stream_path(stream)
-      assert_selector "[data-photo-id]", count: 120
+      assert_selector "[data-photo-id]", minimum: 60
       page.execute_script("document.querySelectorAll('[data-photo-id]')[45].scrollIntoView({ block: 'start' })")
       settle_layout
       period = page.evaluate_script <<~JS
@@ -133,7 +134,40 @@ class StreamScrollTest < ApplicationSystemTestCase
     end
   end
 
+  [ [ 1280, 800 ], [ 390, 844 ] ].each do |width, height|
+    test "distant gallery pages wait for scrolling at #{width} pixels" do
+      browser = page.driver.browser
+      browser.execute_cdp("Emulation.setDeviceMetricsOverride", width: width, height: height, deviceScaleFactor: 1, mobile: width < 640)
+
+      %w[home album location].each do |stream|
+        visit photo_path(@focus)
+        assert_selector ".photo-viewer-shell"
+        hold_page_responses
+        path = stream_path(stream)
+        page.execute_script("Turbo.visit(arguments[0])", path)
+        assert_current_path path
+        assert_selector "[data-infinite-scroll-target='sentinel']"
+        settle_layout
+
+        assert_equal 0, page.evaluate_script("requestedStreamPages.length"), "#{stream} fetched a distant page at rest"
+        assert_selector "[data-photo-id]", count: 60
+
+        approach_next_page
+        wait_for_page("older")
+        assert_equal 1, page.evaluate_script("requestedStreamPages.length")
+        assert page.evaluate_script("document.querySelector('[data-infinite-scroll-target=sentinel]').getBoundingClientRect().top > innerHeight"),
+          "#{stream} pagination should start before the sentinel reaches the viewport"
+        release_page("older")
+        assert_selector "[data-photo-id]", count: 120
+      end
+    ensure
+      browser&.execute_cdp("Emulation.clearDeviceMetricsOverride")
+    end
+  end
+
   test "preloading starts a page early and leaves distant thumbnails lazy" do
+    browser = page.driver.browser
+    browser.execute_cdp("Emulation.setDeviceMetricsOverride", width: 1400, height: 1700, deviceScaleFactor: 1, mobile: false)
     visit photo_path(@focus)
     assert_selector ".photo-viewer-shell"
     hold_page_responses
@@ -158,6 +192,8 @@ class StreamScrollTest < ApplicationSystemTestCase
     release_page("older")
     assert_selector "[data-photo-id]", count: 180
     assert_photo_stays_in_place(anchor)
+  ensure
+    browser&.execute_cdp("Emulation.clearDeviceMetricsOverride")
   end
 
   test "scroll restoration shares an already pending page request" do
@@ -166,6 +202,7 @@ class StreamScrollTest < ApplicationSystemTestCase
     hold_page_responses
     page.execute_script("Turbo.visit('/')")
     assert_current_path root_path
+    approach_next_page
     wait_for_page("older")
     page.evaluate_async_script <<~JS
       const done = arguments[0]
@@ -199,10 +236,11 @@ class StreamScrollTest < ApplicationSystemTestCase
       Turbo.visit('/')
     JS
     assert_current_path root_path
+    approach_next_page
     assert_text /Could not load more photos\. Scroll to retry\./i
     settle_layout
     assert_equal 1, page.evaluate_script("failedPageRequests")
-    scroll_to(200)
+    scroll_to(page.evaluate_script("scrollY") + 200)
     page.document.synchronize(5) do
       raise Capybara::ExpectationNotMet, "Scroll did not retry pagination" unless page.evaluate_script("failedPageRequests >= 2")
     end
@@ -232,14 +270,16 @@ class StreamScrollTest < ApplicationSystemTestCase
   def hold_page_responses
     page.execute_script <<~JS
       const originalFetch = window.fetch
+      window.requestedStreamPages = []
       window.pendingStreamPages = []
       window.fetch = async (...args) => {
-        const response = await originalFetch(...args)
         const url = new URL(args[0].url || args[0], location.href)
-        if (url.searchParams.has('stream_page')) {
-          const direction = url.searchParams.has('newer_cursor') ? 'newer' : 'older'
-          await new Promise(release => window.pendingStreamPages.push({ direction, release }))
-        }
+        if (!url.searchParams.has('stream_page')) return originalFetch(...args)
+
+        const direction = url.searchParams.has('newer_cursor') ? 'newer' : 'older'
+        window.requestedStreamPages.push(direction)
+        const response = await originalFetch(...args)
+        await new Promise(release => window.pendingStreamPages.push({ direction, release }))
         return response
       }
     JS
@@ -261,6 +301,14 @@ class StreamScrollTest < ApplicationSystemTestCase
   def scroll_to(y)
     page.execute_script("window.scrollTo(0, arguments[0])", y)
     settle_layout
+  end
+
+  def approach_next_page
+    assert_selector "[data-infinite-scroll-target='sentinel']"
+    page.execute_script <<~JS
+      const sentinel = document.querySelector("[data-infinite-scroll-target='sentinel']")
+      window.scrollBy(0, Math.max(0, sentinel.getBoundingClientRect().top - innerHeight * 1.5))
+    JS
   end
 
   def settle_layout

@@ -20,7 +20,7 @@ class MapsController < ApplicationController
   end
 
   def markers
-    render json: cache_owner_aggregate(map_markers_cache_key, expires_in: 5.minutes, race_condition_ttl: 10.seconds) {
+    render json: cache_owner_aggregate(-> { map_markers_cache_key }, expires_in: 5.minutes, race_condition_ttl: 10.seconds) {
       marker_scope = geotagged_photos.in_map_bounds(map_bounds)
       total = marker_scope.count
       markers = location_payloads(marker_scope)
